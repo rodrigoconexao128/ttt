@@ -30,6 +30,7 @@ import ResellerDashboard from "@/pages/reseller";
 import TermsOfServicePage from "@/pages/terms-of-service";
 import PlanLinkPage from "@/pages/plan-link";
 import MemberLogin from "@/pages/member-login";
+import PublicHelpCenter from "@/pages/public-help-center";
 import { AccessBlocker, SubscriptionExpiringBanner } from "@/components/access-blocker";
 import { PromoBar } from "@/components/promo-bar";
 // Plans, Subscribe and Settings are rendered inside Dashboard layout
@@ -99,7 +100,7 @@ function Router() {
   const [location] = useLocation();
 
   // Lista de rotas que não precisam esperar o carregamento da autenticação
-  const publicRoutes = ["/", "/login", "/cadastro", "/admin-simulator", "/model-tester", "/test", "/testar", "/termos-de-uso", "/p", "/membro-login", "/admin-login"];
+  const publicRoutes = ["/", "/login", "/cadastro", "/admin-simulator", "/model-tester", "/test", "/testar", "/termos-de-uso", "/p", "/membro-login", "/admin-login", "/ajuda"];
   const isPublicRoute = publicRoutes.some(route => location === route || location.startsWith(route + "/"));
 
   // Se está carregando e não é rota pública, mostrar loading
@@ -129,6 +130,11 @@ function Router() {
       <Route path="/cadastro" component={Register} />
       <Route path="/termos-de-uso" component={TermsOfServicePage} />
       <Route path="/p/:slug" component={PlanLinkPage} />
+      
+      {/* Central de Ajuda Pública - acessível sem login, com SEO */}
+      <Route path="/ajuda" component={PublicHelpCenter} />
+      <Route path="/ajuda/categoria/:catId" component={PublicHelpCenter} />
+      <Route path="/ajuda/:slug" component={PublicHelpCenter} />
       
       {/* Landing page apenas para não autenticados */}
       {!isAuthenticated && <Route path="/" component={LandingMinimal} />}
@@ -173,7 +179,6 @@ function Router() {
       <Route path="/falar-por-audio" component={Dashboard} />
       <Route path="/construtor-fluxo" component={Dashboard} />
       <Route path="/support" component={Support} />
-      <Route path="/ajuda" component={Dashboard} />
       {/* Rotas de Tickets */}
       <Route path="/tickets/new" component={() => <RequireAuth component={Dashboard} />} />
       <Route path="/tickets/:id" component={() => <RequireAuth component={Dashboard} />} />

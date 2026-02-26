@@ -812,6 +812,7 @@ export default function LandingMinimal() {
             <div>
               <h4 className="font-semibold text-white mb-4">Suporte</h4>
               <div className="space-y-2">
+                <a href="/ajuda" className="block text-gray-400 hover:text-white transition-colors">Central de Ajuda</a>
                 <a href="https://wa.me/5517981679818" target="_blank" rel="noopener noreferrer" className="block text-gray-400 hover:text-white transition-colors">WhatsApp</a>
                 <a href="/termos-de-uso" className="block text-gray-400 hover:text-white transition-colors">Termos de Uso</a>
                 <a href="https://wa.me/5517981679818" target="_blank" rel="noopener noreferrer" className="block text-gray-400 hover:text-white transition-colors">Contato</a>

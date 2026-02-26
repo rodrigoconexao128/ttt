@@ -1,4 +1,4 @@
-﻿import type { Express, Request, Response, NextFunction } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 
 import { createServer, type Server } from "http";
 
@@ -18,6 +18,7 @@ import { registerFollowUpRoutes } from "./routes_user_followup";
 import { registerAdminFollowUpRoutes } from "./routes_admin_followup";
 import { registerNotapayersRoutes } from "./routes_notapayers";
 import { registerAIRoutes } from "./routes_ai";
+import { registerPublicHelpRoutes, generateHelpSitemap } from "./routes_public_help";
 
 import { adminConversations } from "@shared/schema";
 
@@ -65,13 +66,13 @@ let agentMediaBucketChecked = false;
 
 // ============================================
 
-// SISTEMA DE MANUTENÇÃO E FALLBACK
+// SISTEMA DE MANUTENÃ‡ÃƒO E FALLBACK
 
 // ============================================
 
 let maintenanceMode = false;
 
-let maintenanceMessage = "Estamos realizando uma manutenção rápida. Voltamos em instantes!";
+let maintenanceMessage = "Estamos realizando uma manutenÃ§Ã£o rÃ¡pida. Voltamos em instantes!";
 
 
 
@@ -81,7 +82,7 @@ export function setMaintenanceMode(enabled: boolean, message?: string): void {
 
   if (message) maintenanceMessage = message;
 
-  console.log(`?? [MAINTENANCE] Modo de manutenção: ${enabled ? 'ATIVADO' : 'DESATIVADO'}`);
+  console.log(`?? [MAINTENANCE] Modo de manutenÃ§Ã£o: ${enabled ? 'ATIVADO' : 'DESATIVADO'}`);
 
 }
 
@@ -95,7 +96,7 @@ export function isInMaintenanceMode(): boolean {
 
 
 
-// Middleware de manutenção - retorna página amigável quando sistema está instável
+// Middleware de manutenÃ§Ã£o - retorna pÃ¡gina amigÃ¡vel quando sistema estÃ¡ instÃ¡vel
 
 function maintenanceMiddleware(req: Request, res: Response, next: NextFunction): void {
 
@@ -109,7 +110,7 @@ function maintenanceMiddleware(req: Request, res: Response, next: NextFunction):
 
 
 
-  // Se em manutenção ou circuit breaker aberto
+  // Se em manutenÃ§Ã£o ou circuit breaker aberto
 
   if (isInMaintenanceMode()) {
 
@@ -123,7 +124,7 @@ function maintenanceMiddleware(req: Request, res: Response, next: NextFunction):
 
         message: dbCircuitBreaker.isOpen()
 
-          ? 'Sistema temporariamente indisponível. Tentando reconectar automaticamente...'
+          ? 'Sistema temporariamente indisponÃ­vel. Tentando reconectar automaticamente...'
 
           : maintenanceMessage,
 
@@ -137,7 +138,7 @@ function maintenanceMiddleware(req: Request, res: Response, next: NextFunction):
 
 
 
-    // Para páginas, retornar HTML de manutenção
+    // Para pÃ¡ginas, retornar HTML de manutenÃ§Ã£o
 
     res.status(503).send(getMaintenanceHTML());
 
@@ -165,7 +166,7 @@ function getMaintenanceHTML(): string {
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <title>Manutenção - AgenteZap</title>
+  <title>ManutenÃ§Ã£o - AgenteZap</title>
 
   <style>
 
@@ -309,7 +310,7 @@ function getMaintenanceHTML(): string {
 
     <div class="icon">??</div>
 
-    <h1>Estamos melhorando para você!</h1>
+    <h1>Estamos melhorando para vocÃª!</h1>
 
     <p>${maintenanceMessage}</p>
 
@@ -327,7 +328,7 @@ function getMaintenanceHTML(): string {
 
 
 
-// Configurar multer para upload em memória (depois envia pro Supabase Storage)
+// Configurar multer para upload em memÃ³ria (depois envia pro Supabase Storage)
 
 const upload = multer({
 
@@ -367,7 +368,7 @@ const upload = multer({
 
     } else {
 
-      cb(new Error(`Tipo de arquivo não suportado: ${file.mimetype}`));
+      cb(new Error(`Tipo de arquivo nÃ£o suportado: ${file.mimetype}`));
 
     }
 
@@ -520,7 +521,7 @@ function getUserId(req: any): string {
 
 
 
-// Helper para mapear colunas automaticamente na importação de produtos
+// Helper para mapear colunas automaticamente na importaÃ§Ã£o de produtos
 
 function autoMapColumns(headers: string[]): Record<string, number | null> {
 
@@ -550,19 +551,19 @@ function autoMapColumns(headers: string[]): Record<string, number | null> {
 
   const patterns: Record<string, RegExp[]> = {
 
-    name: [/nome|name|produto|product|descri[cç][aã]o|item|artigo/i],
+    name: [/nome|name|produto|product|descri[cÃ§][aÃ£]o|item|artigo/i],
 
-    price: [/pre[cç]o|price|valor|value|venda|custo|cost/i],
+    price: [/pre[cÃ§]o|price|valor|value|venda|custo|cost/i],
 
     stock: [/estoque|stock|qtd|quantidade|qty|inventory|saldo/i],
 
-    description: [/descri[cç][aã]o.*completa|detalhes?|details?|obs|observa/i],
+    description: [/descri[cÃ§][aÃ£]o.*completa|detalhes?|details?|obs|observa/i],
 
-    category: [/categor|tipo|type|grupo|group|classe|class|fam[ií]lia/i],
+    category: [/categor|tipo|type|grupo|group|classe|class|fam[iÃ­]lia/i],
 
     link: [/link|url|site|website|web|imagem|image|foto|photo/i],
 
-    sku: [/sku|c[oó]digo|code|ref|referencia|ean|barcode|id.*produto/i],
+    sku: [/sku|c[oÃ³]digo|code|ref|referencia|ean|barcode|id.*produto/i],
 
     unit: [/unid|unit|medida|measure|un\b|kg|g\b|ml|l\b/i],
 
@@ -580,7 +581,7 @@ function autoMapColumns(headers: string[]): Record<string, number | null> {
 
     for (const [field, regexps] of Object.entries(patterns)) {
 
-      if (mapping[field] !== null) continue; // Já mapeado
+      if (mapping[field] !== null) continue; // JÃ¡ mapeado
 
 
 
@@ -602,7 +603,7 @@ function autoMapColumns(headers: string[]): Record<string, number | null> {
 
 
 
-  // Se não encontrou nome, assume que é a primeira coluna com texto
+  // Se nÃ£o encontrou nome, assume que Ã© a primeira coluna com texto
 
   if (mapping.name === null && headers.length > 0) {
 
@@ -612,17 +613,17 @@ function autoMapColumns(headers: string[]): Record<string, number | null> {
 
 
 
-  // Se tem coluna de nome mas não tem preço, tenta a segunda coluna numérica
+  // Se tem coluna de nome mas nÃ£o tem preÃ§o, tenta a segunda coluna numÃ©rica
 
   if (mapping.price === null && headers.length > 1) {
 
-    // Procura por coluna que parece ser preço (começa ou termina com número)
+    // Procura por coluna que parece ser preÃ§o (comeÃ§a ou termina com nÃºmero)
 
     for (let i = 1; i < headers.length; i++) {
 
       const h = String(headers[i]).toLowerCase();
 
-      if (/\d|r\$|valor|preço|price/.test(h)) {
+      if (/\d|r\$|valor|preÃ§o|price/.test(h)) {
 
         mapping.price = i;
 
@@ -642,7 +643,7 @@ function autoMapColumns(headers: string[]): Record<string, number | null> {
 
 
 
-// ============ FUNÇÃO DE GERAÇÃO LOCAL DE PROMPTS - VERSÃO CONCISA ============
+// ============ FUNÃ‡ÃƒO DE GERAÃ‡ÃƒO LOCAL DE PROMPTS - VERSÃƒO CONCISA ============
 
 function generateLocalPrompt(
 
@@ -658,35 +659,35 @@ function generateLocalPrompt(
 
 ): string {
 
-  // Templates CONCISOS - máximo ~800 caracteres
+  // Templates CONCISOS - mÃ¡ximo ~800 caracteres
 
   const templates: Record<string, string> = {
 
-    restaurant: `${businessName} - Atendente de restaurante ???. Tom: simpático e objetivo.
+    restaurant: `${businessName} - Atendente de restaurante ???. Tom: simpÃ¡tico e objetivo.
 
 
 
 REGRAS:
 
- Apresente cardápio quando pedirem
+? Apresente cardÃ¡pio quando pedirem
 
- Informe promoções do dia
+? Informe promoÃ§Ãµes do dia
 
- Pergunte endereço para delivery
+? Pergunte endereÃ§o para delivery
 
- Confirme pedido antes de finalizar
+? Confirme pedido antes de finalizar
 
- Informe tempo de entrega real
+? Informe tempo de entrega real
 
 
 
-NÃO FAZER:
+NÃƒO FAZER:
 
- Inventar preços ou itens
+? Inventar preÃ§os ou itens
 
- Prometer entrega sem confirmar
+? Prometer entrega sem confirmar
 
- Dar opiniões sobre dietas`,
+? Dar opiniÃµes sobre dietas`,
 
 
 
@@ -696,109 +697,109 @@ NÃO FAZER:
 
 REGRAS:
 
- Apresente produtos e benefícios
+? Apresente produtos e benefÃ­cios
 
- Informe disponibilidade de estoque
+? Informe disponibilidade de estoque
 
- Explique parcelamento e pagamento
+? Explique parcelamento e pagamento
 
- Ajude na escolha de tamanhos
+? Ajude na escolha de tamanhos
 
- Informe política de troca
-
-
-
-NÃO FAZER:
-
- Inventar preços ou estoque
-
- Forçar venda
-
- Prometer prazos sem confirmar`,
+? Informe polÃ­tica de troca
 
 
 
-    clinic: `${businessName} - Atendente de clínica. Tom: empático e profissional.
+NÃƒO FAZER:
+
+? Inventar preÃ§os ou estoque
+
+? ForÃ§ar venda
+
+? Prometer prazos sem confirmar`,
 
 
 
-REGRAS:
-
- Agende consultas e exames
-
- Informe especialidades
-
- Confirme convênios aceitos
-
- Envie localização
-
- Oriente preparo para exames
-
-
-
-NÃO FAZER:
-
- Dar diagnósticos
-
- Prescrever medicamentos
-
- Orientar sobre sintomas`,
-
-
-
-    salon: `${businessName} - Atendente de salão ??. Tom: animado e atencioso.
+    clinic: `${businessName} - Atendente de clÃ­nica. Tom: empÃ¡tico e profissional.
 
 
 
 REGRAS:
 
- Agende horários disponíveis
+? Agende consultas e exames
 
- Apresente serviços e valores
+? Informe especialidades
 
- Pergunte sobre preferências
+? Confirme convÃªnios aceitos
 
- Confirme agendamento 1 dia antes
+? Envie localizaÃ§Ã£o
 
- Sugira tratamentos complementares
-
-
-
-NÃO FAZER:
-
- Agendar sem checar disponibilidade
-
- Prometer resultados impossíveis
-
- Criticar outros profissionais`,
+? Oriente preparo para exames
 
 
 
-    gym: `${businessName} - Atendente de academia ??. Tom: motivador e amigável.
+NÃƒO FAZER:
+
+? Dar diagnÃ³sticos
+
+? Prescrever medicamentos
+
+? Orientar sobre sintomas`,
+
+
+
+    salon: `${businessName} - Atendente de salÃ£o ??. Tom: animado e atencioso.
 
 
 
 REGRAS:
 
- Apresente planos e valores
+? Agende horÃ¡rios disponÃ­veis
 
- Agende aula experimental
+? Apresente serviÃ§os e valores
 
- Informe horários e modalidades
+? Pergunte sobre preferÃªncias
 
- Motive o cliente a começar
+? Confirme agendamento 1 dia antes
 
- Explique estrutura da academia
+? Sugira tratamentos complementares
 
 
 
-NÃO FAZER:
+NÃƒO FAZER:
 
- Prescrever dietas ou suplementos
+? Agendar sem checar disponibilidade
 
- Prometer resultados em X dias
+? Prometer resultados impossÃ­veis
 
- Criticar condicionamento do cliente`,
+? Criticar outros profissionais`,
+
+
+
+    gym: `${businessName} - Atendente de academia ??. Tom: motivador e amigÃ¡vel.
+
+
+
+REGRAS:
+
+? Apresente planos e valores
+
+? Agende aula experimental
+
+? Informe horÃ¡rios e modalidades
+
+? Motive o cliente a comeÃ§ar
+
+? Explique estrutura da academia
+
+
+
+NÃƒO FAZER:
+
+? Prescrever dietas ou suplementos
+
+? Prometer resultados em X dias
+
+? Criticar condicionamento do cliente`,
 
 
 
@@ -808,23 +809,23 @@ NÃO FAZER:
 
 REGRAS:
 
- Responda dúvidas sobre produtos/serviços
+? Responda dÃºvidas sobre produtos/serviÃ§os
 
- Informe preços e condições
+? Informe preÃ§os e condiÃ§Ãµes
 
- Agende horários quando aplicável
+? Agende horÃ¡rios quando aplicÃ¡vel
 
- Encaminhe para humano se necessário
+? Encaminhe para humano se necessÃ¡rio
 
 
 
-NÃO FAZER:
+NÃƒO FAZER:
 
- Inventar informações
+? Inventar informaÃ§Ãµes
 
- Prometer o que não pode cumprir
+? Prometer o que nÃ£o pode cumprir
 
- Ser agressivo em vendas`
+? Ser agressivo em vendas`
 
   };
 
@@ -834,7 +835,7 @@ NÃO FAZER:
 
 
 
-  // Adiciona descrição se fornecida (máximo 200 chars)
+  // Adiciona descriÃ§Ã£o se fornecida (mÃ¡ximo 200 chars)
 
   if (description && description.length > 10) {
 
@@ -857,11 +858,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   await setupAuth(app);
 
+  // ==================== API PÚBLICA — Central de Ajuda ====================
+  // Rotas públicas sem autenticação para SEO e pré-venda
+  registerPublicHelpRoutes(app);
+
+  // Sitemap.xml dinâmico com URLs /ajuda/*
+  app.get("/sitemap.xml", (req, res) => {
+    res.setHeader("Content-Type", "application/xml");
+    res.setHeader("Cache-Control", "public, max-age=86400"); // 24h cache
+    res.send(generateHelpSitemap());
+  });
+
+  // Robots.txt permitindo indexação da Central de Ajuda
+  app.get("/robots.txt", (req, res) => {
+    res.setHeader("Content-Type", "text/plain");
+    res.send(`User-agent: *
+Allow: /
+Allow: /ajuda
+Allow: /ajuda/
+Allow: /ajuda/*
+Disallow: /api/
+Disallow: /dashboard/
+Sitemap: https://agentezap.online/sitemap.xml
+`);
+  });
+
 
 
   // ==================== HEALTH CHECK E STATUS ====================
 
-  // Estes endpoints SEMPRE funcionam, mesmo em manutenção
+  // Estes endpoints SEMPRE funcionam, mesmo em manutenÃ§Ã£o
 
   app.get("/api/health", async (req, res) => {
 
@@ -915,7 +941,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
 
-  // Aplicar middleware de manutenção APÓS os health checks
+  // Aplicar middleware de manutenÃ§Ã£o APÃ“S os health checks
 
   app.use(maintenanceMiddleware);
 
@@ -944,46 +970,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerSalonRoutes(app);
 
   // ==================== TICKETS/SUPPORT ROUTES ====================
-  console.log("🎫 [DEBUG] About to call registerTicketRoutes...");
+  console.log("?? [DEBUG] About to call registerTicketRoutes...");
   try {
     registerTicketRoutes(app);
-    console.log("✅ [DEBUG] registerTicketRoutes called successfully");
+    console.log("? [DEBUG] registerTicketRoutes called successfully");
   } catch (e) {
-    console.error("❌ [DEBUG] Error calling registerTicketRoutes:", e);
+    console.error("? [DEBUG] Error calling registerTicketRoutes:", e);
   }
 
   // ==================== SECTORS ROUTES ====================
   try {
     registerSectorRoutes(app);
   } catch (e) {
-    console.error("❌ [DEBUG] Error calling registerSectorRoutes:", e);
+    console.error("? [DEBUG] Error calling registerSectorRoutes:", e);
   }
 
   // ==================== USER SECTORS ROUTES (PARTE 4) ====================
   try {
     registerUserSectorRoutes(app);
   } catch (e) {
-    console.error("❌ [Parte4] Error calling registerUserSectorRoutes:", e);
+    console.error("? [Parte4] Error calling registerUserSectorRoutes:", e);
   }
 
   // ==================== TICKET CLOSURE ROUTES (FASE 4.2) ====================
   try {
     registerTicketClosureRoutes(app);
   } catch (e) {
-    console.error("❌ [Fase 4.2] Error calling registerTicketClosureRoutes:", e);
+    console.error("? [Fase 4.2] Error calling registerTicketClosureRoutes:", e);
   }
 
   // ==================== ADMIN STATUS/WHATSAPP STATUS ROUTES ====================
   try {
     app.use("/api", adminStatusRoutes);
-    console.log("✅ [STATUS] Admin status routes registered successfully");
+    console.log("? [STATUS] Admin status routes registered successfully");
   } catch (e) {
-    console.error("❌ [STATUS] Error registering admin status routes:", e);
+    console.error("? [STATUS] Error registering admin status routes:", e);
   }
 
 
 
-  // Iniciar serviço de follow-up dos usuários
+  // Iniciar serviÃ§o de follow-up dos usuÃ¡rios
 
   userFollowUpService.start();
 
@@ -995,11 +1021,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     try {
 
-      console.log(`?? [FOLLOW-UP-CALLBACK] Enviando para ${phoneNumber} (estágio ${stage})`);
+      console.log(`?? [FOLLOW-UP-CALLBACK] Enviando para ${phoneNumber} (estÃ¡gio ${stage})`);
 
       // ?? FIX: Marcar mensagem de follow-up como isFromAgent para que a IA
 
-      // saiba que foi ela quem enviou quando retomar a conversa após o cliente responder
+      // saiba que foi ela quem enviou quando retomar a conversa apÃ³s o cliente responder
 
       await whatsappSendMessage(userId, conversationId, message, { isFromAgent: true, source: "followup" });
 
@@ -1207,7 +1233,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         const isLimitReached = !hasActiveSubscription && agentMessagesCount >= FREE_TRIAL_LIMIT;
 
-        // MULTI-CANAL: isConnected = true se QUALQUER conexão está ativa
+        // MULTI-CANAL: isConnected = true se QUALQUER conexÃ£o estÃ¡ ativa
         const isConnected = userConnections.some(c => c.isConnected);
         const connectedCount = userConnections.filter(c => c.isConnected).length;
         const totalConnections = userConnections.length;
@@ -1256,17 +1282,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     try {
 
-      // ??? MODO DESENVOLVIMENTO: Bloquear reconexões para proteger produção
+      // ??? MODO DESENVOLVIMENTO: Bloquear reconexÃµes para proteger produÃ§Ã£o
 
       if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
 
-        console.log(`?? [DEV MODE] Bloqueando reconexão forçada de usuário (proteção de produção)`);
+        console.log(`?? [DEV MODE] Bloqueando reconexÃ£o forÃ§ada de usuÃ¡rio (proteÃ§Ã£o de produÃ§Ã£o)`);
 
         return res.status(403).json({
 
           success: false,
 
-          message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessões em produção',
+          message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessÃµes em produÃ§Ã£o',
 
           devMode: true
 
@@ -1337,7 +1363,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           success: true,
 
-          message: `Reconexão iniciada para ${user.name || user.email || userId}`,
+          message: `ReconexÃ£o iniciada para ${user.name || user.email || userId}`,
 
           status: {
 
@@ -1357,7 +1383,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           success: false,
 
-          message: `Falha na reconexão: ${connectError.message}`,
+          message: `Falha na reconexÃ£o: ${connectError.message}`,
 
           error: connectError.message
 
@@ -1383,17 +1409,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     try {
 
-      // ??? MODO DESENVOLVIMENTO: Bloquear reset para proteger produção
+      // ??? MODO DESENVOLVIMENTO: Bloquear reset para proteger produÃ§Ã£o
 
       if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
 
-        console.log(`?? [DEV MODE] Bloqueando reset de sessão WhatsApp (proteção de produção)`);
+        console.log(`?? [DEV MODE] Bloqueando reset de sessÃ£o WhatsApp (proteÃ§Ã£o de produÃ§Ã£o)`);
 
         return res.status(403).json({
 
           success: false,
 
-          message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessões em produção',
+          message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessÃµes em produÃ§Ã£o',
 
           devMode: true
 
@@ -1427,7 +1453,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         success: true,
 
-        message: `Sessão resetada para ${user.name || user.email}. Usuário precisará escanear novo QR Code.`
+        message: `SessÃ£o resetada para ${user.name || user.email}. UsuÃ¡rio precisarÃ¡ escanear novo QR Code.`
 
       });
 
@@ -1449,7 +1475,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // -------------------------------------------------------------------------------
 
-  // Toggle Safe Mode para um usuário específico
+  // Toggle Safe Mode para um usuÃ¡rio especÃ­fico
 
   // Quando ativado, ao reconectar via QR Code, o sistema limpa:
 
@@ -1457,7 +1483,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // 2. Follow-ups programados
 
-  // 3. Começa do zero para evitar novo bloqueio
+  // 3. ComeÃ§a do zero para evitar novo bloqueio
 
   app.post("/api/admin/users/:userId/safe-mode", isAdmin, async (req, res) => {
 
@@ -1475,25 +1501,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
 
-      // Verificar se usuário existe
+      // Verificar se usuÃ¡rio existe
 
       const user = await storage.getUser(userId);
 
       if (!user) {
 
-        return res.status(404).json({ success: false, message: "Usuário não encontrado" });
+        return res.status(404).json({ success: false, message: "UsuÃ¡rio nÃ£o encontrado" });
 
       }
 
 
 
-      // Buscar conexão do usuário
+      // Buscar conexÃ£o do usuÃ¡rio
 
       const connection = await storage.getConnectionByUserId(userId);
 
       if (!connection) {
 
-        return res.status(404).json({ success: false, message: "Conexão WhatsApp não encontrada para este usuário" });
+        return res.status(404).json({ success: false, message: "ConexÃ£o WhatsApp nÃ£o encontrada para este usuÃ¡rio" });
 
       }
 
@@ -1523,7 +1549,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         message: enabled
 
-          ? `Modo seguro ATIVADO para ${user.name || user.email}. Na próxima reconexão via QR Code, todas as filas e follow-ups serão zerados.`
+          ? `Modo seguro ATIVADO para ${user.name || user.email}. Na prÃ³xima reconexÃ£o via QR Code, todas as filas e follow-ups serÃ£o zerados.`
 
           : `Modo seguro DESATIVADO para ${user.name || user.email}.`,
 
@@ -1547,7 +1573,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
 
-  // GET: Obter status do Safe Mode de um usuário
+  // GET: Obter status do Safe Mode de um usuÃ¡rio
 
   app.get("/api/admin/users/:userId/safe-mode", isAdmin, async (req, res) => {
 
@@ -1561,7 +1587,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (!user) {
 
-        return res.status(404).json({ success: false, message: "Usuário não encontrado" });
+        return res.status(404).json({ success: false, message: "UsuÃ¡rio nÃ£o encontrado" });
 
       }
 
@@ -1575,7 +1601,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
           success: false,
 
-          message: "Conexão WhatsApp não encontrada",
+          message: "ConexÃ£o WhatsApp nÃ£o encontrada",
 
           safeModeEnabled: false
 
@@ -1625,17 +1651,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     try {
 
-      // ??? MODO DESENVOLVIMENTO: Bloquear reconexões em massa para proteger produção
+      // ??? MODO DESENVOLVIMENTO: Bloquear reconexÃµes em massa para proteger produÃ§Ã£o
 
       if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
 
-        console.log(`?? [DEV MODE] Bloqueando reconexão em massa (proteção de produção)`);
+        console.log(`?? [DEV MODE] Bloqueando reconexÃ£o em massa (proteÃ§Ã£o de produÃ§Ã£o)`);
 
         return res.status(403).json({
 
           success: false,
 
-          message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessões em produção',
+          message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessÃµes em produÃ§Ã£o',
 
           devMode: true
 
@@ -1647,7 +1673,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log("[ADMIN] Starting bulk force reconnection...");
 
-      // FIX: Usar getPrimaryConnectionPerUser para evitar reconexões duplicadas
+      // FIX: Usar getPrimaryConnectionPerUser para evitar reconexÃµes duplicadas
       const connections = await storage.getPrimaryConnectionPerUser();
 
       let reconnectedCount = 0;
@@ -1684,7 +1710,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         success: true,
 
-        message: `Reconexão forçada iniciada para ${reconnectedCount} usuários`,
+        message: `ReconexÃ£o forÃ§ada iniciada para ${reconnectedCount} usuÃ¡rios`,
 
         count: reconnectedCount
 
@@ -1702,23 +1728,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
 
-  // ?? Health Check Manual - Verificar e reconectar sessões problemáticas
+  // ?? Health Check Manual - Verificar e reconectar sessÃµes problemÃ¡ticas
 
   app.post("/api/admin/connections/health-check", isAdmin, async (req, res) => {
 
     try {
 
-      // ??? MODO DESENVOLVIMENTO: Bloquear health check para proteger produção
+      // ??? MODO DESENVOLVIMENTO: Bloquear health check para proteger produÃ§Ã£o
 
       if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
 
-        console.log(`?? [DEV MODE] Health check bloqueado (proteção de produção)`);
+        console.log(`?? [DEV MODE] Health check bloqueado (proteÃ§Ã£o de produÃ§Ã£o)`);
 
         return res.status(403).json({
 
           success: false,
 
-          message: 'Health check desabilitado em modo desenvolvimento para proteger sessões em produção',
+          message: 'Health check desabilitado em modo desenvolvimento para proteger sessÃµes em produÃ§Ã£o',
 
           devMode: true
 
@@ -1754,7 +1780,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
 
-  // ?? Status detalhado de todas as conexões
+  // ?? Status detalhado de todas as conexÃµes
 
   app.get("/api/admin/connections/status", isAdmin, async (req, res) => {
 
@@ -1817,7 +1843,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     } catch (error: any) {
 
-      console.error("[ADMIN] Erro ao obter status das conexões:", error);
+      console.error("[ADMIN] Erro ao obter status das conexÃµes:", error);
 
       res.status(500).json({ message: "Erro ao obter status", error: error.message });
 
@@ -2404,7 +2430,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         skippedCount,
 
-        message: `${deletedCount} usuário(s) excluído(s)${skippedCount > 0 ? `, ${skippedCount} ignorado(s) (admins ou com plano ativo)` : ''}${errors.length > 0 ? `. ${errors.length} erro(s).` : ''}`
+        message: `${deletedCount} usuÃ¡rio(s) excluÃ­do(s)${skippedCount > 0 ? `, ${skippedCount} ignorado(s) (admins ou com plano ativo)` : ''}${errors.length > 0 ? `. ${errors.length} erro(s).` : ''}`
 
       });
 
@@ -2582,7 +2608,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (user.phone) {
 
-        const message = `?? *Suas Credenciais de Acesso*\n\nOlá ${user.name}! Aqui estão seus dados para acessar o painel:\n\n?? *Email:* ${user.email}\n?? *Senha:* ${password}\n\n?? Acesse em: https://agentezap.com.br/login\n\n_Recomendamos trocar sua senha após o primeiro acesso._`;
+        const message = `?? *Suas Credenciais de Acesso*\n\nOlÃ¡ ${user.name}! Aqui estÃ£o seus dados para acessar o painel:\n\n?? *Email:* ${user.email}\n?? *Senha:* ${password}\n\n?? Acesse em: https://agentezap.com.br/login\n\n_Recomendamos trocar sua senha apÃ³s o primeiro acesso._`;
 
 
 
@@ -2822,7 +2848,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
 
-      // Se response é null, significa que não houve trigger - retornar vazio
+      // Se response Ã© null, significa que nÃ£o houve trigger - retornar vazio
 
       if (!response) {
 
@@ -2840,13 +2866,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
 
-      // O retorno pode ser um objeto ou string, dependendo da implementação.
+      // O retorno pode ser um objeto ou string, dependendo da implementaÃ§Ã£o.
 
       const responseText = typeof response === 'string' ? response : response?.text || "";
 
 
 
-      // actions pode ser um objeto (não array) - verificar corretamente
+      // actions pode ser um objeto (nÃ£o array) - verificar corretamente
 
       const actions = typeof response === 'object' ? response?.actions : undefined;
 
@@ -2854,7 +2880,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
 
-      // Extrair link de teste se existir nas actions (actions é objeto, não array)
+      // Extrair link de teste se existir nas actions (actions Ã© objeto, nÃ£o array)
 
       let testLink = null;
 
@@ -2900,7 +2926,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
 
-  // Rota para obter histórico do simulador
+  // Rota para obter histÃ³rico do simulador
 
   app.get("/api/test/admin-chat/history", async (req, res) => {
 
@@ -2950,7 +2976,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
 
-  // Rota para limpar histórico do simulador (igual ao admin panel)
+  // Rota para limpar histÃ³rico do simulador (igual ao admin panel)
 
   app.delete("/api/test/admin-chat/clear", async (req, res) => {
 
@@ -2972,7 +2998,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
 
-      // Limpar sessão em memória
+      // Limpar sessÃ£o em memÃ³ria
 
       const { clearClientSession } = await import("./adminAgentService");
 
@@ -2988,7 +3014,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
 
-      // Limpar usuário do banco para reset completo (Simulador)
+      // Limpar usuÃ¡rio do banco para reset completo (Simulador)
 
       try {
 
@@ -2996,13 +3022,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         if (user) {
 
-          console.log(`??? [SIMULATOR] Deletando usuário de teste ${cleanPhone} (ID: ${user.id})`);
+          console.log(`??? [SIMULATOR] Deletando usuÃ¡rio de teste ${cleanPhone} (ID: ${user.id})`);
 
           await storage.deleteUser(user.id);
 
 
 
-          // Tentar limpar do Supabase Auth também se for email temporário
+          // Tentar limpar do Supabase Auth tambÃ©m se for email temporÃ¡rio
 
           if (user.email && user.email.includes('@agentezap.temp')) {
 
@@ -3024,13 +3050,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       } catch (err) {
 
-        console.error("? [SIMULATOR] Erro ao limpar dados do usuário:", err);
+        console.error("? [SIMULATOR] Erro ao limpar dados do usuÃ¡rio:", err);
 
       }
 
 
 
-      console.log(`?? [SIMULATOR] Histórico limpo para telefone ${cleanPhone}`);
+      console.log(`?? [SIMULATOR] HistÃ³rico limpo para telefone ${cleanPhone}`);
 
 
 
@@ -3038,7 +3064,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         success: true,
 
-        message: "Histórico limpo com sucesso",
+        message: "HistÃ³rico limpo com sucesso",
 
         sessionCleared: cleared
 
@@ -3058,9 +3084,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ==================== AI MATCHING PARA FLOW BUILDER ====================
 
-  // Rota para a IA analisar semanticamente a mensagem do usuário e encontrar
+  // Rota para a IA analisar semanticamente a mensagem do usuÃ¡rio e encontrar
 
-  // a melhor opção correspondente no fluxo (botões ou lista)
+  // a melhor opÃ§Ã£o correspondente no fluxo (botÃµes ou lista)
 
   app.post("/api/ai/match-flow-option", async (req, res) => {
 
@@ -3086,67 +3112,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
 
-      console.log(`?? [AI-MATCH] Analisando: "${userMessage}" contra ${optionsList.length} opções`);
+      console.log(`?? [AI-MATCH] Analisando: "${userMessage}" contra ${optionsList.length} opÃ§Ãµes`);
 
       if (businessContext) {
 
-        console.log(`?? [AI-MATCH] Contexto do negócio: ${businessContext}`);
+        console.log(`?? [AI-MATCH] Contexto do negÃ³cio: ${businessContext}`);
 
       }
 
 
 
-      // Importar função de LLM
+      // Importar funÃ§Ã£o de LLM
 
       const { generateWithLLM } = await import("./llm");
 
 
 
-      // Criar prompt para a IA fazer matching semântico COM CONTEXTO
+      // Criar prompt para a IA fazer matching semÃ¢ntico COM CONTEXTO
 
-      const systemPrompt = `Você é um assistente de atendimento especializado em identificar a intenção do cliente e fazer correspondência precisa com as opções disponíveis.
+      const systemPrompt = `VocÃª Ã© um assistente de atendimento especializado em identificar a intenÃ§Ã£o do cliente e fazer correspondÃªncia precisa com as opÃ§Ãµes disponÃ­veis.
 
 
 
-${businessContext ? `CONTEXTO DO NEGÓCIO: ${businessContext}` : ''}
+${businessContext ? `CONTEXTO DO NEGÃ“CIO: ${businessContext}` : ''}
 
 
 
 REGRAS DE MATCHING (siga rigorosamente):
 
-1. A mensagem do cliente DEVE estar relacionada ao tipo de serviço oferecido
+1. A mensagem do cliente DEVE estar relacionada ao tipo de serviÃ§o oferecido
 
-2. Se a mensagem não faz sentido para o negócio (ex: "cortar cabelo" em empresa elétrica), responda NULL
+2. Se a mensagem nÃ£o faz sentido para o negÃ³cio (ex: "cortar cabelo" em empresa elÃ©trica), responda NULL
 
-3. Entenda a INTENÇÃO semântica - não seja literal demais
+3. Entenda a INTENÃ‡ÃƒO semÃ¢ntica - nÃ£o seja literal demais
 
-4. Correspondências válidas:
+4. CorrespondÃªncias vÃ¡lidas:
 
-   - "quero pedir" ? opções de pedido/delivery/cardápio
+   - "quero pedir" ? opÃ§Ãµes de pedido/delivery/cardÃ¡pio
 
-   - "quanto custa" ? opções de preços/orçamento/valores
+   - "quanto custa" ? opÃ§Ãµes de preÃ§os/orÃ§amento/valores
 
-   - "agendar/marcar" ? opções de agendamento/horários/visita
+   - "agendar/marcar" ? opÃ§Ãµes de agendamento/horÃ¡rios/visita
 
-   - "falar com alguém" ? opções de suporte/atendente/técnico
+   - "falar com alguÃ©m" ? opÃ§Ãµes de suporte/atendente/tÃ©cnico
 
-   - "dúvidas/informações" ? opções de ajuda/FAQ/sobre
+   - "dÃºvidas/informaÃ§Ãµes" ? opÃ§Ãµes de ajuda/FAQ/sobre
 
-5. Números diretos (1, 2, 3) indicam a opção diretamente
+5. NÃºmeros diretos (1, 2, 3) indicam a opÃ§Ã£o diretamente
 
-6. Saudações genéricas (oi, olá, bom dia) ? NULL (não são escolhas)
+6. SaudaÃ§Ãµes genÃ©ricas (oi, olÃ¡, bom dia) ? NULL (nÃ£o sÃ£o escolhas)
 
-7. Mensagens sem relação com as opções ? NULL
+7. Mensagens sem relaÃ§Ã£o com as opÃ§Ãµes ? NULL
 
 
 
 FORMATO DE RESPOSTA:
 
-- Responda APENAS com o índice (0 a N) da opção correspondente
+- Responda APENAS com o Ã­ndice (0 a N) da opÃ§Ã£o correspondente
 
-- Se não houver correspondência válida, responda NULL
+- Se nÃ£o houver correspondÃªncia vÃ¡lida, responda NULL
 
-- Sem explicações adicionais`;
+- Sem explicaÃ§Ãµes adicionais`;
 
 
 
@@ -3154,15 +3180,15 @@ FORMATO DE RESPOSTA:
 
 
 
-OPÇÕES DISPONÍVEIS:
+OPÃ‡Ã•ES DISPONÃVEIS:
 
 ${optionsList.map((opt: string, i: number) => `${i}. ${opt}`).join('\n')}
 
 
 
-A mensagem do cliente corresponde a alguma dessas opções?
+A mensagem do cliente corresponde a alguma dessas opÃ§Ãµes?
 
-Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL:`;
+Responda apenas com o nÃºmero do Ã­ndice (0 a ${optionsList.length - 1}) ou NULL:`;
 
 
 
@@ -3184,11 +3210,11 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-        // Verificar se a resposta é um número válido
+        // Verificar se a resposta Ã© um nÃºmero vÃ¡lido
 
         if (cleanResponse === 'NULL' || cleanResponse === 'NENHUMA' || cleanResponse === 'NONE') {
 
-          console.log(`?? [AI-MATCH] IA não encontrou correspondência`);
+          console.log(`?? [AI-MATCH] IA nÃ£o encontrou correspondÃªncia`);
 
           return res.json({ matchedIndex: null, confidence: 0 });
 
@@ -3196,7 +3222,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-        // Extrair número da resposta
+        // Extrair nÃºmero da resposta
 
         const match = cleanResponse.match(/\d+/);
 
@@ -3206,13 +3232,13 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
           if (index >= 0 && index < optionsList.length) {
 
-            console.log(`?? [AI-MATCH] ? Match encontrado: "${userMessage}" ? "${optionsList[index]}" (índice: ${index})`);
+            console.log(`?? [AI-MATCH] ? Match encontrado: "${userMessage}" ? "${optionsList[index]}" (Ã­ndice: ${index})`);
 
             return res.json({
 
               matchedIndex: index,
 
-              confidence: 85, // Confiança alta quando IA encontra match
+              confidence: 85, // ConfianÃ§a alta quando IA encontra match
 
               matchedOption: optionsList[index]
 
@@ -3224,9 +3250,9 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-        // Resposta inválida da IA
+        // Resposta invÃ¡lida da IA
 
-        console.log(`?? [AI-MATCH] Resposta inválida da IA: "${cleanResponse}"`);
+        console.log(`?? [AI-MATCH] Resposta invÃ¡lida da IA: "${cleanResponse}"`);
 
         return res.json({ matchedIndex: null, confidence: 0 });
 
@@ -3407,7 +3433,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
         return res.status(400).json({
 
-          message: "Usuário não encontrado"
+          message: "UsuÃ¡rio nÃ£o encontrado"
 
         });
 
@@ -3429,7 +3455,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
         return res.status(500).json({
 
-          message: "Configuração do servidor incompleta"
+          message: "ConfiguraÃ§Ã£o do servidor incompleta"
 
         });
 
@@ -3543,7 +3569,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
         return res.status(400).json({
 
-          message: "Não foi possível encontrar o usuário para alterar a senha"
+          message: "NÃ£o foi possÃ­vel encontrar o usuÃ¡rio para alterar a senha"
 
         });
 
@@ -3731,29 +3757,29 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       // -----------------------------------------------------------------------
 
-      // ?? LEADER ELECTION: Fonte de verdade = Banco (não memória local)
+      // ?? LEADER ELECTION: Fonte de verdade = Banco (nÃ£o memÃ³ria local)
 
       // -----------------------------------------------------------------------
 
-      // Com múltiplas instâncias/replicas, só o líder tem socket ativo.
+      // Com mÃºltiplas instÃ¢ncias/replicas, sÃ³ o lÃ­der tem socket ativo.
 
-      // Se usarmos memória local (getSession) para decidir o estado:
+      // Se usarmos memÃ³ria local (getSession) para decidir o estado:
 
-      // - Follower sempre vê isConnected=false (não tem socket)
+      // - Follower sempre vÃª isConnected=false (nÃ£o tem socket)
 
       // - Follower atualiza banco para false, quebrando o estado global
 
       //
 
-      // Solução: O banco é a fonte de verdade distribuída.
+      // SoluÃ§Ã£o: O banco Ã© a fonte de verdade distribuÃ­da.
 
-      // - Se DB=true e socket local existe → podemos elevar para true (harmless)
+      // - Se DB=true e socket local existe ? podemos elevar para true (harmless)
 
-      // - Se DB=true e socket local não existe → provável follower, manter DB
+      // - Se DB=true e socket local nÃ£o existe ? provÃ¡vel follower, manter DB
 
-      // - Se DB=false e socket local existe → líder irá curar via health check
+      // - Se DB=false e socket local existe ? lÃ­der irÃ¡ curar via health check
 
-      // - Se DB=false e socket local não existe → realmente desconectado
+      // - Se DB=false e socket local nÃ£o existe ? realmente desconectado
 
       // -----------------------------------------------------------------------
 
@@ -3765,13 +3791,13 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-      // Só podemos CURAR (elevar de false para true) com certeza local.
+      // SÃ³ podemos CURAR (elevar de false para true) com certeza local.
 
-      // Nunca devemos DERRUBAR (true para false) baseado em memória local.
+      // Nunca devemos DERRUBAR (true para false) baseado em memÃ³ria local.
 
       if (!connection.isConnected && hasLocalSocket) {
 
-        // DB=false mas temos socket local: provável líder que ainda não sincronizou
+        // DB=false mas temos socket local: provÃ¡vel lÃ­der que ainda nÃ£o sincronizou
 
         console.log(`?? [WHATSAPP WS] Curando estado user ${userId.substring(0, 8)}...: DB=false mas socket local ativo`);
 
@@ -3789,11 +3815,11 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       }
 
-      // Caso contrário: respeitar o que está no banco (fonte de verdade distribuída)
+      // Caso contrÃ¡rio: respeitar o que estÃ¡ no banco (fonte de verdade distribuÃ­da)
 
-      // Não fazer NADA se connection.isConnected=true e !hasLocalSocket
+      // NÃ£o fazer NADA se connection.isConnected=true e !hasLocalSocket
 
-      // (pode ser follower, e não devemos derrubar o estado global)
+      // (pode ser follower, e nÃ£o devemos derrubar o estado global)
 
 
 
@@ -3805,7 +3831,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
         ...connection,
 
-        // Opcional para debug: mostra se TEM socket local (não significa estado global)
+        // Opcional para debug: mostra se TEM socket local (nÃ£o significa estado global)
 
         _debugLocalSocket: hasLocalSocket,
 
@@ -3851,8 +3877,8 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       res.json(payload);
     } catch (error) {
-      console.error("[MULTI-CONN] Erro ao listar conexões do usuário:", error);
-      res.status(500).json({ message: "Erro ao listar conexões" });
+      console.error("[MULTI-CONN] Erro ao listar conexÃµes do usuÃ¡rio:", error);
+      res.status(500).json({ message: "Erro ao listar conexÃµes" });
     }
   });
 
@@ -3863,7 +3889,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
       // Verify the connection belongs to this user
       const connection = await storage.getConnectionById(req.params.connectionId);
       if (!connection || connection.userId !== userId) {
-        return res.status(404).json({ message: "Conexão não encontrada" });
+        return res.status(404).json({ message: "ConexÃ£o nÃ£o encontrada" });
       }
 
       const connAgents = await storage.getConnectionAgents(req.params.connectionId);
@@ -3877,8 +3903,8 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       res.json(payload);
     } catch (error) {
-      console.error("[MULTI-CONN] Erro ao listar agentes da conexão:", error);
-      res.status(500).json({ message: "Erro ao listar agentes da conexão" });
+      console.error("[MULTI-CONN] Erro ao listar agentes da conexÃ£o:", error);
+      res.status(500).json({ message: "Erro ao listar agentes da conexÃ£o" });
     }
   });
 
@@ -3891,25 +3917,25 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
       // Check how many connections user already has
       const existing = await storage.getConnectionsByUserId(userId);
       if (existing.length >= 5) {
-        return res.status(400).json({ message: "Limite de 5 conexões atingido" });
+        return res.status(400).json({ message: "Limite de 5 conexÃµes atingido" });
       }
 
       // Create new connection record  
       const newConn = await storage.createConnection({
         userId,
-        connectionName: connectionName || `Conexão ${existing.length + 1}`,
+        connectionName: connectionName || `ConexÃ£o ${existing.length + 1}`,
         connectionType: connectionType || "secondary",
         isPrimary: false,
         isConnected: false,
       });
 
-      // Invalidar cache do /api/whatsapp/connection para este usuário
+      // Invalidar cache do /api/whatsapp/connection para este usuÃ¡rio
       memoryCache.invalidate(`api:wa-conn:${userId}`);
 
       res.json(newConn);
     } catch (error) {
-      console.error("[MULTI-CONN] Erro ao criar conexão:", error);
-      res.status(500).json({ message: "Erro ao criar conexão" });
+      console.error("[MULTI-CONN] Erro ao criar conexÃ£o:", error);
+      res.status(500).json({ message: "Erro ao criar conexÃ£o" });
     }
   });
 
@@ -3919,22 +3945,22 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
       const userId = getUserId(req);
       const connection = await storage.getConnectionById(req.params.connectionId);
       if (!connection || connection.userId !== userId) {
-        return res.status(404).json({ message: "Conexão não encontrada" });
+        return res.status(404).json({ message: "ConexÃ£o nÃ£o encontrada" });
       }
       // Don't allow deleting the primary connection
       if ((connection as any).isPrimary) {
-        return res.status(400).json({ message: "Não é possível deletar a conexão principal" });
+        return res.status(400).json({ message: "NÃ£o Ã© possÃ­vel deletar a conexÃ£o principal" });
       }
       await storage.deleteConnection(req.params.connectionId);
       res.json({ success: true });
     } catch (error) {
-      console.error("[MULTI-CONN] Erro ao deletar conexão:", error);
-      res.status(500).json({ message: "Erro ao deletar conexão" });
+      console.error("[MULTI-CONN] Erro ao deletar conexÃ£o:", error);
+      res.status(500).json({ message: "Erro ao deletar conexÃ£o" });
     }
   });
 
   // -----------------------------------------------------------------------
-  // 🔌 PER-CONNECTION ROUTES (Multi-Connection Support)
+  // ?? PER-CONNECTION ROUTES (Multi-Connection Support)
   // -----------------------------------------------------------------------
 
   // Connect a specific connection (creates WhatsApp socket for it)
@@ -3949,7 +3975,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
       // Verify ownership
       const connection = await storage.getConnectionById(connectionId);
       if (!connection || connection.userId !== userId) {
-        return res.status(404).json({ message: "Conexão não encontrada" });
+        return res.status(404).json({ message: "ConexÃ£o nÃ£o encontrada" });
       }
       
       // Check suspension
@@ -3958,10 +3984,15 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
         return res.status(403).json({ success: false, message: 'Conta suspensa', suspended: true });
       }
       
-      await connectWhatsApp(userId, connectionId);
-      res.json({ success: true, connectionId });
+      // FIX 2026-05-27: Respond immediately — WebSocket handles QR + status updates.
+      // Baileys' internal 515 restart (after QR scan) caused close_before_open rejection
+      // which made the HTTP request fail even though the connection eventually succeeds.
+      connectWhatsApp(userId, connectionId).catch(err => {
+        console.log(`[MULTI-CONN] Connection ${connectionId.substring(0, 8)} init error (auto-retry handles it): ${err.message}`);
+      });
+      res.json({ success: true, connectionId, status: 'connecting' });
     } catch (error) {
-      console.error(`[MULTI-CONN] Erro ao conectar conexão ${req.params.connectionId}:`, error);
+      console.error(`[MULTI-CONN] Erro ao conectar conexÃ£o ${req.params.connectionId}:`, error);
       res.status(500).json({ message: "Erro ao conectar" });
     }
   });
@@ -3977,13 +4008,13 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
       
       const connection = await storage.getConnectionById(connectionId);
       if (!connection || connection.userId !== userId) {
-        return res.status(404).json({ message: "Conexão não encontrada" });
+        return res.status(404).json({ message: "ConexÃ£o nÃ£o encontrada" });
       }
       
       await disconnectWhatsApp(userId, connectionId);
       res.json({ success: true, connectionId });
     } catch (error) {
-      console.error(`[MULTI-CONN] Erro ao desconectar conexão ${req.params.connectionId}:`, error);
+      console.error(`[MULTI-CONN] Erro ao desconectar conexÃ£o ${req.params.connectionId}:`, error);
       res.status(500).json({ message: "Erro ao desconectar" });
     }
   });
@@ -3999,14 +4030,14 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
       
       const connection = await storage.getConnectionById(connectionId);
       if (!connection || connection.userId !== userId) {
-        return res.status(404).json({ message: "Conexão não encontrada" });
+        return res.status(404).json({ message: "ConexÃ£o nÃ£o encontrada" });
       }
       
       await forceResetWhatsApp(userId, connectionId);
-      res.json({ success: true, message: "Conexão resetada. Escaneie o novo QR Code.", connectionId });
+      res.json({ success: true, message: "ConexÃ£o resetada. Escaneie o novo QR Code.", connectionId });
     } catch (error) {
-      console.error(`[MULTI-CONN] Erro ao resetar conexão ${req.params.connectionId}:`, error);
-      res.status(500).json({ message: "Erro ao resetar conexão" });
+      console.error(`[MULTI-CONN] Erro ao resetar conexÃ£o ${req.params.connectionId}:`, error);
+      res.status(500).json({ message: "Erro ao resetar conexÃ£o" });
     }
   });
 
@@ -4019,7 +4050,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
       
       const connection = await storage.getConnectionById(connectionId);
       if (!connection || connection.userId !== userId) {
-        return res.status(404).json({ message: "Conexão não encontrada" });
+        return res.status(404).json({ message: "ConexÃ£o nÃ£o encontrada" });
       }
       
       await storage.updateConnection(connectionId, { aiEnabled: typeof aiEnabled === 'boolean' ? aiEnabled : !connection.aiEnabled });
@@ -4027,7 +4058,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
       res.json({ success: true, connectionId, aiEnabled: updated?.aiEnabled });
     } catch (error) {
       console.error(`[MULTI-CONN] Erro ao toggle AI:`, error);
-      res.status(500).json({ message: "Erro ao atualizar configuração de IA" });
+      res.status(500).json({ message: "Erro ao atualizar configuraÃ§Ã£o de IA" });
     }
   });
 
@@ -4035,17 +4066,17 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
     try {
 
-      // ??? MODO DESENVOLVIMENTO: Bloquear conexões para proteger produção
+      // ??? MODO DESENVOLVIMENTO: Bloquear conexÃµes para proteger produÃ§Ã£o
 
       if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
 
-        console.log(`?? [DEV MODE] Bloqueando conexão WhatsApp de usuário (proteção de produção)`);
+        console.log(`?? [DEV MODE] Bloqueando conexÃ£o WhatsApp de usuÃ¡rio (proteÃ§Ã£o de produÃ§Ã£o)`);
 
         return res.status(403).json({
 
           success: false,
 
-          message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessões em produção',
+          message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessÃµes em produÃ§Ã£o',
 
           devMode: true
 
@@ -4059,19 +4090,19 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-      // ?? Verificar se usuário está suspenso - bloquear conexão
+      // ?? Verificar se usuÃ¡rio estÃ¡ suspenso - bloquear conexÃ£o
 
       const suspensionStatus = await storage.isUserSuspended(userId);
 
       if (suspensionStatus.suspended) {
 
-        console.log(`?? [SUSPENSION] Bloqueando conexão WhatsApp para usuário suspenso: ${userId}`);
+        console.log(`?? [SUSPENSION] Bloqueando conexÃ£o WhatsApp para usuÃ¡rio suspenso: ${userId}`);
 
         return res.status(403).json({
 
           success: false,
 
-          message: 'Sua conta está suspensa. Não é possível conectar o WhatsApp.',
+          message: 'Sua conta estÃ¡ suspensa. NÃ£o Ã© possÃ­vel conectar o WhatsApp.',
 
           suspended: true,
 
@@ -4083,9 +4114,13 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-      await connectWhatsApp(userId);
-
-      res.json({ success: true });
+      // FIX 2026-05-27: Respond immediately — WebSocket handles QR + status updates.
+      // Baileys' internal 515 restart (after QR scan) caused close_before_open rejection
+      // which made the HTTP request fail even though the connection eventually succeeds.
+      connectWhatsApp(userId).catch(err => {
+        console.log(`[CONNECT] Connection init error for ${userId.substring(0, 8)} (auto-retry handles it): ${err.message}`);
+      });
+      res.json({ success: true, status: 'connecting' });
 
     } catch (error) {
 
@@ -4103,17 +4138,17 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
     try {
 
-      // ??? MODO DESENVOLVIMENTO: Bloquear desconexões para proteger produção
+      // ??? MODO DESENVOLVIMENTO: Bloquear desconexÃµes para proteger produÃ§Ã£o
 
       if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
 
-        console.log(`?? [DEV MODE] Bloqueando desconexão WhatsApp de usuário (proteção de produção)`);
+        console.log(`?? [DEV MODE] Bloqueando desconexÃ£o WhatsApp de usuÃ¡rio (proteÃ§Ã£o de produÃ§Ã£o)`);
 
         return res.status(403).json({
 
           success: false,
 
-          message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessões em produção',
+          message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessÃµes em produÃ§Ã£o',
 
           devMode: true
 
@@ -4141,19 +4176,19 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-  // POST - Resetar conexão WhatsApp (self-service para usuário)
+  // POST - Resetar conexÃ£o WhatsApp (self-service para usuÃ¡rio)
 
   // -----------------------------------------------------------------------
 
-  // ?? RESET SELF-SERVICE: Permite que o próprio usuário resete sua conexão
+  // ?? RESET SELF-SERVICE: Permite que o prÃ³prio usuÃ¡rio resete sua conexÃ£o
 
   // -----------------------------------------------------------------------
 
   // Quando o QR Code "buga" ou o pairing deixa credenciais parciais,
 
-  // o usuário pode clicar em "Resetar" para limpar tudo e tentar de novo.
+  // o usuÃ¡rio pode clicar em "Resetar" para limpar tudo e tentar de novo.
 
-  // Antes só existia reset via admin (/api/admin/connections/reset/:userId).
+  // Antes sÃ³ existia reset via admin (/api/admin/connections/reset/:userId).
 
   // -----------------------------------------------------------------------
 
@@ -4161,17 +4196,17 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
     try {
 
-      // ??? MODO DESENVOLVIMENTO: Bloquear reset para proteger produção
+      // ??? MODO DESENVOLVIMENTO: Bloquear reset para proteger produÃ§Ã£o
 
       if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
 
-        console.log(`?? [DEV MODE] Bloqueando reset WhatsApp de usuário (proteção de produção)`);
+        console.log(`?? [DEV MODE] Bloqueando reset WhatsApp de usuÃ¡rio (proteÃ§Ã£o de produÃ§Ã£o)`);
 
         return res.status(403).json({
 
           success: false,
 
-          message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessões em produção',
+          message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessÃµes em produÃ§Ã£o',
 
           devMode: true
 
@@ -4185,19 +4220,19 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-      // Verificar se o usuário tem uma conexão
+      // Verificar se o usuÃ¡rio tem uma conexÃ£o
 
       const connection = await storage.getConnectionByUserId(userId);
 
       if (!connection) {
 
-        return res.status(404).json({ message: "Conexão não encontrada" });
+        return res.status(404).json({ message: "ConexÃ£o nÃ£o encontrada" });
 
       }
 
 
 
-      // Chamar forceResetWhatsApp (função que limpa auth e atualiza DB)
+      // Chamar forceResetWhatsApp (funÃ§Ã£o que limpa auth e atualiza DB)
 
       const { forceResetWhatsApp } = await import("./whatsapp");
 
@@ -4205,7 +4240,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-      console.log(`[RESET] Usuário ${userId.substring(0, 8)}... resetou sua própria conexão`);
+      console.log(`[RESET] UsuÃ¡rio ${userId.substring(0, 8)}... resetou sua prÃ³pria conexÃ£o`);
 
 
 
@@ -4213,7 +4248,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
         success: true,
 
-        message: "Conexão resetada com sucesso. Escaneie o QR Code novamente."
+        message: "ConexÃ£o resetada com sucesso. Escaneie o QR Code novamente."
 
       });
 
@@ -4225,7 +4260,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-      // Se for erro de modo desenvolvimento, propagar mensagem específica
+      // Se for erro de modo desenvolvimento, propagar mensagem especÃ­fica
 
       if (error.message?.includes('SKIP_WHATSAPP_RESTORE')) {
 
@@ -4314,9 +4349,9 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       // Verify ownership through connection
 
-      const connection = await storage.getConnectionByUserId(userId);
+      const connection = await storage.getConnectionById(conversation.connectionId);
 
-      if (!connection || conversation.connectionId !== connection.id) {
+      if (!connection || connection.userId !== userId) {
 
         return res.status(403).json({ message: "Forbidden" });
 
@@ -4324,7 +4359,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-      // ?? FIX: Marcar como lida quando usuário abre a conversa
+      // ?? FIX: Marcar como lida quando usuÃ¡rio abre a conversa
 
       if (conversation.unreadCount > 0) {
 
@@ -4351,7 +4386,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
   // ==================== BULK CONVERSATION ACTIONS (must be BEFORE :id routes) ====================
-// POST - A��es em massa nas conversas (marcar como lida)
+// POST - A??es em massa nas conversas (marcar como lida)
   app.post("/api/conversations/bulk/read", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
@@ -4360,12 +4395,12 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
         : [];
 
       if (conversationIds.length === 0) {
-        return res.status(400).json({ message: "IDs de conversa obrigat�rios" });
+        return res.status(400).json({ message: "IDs de conversa obrigat?rios" });
       }
 
       const connection = await storage.getConnectionByUserId(userId);
       if (!connection) {
-        return res.status(403).json({ message: "WhatsApp n�o conectado" });
+        return res.status(403).json({ message: "WhatsApp n?o conectado" });
       }
 
       const updated = await db
@@ -4384,7 +4419,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
     }
   });
 
-  // POST - Ações em massa nas conversas (marcar como não lida)
+  // POST - AÃ§Ãµes em massa nas conversas (marcar como nÃ£o lida)
   app.post("/api/conversations/bulk/unread", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
@@ -4393,12 +4428,12 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
         : [];
 
       if (conversationIds.length === 0) {
-        return res.status(400).json({ message: "IDs de conversa obrigatórios" });
+        return res.status(400).json({ message: "IDs de conversa obrigatÃ³rios" });
       }
 
       const connection = await storage.getConnectionByUserId(userId);
       if (!connection) {
-        return res.status(403).json({ message: "WhatsApp não conectado" });
+        return res.status(403).json({ message: "WhatsApp nÃ£o conectado" });
       }
 
       const updated = await db
@@ -4417,7 +4452,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
     }
   });
 
-  // POST - Ações em massa nas conversas (arquivar/desarquivar)
+  // POST - AÃ§Ãµes em massa nas conversas (arquivar/desarquivar)
   app.post("/api/conversations/bulk/archive", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
@@ -4427,12 +4462,12 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
       const archived = req.body?.archived === false ? false : true;
 
       if (conversationIds.length === 0) {
-        return res.status(400).json({ message: "IDs de conversa obrigat�rios" });
+        return res.status(400).json({ message: "IDs de conversa obrigat?rios" });
       }
 
       const connection = await storage.getConnectionByUserId(userId);
       if (!connection) {
-        return res.status(403).json({ message: "WhatsApp n�o conectado" });
+        return res.status(403).json({ message: "WhatsApp n?o conectado" });
       }
 
       const updated = await db
@@ -4451,7 +4486,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
     }
   });
 
-  // POST - A��es em massa nas conversas (etiquetar)
+  // POST - A??es em massa nas conversas (etiquetar)
   app.post("/api/conversations/bulk/tags", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
@@ -4463,12 +4498,12 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
         : [];
 
       if (conversationIds.length === 0 || tagIds.length === 0) {
-        return res.status(400).json({ message: "IDs de conversa e etiquetas s�o obrigat�rios" });
+        return res.status(400).json({ message: "IDs de conversa e etiquetas s?o obrigat?rios" });
       }
 
       const connection = await storage.getConnectionByUserId(userId);
       if (!connection) {
-        return res.status(403).json({ message: "WhatsApp n�o conectado" });
+        return res.status(403).json({ message: "WhatsApp n?o conectado" });
       }
 
       const validConversations = await db
@@ -4492,7 +4527,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
     }
   });
 
-  // POST - Ações em massa nas conversas (ativar IA)
+  // POST - AÃ§Ãµes em massa nas conversas (ativar IA)
   app.post("/api/conversations/bulk/ai-enable", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
@@ -4501,15 +4536,15 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
         : [];
 
       if (conversationIds.length === 0) {
-        return res.status(400).json({ message: "IDs de conversa obrigatórios" });
+        return res.status(400).json({ message: "IDs de conversa obrigatÃ³rios" });
       }
 
       const connection = await storage.getConnectionByUserId(userId);
       if (!connection) {
-        return res.status(403).json({ message: "WhatsApp não conectado" });
+        return res.status(403).json({ message: "WhatsApp nÃ£o conectado" });
       }
 
-      // Verificar quais conversas pertencem à conexão do usuário
+      // Verificar quais conversas pertencem Ã  conexÃ£o do usuÃ¡rio
       const validConversations = await db
         .select({ id: conversationsTable.id })
         .from(conversationsTable)
@@ -4535,7 +4570,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
     }
   });
 
-  // POST - Ações em massa nas conversas (desativar IA)
+  // POST - AÃ§Ãµes em massa nas conversas (desativar IA)
   app.post("/api/conversations/bulk/ai-disable", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
@@ -4544,15 +4579,15 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
         : [];
 
       if (conversationIds.length === 0) {
-        return res.status(400).json({ message: "IDs de conversa obrigatórios" });
+        return res.status(400).json({ message: "IDs de conversa obrigatÃ³rios" });
       }
 
       const connection = await storage.getConnectionByUserId(userId);
       if (!connection) {
-        return res.status(403).json({ message: "WhatsApp não conectado" });
+        return res.status(403).json({ message: "WhatsApp nÃ£o conectado" });
       }
 
-      // Verificar quais conversas pertencem à conexão do usuário
+      // Verificar quais conversas pertencem Ã  conexÃ£o do usuÃ¡rio
       const validConversations = await db
         .select({ id: conversationsTable.id })
         .from(conversationsTable)
@@ -4568,7 +4603,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       // Desativar IA para cada conversa
       for (const conversationId of validIds) {
-        await storage.disableAgentForConversation(conversationId, null); // null = sem auto-reativação
+        await storage.disableAgentForConversation(conversationId, null); // null = sem auto-reativaÃ§Ã£o
       }
 
       res.json({ updated: validIds.length });
@@ -4605,9 +4640,9 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       // Verify ownership through connection
 
-      const connection = await storage.getConnectionByUserId(userId);
+      const connection = await storage.getConnectionById(conversation.connectionId);
 
-      if (!connection || conversation.connectionId !== connection.id) {
+      if (!connection || connection.userId !== userId) {
 
         return res.status(403).json({ message: "Forbidden" });
 
@@ -4663,9 +4698,9 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-      const connection = await storage.getConnectionByUserId(userId);
+      const connection = await storage.getConnectionById(conversation.connectionId);
 
-      if (!connection || conversation.connectionId !== connection.id) {
+      if (!connection || connection.userId !== userId) {
 
         return res.status(403).json({ message: "Forbidden" });
 
@@ -4831,9 +4866,9 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-      const connection = await storage.getConnectionByUserId(userId);
+      const connection = await storage.getConnectionById(conversation.connectionId);
 
-      if (!connection || conversation.connectionId !== connection.id) {
+      if (!connection || connection.userId !== userId) {
 
         return res.status(403).json({ message: "Forbidden" });
 
@@ -4861,7 +4896,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-  // GET - Listar todas as tags do usuário
+  // GET - Listar todas as tags do usuÃ¡rio
 
   app.get("/api/tags", isAuthenticated, async (req: any, res) => {
 
@@ -4873,7 +4908,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-      // Se o usuário não tem tags, cria as tags padrão
+      // Se o usuÃ¡rio nÃ£o tem tags, cria as tags padrÃ£o
 
       if (userTags.length === 0) {
 
@@ -4911,7 +4946,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       if (!name || name.trim().length === 0) {
 
-        return res.status(400).json({ message: "Nome da etiqueta é obrigatório" });
+        return res.status(400).json({ message: "Nome da etiqueta Ã© obrigatÃ³rio" });
 
       }
 
@@ -4945,7 +4980,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       if (error.code === '23505') { // Unique violation
 
-        return res.status(400).json({ message: "Já existe uma etiqueta com este nome" });
+        return res.status(400).json({ message: "JÃ¡ existe uma etiqueta com este nome" });
 
       }
 
@@ -4971,7 +5006,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-      // Verifica se a tag pertence ao usuário
+      // Verifica se a tag pertence ao usuÃ¡rio
 
       const existingTag = await storage.getTag(id);
 
@@ -5007,7 +5042,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       if (error.code === '23505') {
 
-        return res.status(400).json({ message: "Já existe uma etiqueta com este nome" });
+        return res.status(400).json({ message: "JÃ¡ existe uma etiqueta com este nome" });
 
       }
 
@@ -5031,7 +5066,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-      // Verifica se a tag pertence ao usuário
+      // Verifica se a tag pertence ao usuÃ¡rio
 
       const existingTag = await storage.getTag(id);
 
@@ -5063,7 +5098,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-  // GET - Obter tags de uma conversa específica
+  // GET - Obter tags de uma conversa especÃ­fica
 
   app.get("/api/conversations/:conversationId/tags", isAuthenticated, async (req: any, res) => {
 
@@ -5075,7 +5110,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-      // Verifica se a conversa pertence ao usuário
+      // Verifica se a conversa pertence ao usuÃ¡rio
 
       const conversation = await storage.getConversation(conversationId);
 
@@ -5087,9 +5122,9 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-      const connection = await storage.getConnectionByUserId(userId);
+      const connection = await storage.getConnectionByUserId(userId, conversation.connectionId);
 
-      if (!connection || conversation.connectionId !== connection.id) {
+      if (!connection) {
 
         return res.status(403).json({ message: "Forbidden" });
 
@@ -5127,7 +5162,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-      // Verifica se a conversa pertence ao usuário
+      // Verifica se a conversa pertence ao usuÃ¡rio
 
       const conversation = await storage.getConversation(conversationId);
 
@@ -5139,9 +5174,9 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-      const connection = await storage.getConnectionByUserId(userId);
+      const connection = await storage.getConnectionByUserId(userId, conversation.connectionId);
 
-      if (!connection || conversation.connectionId !== connection.id) {
+      if (!connection) {
 
         return res.status(403).json({ message: "Forbidden" });
 
@@ -5149,7 +5184,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-      // Verifica se todas as tags pertencem ao usuário
+      // Verifica se todas as tags pertencem ao usuÃ¡rio
 
       const userTags = await storage.getTagsByUserId(userId);
 
@@ -5191,7 +5226,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-      // Verifica se a conversa pertence ao usuário
+      // Verifica se a conversa pertence ao usuÃ¡rio
 
       const conversation = await storage.getConversation(conversationId);
 
@@ -5203,9 +5238,9 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-      const connection = await storage.getConnectionByUserId(userId);
+      const connection = await storage.getConnectionByUserId(userId, conversation.connectionId);
 
-      if (!connection || conversation.connectionId !== connection.id) {
+      if (!connection) {
 
         return res.status(403).json({ message: "Forbidden" });
 
@@ -5213,7 +5248,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-      // Verifica se a tag pertence ao usuário
+      // Verifica se a tag pertence ao usuÃ¡rio
 
       const tag = await storage.getTag(tagId);
 
@@ -5257,7 +5292,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-      // Verifica se a conversa pertence ao usuário
+      // Verifica se a conversa pertence ao usuÃ¡rio
 
       const conversation = await storage.getConversation(conversationId);
 
@@ -5269,9 +5304,9 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-      const connection = await storage.getConnectionByUserId(userId);
+      const connection = await storage.getConnectionByUserId(userId, conversation.connectionId);
 
-      if (!connection || conversation.connectionId !== connection.id) {
+      if (!connection) {
 
         return res.status(403).json({ message: "Forbidden" });
 
@@ -5305,11 +5340,11 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
     try {
       // Evita respostas 304/stale no browser para lista de conversas.
-      // Esta tela precisa refletir mensagens novas o mais rápido possível.
+      // Esta tela precisa refletir mensagens novas o mais rÃ¡pido possÃ­vel.
       res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
       res.setHeader("Pragma", "no-cache");
       res.setHeader("Expires", "0");
-      // ETag dinâmico neutraliza cache condicional para este endpoint.
+      // ETag dinÃ¢mico neutraliza cache condicional para este endpoint.
       res.setHeader("ETag", `\"conv-${Date.now()}-${Math.random().toString(36).slice(2, 8)}\"`);
 
       const userId = getUserId(req);
@@ -5330,7 +5365,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
       if (tagId) {
         const conversations = await storage.getConversationsByTag(tagId, connection.id);
         if (conversations.length === 0) return res.json([]);
-        // 🔥 OTIMIZADO: Batch ao invés de N+1 (Promise.all com getConversationTags individual)
+        // ?? OTIMIZADO: Batch ao invÃ©s de N+1 (Promise.all com getConversationTags individual)
         const convIds = conversations.map(c => c.id);
         const allTagsForConvs = await storage.getTagsForConversations(convIds);
         const conversationsWithTags = conversations.map(conv => ({
@@ -5340,14 +5375,14 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
         return res.json(conversationsWithTags);
       }
 
-      // Paginação: limit e offset opcionais
+      // PaginaÃ§Ã£o: limit e offset opcionais
       const limit = qsLimit ? parseInt(qsLimit as string, 10) : undefined;
       const offset = qsOffset ? parseInt(qsOffset as string, 10) : undefined;
 
-      // Sem filtro, retorna conversas com suas tags (com paginação se solicitado)
+      // Sem filtro, retorna conversas com suas tags (com paginaÃ§Ã£o se solicitado)
       const result = await storage.getConversationsWithTags(connection.id, limit, offset);
 
-      // Se tem paginação, retornar formato { data, total, hasMore }
+      // Se tem paginaÃ§Ã£o, retornar formato { data, total, hasMore }
       if (limit != null) {
         const currentOffset = offset || 0;
         res.json({
@@ -5358,7 +5393,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
           limit,
         });
       } else {
-        // Compatibilidade: sem paginação retorna array direto
+        // Compatibilidade: sem paginaÃ§Ã£o retorna array direto
         res.json(result.data);
       }
 
@@ -5374,7 +5409,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
   // ==================== SEARCH CONVERSATIONS (Parte 9) ====================
   // GET /api/conversations/search?q=termo&limit=30
-  // Busca por nome/número de contato e por conteúdo de mensagens (fulltext ilike)
+  // Busca por nome/nÃºmero de contato e por conteÃºdo de mensagens (fulltext ilike)
   app.get("/api/conversations/search", isAuthenticated, async (req: any, res) => {
     try {
       res.setHeader("Cache-Control", "no-store");
@@ -5400,11 +5435,11 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
   });
 // ==================== CUSTOM FIELDS - CAMPOS PERSONALIZADOS ====================
 
-  // Similar ao Digisac: Nome, Empresa, Email, CPF/CNPJ, Endereço, etc.
+  // Similar ao Digisac: Nome, Empresa, Email, CPF/CNPJ, EndereÃ§o, etc.
 
 
 
-  // GET - Listar definições de campos personalizados do usuário
+  // GET - Listar definiÃ§Ãµes de campos personalizados do usuÃ¡rio
 
   app.get("/api/custom-fields", isAuthenticated, async (req: any, res) => {
 
@@ -5430,13 +5465,13 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-      // Se não tem campos, cria os campos padrão
+      // Se nÃ£o tem campos, cria os campos padrÃ£o
 
       if (!definitions || definitions.length === 0) {
 
         const defaultFields = [
 
-          { name: 'nome_responsavel', label: 'Nome do Responsável', field_type: 'text', position: 1, ai_extraction_prompt: 'Extraia o nome completo da pessoa que está conversando' },
+          { name: 'nome_responsavel', label: 'Nome do ResponsÃ¡vel', field_type: 'text', position: 1, ai_extraction_prompt: 'Extraia o nome completo da pessoa que estÃ¡ conversando' },
 
           { name: 'empresa', label: 'Empresa', field_type: 'text', position: 2, ai_extraction_prompt: 'Extraia o nome da empresa mencionada' },
 
@@ -5446,7 +5481,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
           { name: 'telefone_adicional', label: 'Telefone Adicional', field_type: 'phone', position: 5 },
 
-          { name: 'endereco', label: 'Endereço', field_type: 'textarea', position: 6, ai_extraction_prompt: 'Extraia o endereço completo mencionado' },
+          { name: 'endereco', label: 'EndereÃ§o', field_type: 'textarea', position: 6, ai_extraction_prompt: 'Extraia o endereÃ§o completo mencionado' },
 
         ];
 
@@ -5484,7 +5519,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-  // POST - Criar nova definição de campo personalizado
+  // POST - Criar nova definiÃ§Ã£o de campo personalizado
 
   app.post("/api/custom-fields", isAuthenticated, async (req: any, res) => {
 
@@ -5498,7 +5533,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       if (!name || !label) {
 
-        return res.status(400).json({ message: "Nome e label são obrigatórios" });
+        return res.status(400).json({ message: "Nome e label sÃ£o obrigatÃ³rios" });
 
       }
 
@@ -5564,7 +5599,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
         if (error.code === '23505') {
 
-          return res.status(400).json({ message: "Já existe um campo com este nome" });
+          return res.status(400).json({ message: "JÃ¡ existe um campo com este nome" });
 
         }
 
@@ -5588,7 +5623,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-  // PUT - Atualizar definição de campo personalizado
+  // PUT - Atualizar definiÃ§Ã£o de campo personalizado
 
   app.put("/api/custom-fields/:id", isAuthenticated, async (req: any, res) => {
 
@@ -5602,7 +5637,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-      // Verifica se pertence ao usuário
+      // Verifica se pertence ao usuÃ¡rio
 
       const { data: existing } = await supabase
 
@@ -5620,7 +5655,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       if (!existing) {
 
-        return res.status(404).json({ message: "Campo não encontrado" });
+        return res.status(404).json({ message: "Campo nÃ£o encontrado" });
 
       }
 
@@ -5682,7 +5717,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-  // DELETE - Deletar definição de campo personalizado
+  // DELETE - Deletar definiÃ§Ã£o de campo personalizado
 
   app.delete("/api/custom-fields/:id", isAuthenticated, async (req: any, res) => {
 
@@ -5744,7 +5779,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-      // Atualiza as posições
+      // Atualiza as posiÃ§Ãµes
 
       for (let i = 0; i < fieldIds.length; i++) {
 
@@ -5800,9 +5835,9 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-      const connection = await storage.getConnectionByUserId(userId);
+      const connection = await storage.getConnectionByUserId(userId, conversation.connectionId);
 
-      if (!connection || conversation.connectionId !== connection.id) {
+      if (!connection) {
 
         return res.status(403).json({ message: "Forbidden" });
 
@@ -5810,7 +5845,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-      // Busca definições do usuário
+      // Busca definiÃ§Ãµes do usuÃ¡rio
 
       const { data: definitions, error: defError } = await supabase
 
@@ -5846,7 +5881,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-      // Mescla definições com valores
+      // Mescla definiÃ§Ãµes com valores
 
       const valuesMap = new Map((values || []).map(v => [v.field_definition_id, v]));
 
@@ -5902,9 +5937,9 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-      const connection = await storage.getConnectionByUserId(userId);
+      const connection = await storage.getConnectionByUserId(userId, conversation.connectionId);
 
-      if (!connection || conversation.connectionId !== connection.id) {
+      if (!connection) {
 
         return res.status(403).json({ message: "Forbidden" });
 
@@ -5932,7 +5967,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-        // Verifica se já existe
+        // Verifica se jÃ¡ existe
 
         const { data: existing } = await supabase
 
@@ -6032,9 +6067,9 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-      const connection = await storage.getConnectionByUserId(userId);
+      const connection = await storage.getConnectionByUserId(userId, conversation.connectionId);
 
-      if (!connection || conversation.connectionId !== connection.id) {
+      if (!connection) {
 
         return res.status(403).json({ message: "Forbidden" });
 
@@ -6048,13 +6083,13 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       if (!messages || messages.length === 0) {
 
-        return res.json({ extracted: 0, message: "Sem mensagens para análise" });
+        return res.json({ extracted: 0, message: "Sem mensagens para anÃ¡lise" });
 
       }
 
 
 
-      // Busca definições com extração IA ativada
+      // Busca definiÃ§Ãµes com extraÃ§Ã£o IA ativada
 
       const { data: definitions, error: defError } = await supabase
 
@@ -6078,25 +6113,25 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
       if (!definitions || definitions.length === 0) {
 
-        return res.json({ extracted: 0, message: "Nenhum campo com extração IA ativada" });
+        return res.json({ extracted: 0, message: "Nenhum campo com extraÃ§Ã£o IA ativada" });
 
       }
 
 
 
-      // Monta contexto da conversa (últimas 50 mensagens)
+      // Monta contexto da conversa (Ãºltimas 50 mensagens)
 
       const conversationText = messages
 
         .slice(-50)
 
-        .map(m => `${m.fromMe ? 'Atendente' : 'Cliente'}: ${m.text || '[mídia]'}`)
+        .map(m => `${m.fromMe ? 'Atendente' : 'Cliente'}: ${m.text || '[mÃ­dia]'}`)
 
         .join('\n');
 
 
 
-      // Monta prompt para extração
+      // Monta prompt para extraÃ§Ã£o
 
       const fieldsToExtract = definitions.map(d => ({
 
@@ -6114,7 +6149,7 @@ Responda apenas com o número do índice (0 a ${optionsList.length - 1}) ou NULL
 
 
 
-      const extractionPrompt = `Analise a seguinte conversa e extraia as informações solicitadas. Retorne APENAS um JSON válido com os campos preenchidos.
+      const extractionPrompt = `Analise a seguinte conversa e extraia as informaÃ§Ãµes solicitadas. Retorne APENAS um JSON vÃ¡lido com os campos preenchidos.
 
 
 
@@ -6146,17 +6181,17 @@ FORMATO DE RESPOSTA (JSON):
 
 IMPORTANTE: Use o ID (UUID) exato mostrado entre [ID: ...] para cada campo. Exemplo: se vir [ID: abc-123], use "fieldId": "abc-123".
 
-Se não encontrar um valor, retorne value como null. A confidence deve ser entre 0 e 1.`;
+Se nÃ£o encontrar um valor, retorne value como null. A confidence deve ser entre 0 e 1.`;
 
 
 
-      // Chama LLM para extração (usa Groq ou Mistral conforme configuração do admin)
+      // Chama LLM para extraÃ§Ã£o (usa Groq ou Mistral conforme configuraÃ§Ã£o do admin)
 
       const { generateWithLLM } = await import("./llm");
 
       const response = await generateWithLLM(
 
-        "Você é um assistente especializado em extração de dados de conversas. Analise cuidadosamente e extraia as informações solicitadas.",
+        "VocÃª Ã© um assistente especializado em extraÃ§Ã£o de dados de conversas. Analise cuidadosamente e extraia as informaÃ§Ãµes solicitadas.",
 
         extractionPrompt,
 
@@ -6216,7 +6251,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
 
 
-      // Salva os valores extraídos
+      // Salva os valores extraÃ­dos
 
       let extractedCount = 0;
 
@@ -6236,7 +6271,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
 
 
-        // Verifica se já existe valor
+        // Verifica se jÃ¡ existe valor
 
         const { data: existing } = await supabase
 
@@ -6258,7 +6293,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         if (existing && existing.value) {
 
-          // Já tem valor preenchido, não sobrescreve
+          // JÃ¡ tem valor preenchido, nÃ£o sobrescreve
 
           console.log(`Skipping field ${extraction.fieldId} - already has value`);
 
@@ -6376,13 +6411,13 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
   // =============================================
 
-  // ROTAS DE PRODUTOS (CATÁLOGO)
+  // ROTAS DE PRODUTOS (CATÃLOGO)
 
   // =============================================
 
 
 
-  // GET - Listar produtos do usuário
+  // GET - Listar produtos do usuÃ¡rio
 
   app.get("/api/products", isAuthenticated, async (req: any, res) => {
 
@@ -6430,7 +6465,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
 
 
-      // Paginação
+      // PaginaÃ§Ã£o
 
       const pageNum = parseInt(page as string);
 
@@ -6472,7 +6507,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
 
 
-  // GET - Obter produto específico
+  // GET - Obter produto especÃ­fico
 
   app.get("/api/products/:id", isAuthenticated, async (req: any, res) => {
 
@@ -6540,7 +6575,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       if (!name) {
 
-        return res.status(400).json({ message: "Nome do produto é obrigatório" });
+        return res.status(400).json({ message: "Nome do produto Ã© obrigatÃ³rio" });
 
       }
 
@@ -6726,7 +6761,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
 
 
-  // DELETE - Remover vários produtos
+  // DELETE - Remover vÃ¡rios produtos
 
   app.delete("/api/products", isAuthenticated, async (req: any, res) => {
 
@@ -6740,7 +6775,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       if (!Array.isArray(ids) || ids.length === 0) {
 
-        return res.status(400).json({ message: "IDs de produtos são obrigatórios" });
+        return res.status(400).json({ message: "IDs de produtos sÃ£o obrigatÃ³rios" });
 
       }
 
@@ -6792,7 +6827,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       if (!file) {
 
-        return res.status(400).json({ message: "Arquivo é obrigatório" });
+        return res.status(400).json({ message: "Arquivo Ã© obrigatÃ³rio" });
 
       }
 
@@ -6804,7 +6839,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
 
 
-      // Lê o arquivo
+      // LÃª o arquivo
 
       const workbook = XLSX.read(file.buffer, { type: 'buffer' });
 
@@ -6822,13 +6857,13 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       if (rawData.length < 2) {
 
-        return res.status(400).json({ message: "Arquivo vazio ou sem dados válidos" });
+        return res.status(400).json({ message: "Arquivo vazio ou sem dados vÃ¡lidos" });
 
       }
 
 
 
-      // Primeira linha são os headers
+      // Primeira linha sÃ£o os headers
 
       const headers = rawData[0] as string[];
 
@@ -6836,7 +6871,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
 
 
-      // Se não tiver mapeamento, tenta mapear automaticamente
+      // Se nÃ£o tiver mapeamento, tenta mapear automaticamente
 
       let mapping = columnMapping;
 
@@ -6860,7 +6895,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         const row = dataRows[i] as any[];
 
-        const rowNum = i + 2; // +2 porque excel é 1-indexed e pulamos o header
+        const rowNum = i + 2; // +2 porque excel Ã© 1-indexed e pulamos o header
 
 
 
@@ -6890,11 +6925,11 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
               if (value !== undefined && value !== null && value !== '') {
 
-                // Tratamento específico por campo
+                // Tratamento especÃ­fico por campo
 
                 if (targetField === 'price') {
 
-                  // Remove R$, pontos de milhar, substitui vírgula por ponto
+                  // Remove R$, pontos de milhar, substitui vÃ­rgula por ponto
 
                   value = String(value)
 
@@ -6938,7 +6973,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
           if (!product.name) {
 
-            // Tenta usar o primeiro valor não vazio como nome
+            // Tenta usar o primeiro valor nÃ£o vazio como nome
 
             const firstValue = row.find(v => v !== undefined && v !== null && String(v).trim() !== '');
 
@@ -6948,7 +6983,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
             } else {
 
-              errors.push(`Linha ${rowNum}: Nome do produto é obrigatório`);
+              errors.push(`Linha ${rowNum}: Nome do produto Ã© obrigatÃ³rio`);
 
               continue;
 
@@ -6974,7 +7009,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         return res.status(400).json({
 
-          message: "Nenhum produto válido encontrado",
+          message: "Nenhum produto vÃ¡lido encontrado",
 
           errors
 
@@ -6990,7 +7025,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       // Em vez de 2 queries por produto (~3090 queries), faz:
 
-      // - 1 query para buscar todos produtos do usuário
+      // - 1 query para buscar todos produtos do usuÃ¡rio
 
       // - Matching in-memory
 
@@ -7004,7 +7039,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
 
 
-      // ?? OTIMIZAÇÃO: Busca TODOS os produtos do usuário de uma vez só
+      // ?? OTIMIZAÃ‡ÃƒO: Busca TODOS os produtos do usuÃ¡rio de uma vez sÃ³
 
       const { data: existingProducts } = await supabase
 
@@ -7016,7 +7051,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
 
 
-      // Cria maps para lookup rápido O(1) em vez de O(n) por produto
+      // Cria maps para lookup rÃ¡pido O(1) em vez de O(n) por produto
 
       const productsBySKU = new Map<string, { id: number }>();
 
@@ -7046,7 +7081,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
 
 
-      // Separa produtos em inserções e atualizações
+      // Separa produtos em inserÃ§Ãµes e atualizaÃ§Ãµes
 
       const toInsert: any[] = [];
 
@@ -7060,7 +7095,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
 
 
-        // Lookup in-memory - muito mais rápido que query
+        // Lookup in-memory - muito mais rÃ¡pido que query
 
         if (product.sku) {
 
@@ -7102,7 +7137,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
 
 
-      // ?? Executa inserções em batch (se tiver)
+      // ?? Executa inserÃ§Ãµes em batch (se tiver)
 
       if (toInsert.length > 0) {
 
@@ -7128,7 +7163,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
 
 
-      // ?? Executa atualizações (infelizmente Supabase não tem batch update, faz um por um)
+      // ?? Executa atualizaÃ§Ãµes (infelizmente Supabase nÃ£o tem batch update, faz um por um)
 
       for (const { id, data } of toUpdate) {
 
@@ -7184,7 +7219,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
 
 
-  // GET - Preview do arquivo de importação (headers e primeiras linhas)
+  // GET - Preview do arquivo de importaÃ§Ã£o (headers e primeiras linhas)
 
   app.post("/api/products/import/preview", isAuthenticated, upload.single('file'), async (req: any, res) => {
 
@@ -7196,7 +7231,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       if (!file) {
 
-        return res.status(400).json({ message: "Arquivo é obrigatório" });
+        return res.status(400).json({ message: "Arquivo Ã© obrigatÃ³rio" });
 
       }
 
@@ -7208,7 +7243,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
 
 
-      // Lê o arquivo
+      // LÃª o arquivo
 
       const workbook = XLSX.read(file.buffer, { type: 'buffer' });
 
@@ -7238,7 +7273,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
 
 
-      // Tenta detectar mapeamento automático
+      // Tenta detectar mapeamento automÃ¡tico
 
       const suggestedMapping = autoMapColumns(headers);
 
@@ -7280,7 +7315,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       if (!url) {
 
-        return res.status(400).json({ message: "URL é obrigatória" });
+        return res.status(400).json({ message: "URL Ã© obrigatÃ³ria" });
 
       }
 
@@ -7300,7 +7335,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
 
 
-      // Usa o serviço existente de scrape
+      // Usa o serviÃ§o existente de scrape
 
       const result = await scrapeWebsite(validation.normalizedUrl!);
 
@@ -7310,7 +7345,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         return res.status(400).json({
 
-          message: result.error || "Falha ao analisar o website. Verifique se a URL está acessível."
+          message: result.error || "Falha ao analisar o website. Verifique se a URL estÃ¡ acessÃ­vel."
 
         });
 
@@ -7374,7 +7409,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
 
 
-  // GET - Obter categorias únicas dos produtos do usuário
+  // GET - Obter categorias Ãºnicas dos produtos do usuÃ¡rio
 
   app.get("/api/products/categories", isAuthenticated, async (req: any, res) => {
 
@@ -7400,7 +7435,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
 
 
-      // Extrai categorias únicas
+      // Extrai categorias Ãºnicas
 
       const categories = [...new Set((data || []).map(p => p.category).filter(Boolean))];
 
@@ -7422,13 +7457,13 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
   // =============================================
 
-  // ROTAS DE CONFIGURAÇÃO DE PRODUTOS
+  // ROTAS DE CONFIGURAÃ‡ÃƒO DE PRODUTOS
 
   // =============================================
 
 
 
-  // GET - Obter configuração de produtos do usuário
+  // GET - Obter configuraÃ§Ã£o de produtos do usuÃ¡rio
 
   app.get("/api/products-config", isAuthenticated, async (req: any, res) => {
 
@@ -7452,7 +7487,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       if (error && error.code === 'PGRST116') {
 
-        // Não existe, cria com valores padrão - DESATIVADO por padrão
+        // NÃ£o existe, cria com valores padrÃ£o - DESATIVADO por padrÃ£o
 
         const { data: newConfig, error: insertError } = await supabase
 
@@ -7462,7 +7497,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
             user_id: userId,
 
-            is_active: false, // DESATIVADO por padrão - ativar via toggle
+            is_active: false, // DESATIVADO por padrÃ£o - ativar via toggle
 
             send_to_ai: true
 
@@ -7500,7 +7535,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
 
 
-  // PUT - Atualizar configuração de produtos
+  // PUT - Atualizar configuraÃ§Ã£o de produtos
 
   app.put("/api/products-config", isAuthenticated, async (req: any, res) => {
 
@@ -7618,7 +7653,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
 
 
-      // Verifica se o módulo está ativo
+      // Verifica se o mÃ³dulo estÃ¡ ativo
 
       const { data: config } = await supabase
 
@@ -7704,7 +7739,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
 
 
-  // GET - Obter configuração de curso
+  // GET - Obter configuraÃ§Ã£o de curso
 
   app.get("/api/course-config", isAuthenticated, async (req: any, res) => {
 
@@ -7730,7 +7765,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
 
 
-      // Retorna config padrão se não existir
+      // Retorna config padrÃ£o se nÃ£o existir
 
       if (!data) {
 
@@ -7772,7 +7807,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
           guarantee_days: 7,
 
-          guarantee_description: 'Garantia incondicional de satisfação',
+          guarantee_description: 'Garantia incondicional de satisfaÃ§Ã£o',
 
           price_full: null,
 
@@ -7810,9 +7845,9 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
           active_coupons: [],
 
-          ai_instructions: 'Você é um especialista em vendas de infoprodutos. Seja empático, mostre o valor do curso e sempre mencione a garantia.',
+          ai_instructions: 'VocÃª Ã© um especialista em vendas de infoprodutos. Seja empÃ¡tico, mostre o valor do curso e sempre mencione a garantia.',
 
-          lead_nurture_message: 'Quando estiver pronto(a), é só me chamar!',
+          lead_nurture_message: 'Quando estiver pronto(a), Ã© sÃ³ me chamar!',
 
           enrollment_cta: 'Garanta sua vaga com desconto especial!',
 
@@ -7836,7 +7871,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
 
 
-  // PUT - Atualizar configuração de curso
+  // PUT - Atualizar configuraÃ§Ã£o de curso
 
   app.put("/api/course-config", isAuthenticated, async (req: any, res) => {
 
@@ -7896,7 +7931,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         if (allowedFields.includes(snakeKey) && value !== undefined) {
 
-          // Converter números se necessário
+          // Converter nÃºmeros se necessÃ¡rio
 
           if (['price_full', 'price_promotional', 'price_installment_value', 'total_hours'].includes(snakeKey)) {
 
@@ -7914,7 +7949,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
         }
 
-        // Também aceitar snake_case diretamente
+        // TambÃ©m aceitar snake_case diretamente
 
         if (allowedFields.includes(key) && value !== undefined) {
 
@@ -8010,7 +8045,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
 
 
-  // POST - Adicionar módulo ao curso
+  // POST - Adicionar mÃ³dulo ao curso
 
   app.post("/api/course-config/modules", isAuthenticated, async (req: any, res) => {
 
@@ -8024,13 +8059,13 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       if (!newModule.name) {
 
-        return res.status(400).json({ message: "Nome do módulo é obrigatório" });
+        return res.status(400).json({ message: "Nome do mÃ³dulo Ã© obrigatÃ³rio" });
 
       }
 
 
 
-      // Buscar configuração atual
+      // Buscar configuraÃ§Ã£o atual
 
       const { data: config, error: fetchError } = await supabase
 
@@ -8154,7 +8189,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
 
 
-  // PUT - Atualizar módulo do curso
+  // PUT - Atualizar mÃ³dulo do curso
 
   app.put("/api/course-config/modules/:moduleId", isAuthenticated, async (req: any, res) => {
 
@@ -8192,7 +8227,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       if (moduleIndex === -1) {
 
-        return res.status(404).json({ message: "Módulo não encontrado" });
+        return res.status(404).json({ message: "MÃ³dulo nÃ£o encontrado" });
 
       }
 
@@ -8250,7 +8285,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
 
 
-  // DELETE - Remover módulo do curso
+  // DELETE - Remover mÃ³dulo do curso
 
   app.delete("/api/course-config/modules/:moduleId", isAuthenticated, async (req: any, res) => {
 
@@ -8330,7 +8365,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
 
 
-  // POST - Adicionar bônus ao curso
+  // POST - Adicionar bÃ´nus ao curso
 
   app.post("/api/course-config/bonus", isAuthenticated, async (req: any, res) => {
 
@@ -8344,7 +8379,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       if (!newBonus.name) {
 
-        return res.status(400).json({ message: "Nome do bônus é obrigatório" });
+        return res.status(400).json({ message: "Nome do bÃ´nus Ã© obrigatÃ³rio" });
 
       }
 
@@ -8450,7 +8485,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
 
 
-  // DELETE - Remover bônus do curso
+  // DELETE - Remover bÃ´nus do curso
 
   app.delete("/api/course-config/bonus/:bonusId", isAuthenticated, async (req: any, res) => {
 
@@ -8532,7 +8567,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       if (!newTestimonial.name || !newTestimonial.text) {
 
-        return res.status(400).json({ message: "Nome e texto do depoimento são obrigatórios" });
+        return res.status(400).json({ message: "Nome e texto do depoimento sÃ£o obrigatÃ³rios" });
 
       }
 
@@ -8722,7 +8757,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       if (!newCoupon.code) {
 
-        return res.status(400).json({ message: "Código do cupom é obrigatório" });
+        return res.status(400).json({ message: "CÃ³digo do cupom Ã© obrigatÃ³rio" });
 
       }
 
@@ -8944,7 +8979,7 @@ Se não encontrar um valor, retorne value como null. A confidence deve ser entre
 
       let context = `
 
-?? INFORMAÇÕES DO CURSO: ${config.course_name || 'Curso'}
+?? INFORMAÃ‡Ã•ES DO CURSO: ${config.course_name || 'Curso'}
 
 
 
@@ -8952,19 +8987,19 @@ ${config.course_description || ''}
 
 
 
-?? PARA QUEM É:
+?? PARA QUEM Ã‰:
 
 ${config.target_audience || 'Pessoas interessadas em aprender'}
 
 
 
-? PARA QUEM NÃO É:
+? PARA QUEM NÃƒO Ã‰:
 
-${config.not_for_audience || 'Não especificado'}
+${config.not_for_audience || 'NÃ£o especificado'}
 
 
 
-?? CONTEÚDO (${config.total_hours || 0} horas, ${config.total_lessons || 0} aulas):
+?? CONTEÃšDO (${config.total_hours || 0} horas, ${config.total_lessons || 0} aulas):
 
 ${(config.modules || []).map((m: any, i: number) => `${i + 1}. ${m.name}: ${m.description || ''}`).join('\n')}
 
@@ -8972,9 +9007,9 @@ ${(config.modules || []).map((m: any, i: number) => `${i + 1}. ${m.name}: ${m.de
 
 ?? INVESTIMENTO:
 
-- Preço: R$ ${config.price_promotional || config.price_full || 'Consultar'}
+- PreÃ§o: R$ ${config.price_promotional || config.price_full || 'Consultar'}
 
-${config.price_installments ? `- Parcelamento em até ${config.price_installments}x` : ''}
+${config.price_installments ? `- Parcelamento em atÃ© ${config.price_installments}x` : ''}
 
 ${config.price_installment_value ? `- Parcelas de R$ ${config.price_installment_value}` : ''}
 
@@ -8982,23 +9017,23 @@ ${config.price_installment_value ? `- Parcelas de R$ ${config.price_installment_
 
 ? GARANTIA: ${config.guarantee_days || 7} dias
 
-${config.guarantee_description || 'Garantia de satisfação'}
+${config.guarantee_description || 'Garantia de satisfaÃ§Ã£o'}
 
 
 
-?? CERTIFICADO: ${config.has_certificate ? 'Sim' : 'Não'}
+?? CERTIFICADO: ${config.has_certificate ? 'Sim' : 'NÃ£o'}
 
 ${config.certificate_description || ''}
 
 
 
-?? ACESSO: ${config.access_period || 'Vitalício'}
+?? ACESSO: ${config.access_period || 'VitalÃ­cio'}
 
 
 
-?? BÔNUS INCLUSOS:
+?? BÃ”NUS INCLUSOS:
 
-${(config.bonus_items || []).map((b: any) => ` ${b.name}${b.value ? ` (valor: R$ ${b.value})` : ''}`).join('\n') || 'Nenhum bônus cadastrado'}
+${(config.bonus_items || []).map((b: any) => `? ${b.name}${b.value ? ` (valor: R$ ${b.value})` : ''}`).join('\n') || 'Nenhum bÃ´nus cadastrado'}
 
 
 
@@ -9008,7 +9043,7 @@ ${(config.payment_methods || []).join(', ')}
 
 
 
-?? LINK DE INSCRIÇÃO:
+?? LINK DE INSCRIÃ‡ÃƒO:
 
 ${config.checkout_link || 'Solicitar ao atendimento'}
 
@@ -9024,7 +9059,7 @@ ${config.community_info || ''}
 
 ? DEPOIMENTOS DE ALUNOS:
 
-${(config.testimonials || []).slice(0, 3).map((t: any) => `"${t.text}" - ${t.name}`).join('\n\n') || 'Ainda não há depoimentos'}
+${(config.testimonials || []).slice(0, 3).map((t: any) => `"${t.text}" - ${t.name}`).join('\n\n') || 'Ainda nÃ£o hÃ¡ depoimentos'}
 
 
 
@@ -9042,7 +9077,7 @@ ${(config.active_coupons || []).map((c: any) => `${c.code}: ${c.discount_percent
 
 
 
-INSTRUÇÕES PARA O AGENTE:
+INSTRUÃ‡Ã•ES PARA O AGENTE:
 
 ${config.ai_instructions || ''}
 
@@ -9074,7 +9109,7 @@ ${config.ai_instructions || ''}
 
   // =============================================
 
-  // ROTAS DE DELIVERY (CARDÁPIO DIGITAL)
+  // ROTAS DE DELIVERY (CARDÃPIO DIGITAL)
 
   // =============================================
 
@@ -9084,7 +9119,7 @@ ${config.ai_instructions || ''}
 
 
 
-  // GET - Obter configuração de delivery
+  // GET - Obter configuraÃ§Ã£o de delivery
 
   app.get("/api/delivery-config", isAuthenticated, async (req: any, res) => {
 
@@ -9110,7 +9145,7 @@ ${config.ai_instructions || ''}
 
 
 
-      // Retorna config padrão se não existir
+      // Retorna config padrÃ£o se nÃ£o existir
 
       if (!data) {
 
@@ -9144,7 +9179,7 @@ ${config.ai_instructions || ''}
 
           opening_hours: {},
 
-          ai_instructions: 'Você é um atendente de delivery. Seja simpático, ajude o cliente a escolher, anote os pedidos corretamente com todos os detalhes e sempre confirme antes de finalizar.',
+          ai_instructions: 'VocÃª Ã© um atendente de delivery. Seja simpÃ¡tico, ajude o cliente a escolher, anote os pedidos corretamente com todos os detalhes e sempre confirme antes de finalizar.',
 
           whatsapp_order_number: null,
 
@@ -9168,7 +9203,7 @@ ${config.ai_instructions || ''}
 
 
 
-  // PUT - Atualizar configuração de delivery
+  // PUT - Atualizar configuraÃ§Ã£o de delivery
 
   app.put("/api/delivery-config", isAuthenticated, async (req: any, res) => {
 
@@ -9230,7 +9265,7 @@ ${config.ai_instructions || ''}
 
         if (dbField && value !== undefined) {
 
-          // Converter números se necessário
+          // Converter nÃºmeros se necessÃ¡rio
 
           if (['delivery_fee', 'min_order_value', 'delivery_radius_km'].includes(dbField)) {
 
@@ -9328,7 +9363,7 @@ ${config.ai_instructions || ''}
 
 
 
-  // GET - Listar categorias do cardápio
+  // GET - Listar categorias do cardÃ¡pio
 
   app.get("/api/delivery/categories", isAuthenticated, async (req: any, res) => {
 
@@ -9384,7 +9419,7 @@ ${config.ai_instructions || ''}
 
       if (!name) {
 
-        return res.status(400).json({ message: "Nome da categoria é obrigatório" });
+        return res.status(400).json({ message: "Nome da categoria Ã© obrigatÃ³rio" });
 
       }
 
@@ -9542,7 +9577,7 @@ ${config.ai_instructions || ''}
 
 
 
-  // GET - Listar itens do cardápio
+  // GET - Listar itens do cardÃ¡pio
 
   app.get("/api/delivery/items", isAuthenticated, async (req: any, res) => {
 
@@ -9632,7 +9667,7 @@ ${config.ai_instructions || ''}
 
 
 
-  // GET - Item específico
+  // GET - Item especÃ­fico
 
   app.get("/api/delivery/items/:id", isAuthenticated, async (req: any, res) => {
 
@@ -9686,7 +9721,7 @@ ${config.ai_instructions || ''}
 
 
 
-  // POST - Criar item do cardápio
+  // POST - Criar item do cardÃ¡pio
 
   app.post("/api/delivery/items", isAuthenticated, async (req: any, res) => {
 
@@ -9708,13 +9743,13 @@ ${config.ai_instructions || ''}
 
       if (!name) {
 
-        return res.status(400).json({ message: "Nome do item é obrigatório" });
+        return res.status(400).json({ message: "Nome do item Ã© obrigatÃ³rio" });
 
       }
 
       if (!price) {
 
-        return res.status(400).json({ message: "Preço é obrigatório" });
+        return res.status(400).json({ message: "PreÃ§o Ã© obrigatÃ³rio" });
 
       }
 
@@ -9782,7 +9817,7 @@ ${config.ai_instructions || ''}
 
 
 
-  // PUT - Atualizar item do cardápio
+  // PUT - Atualizar item do cardÃ¡pio
 
   app.put("/api/delivery/items/:id", isAuthenticated, async (req: any, res) => {
 
@@ -9918,7 +9953,7 @@ ${config.ai_instructions || ''}
 
 
 
-  // DELETE - Remover múltiplos itens
+  // DELETE - Remover mÃºltiplos itens
 
   app.delete("/api/delivery/items", isAuthenticated, async (req: any, res) => {
 
@@ -9932,7 +9967,7 @@ ${config.ai_instructions || ''}
 
       if (!ids || !Array.isArray(ids) || ids.length === 0) {
 
-        return res.status(400).json({ message: "IDs são obrigatórios" });
+        return res.status(400).json({ message: "IDs sÃ£o obrigatÃ³rios" });
 
       }
 
@@ -10066,7 +10101,7 @@ ${config.ai_instructions || ''}
 
 
 
-  // GET - Pedido específico
+  // GET - Pedido especÃ­fico
 
   app.get("/api/delivery/orders/:id", isAuthenticated, async (req: any, res) => {
 
@@ -10142,7 +10177,7 @@ ${config.ai_instructions || ''}
 
       if (!items || !Array.isArray(items) || items.length === 0) {
 
-        return res.status(400).json({ message: "Itens são obrigatórios" });
+        return res.status(400).json({ message: "Itens sÃ£o obrigatÃ³rios" });
 
       }
 
@@ -10162,7 +10197,7 @@ ${config.ai_instructions || ''}
 
 
 
-      // Buscar configuração para tempo estimado
+      // Buscar configuraÃ§Ã£o para tempo estimado
 
       const { data: config } = await supabase
 
@@ -10286,7 +10321,7 @@ ${config.ai_instructions || ''}
 
 
 
-      // ?? ENVIAR NOTIFICAÇÃO WHATSAPP PARA O DONO DO ESTABELECIMENTO
+      // ?? ENVIAR NOTIFICAÃ‡ÃƒO WHATSAPP PARA O DONO DO ESTABELECIMENTO
 
       try {
 
@@ -10308,17 +10343,17 @@ ${config.ai_instructions || ''}
 
 
 
-          // Formatar preço
+          // Formatar preÃ§o
 
           const formatPrice = (val: number) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 
 
-          // Montar mensagem de notificação
+          // Montar mensagem de notificaÃ§Ã£o
 
           const itemsList = items.map((i: any) =>
 
-            ` ${i.quantity || 1}x ${i.name || i.itemName} - ${formatPrice((i.quantity || 1) * parseFloat(String(i.unitPrice)))}`
+            `? ${i.quantity || 1}x ${i.name || i.itemName} - ${formatPrice((i.quantity || 1) * parseFloat(String(i.unitPrice)))}`
 
           ).join('\n');
 
@@ -10326,11 +10361,11 @@ ${config.ai_instructions || ''}
 
           const orderNotification = `?? *NOVO PEDIDO #${fullOrder.order_number}*\n\n` +
 
-            `?? *Cliente:* ${customerName || 'Não informado'}\n` +
+            `?? *Cliente:* ${customerName || 'NÃ£o informado'}\n` +
 
-            `?? *Telefone:* ${customerPhone || 'Não informado'}\n` +
+            `?? *Telefone:* ${customerPhone || 'NÃ£o informado'}\n` +
 
-            `?? *${deliveryType === 'pickup' ? 'RETIRADA NO LOCAL' : `Entrega: ${customerAddress || 'Não informado'}`}*\n` +
+            `?? *${deliveryType === 'pickup' ? 'RETIRADA NO LOCAL' : `Entrega: ${customerAddress || 'NÃ£o informado'}`}*\n` +
 
             `${customerComplement ? `    _${customerComplement}_\n` : ''}` +
 
@@ -10344,7 +10379,7 @@ ${config.ai_instructions || ''}
 
             `?? *TOTAL: ${formatPrice(total)}*\n\n` +
 
-            `?? *Pagamento:* ${paymentMethod || 'Não informado'}\n` +
+            `?? *Pagamento:* ${paymentMethod || 'NÃ£o informado'}\n` +
 
             `${notes ? `?? Obs: ${notes}\n` : ''}\n` +
 
@@ -10352,21 +10387,21 @@ ${config.ai_instructions || ''}
 
 
 
-          // Verificar se tem sessão WhatsApp ativa e enviar
+          // Verificar se tem sessÃ£o WhatsApp ativa e enviar
 
           const { sendWhatsAppMessageFromUser } = await import('./whatsappSender');
 
           await sendWhatsAppMessageFromUser(userId, notifyNumber, orderNotification);
 
-          console.log(`?? [Delivery] Notificação enviada para ${notifyNumber} - Pedido #${fullOrder.order_number}`);
+          console.log(`?? [Delivery] NotificaÃ§Ã£o enviada para ${notifyNumber} - Pedido #${fullOrder.order_number}`);
 
         }
 
       } catch (notifyError) {
 
-        console.error(`?? [Delivery] Erro ao enviar notificação WhatsApp:`, notifyError);
+        console.error(`?? [Delivery] Erro ao enviar notificaÃ§Ã£o WhatsApp:`, notifyError);
 
-        // Não falha a criação do pedido por erro de notificação
+        // NÃ£o falha a criaÃ§Ã£o do pedido por erro de notificaÃ§Ã£o
 
       }
 
@@ -10404,7 +10439,7 @@ ${config.ai_instructions || ''}
 
       if (!validStatuses.includes(status)) {
 
-        return res.status(400).json({ message: "Status inválido" });
+        return res.status(400).json({ message: "Status invÃ¡lido" });
 
       }
 
@@ -10554,7 +10589,7 @@ ${config.ai_instructions || ''}
 
 
 
-  // GET - Cardápio completo formatado para IA
+  // GET - CardÃ¡pio completo formatado para IA
 
   app.get("/api/delivery/menu-for-ai", isAuthenticated, async (req: any, res) => {
 
@@ -10564,7 +10599,7 @@ ${config.ai_instructions || ''}
 
 
 
-      // Verifica se o módulo está ativo
+      // Verifica se o mÃ³dulo estÃ¡ ativo
 
       const { data: config } = await supabase
 
@@ -10748,9 +10783,9 @@ ${config.ai_instructions || ''}
 
 
 
-  // GET - Cardápio PÚBLICO para simulador de fluxo (sem autenticação)
+  // GET - CardÃ¡pio PÃšBLICO para simulador de fluxo (sem autenticaÃ§Ã£o)
 
-  // Usado pelo flow-builder para carregar itens reais do usuário
+  // Usado pelo flow-builder para carregar itens reais do usuÃ¡rio
 
   app.get("/api/public/delivery/menu/:userId", async (req: any, res) => {
 
@@ -10762,13 +10797,13 @@ ${config.ai_instructions || ''}
 
       if (!userId) {
 
-        return res.status(400).json({ message: "userId é obrigatório" });
+        return res.status(400).json({ message: "userId Ã© obrigatÃ³rio" });
 
       }
 
 
 
-      // Verifica se o módulo delivery está ativo
+      // Verifica se o mÃ³dulo delivery estÃ¡ ativo
 
       const { data: config } = await supabase
 
@@ -10798,7 +10833,7 @@ ${config.ai_instructions || ''}
 
 
 
-      // Busca itens disponíveis
+      // Busca itens disponÃ­veis
 
       const { data: items } = await supabase
 
@@ -10914,7 +10949,7 @@ ${config.ai_instructions || ''}
 
 
 
-  // POST - Criar pedido PÚBLICO a partir do simulador de fluxo
+  // POST - Criar pedido PÃšBLICO a partir do simulador de fluxo
 
   app.post("/api/public/delivery/orders", async (req: any, res) => {
 
@@ -10932,13 +10967,13 @@ ${config.ai_instructions || ''}
 
       if (!userId) {
 
-        return res.status(400).json({ message: "userId é obrigatório" });
+        return res.status(400).json({ message: "userId Ã© obrigatÃ³rio" });
 
       }
 
       if (!items || !Array.isArray(items) || items.length === 0) {
 
-        return res.status(400).json({ message: "Itens são obrigatórios" });
+        return res.status(400).json({ message: "Itens sÃ£o obrigatÃ³rios" });
 
       }
 
@@ -10958,7 +10993,7 @@ ${config.ai_instructions || ''}
 
 
 
-      // Buscar configuração para tempo estimado
+      // Buscar configuraÃ§Ã£o para tempo estimado
 
       const { data: config } = await supabase
 
@@ -11074,7 +11109,7 @@ ${config.ai_instructions || ''}
 
 
 
-      console.log(`? [Simulador] Pedido #${fullOrder.order_number} criado para usuário ${userId}`);
+      console.log(`? [Simulador] Pedido #${fullOrder.order_number} criado para usuÃ¡rio ${userId}`);
 
 
 
@@ -11100,7 +11135,7 @@ ${config.ai_instructions || ''}
 
 
 
-  // GET - Dashboard/estatísticas de pedidos
+  // GET - Dashboard/estatÃ­sticas de pedidos
 
   app.get("/api/delivery/stats", isAuthenticated, async (req: any, res) => {
 
@@ -11110,7 +11145,7 @@ ${config.ai_instructions || ''}
 
 
 
-      // Calcular início de hoje e da semana
+      // Calcular inÃ­cio de hoje e da semana
 
       const now = new Date();
 
@@ -11120,7 +11155,7 @@ ${config.ai_instructions || ''}
 
 
 
-      // Início da semana (domingo)
+      // InÃ­cio da semana (domingo)
 
       const dayOfWeek = now.getDay();
 
@@ -11166,7 +11201,7 @@ ${config.ai_instructions || ''}
 
 
 
-      // Calcular estatísticas de hoje
+      // Calcular estatÃ­sticas de hoje
 
       const todayStats = {
 
@@ -11192,7 +11227,7 @@ ${config.ai_instructions || ''}
 
 
 
-      // Calcular estatísticas da semana
+      // Calcular estatÃ­sticas da semana
 
       const weekStats = {
 
@@ -11224,11 +11259,11 @@ ${config.ai_instructions || ''}
 
 
 
-  // --- IMAGENS GENÉRICAS ---
+  // --- IMAGENS GENÃ‰RICAS ---
 
 
 
-  // GET - Buscar imagem genérica de comida (usando Loremflickr como alternativa gratuita)
+  // GET - Buscar imagem genÃ©rica de comida (usando Loremflickr como alternativa gratuita)
 
   app.get("/api/delivery/food-image", isAuthenticated, async (req: any, res) => {
 
@@ -11240,7 +11275,7 @@ ${config.ai_instructions || ''}
 
       if (!query) {
 
-        return res.status(400).json({ message: "Query é obrigatória" });
+        return res.status(400).json({ message: "Query Ã© obrigatÃ³ria" });
 
       }
 
@@ -11308,9 +11343,9 @@ ${config.ai_instructions || ''}
 
 
 
-      const connection = await storage.getConnectionByUserId(userId);
+      const connection = await storage.getConnectionByUserId(userId, conversation.connectionId);
 
-      if (!connection || conversation.connectionId !== connection.id) {
+      if (!connection) {
 
         return res.status(403).json({ message: "Forbidden" });
 
@@ -11318,7 +11353,7 @@ ${config.ai_instructions || ''}
 
 
 
-      // Busca todas as mensagens com mídia
+      // Busca todas as mensagens com mÃ­dia
 
       const messages = await storage.getMessagesByConversationId(conversationId);
 
@@ -11422,9 +11457,9 @@ ${config.ai_instructions || ''}
 
 
 
-      const connection = await storage.getConnectionByUserId(userId);
+      const connection = await storage.getConnectionByUserId(userId, conversation.connectionId);
 
-      if (!connection || conversation.connectionId !== connection.id) {
+      if (!connection) {
 
         return res.status(403).json({ message: "Forbidden" });
 
@@ -11446,7 +11481,7 @@ ${config.ai_instructions || ''}
 
         msg.mediaUrl &&
 
-        (!msg.text || msg.text === "?? Áudio" || msg.text === "?? Áudio" || msg.text.startsWith("[Áudio"))
+        (!msg.text || msg.text === "?? Ãudio" || msg.text === "?? Ãudio" || msg.text.startsWith("[Ãudio"))
 
       );
 
@@ -11568,9 +11603,9 @@ ${config.ai_instructions || ''}
 
 
 
-      // ⚡ OTIMIZAÇÃO: Carregar conversa + mensagens em PARALELO
+      // ? OTIMIZAÃ‡ÃƒO: Carregar conversa + mensagens em PARALELO
 
-      // getConversation e getConnectionByUserId são cacheados, então geralmente <1ms
+      // getConversation e getConnectionByUserId sÃ£o cacheados, entÃ£o geralmente <1ms
 
       const parsedLimit = limitRaw ? Number.parseInt(limitRaw, 10) : (paginated ? 50 : 500);
 
@@ -11634,7 +11669,7 @@ ${config.ai_instructions || ''}
 
       const connection = await storage.getConnectionByUserId(userId, conversation.connectionId);
 
-      if (!connection || conversation.connectionId !== connection.id) {
+      if (!connection) {
 
         return res.status(403).json({ message: "Forbidden" });
 
@@ -11678,9 +11713,9 @@ ${config.ai_instructions || ''}
 
 
 
-      const connection = await storage.getConnectionByUserId(userId);
+      const connection = await storage.getConnectionByUserId(userId, conversation.connectionId);
 
-      if (!connection || conversation.connectionId !== connection.id) {
+      if (!connection) {
 
         return res.status(403).json({ message: "Forbidden" });
 
@@ -11726,7 +11761,7 @@ ${config.ai_instructions || ''}
 
   // ==================== LAZY LOAD DE MEDIA ====================
 
-  // Endpoint para carregar media (imagens/áudio) sob demanda - reduz Egress
+  // Endpoint para carregar media (imagens/Ã¡udio) sob demanda - reduz Egress
 
   app.get("/api/messages/:messageId/media", isAuthenticated, async (req: any, res) => {
 
@@ -11762,9 +11797,9 @@ ${config.ai_instructions || ''}
 
 
 
-      const connection = await storage.getConnectionByUserId(userId);
+      const connection = await storage.getConnectionByUserId(userId, conversation.connectionId);
 
-      if (!connection || conversation.connectionId !== connection.id) {
+      if (!connection) {
 
         return res.status(403).json({ message: "Forbidden" });
 
@@ -11812,9 +11847,9 @@ ${config.ai_instructions || ''}
 
 
 
-  // ==================== RE-DOWNLOAD DE MÍDIA ====================
+  // ==================== RE-DOWNLOAD DE MÃDIA ====================
 
-  // Endpoint para tentar re-baixar mídia do WhatsApp usando metadados salvos
+  // Endpoint para tentar re-baixar mÃ­dia do WhatsApp usando metadados salvos
 
   app.post("/api/messages/:messageId/redownload", isAuthenticated, async (req: any, res) => {
 
@@ -11832,7 +11867,7 @@ ${config.ai_instructions || ''}
 
       if (!message) {
 
-        return res.status(404).json({ success: false, message: "Mensagem não encontrada" });
+        return res.status(404).json({ success: false, message: "Mensagem nÃ£o encontrada" });
 
       }
 
@@ -11844,15 +11879,15 @@ ${config.ai_instructions || ''}
 
       if (!conversation) {
 
-        return res.status(404).json({ success: false, message: "Conversa não encontrada" });
+        return res.status(404).json({ success: false, message: "Conversa nÃ£o encontrada" });
 
       }
 
 
 
-      const connection = await storage.getConnectionByUserId(userId);
+      const connection = await storage.getConnectionByUserId(userId, conversation.connectionId);
 
-      if (!connection || conversation.connectionId !== connection.id) {
+      if (!connection) {
 
         return res.status(403).json({ success: false, message: "Acesso negado" });
 
@@ -11860,17 +11895,17 @@ ${config.ai_instructions || ''}
 
 
 
-      // ? CASO 1: Já tem mediaUrl válido - retornar diretamente sem redownload
+      // ? CASO 1: JÃ¡ tem mediaUrl vÃ¡lido - retornar diretamente sem redownload
 
       if (message.mediaUrl && message.mediaUrl.length > 10) {
 
-        console.log(`? [REDOWNLOAD] Mensagem ${messageId} já tem mediaUrl, retornando direto`);
+        console.log(`? [REDOWNLOAD] Mensagem ${messageId} jÃ¡ tem mediaUrl, retornando direto`);
 
         return res.json({
 
           success: true,
 
-          message: "Mídia já disponível!",
+          message: "MÃ­dia jÃ¡ disponÃ­vel!",
 
           mediaUrl: message.mediaUrl
 
@@ -11888,7 +11923,7 @@ ${config.ai_instructions || ''}
 
           success: false,
 
-          message: "Esta mídia não tem metadados para re-download. Mídias antigas não podem ser recuperadas."
+          message: "Esta mÃ­dia nÃ£o tem metadados para re-download. MÃ­dias antigas nÃ£o podem ser recuperadas."
 
         });
 
@@ -11930,7 +11965,7 @@ ${config.ai_instructions || ''}
 
           success: true,
 
-          message: "Mídia re-baixada com sucesso!",
+          message: "MÃ­dia re-baixada com sucesso!",
 
           mediaUrl: result.mediaUrl
 
@@ -11942,7 +11977,7 @@ ${config.ai_instructions || ''}
 
           success: false,
 
-          message: result.error || "Mídia expirada ou não disponível no WhatsApp"
+          message: result.error || "MÃ­dia expirada ou nÃ£o disponÃ­vel no WhatsApp"
 
         });
 
@@ -11952,7 +11987,7 @@ ${config.ai_instructions || ''}
 
       console.error("Error redownloading media:", error);
 
-      res.status(500).json({ success: false, message: "Erro ao tentar re-baixar mídia" });
+      res.status(500).json({ success: false, message: "Erro ao tentar re-baixar mÃ­dia" });
 
     }
 
@@ -11968,19 +12003,19 @@ ${config.ai_instructions || ''}
 
 
 
-      // ?? Verificar se usuário está suspenso - bloquear envio de mensagens
+      // ?? Verificar se usuÃ¡rio estÃ¡ suspenso - bloquear envio de mensagens
 
       const suspensionStatus = await storage.isUserSuspended(userId);
 
       if (suspensionStatus.suspended) {
 
-        console.log(`?? [SUSPENSION] Bloqueando envio de mensagem para usuário suspenso: ${userId}`);
+        console.log(`?? [SUSPENSION] Bloqueando envio de mensagem para usuÃ¡rio suspenso: ${userId}`);
 
         return res.status(403).json({
 
           success: false,
 
-          message: 'Sua conta está suspensa. Não é possível enviar mensagens.',
+          message: 'Sua conta estÃ¡ suspensa. NÃ£o Ã© possÃ­vel enviar mensagens.',
 
           suspended: true,
 
@@ -12051,9 +12086,9 @@ ${config.ai_instructions || ''}
 
 
 
-      const connection = await storage.getConnectionByUserId(userId);
+      const connection = await storage.getConnectionByUserId(userId, conversation.connectionId);
 
-      if (!connection || conversation.connectionId !== connection.id) {
+      if (!connection) {
 
         return res.status(403).json({ message: "Forbidden" });
 
@@ -12207,17 +12242,17 @@ ${config.ai_instructions || ''}
       const { subscriptionId, paymentId, amount } = req.body;
 
       if (!file) {
-        return res.status(400).json({ message: "Arquivo de comprovante é obrigatório" });
+        return res.status(400).json({ message: "Arquivo de comprovante Ã© obrigatÃ³rio" });
       }
 
       if (!subscriptionId) {
-        return res.status(400).json({ message: "ID da assinatura é obrigatório" });
+        return res.status(400).json({ message: "ID da assinatura Ã© obrigatÃ³rio" });
       }
 
-      // Verificar se a assinatura pertence ao usuário
+      // Verificar se a assinatura pertence ao usuÃ¡rio
       const subscription = await storage.getSubscription(subscriptionId);
       if (!subscription || subscription.userId !== userId) {
-        return res.status(403).json({ message: "Assinatura não encontrada ou não pertence ao usuário" });
+        return res.status(403).json({ message: "Assinatura nÃ£o encontrada ou nÃ£o pertence ao usuÃ¡rio" });
       }
 
       // Remover comprovantes duplicados pendentes da mesma assinatura/pagamento
@@ -12268,7 +12303,7 @@ ${config.ai_instructions || ''}
         }
       }
 
-      // Verificar/criar bucket se necessário
+      // Verificar/criar bucket se necessÃ¡rio
       const { data: bucketData, error: bucketError } = await supabase.storage.getBucket('payment-receipts');
       if (bucketError && bucketError.message?.includes('not found')) {
         console.log('[PAYMENT] Criando bucket payment-receipts...');
@@ -12298,7 +12333,7 @@ ${config.ai_instructions || ''}
         return res.status(500).json({ message: "Erro ao fazer upload do comprovante", error: uploadError.message });
       }
 
-      // Obter URL pública do arquivo
+      // Obter URL pÃºblica do arquivo
       const { data: urlData } = supabase.storage
         .from("payment-receipts")
         .getPublicUrl(fileName);
@@ -12361,16 +12396,16 @@ ${config.ai_instructions || ''}
       const { paymentId, amount, clientId } = req.body;
 
       if (!file) {
-        return res.status(400).json({ message: "Arquivo de comprovante é obrigatório" });
+        return res.status(400).json({ message: "Arquivo de comprovante Ã© obrigatÃ³rio" });
       }
 
-      // Verificar se é revendedor
+      // Verificar se Ã© revendedor
       const reseller = await storage.getResellerByUserId(userId);
       if (!reseller) {
-        return res.status(403).json({ message: "Você não é um revendedor" });
+        return res.status(403).json({ message: "VocÃª nÃ£o Ã© um revendedor" });
       }
 
-      // Verificar/criar bucket se necessário
+      // Verificar/criar bucket se necessÃ¡rio
       const { data: bucketData, error: bucketError } = await supabase.storage.getBucket('payment-receipts');
       if (bucketError && bucketError.message?.includes('not found')) {
         console.log('[RESELLER PAYMENT] Criando bucket payment-receipts...');
@@ -12429,7 +12464,7 @@ ${config.ai_instructions || ''}
         return res.status(500).json({ message: "Erro ao fazer upload do comprovante", error: uploadError.message });
       }
 
-      // Obter URL pública
+      // Obter URL pÃºblica
       const { data: urlData } = supabase.storage
         .from("payment-receipts")
         .getPublicUrl(fileName);
@@ -12441,7 +12476,7 @@ ${config.ai_instructions || ''}
         .from("payment_receipts")
         .insert({
           user_id: userId,
-          subscription_id: null, // Revendedor não tem subscription_id direto
+          subscription_id: null, // Revendedor nÃ£o tem subscription_id direto
           plan_id: null,
           amount: parseFloat(amount) || 0,
           receipt_url: receiptUrl,
@@ -12459,8 +12494,8 @@ ${config.ai_instructions || ''}
         return res.status(500).json({ message: "Erro ao salvar comprovante", detail: insertError.message });
       }
 
-      // Se houver paymentId válido (UUID), atualizar o statusDetail do pagamento do revendedor
-      // statusDetail é varchar(100), então guardamos apenas o receiptId
+      // Se houver paymentId vÃ¡lido (UUID), atualizar o statusDetail do pagamento do revendedor
+      // statusDetail Ã© varchar(100), entÃ£o guardamos apenas o receiptId
       if (paymentId && paymentId.length <= 50) {
         try {
           const existingPayment = await storage.getResellerPayment(paymentId);
@@ -12471,15 +12506,15 @@ ${config.ai_instructions || ''}
           }
         } catch (e) {
           console.error("[RESELLER PAYMENT] Error updating reseller payment with receipt:", e);
-          // Não falha a operação principal
+          // NÃ£o falha a operaÃ§Ã£o principal
         }
       }
 
-      console.log(`[RESELLER PAYMENT] ✅ Comprovante salvo: ${receipt.id} - Revendedor: ${reseller.id}`);
+      console.log(`[RESELLER PAYMENT] ? Comprovante salvo: ${receipt.id} - Revendedor: ${reseller.id}`);
 
       res.json({
         success: true,
-        message: "Comprovante enviado com sucesso! Aguarde a confirmação.",
+        message: "Comprovante enviado com sucesso! Aguarde a confirmaÃ§Ã£o.",
         receipt
       });
     } catch (error) {
@@ -12514,7 +12549,7 @@ ${config.ai_instructions || ''}
         throw receiptsError;
       }
 
-      // Se não houver comprovantes, retornar vazio
+      // Se nÃ£o houver comprovantes, retornar vazio
       if (!receipts || receipts.length === 0) {
         return res.json({
           receipts: [],
@@ -12524,11 +12559,11 @@ ${config.ai_instructions || ''}
         });
       }
 
-      // Buscar usuários e planos relacionados separadamente
+      // Buscar usuÃ¡rios e planos relacionados separadamente
       const userIds = [...new Set(receipts.map(r => r.user_id).filter(Boolean))];
       const planIds = [...new Set(receipts.map(r => r.plan_id).filter(Boolean))];
 
-      // Buscar usuários
+      // Buscar usuÃ¡rios
       let usersMap = {};
       if (userIds.length > 0) {
         const { data: users, error: usersError } = await supabase
@@ -12537,7 +12572,7 @@ ${config.ai_instructions || ''}
           .in("id", userIds);
 
         if (usersError) {
-          console.error("[ADMIN] Erro ao buscar usuários:", usersError);
+          console.error("[ADMIN] Erro ao buscar usuÃ¡rios:", usersError);
         } else if (users) {
           usersMap = users.reduce((acc, u) => ({ ...acc, [u.id]: u }), {});
         }
@@ -12592,11 +12627,11 @@ ${config.ai_instructions || ''}
         .single();
 
       if (fetchError || !receipt) {
-        return res.status(404).json({ message: "Comprovante não encontrado" });
+        return res.status(404).json({ message: "Comprovante nÃ£o encontrado" });
       }
 
       if (receipt.status !== "pending") {
-        return res.status(400).json({ message: "Este comprovante já foi processado" });
+        return res.status(400).json({ message: "Este comprovante jÃ¡ foi processado" });
       }
 
       // Atualizar status do comprovante para aprovado
@@ -12613,7 +12648,7 @@ ${config.ai_instructions || ''}
 
       if (updateError) throw updateError;
 
-      // BUG 4 FIX: Cancelar outros comprovantes pendentes do mesmo usuário
+      // BUG 4 FIX: Cancelar outros comprovantes pendentes do mesmo usuÃ¡rio
       const { error: cancelOthersError } = await supabase
         .from("payment_receipts")
         .update({
@@ -12625,16 +12660,16 @@ ${config.ai_instructions || ''}
         })
         .eq("user_id", receipt.user_id)
         .eq("status", "pending")
-        .neq("id", id); // Não cancelar o que acabamos de aprovar
+        .neq("id", id); // NÃ£o cancelar o que acabamos de aprovar
 
       if (cancelOthersError) {
         console.error("Error cancelling other pending receipts:", cancelOthersError);
-        // Não falhar a operação principal se o cancelamento dos outros falhar
+        // NÃ£o falhar a operaÃ§Ã£o principal se o cancelamento dos outros falhar
       }
 
-      // ATIVAÇÃO AUTOMÁTICA DA ASSINATURA: Calcular datas e ativar plano
+      // ATIVAÃ‡ÃƒO AUTOMÃTICA DA ASSINATURA: Calcular datas e ativar plano
       if (receipt.subscription_id) {
-        // Buscar o plano para calcular a duração
+        // Buscar o plano para calcular a duraÃ§Ã£o
         // Primeiro tenta pelo plan_id do comprovante, fallback pela assinatura
         let plan: any = null;
         
@@ -12670,12 +12705,12 @@ ${config.ai_instructions || ''}
           }
         }
 
-        // Calcular data de início (hoje) e fim
+        // Calcular data de inÃ­cio (hoje) e fim
         const dataInicio = new Date();
         const dataFim = new Date();
 
         // BUG 1 FIX: Priorizar periodicidade sobre frequencia_dias para datas corretas
-        // Mensal = +30 dias, Anual = +1 ano (não apenas 365 dias)
+        // Mensal = +30 dias, Anual = +1 ano (nÃ£o apenas 365 dias)
         if (plan) {
           if (plan.periodicidade === "anual") {
             // Plano anual: adicionar exatamente 1 ano (correto para anos bissextos)
@@ -12687,18 +12722,18 @@ ${config.ai_instructions || ''}
             // Fallback: usar frequencia_dias para periodicidades personalizadas
             dataFim.setDate(dataFim.getDate() + parseInt(plan.frequencia_dias));
           } else {
-            // Padrão: 30 dias
+            // PadrÃ£o: 30 dias
             dataFim.setDate(dataFim.getDate() + 30);
           }
         } else {
-          // Sem plano: padrão 30 dias
+          // Sem plano: padrÃ£o 30 dias
           dataFim.setDate(dataFim.getDate() + 30);
         }
 
-        console.log(`🔄 Ativando assinatura ${receipt.subscription_id}:`);
+        console.log(`?? Ativando assinatura ${receipt.subscription_id}:`);
         console.log(`   Plano: ${plan?.nome || 'Desconhecido'}`);
         console.log(`   Periodicidade: ${plan?.periodicidade || 'desconhecida'}`);
-        console.log(`   Início: ${dataInicio.toISOString()}`);
+        console.log(`   InÃ­cio: ${dataInicio.toISOString()}`);
         console.log(`   Fim: ${dataFim.toISOString()}`);
 
         // Atualizar assinatura com datas calculadas
@@ -12720,19 +12755,19 @@ ${config.ai_instructions || ''}
           throw subUpdateError;
         }
 
-        // TODO: Enviar notificação WhatsApp/email para o cliente sobre ativação
+        // TODO: Enviar notificaÃ§Ã£o WhatsApp/email para o cliente sobre ativaÃ§Ã£o
         // Esta funcionalidade pode ser implementada futuramente usando o centralizedMessageSender
       }
 
-      // ✅ REVENDA: Se for comprovante de revendedor, criar/ativar cliente via resellerService
-      // Detecção melhorada: usa admin_notes OU padrão na receipt_url OU user é revendedor
+      // ? REVENDA: Se for comprovante de revendedor, criar/ativar cliente via resellerService
+      // DetecÃ§Ã£o melhorada: usa admin_notes OU padrÃ£o na receipt_url OU user Ã© revendedor
       let isResellerReceipt = !!(receipt.admin_notes && receipt.admin_notes.includes("Comprovante de revendedor"));
       if (!isResellerReceipt && receipt.receipt_url) {
-        // Fallback: detecta pelo padrão na URL do arquivo (reseller_<uuid>)
+        // Fallback: detecta pelo padrÃ£o na URL do arquivo (reseller_<uuid>)
         isResellerReceipt = receipt.receipt_url.includes("/reseller_");
       }
       if (!isResellerReceipt && receipt.user_id) {
-        // Fallback: verifica se o usuário que enviou é revendedor
+        // Fallback: verifica se o usuÃ¡rio que enviou Ã© revendedor
         const { data: resellerCheck } = await supabase
           .from("resellers")
           .select("id")
@@ -12746,19 +12781,19 @@ ${config.ai_instructions || ''}
           console.log(`[ADMIN APPROVE] Detectado comprovante de revenda. payment_id: ${receipt.mp_payment_id}`);
           const { resellerService } = await import("./resellerService");
 
-          // Verificar se é renovação de cliente existente (tem Client ID nas admin_notes)
+          // Verificar se Ã© renovaÃ§Ã£o de cliente existente (tem Client ID nas admin_notes)
           const clientIdMatch = receipt.admin_notes?.match(/Client ID: ([a-zA-Z0-9-]+)/);
           const renewalClientId = clientIdMatch?.[1];
 
           if (renewalClientId) {
-            // ♻️ RENOVAÇÃO: Estender a assinatura do cliente existente
-            console.log(`[ADMIN APPROVE] Renovação de cliente ${renewalClientId}`);
+            // ?? RENOVAÃ‡ÃƒO: Estender a assinatura do cliente existente
+            console.log(`[ADMIN APPROVE] RenovaÃ§Ã£o de cliente ${renewalClientId}`);
             const resellerClient = await storage.getResellerClient(renewalClientId);
             if (resellerClient) {
               const currentDate = resellerClient.saasPaidUntil
                 ? new Date(resellerClient.saasPaidUntil)
                 : new Date();
-              // Se já venceu, começa de hoje
+              // Se jÃ¡ venceu, comeÃ§a de hoje
               const baseDate = currentDate < new Date() ? new Date() : currentDate;
               const newExpiryDate = new Date(baseDate);
               newExpiryDate.setDate(newExpiryDate.getDate() + 30);
@@ -12769,7 +12804,7 @@ ${config.ai_instructions || ''}
                 status: "active",
               });
 
-              // Também atualizar assinatura do usuário no sistema
+              // TambÃ©m atualizar assinatura do usuÃ¡rio no sistema
               const { error: subExtendError } = await supabase
                 .from("subscriptions")
                 .update({
@@ -12783,7 +12818,7 @@ ${config.ai_instructions || ''}
               if (subExtendError) {
                 console.error("[ADMIN APPROVE] Erro ao estender assinatura:", subExtendError);
               } else {
-                console.log(`[ADMIN APPROVE] ✅ Renovação do cliente ${renewalClientId} até ${newExpiryDate.toISOString()}`);
+                console.log(`[ADMIN APPROVE] ? RenovaÃ§Ã£o do cliente ${renewalClientId} atÃ© ${newExpiryDate.toISOString()}`);
               }
 
               // Registrar pagamento na invoice
@@ -12793,10 +12828,10 @@ ${config.ai_instructions || ''}
               }).catch(() => {/* ignore if not found - might be MP payment ID */});
             }
           } else {
-            // 🆕 PAGAMENTO DE FATURA ou CRIAÇÃO DE CLIENTE
-            // Se o mp_payment_id começa com "reseller_invoice_", é um pagamento de fatura do revendedor ao SaaS
+            // ?? PAGAMENTO DE FATURA ou CRIAÃ‡ÃƒO DE CLIENTE
+            // Se o mp_payment_id comeÃ§a com "reseller_invoice_", Ã© um pagamento de fatura do revendedor ao SaaS
             if (receipt.mp_payment_id && receipt.mp_payment_id.startsWith('reseller_invoice_')) {
-              console.log(`[ADMIN APPROVE] 🧾 Pagamento de fatura de revendedor: ${receipt.mp_payment_id}`);
+              console.log(`[ADMIN APPROVE] ?? Pagamento de fatura de revendedor: ${receipt.mp_payment_id}`);
               const invoiceIdMatch = receipt.mp_payment_id.match(/^reseller_invoice_(\d+)_/);
               if (invoiceIdMatch) {
                 const invoiceId = parseInt(invoiceIdMatch[1]);
@@ -12807,38 +12842,38 @@ ${config.ai_instructions || ''}
                     paymentMethod: 'pix',
                     paidAt: new Date(),
                   });
-                  console.log(`[ADMIN APPROVE] ✅ Fatura ${invoiceId} marcada como paga`);
+                  console.log(`[ADMIN APPROVE] ? Fatura ${invoiceId} marcada como paga`);
 
                     // Buscar o revendedor e ativar
                   const invoice = await storage.getResellerInvoice(invoiceId);
                   if (invoice) {
                     const clientsActivated = await reactivateResellerAndClients(invoice.resellerId);
-                    console.log(`[ADMIN APPROVE] ✅ Revendedor ${invoice.resellerId} ativado`);
-                    console.log(`[ADMIN APPROVE] ✅ ${clientsActivated} clientes reativados`);
+                    console.log(`[ADMIN APPROVE] ? Revendedor ${invoice.resellerId} ativado`);
+                    console.log(`[ADMIN APPROVE] ? ${clientsActivated} clientes reativados`);
                   }
                 } catch (invoiceError: any) {
                   console.error('[ADMIN APPROVE] Erro ao processar fatura:', invoiceError);
                 }
               }
             } else {
-              // CRIAÇÃO: Criar novo cliente via confirmPixPayment
+              // CRIAÃ‡ÃƒO: Criar novo cliente via confirmPixPayment
               const result = await resellerService.confirmPixPayment(receipt.mp_payment_id);
               if (result.success) {
-                console.log(`[ADMIN APPROVE] ✅ Cliente de revenda criado:`, {
+                console.log(`[ADMIN APPROVE] ? Cliente de revenda criado:`, {
                   clientId: result.clientId,
                   userId: result.userId,
                 });
               } else {
-                console.error(`[ADMIN APPROVE] ⚠️ Erro ao criar cliente:`, result.error);
+                console.error(`[ADMIN APPROVE] ?? Erro ao criar cliente:`, result.error);
                 if (!result.error?.includes("processado") && !result.error?.includes("processada")) {
-                  console.error(`[ADMIN APPROVE] Erro não fatal:`, result.error);
+                  console.error(`[ADMIN APPROVE] Erro nÃ£o fatal:`, result.error);
                 }
               }
             }
           }
         } catch (resellerError: any) {
-          console.error("[ADMIN APPROVE] Erro crítico ao processar cliente de revenda:", resellerError);
-          // Não falhar a aprovação do comprovante
+          console.error("[ADMIN APPROVE] Erro crÃ­tico ao processar cliente de revenda:", resellerError);
+          // NÃ£o falhar a aprovaÃ§Ã£o do comprovante
         }
       }
 
@@ -12864,11 +12899,11 @@ ${config.ai_instructions || ''}
         .single();
 
       if (fetchError || !receipt) {
-        return res.status(404).json({ message: "Comprovante não encontrado" });
+        return res.status(404).json({ message: "Comprovante nÃ£o encontrado" });
       }
 
       if (receipt.status !== "pending") {
-        return res.status(400).json({ message: "Este comprovante já foi processado" });
+        return res.status(400).json({ message: "Este comprovante jÃ¡ foi processado" });
       }
 
       // Atualizar status do comprovante para rejeitado
@@ -12911,9 +12946,9 @@ ${config.ai_instructions || ''}
 
   // Check user access status (subscription + trial messages)
 
-  // Também verifica se é cliente de revendedor e aplica lógica de bloqueio em CASCATA
+  // TambÃ©m verifica se Ã© cliente de revendedor e aplica lÃ³gica de bloqueio em CASCATA
 
-  // Se o REVENDEDOR está bloqueado, TODOS os clientes dele são bloqueados
+  // Se o REVENDEDOR estÃ¡ bloqueado, TODOS os clientes dele sÃ£o bloqueados
 
   app.get("/api/access-status", isAuthenticated, async (req: any, res) => {
 
@@ -12946,7 +12981,7 @@ ${config.ai_instructions || ''}
 
         if (reseller) {
 
-          // VERIFICAR SE O REVENDEDOR ESTÁ BLOQUEADO (CASCATA)
+          // VERIFICAR SE O REVENDEDOR ESTÃ BLOQUEADO (CASCATA)
 
           if (reseller.resellerStatus === 'blocked') {
 
@@ -12966,7 +13001,7 @@ ${config.ai_instructions || ''}
 
             nextPaymentDate: resellerClient.nextPaymentDate,
 
-            resellerBlocked, // Informar se o bloqueio é por causa do revendedor
+            resellerBlocked, // Informar se o bloqueio Ã© por causa do revendedor
 
             clientPrice: resellerClient.clientPrice || reseller.clientMonthlyPrice,
 
@@ -13067,7 +13102,7 @@ ${config.ai_instructions || ''}
 
         accessStatus = 'expired';
 
-        // Diferenciar se o bloqueio é por causa do revendedor
+        // Diferenciar se o bloqueio Ã© por causa do revendedor
 
         if (resellerBlocked) {
 
@@ -13111,9 +13146,9 @@ ${config.ai_instructions || ''}
 
         if (blockReason === 'reseller_blocked' && resellerInfo) {
 
-          // Bloqueio em cascata - revendedor não pagou o sistema
+          // Bloqueio em cascata - revendedor nÃ£o pagou o sistema
 
-          message = `O sistema está temporariamente indisponível. Entre em contato com ${resellerInfo.reseller.companyName}.`;
+          message = `O sistema estÃ¡ temporariamente indisponÃ­vel. Entre em contato com ${resellerInfo.reseller.companyName}.`;
 
           if (resellerInfo.reseller.supportPhone) {
 
@@ -13123,7 +13158,7 @@ ${config.ai_instructions || ''}
 
         } else if (blockReason === 'reseller_client_expired' && resellerInfo) {
 
-          message = `Sua assinatura está vencida. Entre em contato com ${resellerInfo.reseller.companyName} para regularizar.`;
+          message = `Sua assinatura estÃ¡ vencida. Entre em contato com ${resellerInfo.reseller.companyName} para regularizar.`;
 
           if (resellerInfo.reseller.supportPhone) {
 
@@ -13137,7 +13172,7 @@ ${config.ai_instructions || ''}
 
         } else {
 
-          message = 'Você atingiu o limite de 25 mensagens de teste. Assine um plano para continuar.';
+          message = 'VocÃª atingiu o limite de 25 mensagens de teste. Assine um plano para continuar.';
 
         }
 
@@ -13233,7 +13268,7 @@ ${config.ai_instructions || ''}
 
 
 
-      // Limite de teste: 25 mensagens (para usuários sem plano pago)
+      // Limite de teste: 25 mensagens (para usuÃ¡rios sem plano pago)
 
       const FREE_TRIAL_LIMIT = 25;
 
@@ -13249,7 +13284,7 @@ ${config.ai_instructions || ''}
 
 
 
-      // Se tem plano pago = ilimitado, senão = limite de 25
+      // Se tem plano pago = ilimitado, senÃ£o = limite de 25
 
       const limit = hasActiveSubscription ? -1 : FREE_TRIAL_LIMIT;
 
@@ -13451,7 +13486,7 @@ ${config.ai_instructions || ''}
 
 
 
-      // ?? LOG: Verificar se prompt está mudando
+      // ?? LOG: Verificar se prompt estÃ¡ mudando
 
       const promptChanged = result.data.prompt && existingConfig && result.data.prompt !== existingConfig.prompt;
 
@@ -13481,7 +13516,7 @@ ${config.ai_instructions || ''}
 
         const dataWithDefaults = {
 
-          prompt: result.data.prompt || "Você é um assistente virtual prestativo.",
+          prompt: result.data.prompt || "VocÃª Ã© um assistente virtual prestativo.",
 
           ...result.data
 
@@ -13493,9 +13528,9 @@ ${config.ai_instructions || ''}
 
 
 
-      // ?? FIX CRÍTICO: Sincronizar isActive com business_agent_configs
+      // ?? FIX CRÃTICO: Sincronizar isActive com business_agent_configs
 
-      // O toggle da UI "A ON/OFF" deve atualizar AMBAS as tabelas para consistência
+      // O toggle da UI "A ON/OFF" deve atualizar AMBAS as tabelas para consistÃªncia
 
       // O backend usa business_agent_configs.is_active para verificar se deve responder
 
@@ -13521,7 +13556,7 @@ ${config.ai_instructions || ''}
 
           } else {
 
-            // Se não existe business config, criar uma mínima
+            // Se nÃ£o existe business config, criar uma mÃ­nima
 
             await storage.upsertBusinessAgentConfig(userId, {
 
@@ -13543,15 +13578,15 @@ ${config.ai_instructions || ''}
 
 
 
-          // ?? TOGGLE EXCLUSIVO: Ativar Meu Agente = desativar Robô Fluxo (chatbot)
+          // ?? TOGGLE EXCLUSIVO: Ativar Meu Agente = desativar RobÃ´ Fluxo (chatbot)
 
           // Isso evita conflitos entre os dois sistemas
 
           if (result.data.isActive === true) {
 
-            console.log(`[AGENT CONFIG] ?? Desativando Robô Fluxo (chatbot) para usuário ${userId}`);
+            console.log(`[AGENT CONFIG] ?? Desativando RobÃ´ Fluxo (chatbot) para usuÃ¡rio ${userId}`);
 
-            // Usar db já importado no topo do arquivo, e sql também
+            // Usar db jÃ¡ importado no topo do arquivo, e sql tambÃ©m
 
             await db.execute(sql`
 
@@ -13573,7 +13608,7 @@ ${config.ai_instructions || ''}
 
             clearFlowCache(userId);
 
-            console.log(`[AGENT CONFIG] ? Robô Fluxo desativado para usuário ${userId}`);
+            console.log(`[AGENT CONFIG] ? RobÃ´ Fluxo desativado para usuÃ¡rio ${userId}`);
 
           }
 
@@ -13589,7 +13624,7 @@ ${config.ai_instructions || ''}
 
 
 
-      // ?? CRÍTICO: Se prompt mudou, criar nova versão no histórico
+      // ?? CRÃTICO: Se prompt mudou, criar nova versÃ£o no histÃ³rico
 
       if (promptChanged && result.data.prompt) {
 
@@ -13607,7 +13642,7 @@ ${config.ai_instructions || ''}
 
         console.log(`[AGENT CONFIG] Prompt novo: ${result.data.prompt.length} chars`);
 
-        console.log(`[AGENT CONFIG] Criando nova versão no histórico...`);
+        console.log(`[AGENT CONFIG] Criando nova versÃ£o no histÃ³rico...`);
 
 
 
@@ -13639,15 +13674,15 @@ ${config.ai_instructions || ''}
 
         if (novaVersao) {
 
-          console.log(`[AGENT CONFIG] ? Nova versão criada: v${novaVersao.version_number}`);
+          console.log(`[AGENT CONFIG] ? Nova versÃ£o criada: v${novaVersao.version_number}`);
 
-          console.log(`[AGENT CONFIG] ID da versão: ${novaVersao.id}`);
+          console.log(`[AGENT CONFIG] ID da versÃ£o: ${novaVersao.id}`);
 
           console.log(`[AGENT CONFIG] Marcada como current: ${novaVersao.is_current}`);
 
         } else {
 
-          console.error(`[AGENT CONFIG] ? ERRO: Falha ao criar versão do prompt`);
+          console.error(`[AGENT CONFIG] ? ERRO: Falha ao criar versÃ£o do prompt`);
 
         }
 
@@ -13655,17 +13690,17 @@ ${config.ai_instructions || ''}
 
 
 
-        // ?? REMOVIDO: Não criar FlowDefinition automaticamente quando salva prompt
+        // ?? REMOVIDO: NÃ£o criar FlowDefinition automaticamente quando salva prompt
 
-        // A criação do FlowDefinition deve ser feita APENAS quando o usuário ativa
+        // A criaÃ§Ã£o do FlowDefinition deve ser feita APENAS quando o usuÃ¡rio ativa
 
         // o Construtor de Fluxo (chatbot_configs.is_active = true)
 
         // Isso evita conflito entre Meu Agente IA e Construtor de Fluxo
 
-        // Se o usuário usa "Meu Agente IA", NÃO deve ter FlowDefinition ativo
+        // Se o usuÃ¡rio usa "Meu Agente IA", NÃƒO deve ter FlowDefinition ativo
 
-        // Se o usuário usa "Construtor de Fluxo", aí sim cria FlowDefinition
+        // Se o usuÃ¡rio usa "Construtor de Fluxo", aÃ­ sim cria FlowDefinition
 
 
 
@@ -13701,7 +13736,7 @@ ${config.ai_instructions || ''}
 
       if (!businessType || !businessName) {
 
-        return res.status(400).json({ message: "businessType e businessName são obrigatórios" });
+        return res.status(400).json({ message: "businessType e businessName sÃ£o obrigatÃ³rios" });
 
       }
 
@@ -13719,23 +13754,23 @@ ${config.ai_instructions || ''}
 
         store: "Loja/Varejo",
 
-        clinic: "Clínica/Consultório",
+        clinic: "ClÃ­nica/ConsultÃ³rio",
 
-        salon: "Salão de Beleza/Barbearia",
+        salon: "SalÃ£o de Beleza/Barbearia",
 
         gym: "Academia/Personal",
 
         school: "Escola/Curso",
 
-        agency: "Agência/Serviços",
+        agency: "AgÃªncia/ServiÃ§os",
 
-        realestate: "Imobiliária",
+        realestate: "ImobiliÃ¡ria",
 
-        lawyer: "Escritório de Advocacia",
+        lawyer: "EscritÃ³rio de Advocacia",
 
-        mechanic: "Oficina Mecânica",
+        mechanic: "Oficina MecÃ¢nica",
 
-        other: "Outro negócio"
+        other: "Outro negÃ³cio"
 
       };
 
@@ -13745,57 +13780,57 @@ ${config.ai_instructions || ''}
 
 
 
-      // Prompt de sistema para geração - OTIMIZADO PARA PROMPTS CONCISOS
+      // Prompt de sistema para geraÃ§Ã£o - OTIMIZADO PARA PROMPTS CONCISOS
 
-      const systemPrompt = `Você é um especialista em criar prompts CONCISOS para agentes de IA de WhatsApp.
+      const systemPrompt = `VocÃª Ã© um especialista em criar prompts CONCISOS para agentes de IA de WhatsApp.
 
 
 
-REGRAS CRÍTICAS:
+REGRAS CRÃTICAS:
 
-1. O prompt deve ter NO MÁXIMO 1200 caracteres
+1. O prompt deve ter NO MÃXIMO 1200 caracteres
 
-2. Seja DIRETO e OBJETIVO - corte qualquer coisa desnecessária
+2. Seja DIRETO e OBJETIVO - corte qualquer coisa desnecessÃ¡ria
 
-3. Use formato de lista compacto, não parágrafos longos
+3. Use formato de lista compacto, nÃ£o parÃ¡grafos longos
 
-4. Português brasileiro, tom profissional mas amigável
+4. PortuguÃªs brasileiro, tom profissional mas amigÃ¡vel
 
-5. Estrutura MÍNIMA: Identidade (1-2 linhas) + Regras principais (5-7 itens) + O que NÃO fazer (3-4 itens)
+5. Estrutura MÃNIMA: Identidade (1-2 linhas) + Regras principais (5-7 itens) + O que NÃƒO fazer (3-4 itens)
 
-6. NÃO inclua exemplos de resposta - deixe a IA improvisar
+6. NÃƒO inclua exemplos de resposta - deixe a IA improvisar
 
-7. NÃO repita informações óbvias
+7. NÃƒO repita informaÃ§Ãµes Ã³bvias
 
-8. Emojis: máximo 3-4 no prompt inteiro
+8. Emojis: mÃ¡ximo 3-4 no prompt inteiro
 
 
 
 FORMATO IDEAL:
 
-[Nome] - atendente de [negócio]. [1 frase sobre tom]
+[Nome] - atendente de [negÃ³cio]. [1 frase sobre tom]
 
 
 
 REGRAS:
 
- [regra 1]
+? [regra 1]
 
- [regra 2]
+? [regra 2]
 
 ...
 
 
 
-NÃO FAZER:
+NÃƒO FAZER:
 
- [item 1]
+? [item 1]
 
- [item 2]
+? [item 2]
 
 
 
-Priorize QUALIDADE sobre quantidade. Um prompt curto e bem feito é melhor que um longo e confuso.`;
+Priorize QUALIDADE sobre quantidade. Um prompt curto e bem feito Ã© melhor que um longo e confuso.`;
 
 
 
@@ -13805,23 +13840,23 @@ Priorize QUALIDADE sobre quantidade. Um prompt curto e bem feito é melhor que u
 
       if (businessType === 'custom') {
 
-        userPrompt = `Analise a descrição abaixo e crie um prompt de atendimento perfeito para este negócio.
+        userPrompt = `Analise a descriÃ§Ã£o abaixo e crie um prompt de atendimento perfeito para este negÃ³cio.
 
-Identifique o tipo de negócio, o nome (se houver) e o tom de voz desejado a partir do texto.
+Identifique o tipo de negÃ³cio, o nome (se houver) e o tom de voz desejado a partir do texto.
 
 
 
-DESCRIÇÃO DO USUÁRIO:
+DESCRIÃ‡ÃƒO DO USUÃRIO:
 
 "${description}"
 
 
 
-Crie um prompt completo, estruturado e profissional que o agente de IA usará para atender clientes no WhatsApp.`;
+Crie um prompt completo, estruturado e profissional que o agente de IA usarÃ¡ para atender clientes no WhatsApp.`;
 
       } else {
 
-        userPrompt = `Crie um prompt de atendimento para o seguinte negócio:
+        userPrompt = `Crie um prompt de atendimento para o seguinte negÃ³cio:
 
 
 
@@ -13829,13 +13864,13 @@ TIPO: ${businessTypeLabel}
 
 NOME: ${businessName}
 
-DESCRIÇÃO: ${description || "Não informada"}
+DESCRIÃ‡ÃƒO: ${description || "NÃ£o informada"}
 
-INFORMAÇÕES ADICIONAIS: ${additionalInfo || "Nenhuma"}
+INFORMAÃ‡Ã•ES ADICIONAIS: ${additionalInfo || "Nenhuma"}
 
 
 
-Crie um prompt completo e profissional que o agente de IA usará para atender clientes no WhatsApp.`;
+Crie um prompt completo e profissional que o agente de IA usarÃ¡ para atender clientes no WhatsApp.`;
 
       }
 
@@ -13901,15 +13936,15 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
 
 
-      // ?? AUTO-CALIBRAÇÃO NA CRIAÇÃO DO AGENTE
+      // ?? AUTO-CALIBRAÃ‡ÃƒO NA CRIAÃ‡ÃƒO DO AGENTE
 
       // Testar o prompt gerado com IA Cliente vs IA Agente antes de ativar
 
       console.log(`\n?? [Generate Prompt] ----------------------------------------`);
 
-      console.log(`?? [Generate Prompt] Iniciando auto-calibração do prompt criado...`);
+      console.log(`?? [Generate Prompt] Iniciando auto-calibraÃ§Ã£o do prompt criado...`);
 
-      console.log(`?? [Generate Prompt] Negócio: ${businessName} (${businessTypeLabel})`);
+      console.log(`?? [Generate Prompt] NegÃ³cio: ${businessName} (${businessTypeLabel})`);
 
       console.log(`?? [Generate Prompt] Prompt length: ${generatedPrompt.length} chars`);
 
@@ -13927,23 +13962,23 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
 
 
-        // Usar MESMA configuração que a EDIÇÃO de prompts
+        // Usar MESMA configuraÃ§Ã£o que a EDIÃ‡ÃƒO de prompts
 
-        // IA Cliente vs IA Agente - Calibração robusta
+        // IA Cliente vs IA Agente - CalibraÃ§Ã£o robusta
 
-        const contextoNegocio = description || `Negócio: ${businessName}. Tipo: ${businessTypeLabel}`;
+        const contextoNegocio = description || `NegÃ³cio: ${businessName}. Tipo: ${businessTypeLabel}`;
 
         const instrucaoCalibracao = `Criar agente de atendimento para: ${contextoNegocio}`;
 
 
 
-        console.log(`?? [Generate Prompt] Executando calibração IA Cliente vs IA Agente...`);
+        console.log(`?? [Generate Prompt] Executando calibraÃ§Ã£o IA Cliente vs IA Agente...`);
 
-        console.log(`?? [Generate Prompt] Instrução: ${instrucaoCalibracao.substring(0, 100)}...`);
+        console.log(`?? [Generate Prompt] InstruÃ§Ã£o: ${instrucaoCalibracao.substring(0, 100)}...`);
 
 
 
-        // CHAMADA CORRETA - Mesmos parâmetros que a EDIÇÃO
+        // CHAMADA CORRETA - Mesmos parÃ¢metros que a EDIÃ‡ÃƒO
 
         calibrationResult = await calibrarPromptEditado(
 
@@ -13951,17 +13986,17 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
           instrucaoCalibracao,
 
-          mistralApiKey || "",  // apiKey obrigatória
+          mistralApiKey || "",  // apiKey obrigatÃ³ria
 
-          "mistral",            // modelo igual à edição
+          "mistral",            // modelo igual Ã  ediÃ§Ã£o
 
           {
 
-            numeroCenarios: 2,        // Igual à edição
+            numeroCenarios: 2,        // Igual Ã  ediÃ§Ã£o
 
-            maxTentativasReparo: 2,   // Igual à edição
+            maxTentativasReparo: 2,   // Igual Ã  ediÃ§Ã£o
 
-            scoreMinimoAprovacao: 70  // Score mínimo 70
+            scoreMinimoAprovacao: 70  // Score mÃ­nimo 70
 
           }
 
@@ -13971,13 +14006,13 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
         console.log(`?? [Generate Prompt] ----------------------------------------`);
 
-        console.log(`?? [Generate Prompt] RESULTADO CALIBRAÇÃO:`);
+        console.log(`?? [Generate Prompt] RESULTADO CALIBRAÃ‡ÃƒO:`);
 
         console.log(`   ? Sucesso: ${calibrationResult.sucesso}`);
 
         console.log(`   ?? Score geral: ${calibrationResult.scoreGeral}/100`);
 
-        console.log(`   ?? Cenários: ${calibrationResult.cenariosAprovados}/${calibrationResult.cenariosTotais} aprovados`);
+        console.log(`   ?? CenÃ¡rios: ${calibrationResult.cenariosAprovados}/${calibrationResult.cenariosTotais} aprovados`);
 
         console.log(`   ?? Tentativas de reparo: ${calibrationResult.tentativasReparo}`);
 
@@ -13991,19 +14026,19 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
           finalPrompt = calibrationResult.promptFinal;
 
-          console.log(`?? [Generate Prompt] ? Prompt CALIBRADO com sucesso! Usando versão otimizada.`);
+          console.log(`?? [Generate Prompt] ? Prompt CALIBRADO com sucesso! Usando versÃ£o otimizada.`);
 
         } else {
 
-          console.log(`?? [Generate Prompt] ?? Calibração não atingiu score mínimo (70%), usando prompt original`);
+          console.log(`?? [Generate Prompt] ?? CalibraÃ§Ã£o nÃ£o atingiu score mÃ­nimo (70%), usando prompt original`);
 
         }
 
       } catch (calibrationError) {
 
-        console.error(`?? [Generate Prompt] ? Erro na calibração:`, calibrationError);
+        console.error(`?? [Generate Prompt] ? Erro na calibraÃ§Ã£o:`, calibrationError);
 
-        // Continua com prompt original se calibração falhar
+        // Continua com prompt original se calibraÃ§Ã£o falhar
 
       }
 
@@ -14027,7 +14062,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
 
 
-        console.log(`\n?? [Generate Prompt] Criando FlowDefinition para sistema híbrido...`);
+        console.log(`\n?? [Generate Prompt] Criando FlowDefinition para sistema hÃ­brido...`);
 
 
 
@@ -14049,7 +14084,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
         flowCreated = flowResult.flowCreated;
 
-        console.log(`?? [Generate Prompt] FlowDefinition: ${flowCreated ? '? Criado' : '? Não criado'}`);
+        console.log(`?? [Generate Prompt] FlowDefinition: ${flowCreated ? '? Criado' : '? NÃ£o criado'}`);
 
         console.log(`?? [Generate Prompt] Tipo de flow: ${flowResult.flow?.type || 'GENERICO'}`);
 
@@ -14057,7 +14092,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
         console.error(`?? [Generate Prompt] ? Erro ao criar FlowDefinition:`, flowError);
 
-        // Continua mesmo se falhar - o sistema legado será usado
+        // Continua mesmo se falhar - o sistema legado serÃ¡ usado
 
       }
 
@@ -14077,7 +14112,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
           score: calibrationResult.scoreGeral,       // CORRIGIDO: era "scoreMedio"
 
-          repairs: calibrationResult.edicoesAplicadas || 0, // CORRIGIDO: era tentativasReparo (loops), agora edições reais
+          repairs: calibrationResult.edicoesAplicadas || 0, // CORRIGIDO: era tentativasReparo (loops), agora ediÃ§Ãµes reais
 
           scenarios: calibrationResult.cenariosTotais,
 
@@ -14089,7 +14124,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
           calibrated: false,
 
-          reason: 'Calibração não executada'
+          reason: 'CalibraÃ§Ã£o nÃ£o executada'
 
         }
 
@@ -14107,7 +14142,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
 
 
-  // ============ EDITOR DE PROMPTS COM AUTO-CALIBRAÇÃO (SSE - STREAMING) ============
+  // ============ EDITOR DE PROMPTS COM AUTO-CALIBRAÃ‡ÃƒO (SSE - STREAMING) ============
 
   // ?? Sistema de IA Cliente vs IA Agente com logs em tempo real
 
@@ -14143,7 +14178,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
       if (!currentPrompt || !instruction) {
 
-        sendEvent({ type: 'error', message: 'currentPrompt e instruction são obrigatórios' });
+        sendEvent({ type: 'error', message: 'currentPrompt e instruction sÃ£o obrigatÃ³rios' });
 
         res.end();
 
@@ -14167,7 +14202,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
       if (!mistralApiKey) {
 
-        sendEvent({ type: 'error', message: 'Chave API não configurada' });
+        sendEvent({ type: 'error', message: 'Chave API nÃ£o configurada' });
 
         res.end();
 
@@ -14177,7 +14212,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
 
 
-      // Verificar limite para usuários free (canonical entitlement)
+      // Verificar limite para usuÃ¡rios free (canonical entitlement)
 
       const entitlementCalib = await getAccessEntitlement(userId);
 
@@ -14195,7 +14230,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
             type: 'limit_reached',
 
-            message: `Limite de ${FREE_DAILY_CALIBRATION_LIMIT} calibrações atingido`,
+            message: `Limite de ${FREE_DAILY_CALIBRATION_LIMIT} calibraÃ§Ãµes atingido`,
 
             used: dailyUsage.promptEditsCount,
 
@@ -14215,7 +14250,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
       sendEvent({ type: 'log', message: '?? Iniciando processamento...' });
 
-      sendEvent({ type: 'log', message: '?? Analisando sua instrução...' });
+      sendEvent({ type: 'log', message: '?? Analisando sua instruÃ§Ã£o...' });
 
       sendEvent({ type: 'log', message: '?? Lendo prompt atual...' });
 
@@ -14241,7 +14276,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
       if (!result.success || result.novoPrompt === currentPrompt) {
 
-        sendEvent({ type: 'log', message: '?? ' + (result.mensagemChat || 'Não foi possível aplicar essa mudança') });
+        sendEvent({ type: 'log', message: '?? ' + (result.mensagemChat || 'NÃ£o foi possÃ­vel aplicar essa mudanÃ§a') });
 
         sendEvent({ type: 'complete', success: false, feedbackMessage: result.mensagemChat });
 
@@ -14259,7 +14294,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
       if (numEdicoes > 0) {
 
-        sendEvent({ type: 'log', message: `?? ${numEdicoes} edição(ões) aplicadas no prompt!` });
+        sendEvent({ type: 'log', message: `?? ${numEdicoes} ediÃ§Ã£o(Ãµes) aplicadas no prompt!` });
 
       } else {
 
@@ -14267,13 +14302,13 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
       }
 
-      sendEvent({ type: 'log', message: '?? Iniciando validação automática...' });
+      sendEvent({ type: 'log', message: '?? Iniciando validaÃ§Ã£o automÃ¡tica...' });
 
-      sendEvent({ type: 'log', message: '?? Preparando cenários de teste...' });
+      sendEvent({ type: 'log', message: '?? Preparando cenÃ¡rios de teste...' });
 
 
 
-      // Calibração com streaming de logs
+      // CalibraÃ§Ã£o com streaming de logs
 
       let calibrationResult: any = null;
 
@@ -14287,7 +14322,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
           // IMPORTANTE: Sempre usar type='calibration_log' para o frontend processar
 
-          // O log.type original é preservado em 'logType' para contexto
+          // O log.type original Ã© preservado em 'logType' para contexto
 
           sendEvent({
 
@@ -14335,15 +14370,15 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
 
 
-          // SEMPRE usar o prompt calibrado (melhor resultado após todas tentativas)
+          // SEMPRE usar o prompt calibrado (melhor resultado apÃ³s todas tentativas)
 
-          // O sistema já tentou 20 vezes para atingir 70 - usar o melhor que conseguiu
+          // O sistema jÃ¡ tentou 20 vezes para atingir 70 - usar o melhor que conseguiu
 
           promptFinal = calibrationResult.promptFinal;
 
         } catch (calibError: any) {
 
-          sendEvent({ type: 'calibration_log', message: `?? Erro na calibração: ${calibError.message}` });
+          sendEvent({ type: 'calibration_log', message: `?? Erro na calibraÃ§Ã£o: ${calibError.message}` });
 
           // Em caso de erro, reverter para original
 
@@ -14355,7 +14390,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
 
 
-      // Salvar alterações SOMENTE se calibração passou ou foi pulada
+      // Salvar alteraÃ§Ãµes SOMENTE se calibraÃ§Ã£o passou ou foi pulada
 
       await storage.updateAgentConfig(userId, { prompt: promptFinal });
 
@@ -14369,7 +14404,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
 
 
-      // Salvar histórico
+      // Salvar histÃ³rico
 
       await salvarMensagemChat({
 
@@ -14389,9 +14424,9 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
         ? (calibrationResult.sucesso
 
-          ? `\n\n? *Validação:* Score ${calibrationResult.scoreGeral}/100 (${calibrationResult.edicoesAplicadas || 0} edições)`
+          ? `\n\n? *ValidaÃ§Ã£o:* Score ${calibrationResult.scoreGeral}/100 (${calibrationResult.edicoesAplicadas || 0} ediÃ§Ãµes)`
 
-          : `\n\n? *Calibração:* Score ${calibrationResult.scoreGeral}/100 (${calibrationResult.edicoesAplicadas || 0} edições)`)
+          : `\n\n? *CalibraÃ§Ã£o:* Score ${calibrationResult.scoreGeral}/100 (${calibrationResult.edicoesAplicadas || 0} ediÃ§Ãµes)`)
 
         : '';
 
@@ -14427,7 +14462,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
           success: calibrationResult.sucesso,
 
-          repairs: calibrationResult.edicoesAplicadas || 0 // CORRIGIDO: era tentativasReparo (loops), agora edições reais
+          repairs: calibrationResult.edicoesAplicadas || 0 // CORRIGIDO: era tentativasReparo (loops), agora ediÃ§Ãµes reais
 
         } : null
 
@@ -14451,9 +14486,9 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
 
 
-  // ============ EDITOR DE PROMPTS COM AUTO-CALIBRAÇÃO ============
+  // ============ EDITOR DE PROMPTS COM AUTO-CALIBRAÃ‡ÃƒO ============
 
-  // ?? Sistema de IA Cliente vs IA Agente para validar edições antes de aplicar
+  // ?? Sistema de IA Cliente vs IA Agente para validar ediÃ§Ãµes antes de aplicar
 
   app.post("/api/agent/edit-prompt", isAuthenticated, async (req: any, res) => {
 
@@ -14467,13 +14502,13 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
       if (!currentPrompt || !instruction) {
 
-        return res.status(400).json({ message: "currentPrompt e instruction são obrigatórios" });
+        return res.status(400).json({ message: "currentPrompt e instruction sÃ£o obrigatÃ³rios" });
 
       }
 
 
 
-      // Buscar chave Mistral logo no início (necessário para análise de intenção)
+      // Buscar chave Mistral logo no inÃ­cio (necessÃ¡rio para anÃ¡lise de intenÃ§Ã£o)
 
       const mistralConfig = await storage.getSystemConfig('mistral_api_key');
 
@@ -14491,7 +14526,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
         return res.status(500).json({
 
-          message: "Chave API Mistral não configurada. Configure em Configurações > Sistema."
+          message: "Chave API Mistral nÃ£o configurada. Configure em ConfiguraÃ§Ãµes > Sistema."
 
         });
 
@@ -14501,9 +14536,9 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
       // ==================================================================================
 
-      // ?? SISTEMA INTELIGENTE DE DETECÇÃO DE INTENÇÃO (usando IA)
+      // ?? SISTEMA INTELIGENTE DE DETECÃ‡ÃƒO DE INTENÃ‡ÃƒO (usando IA)
 
-      // Analisa se o usuário quer editar LISTAGEM/FORMATAÇÃO de módulos ativos
+      // Analisa se o usuÃ¡rio quer editar LISTAGEM/FORMATAÃ‡ÃƒO de mÃ³dulos ativos
 
       // vs apenas COMPORTAMENTO/ATENDIMENTO
 
@@ -14511,7 +14546,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
 
 
-      // Verificar módulos ativos primeiro
+      // Verificar mÃ³dulos ativos primeiro
 
       let deliveryActive = false;
 
@@ -14539,7 +14574,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
 
 
-        // Se delivery ativo, buscar nomes dos itens para detecção
+        // Se delivery ativo, buscar nomes dos itens para detecÃ§Ã£o
 
         if (deliveryActive) {
 
@@ -14575,7 +14610,7 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
 
 
-        // Se catálogo ativo, buscar nomes dos produtos para detecção
+        // Se catÃ¡logo ativo, buscar nomes dos produtos para detecÃ§Ã£o
 
         if (catalogActive) {
 
@@ -14597,45 +14632,45 @@ Crie um prompt completo e profissional que o agente de IA usará para atender cl
 
       } catch (e) {
 
-        // Módulos não configurados
+        // MÃ³dulos nÃ£o configurados
 
       }
 
 
 
-      // Se nenhum módulo ativo, prosseguir normalmente
+      // Se nenhum mÃ³dulo ativo, prosseguir normalmente
 
       if (!deliveryActive && !catalogActive) {
 
-        console.log(`? [Edit Prompt] Nenhum módulo ativo - edição livre`);
+        console.log(`? [Edit Prompt] Nenhum mÃ³dulo ativo - ediÃ§Ã£o livre`);
 
       } else {
 
-        // ?? ANÁLISE DE INTENÇÃO USANDO IA (Mistral)
+        // ?? ANÃLISE DE INTENÃ‡ÃƒO USANDO IA (Mistral)
 
-        console.log(`?? [Intent Detection] Analisando intenção da instrução com IA...`);
+        console.log(`?? [Intent Detection] Analisando intenÃ§Ã£o da instruÃ§Ã£o com IA...`);
 
 
 
-        const intentAnalysisPrompt = `Você é um analisador de intenções. Analise a seguinte instrução de edição de prompt e determine se o usuário quer editar a FORMATAÇÃO/LISTAGEM de itens OU apenas o COMPORTAMENTO/ATENDIMENTO.
+        const intentAnalysisPrompt = `VocÃª Ã© um analisador de intenÃ§Ãµes. Analise a seguinte instruÃ§Ã£o de ediÃ§Ã£o de prompt e determine se o usuÃ¡rio quer editar a FORMATAÃ‡ÃƒO/LISTAGEM de itens OU apenas o COMPORTAMENTO/ATENDIMENTO.
 
 
 
 CONTEXTO:
 
-${deliveryActive ? `- Módulo DELIVERY está ATIVO (cardápio com ${deliveryItemNames.length} itens)` : ''}
+${deliveryActive ? `- MÃ³dulo DELIVERY estÃ¡ ATIVO (cardÃ¡pio com ${deliveryItemNames.length} itens)` : ''}
 
-${catalogActive ? `- Módulo CATÁLOGO está ATIVO (produtos com ${productNames.length} itens)` : ''}
+${catalogActive ? `- MÃ³dulo CATÃLOGO estÃ¡ ATIVO (produtos com ${productNames.length} itens)` : ''}
 
 
 
-INSTRUÇÃO DO USUÁRIO:
+INSTRUÃ‡ÃƒO DO USUÃRIO:
 
 "${instruction}"
 
 
 
-ANÁLISE - Responda APENAS com um JSON válido no seguinte formato:
+ANÃLISE - Responda APENAS com um JSON vÃ¡lido no seguinte formato:
 
 {
 
@@ -14645,7 +14680,7 @@ ANÁLISE - Responda APENAS com um JSON válido no seguinte formato:
 
   "confianca": 0-100,
 
-  "razao": "breve explicação"
+  "razao": "breve explicaÃ§Ã£o"
 
 }
 
@@ -14653,15 +14688,15 @@ ANÁLISE - Responda APENAS com um JSON válido no seguinte formato:
 
 REGRAS:
 
-1. Se menciona como LISTAR, MOSTRAR, FORMATAR, ENVIAR itens/cardápio/produtos ? quer_editar_listagem = true
+1. Se menciona como LISTAR, MOSTRAR, FORMATAR, ENVIAR itens/cardÃ¡pio/produtos ? quer_editar_listagem = true
 
-2. Se menciona nome específico de item (ex: "${deliveryItemNames[0] || 'Pizza Calabresa'}") ? quer_editar_listagem = true
+2. Se menciona nome especÃ­fico de item (ex: "${deliveryItemNames[0] || 'Pizza Calabresa'}") ? quer_editar_listagem = true
 
 3. Se menciona apenas COMPORTAMENTO (como atender, reagir, responder) ? quer_editar_listagem = false
 
-4. Se diz "quando pedir cardápio, faça X" (contexto de REAÇÃO) ? quer_editar_listagem = false
+4. Se diz "quando pedir cardÃ¡pio, faÃ§a X" (contexto de REAÃ‡ÃƒO) ? quer_editar_listagem = false
 
-5. Se diz "mude o cardápio para..." (contexto de EDIÇÃO) ? quer_editar_listagem = true
+5. Se diz "mude o cardÃ¡pio para..." (contexto de EDIÃ‡ÃƒO) ? quer_editar_listagem = true
 
 
 
@@ -14719,13 +14754,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-          // ?? SE DETECTOU INTENÇÃO DE EDITAR LISTAGEM DE MÓDULO ATIVO
+          // ?? SE DETECTOU INTENÃ‡ÃƒO DE EDITAR LISTAGEM DE MÃ“DULO ATIVO
 
           if (intentAnalysis.quer_editar_listagem && intentAnalysis.confianca >= 60) {
 
             if (intentAnalysis.modulo_afetado === 'delivery' && deliveryActive) {
 
-              console.log(`?? [Edit Prompt] BLOQUEIO: Usuário quer editar LISTAGEM do delivery (confiança ${intentAnalysis.confianca}%)`);
+              console.log(`?? [Edit Prompt] BLOQUEIO: UsuÃ¡rio quer editar LISTAGEM do delivery (confianÃ§a ${intentAnalysis.confianca}%)`);
 
               return res.json({
 
@@ -14737,11 +14772,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                 intentAnalysis,
 
-                message: `?? Percebi que você quer modificar **como os itens do cardápio são listados/formatados**.\n\n?? **Por que foi bloqueado:**\n${intentAnalysis.razao}\n\n?? **O que você pode fazer:**\n1. Ir em **Delivery > Cardápio** para editar itens, preços e descrições\n2. Editar as **Instruções de Atendimento** nas configurações do Delivery (comportamento, não formatação)\n3. Se quiser controle total da formatação, desative "Enviar para IA" nas configurações do Delivery\n\n?? **Dica:** Se sua intenção era apenas mudar o COMPORTAMENTO (como reagir a perguntas), tente reformular a instrução de forma mais clara.`,
+                message: `?? Percebi que vocÃª quer modificar **como os itens do cardÃ¡pio sÃ£o listados/formatados**.\n\n?? **Por que foi bloqueado:**\n${intentAnalysis.razao}\n\n?? **O que vocÃª pode fazer:**\n1. Ir em **Delivery > CardÃ¡pio** para editar itens, preÃ§os e descriÃ§Ãµes\n2. Editar as **InstruÃ§Ãµes de Atendimento** nas configuraÃ§Ãµes do Delivery (comportamento, nÃ£o formataÃ§Ã£o)\n3. Se quiser controle total da formataÃ§Ã£o, desative "Enviar para IA" nas configuraÃ§Ãµes do Delivery\n\n?? **Dica:** Se sua intenÃ§Ã£o era apenas mudar o COMPORTAMENTO (como reagir a perguntas), tente reformular a instruÃ§Ã£o de forma mais clara.`,
 
-                feedbackMessage: `?? Percebi que você quer modificar **como os itens do cardápio são listados**.\n\nComo você tem o módulo de Delivery **ATIVO**, a formatação do cardápio é gerenciada automaticamente em **Delivery > Cardápio**.\n\n?? **${intentAnalysis.razao}**`,
+                feedbackMessage: `?? Percebi que vocÃª quer modificar **como os itens do cardÃ¡pio sÃ£o listados**.\n\nComo vocÃª tem o mÃ³dulo de Delivery **ATIVO**, a formataÃ§Ã£o do cardÃ¡pio Ã© gerenciada automaticamente em **Delivery > CardÃ¡pio**.\n\n?? **${intentAnalysis.razao}**`,
 
-                suggestion: 'Edite o cardápio em Delivery > Cardápio'
+                suggestion: 'Edite o cardÃ¡pio em Delivery > CardÃ¡pio'
 
               });
 
@@ -14751,7 +14786,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             if (intentAnalysis.modulo_afetado === 'catalog' && catalogActive) {
 
-              console.log(`?? [Edit Prompt] BLOQUEIO: Usuário quer editar LISTAGEM do catálogo (confiança ${intentAnalysis.confianca}%)`);
+              console.log(`?? [Edit Prompt] BLOQUEIO: UsuÃ¡rio quer editar LISTAGEM do catÃ¡logo (confianÃ§a ${intentAnalysis.confianca}%)`);
 
               return res.json({
 
@@ -14763,9 +14798,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                 intentAnalysis,
 
-                message: `?? Percebi que você quer modificar **como os produtos são listados/formatados**.\n\n?? **Por que foi bloqueado:**\n${intentAnalysis.razao}\n\n?? **O que você pode fazer:**\n1. Ir em **Produtos** para editar itens, preços e descrições\n2. Editar as **Instruções de IA** nas configurações de Produtos (comportamento, não formatação)\n3. Se quiser controle total da formatação, desative "Enviar para IA" nas configurações de Produtos\n\n?? **Dica:** Se sua intenção era apenas mudar o COMPORTAMENTO (como reagir a perguntas), tente reformular a instrução de forma mais clara.`,
+                message: `?? Percebi que vocÃª quer modificar **como os produtos sÃ£o listados/formatados**.\n\n?? **Por que foi bloqueado:**\n${intentAnalysis.razao}\n\n?? **O que vocÃª pode fazer:**\n1. Ir em **Produtos** para editar itens, preÃ§os e descriÃ§Ãµes\n2. Editar as **InstruÃ§Ãµes de IA** nas configuraÃ§Ãµes de Produtos (comportamento, nÃ£o formataÃ§Ã£o)\n3. Se quiser controle total da formataÃ§Ã£o, desative "Enviar para IA" nas configuraÃ§Ãµes de Produtos\n\n?? **Dica:** Se sua intenÃ§Ã£o era apenas mudar o COMPORTAMENTO (como reagir a perguntas), tente reformular a instruÃ§Ã£o de forma mais clara.`,
 
-                feedbackMessage: `?? Percebi que você quer modificar **como os produtos são listados**.\n\nComo você tem o módulo de Produtos **ATIVO**, a formatação do catálogo é gerenciada automaticamente em **Produtos**.\n\n?? **${intentAnalysis.razao}**`,
+                feedbackMessage: `?? Percebi que vocÃª quer modificar **como os produtos sÃ£o listados**.\n\nComo vocÃª tem o mÃ³dulo de Produtos **ATIVO**, a formataÃ§Ã£o do catÃ¡logo Ã© gerenciada automaticamente em **Produtos**.\n\n?? **${intentAnalysis.razao}**`,
 
                 suggestion: 'Edite os produtos em Produtos'
 
@@ -14775,15 +14810,15 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           } else {
 
-            console.log(`? [Intent Detection] Instrução é sobre COMPORTAMENTO (confiança ${intentAnalysis.confianca}%) - permitindo edição`);
+            console.log(`? [Intent Detection] InstruÃ§Ã£o Ã© sobre COMPORTAMENTO (confianÃ§a ${intentAnalysis.confianca}%) - permitindo ediÃ§Ã£o`);
 
           }
 
         } catch (intentError: any) {
 
-          console.error(`? [Intent Detection] Erro na análise:`, intentError.message);
+          console.error(`? [Intent Detection] Erro na anÃ¡lise:`, intentError.message);
 
-          // Em caso de erro na análise, permitir edição (fail-safe)
+          // Em caso de erro na anÃ¡lise, permitir ediÃ§Ã£o (fail-safe)
 
         }
 
@@ -14811,7 +14846,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             limitReached: true,
 
-            message: `Você atingiu o limite de ${FREE_DAILY_CALIBRATION_LIMIT} calibrações por dia. Assine um plano para calibrações ilimitadas.`,
+            message: `VocÃª atingiu o limite de ${FREE_DAILY_CALIBRATION_LIMIT} calibraÃ§Ãµes por dia. Assine um plano para calibraÃ§Ãµes ilimitadas.`,
 
             used: dailyUsage.promptEditsCount,
 
@@ -14825,7 +14860,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Usar novo serviço de edição via IA (Search/Replace com JSON)
+      // Usar novo serviÃ§o de ediÃ§Ã£o via IA (Search/Replace com JSON)
 
       const { editarPromptViaIA } = await import("./promptEditService");
 
@@ -14839,7 +14874,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      console.log(`?? [Edit Prompt] Sucesso: ${result.success}, Edições: ${result.edicoesAplicadas}`);
+      console.log(`?? [Edit Prompt] Sucesso: ${result.success}, EdiÃ§Ãµes: ${result.edicoesAplicadas}`);
 
       console.log(`?? [Edit Prompt] Resposta IA: ${result.mensagemChat}`);
 
@@ -14847,7 +14882,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       // ==================================================================================
 
-      // ?? AUTO-CALIBRAÇÃO: Validar edição com IA Cliente vs IA Agente
+      // ?? AUTO-CALIBRAÃ‡ÃƒO: Validar ediÃ§Ã£o com IA Cliente vs IA Agente
 
       // ==================================================================================
 
@@ -14855,7 +14890,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         const normalized = (text || "").toLowerCase();
 
-        return /(fluxo|flow|etapa|n[óo]s?|node|funil|sequ[eê]ncia|gatilho|trigger|menu|bot[aã]o|bloco)/i.test(normalized);
+        return /(fluxo|flow|etapa|n[Ã³o]s?|node|funil|sequ[eÃª]ncia|gatilho|trigger|menu|bot[aÃ£]o|bloco)/i.test(normalized);
 
       };
 
@@ -14869,11 +14904,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Só calibrar se houve mudança no prompt E calibração não foi pulada
+      // SÃ³ calibrar se houve mudanÃ§a no prompt E calibraÃ§Ã£o nÃ£o foi pulada
 
       if (result.success && result.novoPrompt !== currentPrompt && !skipCalibration) {
 
-        console.log(`?? [Calibração] Iniciando validação automática...`);
+        console.log(`?? [CalibraÃ§Ã£o] Iniciando validaÃ§Ã£o automÃ¡tica...`);
 
 
 
@@ -14891,11 +14926,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             {
 
-              numeroCenarios: 2, // Balancear velocidade vs precisão
+              numeroCenarios: 2, // Balancear velocidade vs precisÃ£o
 
               maxTentativasReparo: 3, // Limitado para reduzir drift do prompt
 
-              scoreMinimoAprovacao: 70 // Score mínimo obrigatório
+              scoreMinimoAprovacao: 70 // Score mÃ­nimo obrigatÃ³rio
 
             }
 
@@ -14903,15 +14938,15 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-          console.log(`?? [Calibração] Score: ${calibrationResult.scoreGeral}/100`);
+          console.log(`?? [CalibraÃ§Ã£o] Score: ${calibrationResult.scoreGeral}/100`);
 
-          console.log(`?? [Calibração] Aprovados: ${calibrationResult.cenariosAprovados}/${calibrationResult.cenariosTotais}`);
+          console.log(`?? [CalibraÃ§Ã£o] Aprovados: ${calibrationResult.cenariosAprovados}/${calibrationResult.cenariosTotais}`);
 
-          console.log(`?? [Calibração] Edições aplicadas: ${calibrationResult.edicoesAplicadas || 0}`);
+          console.log(`?? [CalibraÃ§Ã£o] EdiÃ§Ãµes aplicadas: ${calibrationResult.edicoesAplicadas || 0}`);
 
 
 
-          // SEMPRE usar o prompt calibrado (melhor resultado após todas tentativas)
+          // SEMPRE usar o prompt calibrado (melhor resultado apÃ³s todas tentativas)
 
           promptFinal = calibrationResult.promptFinal;
 
@@ -14923,29 +14958,29 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             if (numEdicoes > 0) {
 
-              calibrationMessage = `\n\n? *Validação automática:* Edição testada e ajustada (${numEdicoes} edição${numEdicoes > 1 ? 'ões' : ''}) para garantir funcionamento correto.`;
+              calibrationMessage = `\n\n? *ValidaÃ§Ã£o automÃ¡tica:* EdiÃ§Ã£o testada e ajustada (${numEdicoes} ediÃ§Ã£o${numEdicoes > 1 ? 'Ãµes' : ''}) para garantir funcionamento correto.`;
 
             } else {
 
-              calibrationMessage = `\n\n? *Validação automática:* Edição testada e aprovada! (Score: ${calibrationResult.scoreGeral}/100)`;
+              calibrationMessage = `\n\n? *ValidaÃ§Ã£o automÃ¡tica:* EdiÃ§Ã£o testada e aprovada! (Score: ${calibrationResult.scoreGeral}/100)`;
 
             }
 
           } else {
 
-            // Score < 70 após 100 tentativas - usar melhor resultado mesmo assim
+            // Score < 70 apÃ³s 100 tentativas - usar melhor resultado mesmo assim
 
-            calibrationMessage = `\n\n? *Calibração:* Score ${calibrationResult.scoreGeral}/100 (${numEdicoes} edições aplicadas)`;
+            calibrationMessage = `\n\n? *CalibraÃ§Ã£o:* Score ${calibrationResult.scoreGeral}/100 (${numEdicoes} ediÃ§Ãµes aplicadas)`;
 
           }
 
         } catch (calibError: any) {
 
-          console.error(`? [Calibração] Erro:`, calibError.message);
+          console.error(`? [CalibraÃ§Ã£o] Erro:`, calibError.message);
 
-          // Se calibração falhar por erro, ainda usar o prompt editado
+          // Se calibraÃ§Ã£o falhar por erro, ainda usar o prompt editado
 
-          calibrationMessage = `\n\n?? Erro na validação. Teste no simulador para confirmar.`;
+          calibrationMessage = `\n\n?? Erro na validaÃ§Ã£o. Teste no simulador para confirmar.`;
 
         }
 
@@ -14955,13 +14990,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       // ==================================================================================
 
-      // ?? SALVAR HISTÓRICO DO CHAT
+      // ?? SALVAR HISTÃ“RICO DO CHAT
 
       // ==================================================================================
 
 
 
-      // 1. Salvar mensagem do usuário (SEMPRE)
+      // 1. Salvar mensagem do usuÃ¡rio (SEMPRE)
 
       await salvarMensagemChat({
 
@@ -14977,7 +15012,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // 2. Salvar resposta da IA com feedback de calibração
+      // 2. Salvar resposta da IA com feedback de calibraÃ§Ã£o
 
       const mensagemCompleta = result.mensagemChat + calibrationMessage;
 
@@ -15019,13 +15054,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // 3. Lógica específica de EDIÇÃO (apenas se houve mudança no prompt)
+      // 3. LÃ³gica especÃ­fica de EDIÃ‡ÃƒO (apenas se houve mudanÃ§a no prompt)
 
-      // SEMPRE salvar porque o sistema calibra até atingir o melhor resultado
+      // SEMPRE salvar porque o sistema calibra atÃ© atingir o melhor resultado
 
       if (result.success && result.novoPrompt !== currentPrompt) {
 
-        // ?? Incrementar contador de calibrações do dia (para usuários free)
+        // ?? Incrementar contador de calibraÃ§Ãµes do dia (para usuÃ¡rios free)
 
         if (!hasActiveSubscription) {
 
@@ -15035,7 +15070,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-        // ?? CRÍTICO: Atualizar prompt na configuração principal (usar prompt calibrado)
+        // ?? CRÃTICO: Atualizar prompt na configuraÃ§Ã£o principal (usar prompt calibrado)
 
         await storage.updateAgentConfig(userId, {
 
@@ -15047,9 +15082,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-        // ?? AUTO-UPDATE FLOW: Reorganizar e calibrar fluxo após edição
+        // ?? AUTO-UPDATE FLOW: Reorganizar e calibrar fluxo apÃ³s ediÃ§Ã£o
 
-        // Quando cliente edita o prompt, o fluxo é regenerado baseado na nova instrução
+        // Quando cliente edita o prompt, o fluxo Ã© regenerado baseado na nova instruÃ§Ã£o
 
         try {
 
@@ -15057,7 +15092,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             const { handleEditPrompt } = await import("./flowIntegration");
 
-            console.log(`\n?? [Edit Prompt] Regenerando FlowDefinition conforme nova instrução...`);
+            console.log(`\n?? [Edit Prompt] Regenerando FlowDefinition conforme nova instruÃ§Ã£o...`);
 
             const flowResult = await handleEditPrompt(
 
@@ -15075,17 +15110,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             flowUpdated = flowResult.flowUpdated;
 
-            console.log(`?? [Edit Prompt] FlowDefinition: ${flowUpdated ? '? Atualizado' : '? Não atualizado'}`);
+            console.log(`?? [Edit Prompt] FlowDefinition: ${flowUpdated ? '? Atualizado' : '? NÃ£o atualizado'}`);
 
             if (flowUpdated && flowResult.changes.length > 0) {
 
-              console.log(`?? [Edit Prompt] Mudanças no fluxo: ${flowResult.changes.join(', ')}`);
+              console.log(`?? [Edit Prompt] MudanÃ§as no fluxo: ${flowResult.changes.join(', ')}`);
 
             }
 
           } else {
 
-            console.log(`?? [Edit Prompt] Sem intenção de fluxo detectada - não regenerar FlowDefinition`);
+            console.log(`?? [Edit Prompt] Sem intenÃ§Ã£o de fluxo detectada - nÃ£o regenerar FlowDefinition`);
 
           }
 
@@ -15093,13 +15128,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           console.error(`?? [Edit Prompt] ? Erro ao atualizar FlowDefinition:`, flowError);
 
-          // Continua mesmo se falhar - o sistema legado será usado
+          // Continua mesmo se falhar - o sistema legado serÃ¡ usado
 
         }
 
 
 
-        // Salvar nova versão do prompt (com info de calibração)
+        // Salvar nova versÃ£o do prompt (com info de calibraÃ§Ã£o)
 
         await salvarVersaoPrompt({
 
@@ -15199,9 +15234,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // ============ ENDPOINT DEDICADO PARA CALIBRAÇÃO MANUAL ============
+  // ============ ENDPOINT DEDICADO PARA CALIBRAÃ‡ÃƒO MANUAL ============
 
-  // ?? Permite testar prompt antes de aplicar edições
+  // ?? Permite testar prompt antes de aplicar ediÃ§Ãµes
 
   app.post("/api/agent/calibrate", isAuthenticated, async (req: any, res) => {
 
@@ -15213,7 +15248,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!prompt) {
 
-        return res.status(400).json({ message: "prompt é obrigatório" });
+        return res.status(400).json({ message: "prompt Ã© obrigatÃ³rio" });
 
       }
 
@@ -15233,7 +15268,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           success: false,
 
-          message: "Chave de API Mistral não configurada"
+          message: "Chave de API Mistral nÃ£o configurada"
 
         });
 
@@ -15245,7 +15280,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      console.log(`?? [Calibrate] Iniciando calibração manual...`);
+      console.log(`?? [Calibrate] Iniciando calibraÃ§Ã£o manual...`);
 
 
 
@@ -15263,7 +15298,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           numeroCenarios: testScenarios?.length || 3,
 
-          maxTentativasReparo: 0, // Não reparar em teste manual
+          maxTentativasReparo: 0, // NÃ£o reparar em teste manual
 
           scoreMinimoAprovacao: 70
 
@@ -15307,7 +15342,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.error("Error in calibration:", error);
 
-      res.status(500).json({ message: error.message || "Falha na calibração" });
+      res.status(500).json({ message: error.message || "Falha na calibraÃ§Ã£o" });
 
     }
 
@@ -15315,11 +15350,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // ============ ROTAS DE HISTÓRICO DO PROMPT ============
+  // ============ ROTAS DE HISTÃ“RICO DO PROMPT ============
 
 
 
-  // Listar versões do prompt
+  // Listar versÃµes do prompt
 
   app.get("/api/agent/prompt-versions", isAuthenticated, async (req: any, res) => {
 
@@ -15331,19 +15366,19 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      console.log(`[PROMPT VERSIONS] ?? Listando versões para user ${userId}`);
+      console.log(`[PROMPT VERSIONS] ?? Listando versÃµes para user ${userId}`);
 
       const versoes = await listarVersoes(userId, 'ai_agent_config', 50);
 
 
 
-      console.log(`[PROMPT VERSIONS] Encontradas ${versoes.length} versões`);
+      console.log(`[PROMPT VERSIONS] Encontradas ${versoes.length} versÃµes`);
 
       if (versoes.length > 0) {
 
         const currentVersion = versoes.find(v => v.is_current);
 
-        console.log(`[PROMPT VERSIONS] Versão atual: ${currentVersion ? `v${currentVersion.version_number}` : 'NENHUMA MARCADA'}`);
+        console.log(`[PROMPT VERSIONS] VersÃ£o atual: ${currentVersion ? `v${currentVersion.version_number}` : 'NENHUMA MARCADA'}`);
 
       }
 
@@ -15385,7 +15420,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // Restaurar uma versão específica
+  // Restaurar uma versÃ£o especÃ­fica
 
   app.post("/api/agent/prompt-versions/:id/restore", isAuthenticated, async (req: any, res) => {
 
@@ -15399,29 +15434,29 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      console.log(`[RESTORE VERSION] ?? User ${userId} restaurando versão ${id}`);
+      console.log(`[RESTORE VERSION] ?? User ${userId} restaurando versÃ£o ${id}`);
 
 
 
-      // Buscar versão original
+      // Buscar versÃ£o original
 
       const versaoOriginal = await obterVersao(id);
 
       if (!versaoOriginal) {
 
-        console.error(`[RESTORE VERSION] ? Versão ${id} não encontrada`);
+        console.error(`[RESTORE VERSION] ? VersÃ£o ${id} nÃ£o encontrada`);
 
-        return res.status(404).json({ message: "Versão não encontrada" });
+        return res.status(404).json({ message: "VersÃ£o nÃ£o encontrada" });
 
       }
 
 
 
-      console.log(`[RESTORE VERSION] ?? Versão original: v${versaoOriginal.version_number} (${versaoOriginal.edit_type})`);
+      console.log(`[RESTORE VERSION] ?? VersÃ£o original: v${versaoOriginal.version_number} (${versaoOriginal.edit_type})`);
 
 
 
-      // Criar nova versão restaurada
+      // Criar nova versÃ£o restaurada
 
       const versaoRestaurada = await restaurarVersao(id, userId);
 
@@ -15429,19 +15464,19 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!versaoRestaurada) {
 
-        console.error(`[RESTORE VERSION] ? Falha ao criar versão restaurada`);
+        console.error(`[RESTORE VERSION] ? Falha ao criar versÃ£o restaurada`);
 
-        return res.status(500).json({ message: "Falha ao restaurar versão" });
+        return res.status(500).json({ message: "Falha ao restaurar versÃ£o" });
 
       }
 
 
 
-      console.log(`[RESTORE VERSION] ? Nova versão criada: v${versaoRestaurada.version_number} (tipo: restore)`);
+      console.log(`[RESTORE VERSION] ? Nova versÃ£o criada: v${versaoRestaurada.version_number} (tipo: restore)`);
 
 
 
-      // ?? CRÍTICO: Atualizar o prompt no config para o agente usar
+      // ?? CRÃTICO: Atualizar o prompt no config para o agente usar
 
       const agentConfig = await storage.getAgentConfig(userId);
 
@@ -15499,7 +15534,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // Listar chat do histórico
+  // Listar chat do histÃ³rico
 
   app.get("/api/agent/prompt-chat", isAuthenticated, async (req: any, res) => {
 
@@ -15545,7 +15580,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // ?? ROTA DE DEBUG: Validar consistência do sistema de versões
+  // ?? ROTA DE DEBUG: Validar consistÃªncia do sistema de versÃµes
 
   app.get("/api/agent/prompt-versions/validate", isAuthenticated, async (req: any, res) => {
 
@@ -15557,7 +15592,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      console.log(`[VALIDATE] ?? Validando consistência para user ${userId}`);
+      console.log(`[VALIDATE] ?? Validando consistÃªncia para user ${userId}`);
 
 
 
@@ -15567,25 +15602,25 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // 2. Buscar versão marcada como current
+      // 2. Buscar versÃ£o marcada como current
 
       const versaoAtual = await obterVersaoAtual(userId, 'ai_agent_config');
 
 
 
-      // 3. Listar todas versões
+      // 3. Listar todas versÃµes
 
       const todasVersoes = await listarVersoes(userId, 'ai_agent_config', 100);
 
 
 
-      // 4. Verificar se há múltiplas versões com is_current = true
+      // 4. Verificar se hÃ¡ mÃºltiplas versÃµes com is_current = true
 
       const versoesMarkadasCurrent = todasVersoes.filter(v => v.is_current);
 
 
 
-      // 5. Verificar sincronização
+      // 5. Verificar sincronizaÃ§Ã£o
 
       const promptNoConfig = agentConfig?.prompt || '';
 
@@ -15659,13 +15694,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (versoesMarkadasCurrent.length > 1) {
 
-        report.issues.push(`? MÚLTIPLAS VERSÕES CURRENT: ${versoesMarkadasCurrent.length} versões marcadas como is_current`);
+        report.issues.push(`? MÃšLTIPLAS VERSÃ•ES CURRENT: ${versoesMarkadasCurrent.length} versÃµes marcadas como is_current`);
 
       }
 
       if (versoesMarkadasCurrent.length === 0 && todasVersoes.length > 0) {
 
-        report.issues.push('?? NENHUMA VERSÃO CURRENT: Existem versões mas nenhuma marcada como current');
+        report.issues.push('?? NENHUMA VERSÃƒO CURRENT: Existem versÃµes mas nenhuma marcada como current');
 
       }
 
@@ -15727,7 +15762,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             limitReached: true,
 
-            message: `Você atingiu o limite de ${FREE_DAILY_SIMULATOR_LIMIT} mensagens do simulador por dia. Assine um plano para uso ilimitado.`,
+            message: `VocÃª atingiu o limite de ${FREE_DAILY_SIMULATOR_LIMIT} mensagens do simulador por dia. Assine um plano para uso ilimitado.`,
 
             used: dailyUsage.simulatorMessagesCount,
 
@@ -15737,7 +15772,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         }
 
-        // ?? Incrementar contador de mensagens do simulador (para usuários free)
+        // ?? Incrementar contador de mensagens do simulador (para usuÃ¡rios free)
 
         await storage.incrementSimulatorMessages(userId);
 
@@ -15751,7 +15786,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         customPrompt: z.string().optional(),
 
-        // ?? Suporte para histórico de conversação (simulador unificado)
+        // ?? Suporte para histÃ³rico de conversaÃ§Ã£o (simulador unificado)
 
         history: z.array(z.object({
 
@@ -15761,11 +15796,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         })).optional(),
 
-        // ?? Mídias já enviadas nesta sessão do simulador
+        // ?? MÃ­dias jÃ¡ enviadas nesta sessÃ£o do simulador
 
         sentMedias: z.array(z.string()).optional(),
 
-        // ?? Nome do contato para simulação (opcional - default "Visitante")
+        // ?? Nome do contato para simulaÃ§Ã£o (opcional - default "Visitante")
 
         contactName: z.string().optional()
 
@@ -15783,7 +15818,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Converter histórico do frontend para formato Message[]
+      // Converter histÃ³rico do frontend para formato Message[]
 
       const conversationHistory = result.data.history?.map((msg, idx) => ({
 
@@ -15803,9 +15838,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Aceita prompt customizado para testar mudanças não salvas
+      // Aceita prompt customizado para testar mudanÃ§as nÃ£o salvas
 
-      // ?? Aceita nome de contato customizado para simulação mais realista
+      // ?? Aceita nome de contato customizado para simulaÃ§Ã£o mais realista
 
       const testResult = await testAgentResponse(
 
@@ -15825,7 +15860,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // ?? RESOLVER URLs DAS MÍDIAS PARA O FRONTEND
+      // ?? RESOLVER URLs DAS MÃDIAS PARA O FRONTEND
 
       let mediaActions: any[] = [];
 
@@ -15849,7 +15884,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             if (mediaItem) {
 
-              console.log(`?? [/api/agent/test] Mídia encontrada: ${action.media_name} -> ${mediaItem.storageUrl}`);
+              console.log(`?? [/api/agent/test] MÃ­dia encontrada: ${action.media_name} -> ${mediaItem.storageUrl}`);
 
               mediaActions.push({
 
@@ -15875,7 +15910,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // ?? DIVIDIR RESPOSTA IGUAL AO WHATSAPP PARA CONSISTÊNCIA DO SIMULADOR
+      // ?? DIVIDIR RESPOSTA IGUAL AO WHATSAPP PARA CONSISTÃŠNCIA DO SIMULADOR
 
       // Busca config do agente para obter messageSplitChars
 
@@ -15887,17 +15922,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       // ?? PRESERVAR QUEBRAS DE LINHA NA RESPOSTA DO SIMULADOR
 
-      // O texto original já pode ter formatação intencional (quebras de linha)
+      // O texto original jÃ¡ pode ter formataÃ§Ã£o intencional (quebras de linha)
 
-      // Apenas dividir em bolhas se necessário, mas preservar as quebras internas
+      // Apenas dividir em bolhas se necessÃ¡rio, mas preservar as quebras internas
 
       const responseText = testResult.text || "";
 
 
 
-      // Se a mensagem é pequena (cabe no limite), retorna como está
+      // Se a mensagem Ã© pequena (cabe no limite), retorna como estÃ¡
 
-      // Se é grande, divide mas preserva quebras de linha em cada parte
+      // Se Ã© grande, divide mas preserva quebras de linha em cada parte
 
       let splitMessages: string[];
 
@@ -15919,7 +15954,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       res.json({
 
-        response: testResult.text, // Mantém resposta completa para backward compatibility
+        response: testResult.text, // MantÃ©m resposta completa para backward compatibility
 
         splitResponses: splitMessages, // Novo: array de mensagens divididas
 
@@ -15943,7 +15978,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
   // PARTE 5 - MODO FLUXO: ROTAS DO FLUXO DO AGENTE
   // ==========================================================================
 
-  // GET /api/agent/flow - Buscar configuração de fluxo do usuário
+  // GET /api/agent/flow - Buscar configuraÃ§Ã£o de fluxo do usuÃ¡rio
   app.get("/api/agent/flow", isAuthenticated, async (req: any, res) => {
     try {
       const userId = getUserId(req);
@@ -15956,8 +15991,8 @@ Responda APENAS com o JSON, sem texto adicional.`;
         flowModeActive: (config as any).flowModeActive || false,
       });
     } catch (error: any) {
-      console.error("[FLOW] Erro ao buscar configuração de fluxo:", error);
-      res.status(500).json({ message: "Erro ao buscar configuração de fluxo" });
+      console.error("[FLOW] Erro ao buscar configuraÃ§Ã£o de fluxo:", error);
+      res.status(500).json({ message: "Erro ao buscar configuraÃ§Ã£o de fluxo" });
     }
   });
 
@@ -15971,7 +16006,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
       });
       const result = schema.safeParse(req.body);
       if (!result.success) {
-        return res.status(400).json({ message: "Dados inválidos", errors: result.error });
+        return res.status(400).json({ message: "Dados invÃ¡lidos", errors: result.error });
       }
 
       const existingConfig = await storage.getAgentConfig(userId);
@@ -15980,17 +16015,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
         await storage.updateAgentConfig(userId, result.data as any);
       } else {
         await storage.upsertAgentConfig(userId, {
-          prompt: "Você é um assistente virtual.",
+          prompt: "VocÃª Ã© um assistente virtual.",
           ...result.data,
         } as any);
       }
 
-      // 🔀 PARTE 5: Se flowModeActive mudou, garantir prioridade correta
+      // ?? PARTE 5: Se flowModeActive mudou, garantir prioridade correta
       if (typeof result.data.flowModeActive === "boolean") {
         console.log(`[FLOW] flowModeActive=${result.data.flowModeActive} salvo para userId=${userId}`);
         
         if (result.data.flowModeActive === true) {
-          // Quando Modo Fluxo é ativado:
+          // Quando Modo Fluxo Ã© ativado:
           // 1. Visual Flow Builder (chatbot_configs) deve ser desativado para evitar conflito
           try {
             await db.execute(sql`
@@ -16001,7 +16036,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
             `);
             const { clearFlowCache } = await import("./chatbotFlowEngine");
             clearFlowCache(userId);
-            console.log(`[FLOW] ✅ Visual Flow Builder desativado (Modo Fluxo tem prioridade)`);
+            console.log(`[FLOW] ? Visual Flow Builder desativado (Modo Fluxo tem prioridade)`);
           } catch (syncErr) {
             console.error(`[FLOW] Aviso ao desativar chatbot_configs:`, syncErr);
           }
@@ -16029,7 +16064,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
       });
       const result = schema.safeParse(req.body);
       if (!result.success) {
-        return res.status(400).json({ message: "Dados inválidos" });
+        return res.status(400).json({ message: "Dados invÃ¡lidos" });
       }
 
       const { executeFlowResponse } = await import("./flowScriptEngine");
@@ -16147,7 +16182,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // Lista todas as mídias do agente
+  // Lista todas as mÃ­dias do agente
 
   app.get("/api/agent/media", isAuthenticated, async (req: any, res) => {
 
@@ -16171,7 +16206,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // Busca uma mídia específica por nome
+  // Busca uma mÃ­dia especÃ­fica por nome
 
   app.get("/api/agent/media/:name", isAuthenticated, async (req: any, res) => {
 
@@ -16207,7 +16242,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // Cria uma nova mídia (auto-incrementa nome se já existir)
+  // Cria uma nova mÃ­dia (auto-incrementa nome se jÃ¡ existir)
 
   app.post("/api/agent/media", isAuthenticated, async (req: any, res) => {
 
@@ -16259,7 +16294,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // Atualiza uma mídia existente
+  // Atualiza uma mÃ­dia existente
 
   app.put("/api/agent/media/:id", isAuthenticated, async (req: any, res) => {
 
@@ -16313,7 +16348,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       // Se for erro de nome duplicado, retorna 400
 
-      if (error.message?.includes('já existe')) {
+      if (error.message?.includes('jÃ¡ existe')) {
 
         return res.status(400).json({ message: error.message });
 
@@ -16327,7 +16362,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // Deleta uma mídia
+  // Deleta uma mÃ­dia
 
   app.delete("/api/agent/media/:id", isAuthenticated, async (req: any, res) => {
 
@@ -16367,7 +16402,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // =============================================
 
-  // UPLOAD DE ARQUIVO PARA BIBLIOTECA DE MÍDIAS
+  // UPLOAD DE ARQUIVO PARA BIBLIOTECA DE MÃDIAS
 
   // =============================================
 
@@ -16389,7 +16424,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Determinar tipo de mídia baseado no mimetype
+      // Determinar tipo de mÃ­dia baseado no mimetype
 
       let mediaType: 'audio' | 'image' | 'video' | 'document' = 'document';
 
@@ -16401,7 +16436,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Gerar nome único para o arquivo
+      // Gerar nome Ãºnico para o arquivo
 
       const timestamp = Date.now();
 
@@ -16433,7 +16468,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-        // Se o bucket não existir, tentar criar (apenas se ainda não verificamos)
+        // Se o bucket nÃ£o existir, tentar criar (apenas se ainda nÃ£o verificamos)
 
         if (uploadError.message?.includes('Bucket not found') && !agentMediaBucketChecked) {
 
@@ -16493,7 +16528,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Obter URL pública do arquivo
+      // Obter URL pÃºblica do arquivo
 
       const { data: urlData } = supabase.storage
 
@@ -16507,7 +16542,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Se for áudio, fazer transcrição automática
+      // Se for Ã¡udio, fazer transcriÃ§Ã£o automÃ¡tica
 
       let transcription: string | null = null;
 
@@ -16515,21 +16550,21 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         try {
 
-          console.log(`[Routes] Iniciando transcrição automática para áudio: ${file.originalname}`);
+          console.log(`[Routes] Iniciando transcriÃ§Ã£o automÃ¡tica para Ã¡udio: ${file.originalname}`);
 
           transcription = await transcribeAudio(publicUrl, file.mimetype);
 
           if (transcription) {
 
-            console.log(`[Routes] Transcrição concluída: ${transcription.substring(0, 100)}...`);
+            console.log(`[Routes] TranscriÃ§Ã£o concluÃ­da: ${transcription.substring(0, 100)}...`);
 
           }
 
         } catch (error) {
 
-          console.error('[Routes] Erro ao transcrever áudio:', error);
+          console.error('[Routes] Erro ao transcrever Ã¡udio:', error);
 
-          // Não falhar o upload se a transcrição falhar
+          // NÃ£o falhar o upload se a transcriÃ§Ã£o falhar
 
         }
 
@@ -16569,7 +16604,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // Transcreve um áudio (para preencher automaticamente a descrição)
+  // Transcreve um Ã¡udio (para preencher automaticamente a descriÃ§Ã£o)
 
   app.post("/api/agent/media/transcribe", isAuthenticated, async (req: any, res) => {
 
@@ -16623,7 +16658,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // ==========================================================================
 
-  // WEBSITE IMPORT ROUTES - Importação de dados de websites para o agente
+  // WEBSITE IMPORT ROUTES - ImportaÃ§Ã£o de dados de websites para o agente
 
   // ==========================================================================
 
@@ -16631,7 +16666,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   /**
 
-   * Lista todas as importações de website do usuário
+   * Lista todas as importaÃ§Ãµes de website do usuÃ¡rio
 
    */
 
@@ -16661,7 +16696,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.error("[WebsiteImport] Error listing imports:", error);
 
-      res.status(500).json({ message: "Falha ao listar importações" });
+      res.status(500).json({ message: "Falha ao listar importaÃ§Ãµes" });
 
     }
 
@@ -16691,7 +16726,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!url || typeof url !== "string") {
 
-        return res.status(400).json({ message: "URL é obrigatória" });
+        return res.status(400).json({ message: "URL Ã© obrigatÃ³ria" });
 
       }
 
@@ -16709,11 +16744,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      console.log(`[WebsiteImport] Usuário ${userId} iniciando import de: ${validation.normalizedUrl}`);
+      console.log(`[WebsiteImport] UsuÃ¡rio ${userId} iniciando import de: ${validation.normalizedUrl}`);
 
 
 
-      // Criar registro de importação
+      // Criar registro de importaÃ§Ã£o
 
       const [importRecord] = await db
 
@@ -16741,7 +16776,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           if (result.success) {
 
-            // Atualizar registro com dados extraídos
+            // Atualizar registro com dados extraÃ­dos
 
             await db
 
@@ -16779,7 +16814,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-            console.log(`[WebsiteImport] ? Import ${importRecord.id} concluído: ${result.productsFound} produtos`);
+            console.log(`[WebsiteImport] ? Import ${importRecord.id} concluÃ­do: ${result.productsFound} produtos`);
 
           } else {
 
@@ -16839,7 +16874,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         status: "processing",
 
-        message: "Importação iniciada. Acompanhe o status pelo ID.",
+        message: "ImportaÃ§Ã£o iniciada. Acompanhe o status pelo ID.",
 
       });
 
@@ -16847,7 +16882,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.error("[WebsiteImport] Error starting import:", error);
 
-      res.status(500).json({ message: `Falha ao iniciar importação: ${error.message}` });
+      res.status(500).json({ message: `Falha ao iniciar importaÃ§Ã£o: ${error.message}` });
 
     }
 
@@ -16857,7 +16892,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   /**
 
-   * Verifica o status de uma importação
+   * Verifica o status de uma importaÃ§Ã£o
 
    * GET /api/agent/website-imports/:id
 
@@ -16885,7 +16920,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!importRecord) {
 
-        return res.status(404).json({ message: "Importação não encontrada" });
+        return res.status(404).json({ message: "ImportaÃ§Ã£o nÃ£o encontrada" });
 
       }
 
@@ -16897,7 +16932,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.error("[WebsiteImport] Error fetching import:", error);
 
-      res.status(500).json({ message: "Falha ao buscar importação" });
+      res.status(500).json({ message: "Falha ao buscar importaÃ§Ã£o" });
 
     }
 
@@ -16907,7 +16942,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   /**
 
-   * Aplica o conteúdo importado ao prompt do agente
+   * Aplica o conteÃºdo importado ao prompt do agente
 
    * POST /api/agent/website-imports/:id/apply
 
@@ -16923,7 +16958,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Buscar importação
+      // Buscar importaÃ§Ã£o
 
       const [importRecord] = await db
 
@@ -16937,7 +16972,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!importRecord) {
 
-        return res.status(404).json({ message: "Importação não encontrada" });
+        return res.status(404).json({ message: "ImportaÃ§Ã£o nÃ£o encontrada" });
 
       }
 
@@ -16945,7 +16980,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (importRecord.status !== "completed") {
 
-        return res.status(400).json({ message: "Importação ainda não foi concluída" });
+        return res.status(400).json({ message: "ImportaÃ§Ã£o ainda nÃ£o foi concluÃ­da" });
 
       }
 
@@ -16953,7 +16988,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!importRecord.formattedContext) {
 
-        return res.status(400).json({ message: "Nenhum conteúdo para aplicar" });
+        return res.status(400).json({ message: "Nenhum conteÃºdo para aplicar" });
 
       }
 
@@ -16977,9 +17012,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       let currentPrompt = agentConfig.prompt || "";
 
-      const importMarkerStart = "## ?? CATÁLOGO DE PRODUTOS/SERVIÇOS";
+      const importMarkerStart = "## ?? CATÃLOGO DE PRODUTOS/SERVIÃ‡OS";
 
-      const importMarkerEnd = "*Dados atualizados automaticamente via importação de website.*";
+      const importMarkerEnd = "*Dados atualizados automaticamente via importaÃ§Ã£o de website.*";
 
 
 
@@ -17017,7 +17052,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Marcar importação como aplicada
+      // Marcar importaÃ§Ã£o como aplicada
 
       await db
 
@@ -17045,7 +17080,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         success: true,
 
-        message: "Conteúdo aplicado ao agente com sucesso!",
+        message: "ConteÃºdo aplicado ao agente com sucesso!",
 
         productsAdded: importRecord.productsFound,
 
@@ -17065,7 +17100,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   /**
 
-   * Exclui uma importação
+   * Exclui uma importaÃ§Ã£o
 
    * DELETE /api/agent/website-imports/:id
 
@@ -17093,19 +17128,19 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!deleted) {
 
-        return res.status(404).json({ message: "Importação não encontrada" });
+        return res.status(404).json({ message: "ImportaÃ§Ã£o nÃ£o encontrada" });
 
       }
 
 
 
-      res.json({ success: true, message: "Importação excluída" });
+      res.json({ success: true, message: "ImportaÃ§Ã£o excluÃ­da" });
 
     } catch (error) {
 
       console.error("[WebsiteImport] Error deleting import:", error);
 
-      res.status(500).json({ message: "Falha ao excluir importação" });
+      res.status(500).json({ message: "Falha ao excluir importaÃ§Ã£o" });
 
     }
 
@@ -17131,7 +17166,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!url || typeof url !== "string") {
 
-        return res.status(400).json({ message: "URL é obrigatória" });
+        return res.status(400).json({ message: "URL Ã© obrigatÃ³ria" });
 
       }
 
@@ -17233,9 +17268,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      const connection = await storage.getConnectionByUserId(userId);
+      const connection = await storage.getConnectionByUserId(userId, conversation.connectionId);
 
-      if (!connection || conversation.connectionId !== connection.id) {
+      if (!connection) {
 
         return res.status(403).json({ message: "Forbidden" });
 
@@ -17243,7 +17278,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // ?? FIX: Buscar config do usuário para obter timer de auto-reativação
+      // ?? FIX: Buscar config do usuÃ¡rio para obter timer de auto-reativaÃ§Ã£o
 
       const agentConfig = await storage.getAgentConfig(userId);
 
@@ -17291,9 +17326,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      const connection = await storage.getConnectionByUserId(userId);
+      const connection = await storage.getConnectionByUserId(userId, conversation.connectionId);
 
-      if (!connection || conversation.connectionId !== connection.id) {
+      if (!connection) {
 
         return res.status(403).json({ message: "Forbidden" });
 
@@ -17305,11 +17340,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // ?? Quando IA é reativada, NÃO dispara resposta automática
+      // ?? Quando IA Ã© reativada, NÃƒO dispara resposta automÃ¡tica
 
-      // O usuário deve usar "Responder com IA" se quiser uma resposta imediata
+      // O usuÃ¡rio deve usar "Responder com IA" se quiser uma resposta imediata
 
-      // Isso evita conflitos em conversas que já foram encerradas
+      // Isso evita conflitos em conversas que jÃ¡ foram encerradas
 
       console.log(`?? [ENABLE] IA reativada para ${conversationId} - aguardando nova mensagem do cliente`);
 
@@ -17329,7 +17364,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // Status da IA para uma conversa específica
+  // Status da IA para uma conversa especÃ­fica
 
   app.get("/api/agent/status/:conversationId", isAuthenticated, async (req: any, res) => {
 
@@ -17353,9 +17388,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      const connection = await storage.getConnectionByUserId(userId);
+      const connection = await storage.getConnectionByUserId(userId, conversation.connectionId);
 
-      if (!connection || conversation.connectionId !== connection.id) {
+      if (!connection) {
 
         return res.status(403).json({ message: "Forbidden" });
 
@@ -17413,9 +17448,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      const connection = await storage.getConnectionByUserId(userId);
+      const connection = await storage.getConnectionByUserId(userId, conversation.connectionId);
 
-      if (!connection || conversation.connectionId !== connection.id) {
+      if (!connection) {
 
         return res.status(403).json({ message: "Forbidden" });
 
@@ -17425,7 +17460,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (disable) {
 
-        // ?? FIX: Buscar config do usuário para obter timer de auto-reativação
+        // ?? FIX: Buscar config do usuÃ¡rio para obter timer de auto-reativaÃ§Ã£o
 
         const agentConfig = await storage.getAgentConfig(userId);
 
@@ -17443,11 +17478,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-        // ?? Quando IA é reativada, NÃO dispara resposta automática
+        // ?? Quando IA Ã© reativada, NÃƒO dispara resposta automÃ¡tica
 
-        // O usuário deve usar "Responder com IA" se quiser uma resposta imediata
+        // O usuÃ¡rio deve usar "Responder com IA" se quiser uma resposta imediata
 
-        // Isso evita conflitos em conversas que já foram encerradas
+        // Isso evita conflitos em conversas que jÃ¡ foram encerradas
 
         console.log(`?? [TOGGLE] IA reativada para ${conversationId} - aguardando nova mensagem do cliente`);
 
@@ -17475,13 +17510,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // ---------------------------------------------------------------------------
 
-  // Este endpoint permite o usuário disparar uma resposta da IA sob demanda,
+  // Este endpoint permite o usuÃ¡rio disparar uma resposta da IA sob demanda,
 
-  // útil quando:
+  // Ãºtil quando:
 
-  // - A IA estava desativada e o usuário quer que ela responda uma vez
+  // - A IA estava desativada e o usuÃ¡rio quer que ela responda uma vez
 
-  // - O usuário quer forçar uma resposta mesmo que a última mensagem seja dele
+  // - O usuÃ¡rio quer forÃ§ar uma resposta mesmo que a Ãºltima mensagem seja dele
 
   // ---------------------------------------------------------------------------
 
@@ -17489,7 +17524,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
     // ===============================================================
 
-    // DEBUG: Log explícito no início para diagnóstico
+    // DEBUG: Log explÃ­cito no inÃ­cio para diagnÃ³stico
 
     // ===============================================================
 
@@ -17521,9 +17556,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!conversation) {
 
-        console.log(`[RESPONDER COM IA] ERRO: Conversa não encontrada`);
+        console.log(`[RESPONDER COM IA] ERRO: Conversa nÃ£o encontrada`);
 
-        return res.status(404).json({ message: "Conversa não encontrada" });
+        return res.status(404).json({ message: "Conversa nÃ£o encontrada" });
 
       }
 
@@ -17531,9 +17566,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      const connection = await storage.getConnectionByUserId(userId);
+      const connection = await storage.getConnectionByUserId(userId, conversation.connectionId);
 
-      if (!connection || conversation.connectionId !== connection.id) {
+      if (!connection) {
 
         console.log(`[RESPONDER COM IA] ERRO: Acesso negado - connectionId mismatch`);
 
@@ -17541,13 +17576,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-      console.log(`[RESPONDER COM IA] Conexão verificada: ${connection.id}`);
+      console.log(`[RESPONDER COM IA] ConexÃ£o verificada: ${connection.id}`);
 
 
 
-      // Verificar se agente global está ativo
+      // Verificar se agente global estÃ¡ ativo
 
-      // IMPORTANTE: Usar getBusinessAgentConfig que é a tabela que a UI sincroniza
+      // IMPORTANTE: Usar getBusinessAgentConfig que Ã© a tabela que a UI sincroniza
 
       const businessAgentConfig = await storage.getBusinessAgentConfig(userId);
 
@@ -17557,7 +17592,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!businessAgentConfig?.isActive) {
 
-        console.log(`[RESPONDER COM IA] ERRO: Agente não está ativo globalmente`);
+        console.log(`[RESPONDER COM IA] ERRO: Agente nÃ£o estÃ¡ ativo globalmente`);
 
         return res.status(400).json({
 
@@ -17577,7 +17612,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Disparar sem esperar resultado (não bloqueia a resposta)
+      // Disparar sem esperar resultado (nÃ£o bloqueia a resposta)
 
       triggerAgentResponseForConversation(userId, conversationId, true)
 
@@ -17589,7 +17624,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         .catch(error => {
 
-          console.error(`[RESPONDER COM IA] ERRO na função trigger:`, error);
+          console.error(`[RESPONDER COM IA] ERRO na funÃ§Ã£o trigger:`, error);
 
         });
 
@@ -17603,7 +17638,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         success: true,
 
-        message: "Solicitação enviada. A IA irá responder em breve."
+        message: "SolicitaÃ§Ã£o enviada. A IA irÃ¡ responder em breve."
 
       });
 
@@ -17643,9 +17678,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      const connection = await storage.getConnectionByUserId(userId);
+      const connection = await storage.getConnectionByUserId(userId, conversation.connectionId);
 
-      if (!connection || conversation.connectionId !== connection.id) {
+      if (!connection) {
 
         return res.status(403).json({ message: "Forbidden" });
 
@@ -17701,9 +17736,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      const connection = await storage.getConnectionByUserId(userId);
+      const connection = await storage.getConnectionByUserId(userId, conversation.connectionId);
 
-      if (!connection || conversation.connectionId !== connection.id) {
+      if (!connection) {
 
         return res.status(403).json({ message: "Forbidden" });
 
@@ -17777,7 +17812,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Validar dados básicos
+      // Validar dados bÃ¡sicos
 
       if (!configData.agentName || !configData.agentRole || !configData.companyName) {
 
@@ -17801,13 +17836,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // ?? TOGGLE EXCLUSIVO: Se Meu Agente IA está sendo ativado, desativar Robô Fluxo
+      // ?? TOGGLE EXCLUSIVO: Se Meu Agente IA estÃ¡ sendo ativado, desativar RobÃ´ Fluxo
 
       if (configData.isActive === true) {
 
-        console.log(`[BUSINESS CONFIG] ?? Desativando Robô Fluxo para usuário ${userId} (ativou Meu Agente)`);
+        console.log(`[BUSINESS CONFIG] ?? Desativando RobÃ´ Fluxo para usuÃ¡rio ${userId} (ativou Meu Agente)`);
 
-        // Usar db e sql já importados no topo do arquivo
+        // Usar db e sql jÃ¡ importados no topo do arquivo
 
         await db.execute(sql`
 
@@ -17831,7 +17866,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-        // Sincronizar ai_agent_config também
+        // Sincronizar ai_agent_config tambÃ©m
 
         await db.execute(sql`
 
@@ -17845,7 +17880,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         `);
 
-        console.log(`[BUSINESS CONFIG] ? Robô Fluxo desativado, Meu Agente sincronizado`);
+        console.log(`[BUSINESS CONFIG] ? RobÃ´ Fluxo desativado, Meu Agente sincronizado`);
 
       }
 
@@ -18173,7 +18208,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!code) {
 
-        return res.status(400).json({ message: "Código do cupom é obrigatório" });
+        return res.status(400).json({ message: "CÃ³digo do cupom Ã© obrigatÃ³rio" });
 
       }
 
@@ -18189,7 +18224,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!coupon) {
 
-        return res.status(404).json({ message: "Cupom não encontrado", valid: false });
+        return res.status(404).json({ message: "Cupom nÃ£o encontrado", valid: false });
 
       }
 
@@ -18227,7 +18262,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         if (!applicablePlans.includes(planTipo)) {
 
-          return res.status(400).json({ message: "Cupom não válido para este plano", valid: false });
+          return res.status(400).json({ message: "Cupom nÃ£o vÃ¡lido para este plano", valid: false });
 
         }
 
@@ -18309,7 +18344,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!code || finalPrice === undefined || finalPrice === null || finalPrice === "") {
 
-        return res.status(400).json({ message: "Código e preço final são obrigatórios" });
+        return res.status(400).json({ message: "CÃ³digo e preÃ§o final sÃ£o obrigatÃ³rios" });
 
       }
 
@@ -18467,7 +18502,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!plan) {
 
-        return res.status(404).json({ message: "Plano não encontrado" });
+        return res.status(404).json({ message: "Plano nÃ£o encontrado" });
 
       }
 
@@ -18605,7 +18640,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!code) {
 
-        return res.status(400).json({ valid: false, message: "Código não informado" });
+        return res.status(400).json({ valid: false, message: "CÃ³digo nÃ£o informado" });
 
       }
 
@@ -18629,7 +18664,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!plan) {
 
-        return res.json({ valid: false, message: "Código de plano não encontrado" });
+        return res.json({ valid: false, message: "CÃ³digo de plano nÃ£o encontrado" });
 
       }
 
@@ -18663,7 +18698,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.error("Error validating plan code:", error);
 
-      res.status(500).json({ valid: false, message: "Erro ao validar código" });
+      res.status(500).json({ valid: false, message: "Erro ao validar cÃ³digo" });
 
     }
 
@@ -18689,7 +18724,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!plan) {
 
-        return res.status(404).json({ plan: null, message: "Plano não encontrado" });
+        return res.status(404).json({ plan: null, message: "Plano nÃ£o encontrado" });
 
       }
 
@@ -18769,7 +18804,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!targetPlanId) {
 
-        return res.status(400).json({ message: "Plano não encontrado" });
+        return res.status(400).json({ message: "Plano nÃ£o encontrado" });
 
       }
 
@@ -18781,7 +18816,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!plan || !plan.ativo) {
 
-        return res.status(404).json({ message: "Plano não encontrado" });
+        return res.status(404).json({ message: "Plano nÃ£o encontrado" });
 
       }
 
@@ -18863,7 +18898,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.error("Error getting assigned plan:", error);
 
-      res.status(500).json({ message: "Erro ao buscar plano atribuído" });
+      res.status(500).json({ message: "Erro ao buscar plano atribuÃ­do" });
 
     }
 
@@ -18944,7 +18979,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.error("Error getting user assigned plan:", error);
 
-      res.status(500).json({ message: "Erro ao buscar plano do usuário" });
+      res.status(500).json({ message: "Erro ao buscar plano do usuÃ¡rio" });
 
     }
 
@@ -19070,9 +19105,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       // ------------------------------------------------------------------
 
-      // PROTEÇÃO CONTRA DUPLICADOS: Verificar se já existe assinatura
+      // PROTEÃ‡ÃƒO CONTRA DUPLICADOS: Verificar se jÃ¡ existe assinatura
 
-      // pendente criada nos últimos 5 minutos para este mesmo plano
+      // pendente criada nos Ãºltimos 5 minutos para este mesmo plano
 
       // ------------------------------------------------------------------
 
@@ -19086,7 +19121,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           eq(subscriptions.status, "pending"),
 
-          gte(subscriptions.createdAt, new Date(Date.now() - 5 * 60 * 1000)) // Últimos 5 minutos
+          gte(subscriptions.createdAt, new Date(Date.now() - 5 * 60 * 1000)) // Ãšltimos 5 minutos
 
         ),
 
@@ -19100,7 +19135,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         console.log(`[Subscription] Reutilizando assinatura pendente existente: ${recentPendingSubscription.id}`);
 
-        // Retornar a assinatura existente ao invés de criar uma nova
+        // Retornar a assinatura existente ao invÃ©s de criar uma nova
 
         return res.json(recentPendingSubscription);
 
@@ -19252,7 +19287,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
       if (plan.periodicidade === "anual") {
         dataFim.setFullYear(dataFim.getFullYear() + 1); // +1 ano
       } else {
-        dataFim.setMonth(dataFim.getMonth() + 1); // +1 mês (30 dias aproximadamente)
+        dataFim.setMonth(dataFim.getMonth() + 1); // +1 mÃªs (30 dias aproximadamente)
       }
 
       const subscription = await storage.createSubscription({
@@ -19315,7 +19350,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // ==========================================
 
-  // MIGRAÇÃO DE PLANOS (UPGRADE/DOWNGRADE)
+  // MIGRAÃ‡ÃƒO DE PLANOS (UPGRADE/DOWNGRADE)
 
   // Permite que o cliente mude de plano mantendo assinatura ativa
 
@@ -19337,7 +19372,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           status: "error",
 
-          message: "ID do novo plano e da assinatura são obrigatórios"
+          message: "ID do novo plano e da assinatura sÃ£o obrigatÃ³rios"
 
         });
 
@@ -19355,7 +19390,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           status: "error",
 
-          message: "Assinatura não encontrada"
+          message: "Assinatura nÃ£o encontrada"
 
         });
 
@@ -19369,7 +19404,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           status: "error",
 
-          message: "Só é possível migrar assinaturas ativas"
+          message: "SÃ³ Ã© possÃ­vel migrar assinaturas ativas"
 
         });
 
@@ -19387,7 +19422,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           status: "error",
 
-          message: "Novo plano não encontrado ou inativo"
+          message: "Novo plano nÃ£o encontrado ou inativo"
 
         });
 
@@ -19513,7 +19548,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         status: "success",
 
-        message: `${isUpgrade ? "Upgrade" : "Downgrade"} realizado com sucesso! Seu novo plano é ${newPlan.nome}.`,
+        message: `${isUpgrade ? "Upgrade" : "Downgrade"} realizado com sucesso! Seu novo plano Ã© ${newPlan.nome}.`,
 
         newPlan: {
 
@@ -19559,7 +19594,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!newPlanId) {
 
-        return res.status(400).json({ message: "ID do novo plano é obrigatório" });
+        return res.status(400).json({ message: "ID do novo plano Ã© obrigatÃ³rio" });
 
       }
 
@@ -19571,7 +19606,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!subscription) {
 
-        return res.status(404).json({ message: "Assinatura não encontrada" });
+        return res.status(404).json({ message: "Assinatura nÃ£o encontrada" });
 
       }
 
@@ -19583,7 +19618,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!newPlan) {
 
-        return res.status(404).json({ message: "Novo plano não encontrado" });
+        return res.status(404).json({ message: "Novo plano nÃ£o encontrado" });
 
       }
 
@@ -20003,7 +20038,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // Reset cliente completo por telefone (para testes)
 
-  // Exclui: conversa admin, mensagens, user, conexão, subscription, config agente
+  // Exclui: conversa admin, mensagens, user, conexÃ£o, subscription, config agente
 
   app.delete("/api/admin/reset-client/:phone", isAdmin, async (req, res) => {
 
@@ -20013,7 +20048,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Limpar número (remover caracteres não numéricos)
+      // Limpar nÃºmero (remover caracteres nÃ£o numÃ©ricos)
 
       const cleanPhone = phone.replace(/\D/g, "");
 
@@ -20021,7 +20056,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!cleanPhone || cleanPhone.length < 10) {
 
-        return res.status(400).json({ message: "Número de telefone inválido" });
+        return res.status(400).json({ message: "NÃºmero de telefone invÃ¡lido" });
 
       }
 
@@ -20031,7 +20066,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Limpar sessão em memória (do adminAgentService)
+      // Limpar sessÃ£o em memÃ³ria (do adminAgentService)
 
       const { clearClientSession } = await import("./adminAgentService");
 
@@ -20077,7 +20112,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
     try {
 
-      // Usar withRetry para evitar falhas de conexão
+      // Usar withRetry para evitar falhas de conexÃ£o
 
       const [users, totalRevenue, activeSubscriptions] = await withRetry(() =>
 
@@ -20186,10 +20221,10 @@ Responda APENAS com o JSON, sem texto adicional.`;
   });
 
 
-  // ═══════════════════════════════════════════════════════════════════
-  // CHECKOUT CONFIG - Configurações públicas para o checkout
-  // Retorna se PIX manual está ativado para esconder cartão no frontend
-  // ═══════════════════════════════════════════════════════════════════
+  // -------------------------------------------------------------------
+  // CHECKOUT CONFIG - ConfiguraÃ§Ãµes pÃºblicas para o checkout
+  // Retorna se PIX manual estÃ¡ ativado para esconder cartÃ£o no frontend
+  // -------------------------------------------------------------------
   app.get("/api/checkout/config", async (req, res) => {
     try {
       const [pixManualConfig, pixKeyConfig] = await Promise.all([
@@ -20221,7 +20256,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (mistral_api_key !== undefined) {
 
-        // Limpar espaços e caracteres invisíveis da chave antes de salvar
+        // Limpar espaÃ§os e caracteres invisÃ­veis da chave antes de salvar
 
         const cleanKey = mistral_api_key.trim().replace(/[\r\n\t\s]/g, "");
 
@@ -20259,7 +20294,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (zai_api_key !== undefined) {
 
-        // Limpar espaços e caracteres invisíveis da chave antes de salvar
+        // Limpar espaÃ§os e caracteres invisÃ­veis da chave antes de salvar
 
         const cleanZaiKey = zai_api_key.trim().replace(/[\r\n\t\s]/g, "");
 
@@ -20401,7 +20436,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           fallbackDelayMinutes: 5,
 
-          description: "Sistema de fila inteligente que tenta modelos Mistral em rotação por 5 minutos antes de fazer fallback para OpenRouter/Groq"
+          description: "Sistema de fila inteligente que tenta modelos Mistral em rotaÃ§Ã£o por 5 minutos antes de fazer fallback para OpenRouter/Groq"
 
         }
 
@@ -20467,7 +20502,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         .filter((model: any) => {
 
-          // Excluir modelos de embedding, moderation, e modelos que não são de chat
+          // Excluir modelos de embedding, moderation, e modelos que nÃ£o sÃ£o de chat
 
           const id = model.id?.toLowerCase() || '';
 
@@ -20505,7 +20540,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         .sort((a: any, b: any) => {
 
-          // Ordenar por preço (mais barato primeiro)
+          // Ordenar por preÃ§o (mais barato primeiro)
 
           const priceA = parseFloat(a.pricing?.prompt || '999');
 
@@ -20545,7 +20580,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // OpenRouter não tem endpoint específico para providers,
+      // OpenRouter nÃ£o tem endpoint especÃ­fico para providers,
 
       // mas podemos extrair do endpoint de modelos
 
@@ -20587,7 +20622,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       // Lista comum de providers do OpenRouter
 
-      // O provider exato depende do modelo, mas estes são os mais comuns
+      // O provider exato depende do modelo, mas estes sÃ£o os mais comuns
 
       const commonProviders = [
 
@@ -20595,15 +20630,15 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         { slug: 'hyperbolic', name: 'Hyperbolic', description: 'Barato, $0.04-0.12/M tokens' },
 
-        { slug: 'deepinfra', name: 'DeepInfra', description: 'Rápido, $0.05-0.15/M tokens' },
+        { slug: 'deepinfra', name: 'DeepInfra', description: 'RÃ¡pido, $0.05-0.15/M tokens' },
 
-        { slug: 'together', name: 'Together AI', description: 'Confiável, $0.10-0.30/M tokens' },
+        { slug: 'together', name: 'Together AI', description: 'ConfiÃ¡vel, $0.10-0.30/M tokens' },
 
         { slug: 'fireworks', name: 'Fireworks', description: 'Alta performance' },
 
-        { slug: 'lepton', name: 'Lepton', description: 'Baixa latência' },
+        { slug: 'lepton', name: 'Lepton', description: 'Baixa latÃªncia' },
 
-        { slug: 'novita', name: 'Novita AI', description: 'Alternativa econômica' },
+        { slug: 'novita', name: 'Novita AI', description: 'Alternativa econÃ´mica' },
 
         { slug: 'avian', name: 'Avian', description: 'API simples' },
 
@@ -20677,7 +20712,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
     try {
 
-      console.log(`??? [ADMIN] Limpeza de mídia forçada solicitada`);
+      console.log(`??? [ADMIN] Limpeza de mÃ­dia forÃ§ada solicitada`);
 
       const result = await forceMediaCleanup();
 
@@ -20685,7 +20720,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         success: true,
 
-        message: `Limpeza concluída: ${result.deletedFiles} arquivos deletados`,
+        message: `Limpeza concluÃ­da: ${result.deletedFiles} arquivos deletados`,
 
         ...result,
 
@@ -20731,7 +20766,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!publicKey) {
 
-        return res.status(404).json({ message: "Mercado Pago não configurado" });
+        return res.status(404).json({ message: "Mercado Pago nÃ£o configurado" });
 
       }
 
@@ -20973,7 +21008,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!user) {
 
-        return res.status(404).json({ message: "Usuário não encontrado" });
+        return res.status(404).json({ message: "UsuÃ¡rio nÃ£o encontrado" });
 
       }
 
@@ -20983,7 +21018,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!plan) {
 
-        return res.status(404).json({ message: "Plano não encontrado" });
+        return res.status(404).json({ message: "Plano nÃ£o encontrado" });
 
       }
 
@@ -21129,7 +21164,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!subscription || subscription.userId !== userId) {
 
-        return res.status(404).json({ message: "Assinatura não encontrada" });
+        return res.status(404).json({ message: "Assinatura nÃ£o encontrada" });
 
       }
 
@@ -21141,7 +21176,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!plan) {
 
-        return res.status(404).json({ message: "Plano não encontrado" });
+        return res.status(404).json({ message: "Plano nÃ£o encontrado" });
 
       }
 
@@ -21173,7 +21208,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!accessToken) {
 
-        return res.status(500).json({ message: "Mercado Pago não configurado" });
+        return res.status(500).json({ message: "Mercado Pago nÃ£o configurado" });
 
       }
 
@@ -21319,7 +21354,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           status: "approved",
 
-          message: "Pagamento aprovado! Sua assinatura está ativa.",
+          message: "Pagamento aprovado! Sua assinatura estÃ¡ ativa.",
 
           paymentId: result.id,
 
@@ -21345,7 +21380,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           status: "pending",
 
-          message: "Pagamento em processamento. Aguarde a confirmação.",
+          message: "Pagamento em processamento. Aguarde a confirmaÃ§Ã£o.",
 
           paymentId: result.id,
 
@@ -21353,75 +21388,75 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       } else {
 
-        // Payment rejected - Mensagens em português brasileiro
+        // Payment rejected - Mensagens em portuguÃªs brasileiro
 
-        // Documentação: https://www.mercadopago.com.br/developers/pt/docs/checkout-api-payments/error-messages
+        // DocumentaÃ§Ã£o: https://www.mercadopago.com.br/developers/pt/docs/checkout-api-payments/error-messages
 
         const errorMessages: Record<string, string> = {
 
-          // Erros de validação do cartão
+          // Erros de validaÃ§Ã£o do cartÃ£o
 
-          "cc_rejected_bad_filled_card_number": "Número do cartão inválido. Verifique e tente novamente.",
+          "cc_rejected_bad_filled_card_number": "NÃºmero do cartÃ£o invÃ¡lido. Verifique e tente novamente.",
 
-          "cc_rejected_bad_filled_date": "Data de validade inválida. Verifique mês/ano.",
+          "cc_rejected_bad_filled_date": "Data de validade invÃ¡lida. Verifique mÃªs/ano.",
 
-          "cc_rejected_bad_filled_other": "Dados do cartão incorretos. Verifique as informações.",
+          "cc_rejected_bad_filled_other": "Dados do cartÃ£o incorretos. Verifique as informaÃ§Ãµes.",
 
-          "cc_rejected_bad_filled_security_code": "Código de segurança (CVV) inválido.",
+          "cc_rejected_bad_filled_security_code": "CÃ³digo de seguranÃ§a (CVV) invÃ¡lido.",
 
-          "CC_VAL_433": "?? Validação do cartão falhou. Use um cartão real em modo produção.",
-
-
-
-          // Erros de cartão bloqueado/desativado
-
-          "cc_rejected_blacklist": "Este cartão não pode ser utilizado. Use outro cartão.",
-
-          "cc_rejected_card_disabled": "Cartão desativado. Ative-o com sua operadora ou use outro.",
-
-          "cc_rejected_card_error": "Erro no cartão. Use outro cartão.",
+          "CC_VAL_433": "?? ValidaÃ§Ã£o do cartÃ£o falhou. Use um cartÃ£o real em modo produÃ§Ã£o.",
 
 
 
-          // Erros que requerem ação do usuário
+          // Erros de cartÃ£o bloqueado/desativado
 
-          "cc_rejected_call_for_authorize": "Ligue para sua operadora de cartão para autorizar.",
+          "cc_rejected_blacklist": "Este cartÃ£o nÃ£o pode ser utilizado. Use outro cartÃ£o.",
 
-          "cc_rejected_insufficient_amount": "Saldo insuficiente no cartão.",
+          "cc_rejected_card_disabled": "CartÃ£o desativado. Ative-o com sua operadora ou use outro.",
+
+          "cc_rejected_card_error": "Erro no cartÃ£o. Use outro cartÃ£o.",
+
+
+
+          // Erros que requerem aÃ§Ã£o do usuÃ¡rio
+
+          "cc_rejected_call_for_authorize": "Ligue para sua operadora de cartÃ£o para autorizar.",
+
+          "cc_rejected_insufficient_amount": "Saldo insuficiente no cartÃ£o.",
 
           "cc_rejected_max_attempts": "Limite de tentativas excedido. Aguarde e tente novamente.",
 
 
 
-          // Erros de segurança/fraude
+          // Erros de seguranÃ§a/fraude
 
-          "cc_rejected_high_risk": "Pagamento recusado por segurança. Tente outro cartão.",
+          "cc_rejected_high_risk": "Pagamento recusado por seguranÃ§a. Tente outro cartÃ£o.",
 
           "cc_rejected_duplicated_payment": "Pagamento duplicado. Verifique sua fatura.",
 
 
 
-          // Erros de configuração
+          // Erros de configuraÃ§Ã£o
 
-          "cc_rejected_invalid_installments": "Parcelas inválidas para este cartão.",
+          "cc_rejected_invalid_installments": "Parcelas invÃ¡lidas para este cartÃ£o.",
 
-          "cc_rejected_other_reason": "Pagamento não aprovado. Tente outro cartão.",
+          "cc_rejected_other_reason": "Pagamento nÃ£o aprovado. Tente outro cartÃ£o.",
 
 
 
-          // Erros genéricos
+          // Erros genÃ©ricos
 
-          "rejected": "Pagamento recusado. Verifique os dados ou use outro cartão.",
+          "rejected": "Pagamento recusado. Verifique os dados ou use outro cartÃ£o.",
 
-          "pending_contingency": "Processando pagamento. Aguarde a confirmação.",
+          "pending_contingency": "Processando pagamento. Aguarde a confirmaÃ§Ã£o.",
 
-          "pending_review_manual": "Pagamento em análise. Aguarde a confirmação.",
+          "pending_review_manual": "Pagamento em anÃ¡lise. Aguarde a confirmaÃ§Ã£o.",
 
         };
 
 
 
-        const message = errorMessages[result.status_detail] || errorMessages[result.status] || result.message || "Pagamento não aprovado. Verifique os dados do cartão.";
+        const message = errorMessages[result.status_detail] || errorMessages[result.status] || result.message || "Pagamento nÃ£o aprovado. Verifique os dados do cartÃ£o.";
 
 
 
@@ -21463,11 +21498,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // -------------------------------------------------------------------------------
 
-  // VERSÃO 2025: Suporta dois tokens para cobrança imediata + assinatura recorrente
+  // VERSÃƒO 2025: Suporta dois tokens para cobranÃ§a imediata + assinatura recorrente
 
-  // - paymentToken: Usado para /v1/payments (cobrança IMEDIATA)
+  // - paymentToken: Usado para /v1/payments (cobranÃ§a IMEDIATA)
 
-  // - subscriptionToken: Usado para /preapproval (assinatura recorrente no próximo mês)
+  // - subscriptionToken: Usado para /preapproval (assinatura recorrente no prÃ³ximo mÃªs)
 
   // -------------------------------------------------------------------------------
 
@@ -21499,7 +21534,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         identificationNumber,
 
-        installments: requestedInstallments // Número de parcelas para planos de implementação
+        installments: requestedInstallments // NÃºmero de parcelas para planos de implementaÃ§Ã£o
 
       } = req.body;
 
@@ -21529,7 +21564,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           status: "error",
 
-          message: "Assinatura não encontrada"
+          message: "Assinatura nÃ£o encontrada"
 
         });
 
@@ -21539,23 +21574,23 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       // ------------------------------------------------------------------
 
-      // PROTEÇÃO CONTRA COBRANÇAS DUPLICADAS
+      // PROTEÃ‡ÃƒO CONTRA COBRANÃ‡AS DUPLICADAS
 
-      // Verifica se já existe um pagamento aprovado/em análise nos últimos 2 minutos
+      // Verifica se jÃ¡ existe um pagamento aprovado/em anÃ¡lise nos Ãºltimos 2 minutos
 
-      // ou se a assinatura já está ativa
+      // ou se a assinatura jÃ¡ estÃ¡ ativa
 
       // ------------------------------------------------------------------
 
       if (subscription.status === "active" && subscription.mpSubscriptionId) {
 
-        console.log(`[MP Subscription] Assinatura ${subscriptionId} já está ativa com MP ID: ${subscription.mpSubscriptionId}`);
+        console.log(`[MP Subscription] Assinatura ${subscriptionId} jÃ¡ estÃ¡ ativa com MP ID: ${subscription.mpSubscriptionId}`);
 
         return res.json({
 
           status: "approved",
 
-          message: "Sua assinatura já está ativa!",
+          message: "Sua assinatura jÃ¡ estÃ¡ ativa!",
 
           subscriptionId: subscription.mpSubscriptionId,
 
@@ -21567,7 +21602,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Verificar pagamento recente aprovado nos últimos 2 minutos
+      // Verificar pagamento recente aprovado nos Ãºltimos 2 minutos
 
       const recentPayment = await db.query.paymentHistory.findFirst({
 
@@ -21577,7 +21612,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           inArray(paymentHistory.status, ["approved", "in_process", "pending"]),
 
-          gte(paymentHistory.createdAt, new Date(Date.now() - 2 * 60 * 1000)) // Últimos 2 minutos
+          gte(paymentHistory.createdAt, new Date(Date.now() - 2 * 60 * 1000)) // Ãšltimos 2 minutos
 
         ),
 
@@ -21597,7 +21632,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             status: "approved",
 
-            message: "Pagamento já foi aprovado! Sua assinatura está sendo ativada.",
+            message: "Pagamento jÃ¡ foi aprovado! Sua assinatura estÃ¡ sendo ativada.",
 
             mpPaymentId: recentPayment.mpPaymentId
 
@@ -21609,7 +21644,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             status: recentPayment.status,
 
-            message: "Pagamento já está sendo processado. Aguarde a confirmação.",
+            message: "Pagamento jÃ¡ estÃ¡ sendo processado. Aguarde a confirmaÃ§Ã£o.",
 
             mpPaymentId: recentPayment.mpPaymentId
 
@@ -21631,7 +21666,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           status: "error",
 
-          message: "Plano não encontrado"
+          message: "Plano nÃ£o encontrado"
 
         });
 
@@ -21651,7 +21686,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Determinar valor da primeira cobrança
+      // Determinar valor da primeira cobranÃ§a
 
       const primeiraCobrancaValor = hasSetupFee ? valorPrimeiraCobranca : valorMensal;
 
@@ -21679,7 +21714,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           status: "error",
 
-          message: "Mercado Pago não configurado"
+          message: "Mercado Pago nÃ£o configurado"
 
         });
 
@@ -21731,9 +21766,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Determinar número de parcelas (apenas para planos de implementação)
+      // Determinar nÃºmero de parcelas (apenas para planos de implementaÃ§Ã£o)
 
-      // Validar: máximo 12 parcelas, mínimo 1
+      // Validar: mÃ¡ximo 12 parcelas, mÃ­nimo 1
 
       const installments = hasSetupFee && requestedInstallments ?
 
@@ -21771,27 +21806,27 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       // -------------------------------------------------------------------------------
 
-      // VERSÃO 2025: FLUXO DE DOIS TOKENS PARA COBRANÇA IMEDIATA + ASSINATURA RECORRENTE
+      // VERSÃƒO 2025: FLUXO DE DOIS TOKENS PARA COBRANÃ‡A IMEDIATA + ASSINATURA RECORRENTE
 
       // -------------------------------------------------------------------------------
 
       // MODO 1 (DOIS TOKENS): Frontend envia paymentToken + subscriptionToken
 
-      //   - paymentToken: Usado em /v1/payments para cobrança IMEDIATA
+      //   - paymentToken: Usado em /v1/payments para cobranÃ§a IMEDIATA
 
-      //   - subscriptionToken: Usado em /preapproval para assinatura (próximo mês)
+      //   - subscriptionToken: Usado em /preapproval para assinatura (prÃ³ximo mÃªs)
 
       //
 
-      // MODO 2 (TOKEN ÚNICO - compatibilidade): Frontend envia apenas token
+      // MODO 2 (TOKEN ÃšNICO - compatibilidade): Frontend envia apenas token
 
       //   - Usado em /preapproval com status="authorized"
 
-      //   - MP cobra automaticamente "em até 1 hora"
+      //   - MP cobra automaticamente "em atÃ© 1 hora"
 
       //
 
-      // MODO 3 (SEM TOKEN): Usuário completa via init_point
+      // MODO 3 (SEM TOKEN): UsuÃ¡rio completa via init_point
 
       // -------------------------------------------------------------------------------
 
@@ -21799,7 +21834,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       // -------------------------------------------------------------------------------
 
-      // MODO 1: DOIS TOKENS - Cobrança imediata + Assinatura recorrente
+      // MODO 1: DOIS TOKENS - CobranÃ§a imediata + Assinatura recorrente
 
       // -------------------------------------------------------------------------------
 
@@ -21807,7 +21842,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         console.log("[MP Subscription] --- MODO DOIS TOKENS ---");
 
-        console.log("[MP Subscription] Etapa 1: Cobrança imediata via /v1/payments");
+        console.log("[MP Subscription] Etapa 1: CobranÃ§a imediata via /v1/payments");
 
 
 
@@ -21825,7 +21860,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           description: `${plan.nome} - AgenteZap${installments > 1 ? ` (${installments}x)` : ''}`,
 
-          installments: installments, // Número de parcelas (1 a 12)
+          installments: installments, // NÃºmero de parcelas (1 a 12)
 
           payment_method_id: paymentMethodId || "visa",
 
@@ -21891,21 +21926,21 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         // VERIFICAR RESULTADO DO PAGAMENTO - APENAS "approved" PERMITE CONTINUAR!
 
-        // CORREÇÃO 2025: NÃO tratar "in_process" como aprovado!
+        // CORREÃ‡ÃƒO 2025: NÃƒO tratar "in_process" como aprovado!
 
         // -------------------------------------------------------------------
 
 
 
-        // CASO 1: PAGAMENTO EM ANÁLISE (in_process) - NÃO criar assinatura ainda!
+        // CASO 1: PAGAMENTO EM ANÃLISE (in_process) - NÃƒO criar assinatura ainda!
 
         if (paymentResult.status === "in_process") {
 
-          console.log("[MP Subscription] ? Pagamento em análise (in_process):", paymentResult.status_detail);
+          console.log("[MP Subscription] ? Pagamento em anÃ¡lise (in_process):", paymentResult.status_detail);
 
 
 
-          // Registrar no histórico como pendente
+          // Registrar no histÃ³rico como pendente
 
           try {
 
@@ -21935,11 +21970,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             });
 
-            console.log("[MP Subscription] Pagamento pendente registrado no histórico");
+            console.log("[MP Subscription] Pagamento pendente registrado no histÃ³rico");
 
           } catch (historyError) {
 
-            console.error("[MP Subscription] Erro ao registrar histórico:", historyError);
+            console.error("[MP Subscription] Erro ao registrar histÃ³rico:", historyError);
 
           }
 
@@ -21961,13 +21996,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-          // Retornar status pendente - NÃO ativar a assinatura!
+          // Retornar status pendente - NÃƒO ativar a assinatura!
 
           return res.json({
 
             status: "in_process",
 
-            message: "? Pagamento em análise. Você receberá uma confirmação em até 2 dias úteis por e-mail. Sua assinatura será ativada automaticamente após a aprovação.",
+            message: "? Pagamento em anÃ¡lise. VocÃª receberÃ¡ uma confirmaÃ§Ã£o em atÃ© 2 dias Ãºteis por e-mail. Sua assinatura serÃ¡ ativada automaticamente apÃ³s a aprovaÃ§Ã£o.",
 
             mpPaymentId: paymentResult.id,
 
@@ -21983,27 +22018,27 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         if (paymentResult.status !== "approved") {
 
-          // Pagamento falhou - não criar assinatura
+          // Pagamento falhou - nÃ£o criar assinatura
 
           const errorMessages: Record<string, string> = {
 
-            "cc_rejected_bad_filled_card_number": "Número do cartão inválido.",
+            "cc_rejected_bad_filled_card_number": "NÃºmero do cartÃ£o invÃ¡lido.",
 
-            "cc_rejected_bad_filled_date": "Data de validade inválida.",
+            "cc_rejected_bad_filled_date": "Data de validade invÃ¡lida.",
 
-            "cc_rejected_bad_filled_security_code": "Código de segurança (CVV) inválido.",
+            "cc_rejected_bad_filled_security_code": "CÃ³digo de seguranÃ§a (CVV) invÃ¡lido.",
 
-            "cc_rejected_insufficient_amount": "Saldo insuficiente no cartão.",
+            "cc_rejected_insufficient_amount": "Saldo insuficiente no cartÃ£o.",
 
-            "cc_rejected_high_risk": "Pagamento recusado por segurança.",
+            "cc_rejected_high_risk": "Pagamento recusado por seguranÃ§a.",
 
             "cc_rejected_call_for_authorize": "Ligue para sua operadora para autorizar.",
 
-            "cc_rejected_card_disabled": "Cartão desativado. Use outro cartão.",
+            "cc_rejected_card_disabled": "CartÃ£o desativado. Use outro cartÃ£o.",
 
-            "cc_rejected_other_reason": "Pagamento não aprovado. Tente outro cartão.",
+            "cc_rejected_other_reason": "Pagamento nÃ£o aprovado. Tente outro cartÃ£o.",
 
-            "invalid_users": "?? Erro: Usando cartão de teste em modo produção.",
+            "invalid_users": "?? Erro: Usando cartÃ£o de teste em modo produÃ§Ã£o.",
 
           };
 
@@ -22011,7 +22046,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           const statusDetail = paymentResult.status_detail || "";
 
-          let errorMessage = errorMessages[statusDetail] || paymentResult.message || "Pagamento não aprovado. Tente outro cartão.";
+          let errorMessage = errorMessages[statusDetail] || paymentResult.message || "Pagamento nÃ£o aprovado. Tente outro cartÃ£o.";
 
 
 
@@ -22033,7 +22068,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-        // CASO 3: PAGAMENTO APROVADO - Continuar com criação da assinatura
+        // CASO 3: PAGAMENTO APROVADO - Continuar com criaÃ§Ã£o da assinatura
 
         console.log("[MP Subscription] ? Pagamento APROVADO! ID:", paymentResult.id);
 
@@ -22067,11 +22102,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           });
 
-          console.log("[MP Subscription] Pagamento registrado no histórico");
+          console.log("[MP Subscription] Pagamento registrado no histÃ³rico");
 
         } catch (historyError) {
 
-          console.error("[MP Subscription] Erro ao registrar histórico:", historyError);
+          console.error("[MP Subscription] Erro ao registrar histÃ³rico:", historyError);
 
         }
 
@@ -22081,7 +22116,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         // ETAPA 2: CRIAR ASSINATURA RECORRENTE via /preapproval
 
-        // Start date = próximo mês (mesmo dia)
+        // Start date = prÃ³ximo mÃªs (mesmo dia)
 
         // -------------------------------------------------------------------
 
@@ -22089,7 +22124,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-        // Calcular data de início (próximo mês, mesmo dia)
+        // Calcular data de inÃ­cio (prÃ³ximo mÃªs, mesmo dia)
 
         const nextMonthStartDate = new Date();
 
@@ -22097,7 +22132,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-        // Ajustar para último dia do mês se necessário
+        // Ajustar para Ãºltimo dia do mÃªs se necessÃ¡rio
 
         const currentDay = new Date().getDate();
 
@@ -22113,7 +22148,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         const endDate = new Date();
 
-        endDate.setFullYear(endDate.getFullYear() + 5); // 5 anos máximo
+        endDate.setFullYear(endDate.getFullYear() + 5); // 5 anos mÃ¡ximo
 
 
 
@@ -22139,13 +22174,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             currency_id: "BRL",
 
-            start_date: nextMonthStartDate.toISOString(), // Começa no PRÓXIMO MÊS
+            start_date: nextMonthStartDate.toISOString(), // ComeÃ§a no PRÃ“XIMO MÃŠS
 
             end_date: endDate.toISOString(),
 
-            billing_day: currentDay <= 28 ? currentDay : 28, // Mesmo dia do mês (máx 28)
+            billing_day: currentDay <= 28 ? currentDay : 28, // Mesmo dia do mÃªs (mÃ¡x 28)
 
-            billing_day_proportional: false, // NÃO cobrar proporcional (já cobramos o primeiro)
+            billing_day_proportional: false, // NÃƒO cobrar proporcional (jÃ¡ cobramos o primeiro)
 
           },
 
@@ -22239,7 +22274,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           console.log("[MP Subscription] - Assinatura ID:", subscriptionResult.id);
 
-          console.log("[MP Subscription] - Próxima cobrança:", nextMonthStartDate.toISOString());
+          console.log("[MP Subscription] - PrÃ³xima cobranÃ§a:", nextMonthStartDate.toISOString());
 
 
 
@@ -22247,7 +22282,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             status: "approved",
 
-            message: `?? Pagamento de R$ ${primeiraCobrancaValor.toFixed(2).replace(".", ",")} aprovado! Assinatura ativada. Próxima cobrança: ${nextMonthStartDate.toLocaleDateString("pt-BR")}`,
+            message: `?? Pagamento de R$ ${primeiraCobrancaValor.toFixed(2).replace(".", ",")} aprovado! Assinatura ativada. PrÃ³xima cobranÃ§a: ${nextMonthStartDate.toLocaleDateString("pt-BR")}`,
 
             subscriptionId: subscriptionResult.id,
 
@@ -22263,7 +22298,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           // Assinatura falhou, mas pagamento foi feito
 
-          // Ativar assinatura local mesmo assim (só sem recorrência automática)
+          // Ativar assinatura local mesmo assim (sÃ³ sem recorrÃªncia automÃ¡tica)
 
           console.log("[MP Subscription] ?? Assinatura falhou, mas pagamento foi aprovado");
 
@@ -22301,7 +22336,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             status: "approved",
 
-            message: `? Pagamento de R$ ${primeiraCobrancaValor.toFixed(2).replace(".", ",")} aprovado! Sua assinatura está ativa. (Nota: A recorrência automática não foi configurada - você receberá um lembrete antes do vencimento)`,
+            message: `? Pagamento de R$ ${primeiraCobrancaValor.toFixed(2).replace(".", ",")} aprovado! Sua assinatura estÃ¡ ativa. (Nota: A recorrÃªncia automÃ¡tica nÃ£o foi configurada - vocÃª receberÃ¡ um lembrete antes do vencimento)`,
 
             mpPaymentId: paymentResult.id,
 
@@ -22317,19 +22352,19 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       // -------------------------------------------------------------------------------
 
-      // MODO 2: TOKEN ÚNICO - Cobrança IMEDIATA + Assinatura pendente para renovação
+      // MODO 2: TOKEN ÃšNICO - CobranÃ§a IMEDIATA + Assinatura pendente para renovaÃ§Ã£o
 
-      // VERSÃO 2025: NUNCA esperar 1 hora - SEMPRE cobrar imediatamente!
+      // VERSÃƒO 2025: NUNCA esperar 1 hora - SEMPRE cobrar imediatamente!
 
       // -------------------------------------------------------------------------------
 
       if (tokenParaPagamento && !tokenParaAssinatura) {
 
-        console.log("[MP Subscription] --- MODO TOKEN ÚNICO - COBRANÇA IMEDIATA ---");
+        console.log("[MP Subscription] --- MODO TOKEN ÃšNICO - COBRANÃ‡A IMEDIATA ---");
 
-        console.log("[MP Subscription] Etapa 1: Cobrança IMEDIATA via /v1/payments");
+        console.log("[MP Subscription] Etapa 1: CobranÃ§a IMEDIATA via /v1/payments");
 
-        console.log("[MP Subscription] Etapa 2: Criar assinatura pendente para renovação futura");
+        console.log("[MP Subscription] Etapa 2: Criar assinatura pendente para renovaÃ§Ã£o futura");
 
 
 
@@ -22347,7 +22382,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           description: `${plan.nome} - AgenteZap${installments > 1 ? ` (${installments}x)` : ''}`,
 
-          installments: installments, // Número de parcelas (1 a 12)
+          installments: installments, // NÃºmero de parcelas (1 a 12)
 
           payment_method_id: paymentMethodId || "visa",
 
@@ -22413,21 +22448,21 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         // VERIFICAR RESULTADO DO PAGAMENTO - APENAS "approved" PERMITE CONTINUAR!
 
-        // CORREÇÃO 2025: NÃO tratar "in_process" como aprovado!
+        // CORREÃ‡ÃƒO 2025: NÃƒO tratar "in_process" como aprovado!
 
         // -------------------------------------------------------------------
 
 
 
-        // CASO 1: PAGAMENTO EM ANÁLISE (in_process) - NÃO criar assinatura ainda!
+        // CASO 1: PAGAMENTO EM ANÃLISE (in_process) - NÃƒO criar assinatura ainda!
 
         if (paymentResult.status === "in_process") {
 
-          console.log("[MP Subscription] ? Pagamento em análise (in_process):", paymentResult.status_detail);
+          console.log("[MP Subscription] ? Pagamento em anÃ¡lise (in_process):", paymentResult.status_detail);
 
 
 
-          // Registrar no histórico como pendente
+          // Registrar no histÃ³rico como pendente
 
           try {
 
@@ -22457,11 +22492,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             });
 
-            console.log("[MP Subscription] Pagamento pendente registrado no histórico");
+            console.log("[MP Subscription] Pagamento pendente registrado no histÃ³rico");
 
           } catch (historyError) {
 
-            console.error("[MP Subscription] Erro ao registrar histórico:", historyError);
+            console.error("[MP Subscription] Erro ao registrar histÃ³rico:", historyError);
 
           }
 
@@ -22483,13 +22518,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-          // Retornar status pendente - NÃO ativar a assinatura!
+          // Retornar status pendente - NÃƒO ativar a assinatura!
 
           return res.json({
 
             status: "in_process",
 
-            message: "? Pagamento em análise. Você receberá uma confirmação em até 2 dias úteis por e-mail. Sua assinatura será ativada automaticamente após a aprovação.",
+            message: "? Pagamento em anÃ¡lise. VocÃª receberÃ¡ uma confirmaÃ§Ã£o em atÃ© 2 dias Ãºteis por e-mail. Sua assinatura serÃ¡ ativada automaticamente apÃ³s a aprovaÃ§Ã£o.",
 
             mpPaymentId: paymentResult.id,
 
@@ -22509,23 +22544,23 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           const errorMessages: Record<string, string> = {
 
-            "cc_rejected_bad_filled_card_number": "Número do cartão inválido.",
+            "cc_rejected_bad_filled_card_number": "NÃºmero do cartÃ£o invÃ¡lido.",
 
-            "cc_rejected_bad_filled_date": "Data de validade inválida.",
+            "cc_rejected_bad_filled_date": "Data de validade invÃ¡lida.",
 
-            "cc_rejected_bad_filled_security_code": "Código de segurança (CVV) inválido.",
+            "cc_rejected_bad_filled_security_code": "CÃ³digo de seguranÃ§a (CVV) invÃ¡lido.",
 
-            "cc_rejected_insufficient_amount": "Saldo insuficiente no cartão.",
+            "cc_rejected_insufficient_amount": "Saldo insuficiente no cartÃ£o.",
 
-            "cc_rejected_high_risk": "Pagamento recusado por segurança.",
+            "cc_rejected_high_risk": "Pagamento recusado por seguranÃ§a.",
 
             "cc_rejected_call_for_authorize": "Ligue para sua operadora para autorizar.",
 
-            "cc_rejected_card_disabled": "Cartão desativado. Use outro cartão.",
+            "cc_rejected_card_disabled": "CartÃ£o desativado. Use outro cartÃ£o.",
 
-            "cc_rejected_other_reason": "Pagamento não aprovado. Tente outro cartão.",
+            "cc_rejected_other_reason": "Pagamento nÃ£o aprovado. Tente outro cartÃ£o.",
 
-            "invalid_users": "?? Erro: Usando cartão de teste em modo produção.",
+            "invalid_users": "?? Erro: Usando cartÃ£o de teste em modo produÃ§Ã£o.",
 
           };
 
@@ -22533,7 +22568,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           const statusDetail = paymentResult.status_detail || "";
 
-          let errorMessage = errorMessages[statusDetail] || paymentResult.message || "Pagamento não aprovado. Tente outro cartão.";
+          let errorMessage = errorMessages[statusDetail] || paymentResult.message || "Pagamento nÃ£o aprovado. Tente outro cartÃ£o.";
 
 
 
@@ -22555,7 +22590,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-        // CASO 3: PAGAMENTO APROVADO - Continuar com criação da assinatura
+        // CASO 3: PAGAMENTO APROVADO - Continuar com criaÃ§Ã£o da assinatura
 
         console.log("[MP Subscription] ? Pagamento imediato APROVADO! ID:", paymentResult.id);
 
@@ -22589,11 +22624,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           });
 
-          console.log("[MP Subscription] Pagamento registrado no histórico");
+          console.log("[MP Subscription] Pagamento registrado no histÃ³rico");
 
         } catch (historyError) {
 
-          console.error("[MP Subscription] Erro ao registrar histórico:", historyError);
+          console.error("[MP Subscription] Erro ao registrar histÃ³rico:", historyError);
 
         }
 
@@ -22603,11 +22638,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         // ETAPA 2: CRIAR ASSINATURA PENDENTE via /preapproval (sem token)
 
-        // Para renovação manual no próximo mês - usuário receberá link
+        // Para renovaÃ§Ã£o manual no prÃ³ximo mÃªs - usuÃ¡rio receberÃ¡ link
 
         // -------------------------------------------------------------------
 
-        console.log("[MP Subscription] Etapa 2: Criando assinatura pendente para renovação futura");
+        console.log("[MP Subscription] Etapa 2: Criando assinatura pendente para renovaÃ§Ã£o futura");
 
 
 
@@ -22633,11 +22668,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-        // Criar assinatura PENDENTE (sem token, usuário completará depois)
+        // Criar assinatura PENDENTE (sem token, usuÃ¡rio completarÃ¡ depois)
 
         const subscriptionData = {
 
-          reason: `${plan.nome} - AgenteZap (Renovação)`,
+          reason: `${plan.nome} - AgenteZap (RenovaÃ§Ã£o)`,
 
           external_reference: `sub_${subscriptionId}_renewal`,
 
@@ -22691,7 +22726,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-        // Calcular data de fim do período atual
+        // Calcular data de fim do perÃ­odo atual
 
         const dataFim = new Date();
 
@@ -22737,13 +22772,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-        console.log("[MP Subscription] ? SUCESSO - Token Único!");
+        console.log("[MP Subscription] ? SUCESSO - Token Ãšnico!");
 
         console.log("[MP Subscription] - Pagamento imediato: R$", primeiraCobrancaValor);
 
         console.log("[MP Subscription] - MP Payment ID:", paymentResult.id);
 
-        console.log("[MP Subscription] - Próxima cobrança:", nextMonthStartDate.toISOString());
+        console.log("[MP Subscription] - PrÃ³xima cobranÃ§a:", nextMonthStartDate.toISOString());
 
 
 
@@ -22751,7 +22786,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         const renewalNote = subscriptionResult.init_point
 
-          ? " Você receberá um lembrete antes da renovação."
+          ? " VocÃª receberÃ¡ um lembrete antes da renovaÃ§Ã£o."
 
           : "";
 
@@ -22929,9 +22964,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // ASSINATURA COM PIX - Endpoint para criar pagamento PIX + assinatura
 
-  // Lógica PRÉ-PAGO: Cobra o primeiro PIX imediatamente,
+  // LÃ³gica PRÃ‰-PAGO: Cobra o primeiro PIX imediatamente,
 
-  // depois cria assinatura com boleto/cartão para cobranças futuras
+  // depois cria assinatura com boleto/cartÃ£o para cobranÃ§as futuras
 
   // -------------------------------------------------------------------------------
 
@@ -22969,7 +23004,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           status: "error",
 
-          message: "Assinatura não encontrada"
+          message: "Assinatura nÃ£o encontrada"
 
         });
 
@@ -22987,7 +23022,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           status: "error",
 
-          message: "Plano não encontrado"
+          message: "Plano nÃ£o encontrado"
 
         });
 
@@ -23007,14 +23042,14 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // ===== VERIFICAR SE PIX MANUAL ESTÁ ATIVADO =====
+      // ===== VERIFICAR SE PIX MANUAL ESTÃ ATIVADO =====
       const pixManualConfig = await storage.getSystemConfig('pix_manual_enabled');
       const pixManualEnabled = pixManualConfig?.valor === 'true' || pixManualConfig?.valor === true;
 
       if (pixManualEnabled) {
         console.log("[PIX MANUAL] Gerando QR Code PIX manual...");
 
-        // Usar serviço de PIX manual (chave PIX configurada no admin)
+        // Usar serviÃ§o de PIX manual (chave PIX configurada no admin)
         const { pixCode, pixQrCode } = await generatePixQRCode({
           planNome: plan.nome,
           valor: pixAmount,
@@ -23032,9 +23067,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         return res.json({
           status: "pending",
-          message: "PIX gerado! Escaneie o QR Code ou copie o código para pagar.",
+          message: "PIX gerado! Escaneie o QR Code ou copie o cÃ³digo para pagar.",
           paymentId: `manual_${subscriptionId}`,
-          qrCode: pixCode, // Código Pix Copia e Cola
+          qrCode: pixCode, // CÃ³digo Pix Copia e Cola
           qrCodeBase64: pixQrCode, // Imagem QR Code (data URL)
           expirationDate: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
           amount: pixAmount,
@@ -23042,7 +23077,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
         });
       }
 
-      // ===== PIX VIA MERCADOPAGO (modo padrão) =====
+      // ===== PIX VIA MERCADOPAGO (modo padrÃ£o) =====
       // Get MP credentials
 
       const configMap = await storage.getSystemConfigs([
@@ -23061,7 +23096,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           status: "error",
 
-          message: "Mercado Pago não configurado"
+          message: "Mercado Pago nÃ£o configurado"
 
         });
 
@@ -23087,7 +23122,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       // CRIAR PAGAMENTO PIX VIA API /v1/payments
 
-      // Retorna QR Code e código Pix Copia e Cola
+      // Retorna QR Code e cÃ³digo Pix Copia e Cola
 
       // -------------------------------------------------------------------
 
@@ -23101,7 +23136,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         description: hasSetupFee
 
-          ? `Taxa de implementação - ${plan.nome} - AgenteZap`
+          ? `Taxa de implementaÃ§Ã£o - ${plan.nome} - AgenteZap`
 
           : `Primeira mensalidade - ${plan.nome} - AgenteZap`,
 
@@ -23185,11 +23220,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           status: "pending",
 
-          message: "PIX gerado com sucesso! Escaneie o QR Code ou copie o código.",
+          message: "PIX gerado com sucesso! Escaneie o QR Code ou copie o cÃ³digo.",
 
           paymentId: pixResult.id,
 
-          qrCode: transactionData.qr_code, // Código Pix Copia e Cola
+          qrCode: transactionData.qr_code, // CÃ³digo Pix Copia e Cola
 
           qrCodeBase64: transactionData.qr_code_base64, // Imagem QR Code
 
@@ -23277,7 +23312,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           status: "error",
 
-          message: "Mercado Pago não configurado"
+          message: "Mercado Pago nÃ£o configurado"
 
         });
 
@@ -23335,7 +23370,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           if (subscription && subscription.userId === userId) {
 
-            // Get plan para calcular próxima cobrança
+            // Get plan para calcular prÃ³xima cobranÃ§a
 
             const plan = await storage.getPlan(subscription.planId) as any;
 
@@ -23343,7 +23378,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-            // Calcular data fim do período
+            // Calcular data fim do perÃ­odo
 
             const dataFim = new Date();
 
@@ -23351,7 +23386,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-            // Próximo pagamento
+            // PrÃ³ximo pagamento
 
             const nextPaymentDate = new Date();
 
@@ -23377,7 +23412,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-            // Registrar pagamento no histórico
+            // Registrar pagamento no histÃ³rico
 
             try {
 
@@ -23437,7 +23472,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           status: payment.status,
 
-          message: "Pagamento não aprovado ou cancelado.",
+          message: "Pagamento nÃ£o aprovado ou cancelado.",
 
         });
 
@@ -23475,7 +23510,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // Webhook do Mercado Pago (public - não requer auth)
+  // Webhook do Mercado Pago (public - nÃ£o requer auth)
 
   app.post("/api/webhooks/mercadopago", async (req, res) => {
 
@@ -23505,7 +23540,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         // -------------------------------------------------------------------
 
-        // PROCESSAR PAGAMENTO - PIX e Cartão de Crédito (in_process ? approved)
+        // PROCESSAR PAGAMENTO - PIX e CartÃ£o de CrÃ©dito (in_process ? approved)
 
         // -------------------------------------------------------------------
 
@@ -23557,7 +23592,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
               // -------------------------------------------------------------------
 
-              // CASO 1: PAGAMENTO APROVADO (pode ser PIX ou Cartão que estava in_process)
+              // CASO 1: PAGAMENTO APROVADO (pode ser PIX ou CartÃ£o que estava in_process)
 
               // -------------------------------------------------------------------
 
@@ -23583,7 +23618,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-                // ?? FIX: Reseller Client Creation Payments (PIX aprovado para criação de cliente)
+                // ?? FIX: Reseller Client Creation Payments (PIX aprovado para criaÃ§Ã£o de cliente)
 
                 if (externalRef && externalRef.startsWith("reseller_client_")) {
 
@@ -23607,13 +23642,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-                     // Verificar se já foi processado (evitar duplicação)
+                     // Verificar se jÃ¡ foi processado (evitar duplicaÃ§Ã£o)
 
                      const existingPayment = await storage.getResellerPayment(paymentIdFromRef);
 
                      if (existingPayment && existingPayment.status === "approved") {
 
-                       console.log("[MP Webhook] ?? Pagamento já processado anteriormente:", paymentIdFromRef);
+                       console.log("[MP Webhook] ?? Pagamento jÃ¡ processado anteriormente:", paymentIdFromRef);
 
                        return res.json({ message: "Payment already processed" });
 
@@ -23621,7 +23656,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-                     // Processar criação do cliente
+                     // Processar criaÃ§Ã£o do cliente
 
                      const result = await resellerService.confirmPixPayment(paymentIdFromRef);
 
@@ -23659,9 +23694,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                    } catch (resellerError: any) {
 
-                     console.error("[MP Webhook] ? Erro crítico ao processar cliente de revenda:", resellerError);
+                     console.error("[MP Webhook] ? Erro crÃ­tico ao processar cliente de revenda:", resellerError);
 
-                     // Não retornar erro 500 para evitar retry infinito
+                     // NÃ£o retornar erro 500 para evitar retry infinito
 
                      return res.json({ message: "Error processing reseller client", error: resellerError.message });
 
@@ -23679,7 +23714,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                 // Formato PIX: pix_UUID
 
-                // Formato Cartão: sub_UUID_first ou sub_UUID_single ou sub_UUID_recurring
+                // Formato CartÃ£o: sub_UUID_first ou sub_UUID_single ou sub_UUID_recurring
 
                 const pixMatch = externalRef.match(/pix_([^_]+)/);
 
@@ -23705,11 +23740,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                     if (wasInProcess || subscription.status === "pending_pix") {
 
-                      console.log("[MP Webhook] ? Ativando assinatura após pagamento aprovado:", subscriptionId);
+                      console.log("[MP Webhook] ? Ativando assinatura apÃ³s pagamento aprovado:", subscriptionId);
 
 
 
-                      // Get plan para calcular próxima cobrança
+                      // Get plan para calcular prÃ³xima cobranÃ§a
 
                       const plan = await storage.getPlan(subscription.planId) as any;
 
@@ -23717,7 +23752,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-                      // Calcular data fim do período
+                      // Calcular data fim do perÃ­odo
 
                       const dataFim = new Date();
 
@@ -23725,7 +23760,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-                      // Próximo pagamento
+                      // PrÃ³ximo pagamento
 
                       const nextPaymentDate = new Date();
 
@@ -23751,7 +23786,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-                      // Atualizar histórico de pagamento existente ou criar novo
+                      // Atualizar histÃ³rico de pagamento existente ou criar novo
 
                       const existingHistory = await storage.getPaymentHistoryByMpPaymentId(payment.id?.toString());
 
@@ -23775,7 +23810,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                       } else {
 
-                        // Registrar novo pagamento no histórico
+                        // Registrar novo pagamento no histÃ³rico
 
                         const isPix = payment.payment_method_id === "pix";
 
@@ -23865,7 +23900,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-                    // Atualizar histórico de pagamento
+                    // Atualizar histÃ³rico de pagamento
 
                     const existingHistory = await storage.getPaymentHistoryByMpPaymentId(payment.id?.toString());
 
@@ -23941,7 +23976,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.error("Error fetching payment history:", error);
 
-      res.status(500).json({ message: "Erro ao buscar histórico de pagamentos" });
+      res.status(500).json({ message: "Erro ao buscar histÃ³rico de pagamentos" });
 
     }
 
@@ -23981,7 +24016,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.error("Error fetching subscription payment history:", error);
 
-      res.status(500).json({ message: "Erro ao buscar histórico de pagamentos" });
+      res.status(500).json({ message: "Erro ao buscar histÃ³rico de pagamentos" });
 
     }
 
@@ -24003,7 +24038,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.error("Error fetching all payment history:", error);
 
-      res.status(500).json({ message: "Erro ao buscar histórico de pagamentos" });
+      res.status(500).json({ message: "Erro ao buscar histÃ³rico de pagamentos" });
 
     }
 
@@ -24125,7 +24160,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.error("Error fetching subscription stats:", error);
 
-      res.status(500).json({ message: "Erro ao buscar estatísticas" });
+      res.status(500).json({ message: "Erro ao buscar estatÃ­sticas" });
 
     }
 
@@ -24141,7 +24176,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // GET - Obter configuração de desconto anual (público para assinantes)
+  // GET - Obter configuraÃ§Ã£o de desconto anual (pÃºblico para assinantes)
 
   app.get("/api/system-config/annual-discount", isAuthenticated, async (req: any, res) => {
 
@@ -24181,7 +24216,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // POST - Atualizar configuração de desconto anual (admin only)
+  // POST - Atualizar configuraÃ§Ã£o de desconto anual (admin only)
 
   app.post("/api/admin/annual-discount", isAdmin, async (req: any, res) => {
 
@@ -24225,7 +24260,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // GET - Verificar status de suspensão do usuário logado
+  // GET - Verificar status de suspensÃ£o do usuÃ¡rio logado
 
   app.get("/api/user/suspension-status", isAuthenticated, async (req: any, res) => {
 
@@ -24273,7 +24308,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.error("Error checking suspension status:", error);
 
-      res.status(500).json({ message: "Erro ao verificar status de suspensão" });
+      res.status(500).json({ message: "Erro ao verificar status de suspensÃ£o" });
 
     }
 
@@ -24285,7 +24320,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // GET - Admin: Listar usuários suspensos
+  // GET - Admin: Listar usuÃ¡rios suspensos
 
   app.get("/api/admin/suspended-users", isAdmin, async (_req, res) => {
 
@@ -24299,7 +24334,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.error("Error fetching suspended users:", error);
 
-      res.status(500).json({ message: "Erro ao buscar usuários suspensos" });
+      res.status(500).json({ message: "Erro ao buscar usuÃ¡rios suspensos" });
 
     }
 
@@ -24307,7 +24342,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // POST - Admin: Suspender usuário por violação de políticas
+  // POST - Admin: Suspender usuÃ¡rio por violaÃ§Ã£o de polÃ­ticas
 
   app.post("/api/admin/users/:userId/suspend", isAdmin, async (req: any, res) => {
 
@@ -24321,31 +24356,31 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!violationType || !reason) {
 
-        return res.status(400).json({ message: "Tipo de violação e motivo são obrigatórios" });
+        return res.status(400).json({ message: "Tipo de violaÃ§Ã£o e motivo sÃ£o obrigatÃ³rios" });
 
       }
 
 
 
-      // Verificar se usuário existe
+      // Verificar se usuÃ¡rio existe
 
       const user = await storage.getUser(userId);
 
       if (!user) {
 
-        return res.status(404).json({ message: "Usuário não encontrado" });
+        return res.status(404).json({ message: "UsuÃ¡rio nÃ£o encontrado" });
 
       }
 
 
 
-      // Verificar se já está suspenso
+      // Verificar se jÃ¡ estÃ¡ suspenso
 
       const existingStatus = await storage.isUserSuspended(userId);
 
       if (existingStatus.suspended) {
 
-        return res.status(400).json({ message: "Usuário já está suspenso" });
+        return res.status(400).json({ message: "UsuÃ¡rio jÃ¡ estÃ¡ suspenso" });
 
       }
 
@@ -24355,7 +24390,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       try {
 
-        console.log(`?? [SUSPENSION] Desconectando WhatsApp do usuário ${user.email}...`);
+        console.log(`?? [SUSPENSION] Desconectando WhatsApp do usuÃ¡rio ${user.email}...`);
 
         await disconnectWhatsApp(userId);
 
@@ -24363,15 +24398,15 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       } catch (disconnectError) {
 
-        console.log(`?? [SUSPENSION] Não foi possível desconectar WhatsApp (pode não estar conectado):`, disconnectError);
+        console.log(`?? [SUSPENSION] NÃ£o foi possÃ­vel desconectar WhatsApp (pode nÃ£o estar conectado):`, disconnectError);
 
-        // Continua mesmo se o WhatsApp não estiver conectado
+        // Continua mesmo se o WhatsApp nÃ£o estiver conectado
 
       }
 
 
 
-      // 2. Suspender usuário
+      // 2. Suspender usuÃ¡rio
 
       await storage.suspendUser(
 
@@ -24391,7 +24426,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      console.log(`?? [ADMIN] Usuário ${user.email} suspenso por ${violationType}: ${reason}`);
+      console.log(`?? [ADMIN] UsuÃ¡rio ${user.email} suspenso por ${violationType}: ${reason}`);
 
 
 
@@ -24399,7 +24434,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         success: true,
 
-        message: `Usuário ${user.email} suspenso com sucesso. WhatsApp desconectado.`,
+        message: `UsuÃ¡rio ${user.email} suspenso com sucesso. WhatsApp desconectado.`,
 
         suspendedAt: new Date().toISOString()
 
@@ -24409,7 +24444,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.error("Error suspending user:", error);
 
-      res.status(500).json({ message: "Erro ao suspender usuário" });
+      res.status(500).json({ message: "Erro ao suspender usuÃ¡rio" });
 
     }
 
@@ -24417,7 +24452,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // POST - Admin: Remover suspensão de usuário
+  // POST - Admin: Remover suspensÃ£o de usuÃ¡rio
 
   app.post("/api/admin/users/:userId/unsuspend", isAdmin, async (req: any, res) => {
 
@@ -24429,37 +24464,37 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Verificar se usuário existe
+      // Verificar se usuÃ¡rio existe
 
       const user = await storage.getUser(userId);
 
       if (!user) {
 
-        return res.status(404).json({ message: "Usuário não encontrado" });
+        return res.status(404).json({ message: "UsuÃ¡rio nÃ£o encontrado" });
 
       }
 
 
 
-      // Verificar se está suspenso
+      // Verificar se estÃ¡ suspenso
 
       const existingStatus = await storage.isUserSuspended(userId);
 
       if (!existingStatus.suspended) {
 
-        return res.status(400).json({ message: "Usuário não está suspenso" });
+        return res.status(400).json({ message: "UsuÃ¡rio nÃ£o estÃ¡ suspenso" });
 
       }
 
 
 
-      // Remover suspensão
+      // Remover suspensÃ£o
 
       await storage.unsuspendUser(userId, adminNote);
 
 
 
-      console.log(`? [ADMIN] Suspensão removida do usuário ${user.email}`);
+      console.log(`? [ADMIN] SuspensÃ£o removida do usuÃ¡rio ${user.email}`);
 
 
 
@@ -24467,7 +24502,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         success: true,
 
-        message: `Suspensão removida do usuário ${user.email}`
+        message: `SuspensÃ£o removida do usuÃ¡rio ${user.email}`
 
       });
 
@@ -24475,7 +24510,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.error("Error unsuspending user:", error);
 
-      res.status(500).json({ message: "Erro ao remover suspensão" });
+      res.status(500).json({ message: "Erro ao remover suspensÃ£o" });
 
     }
 
@@ -24493,7 +24528,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // Get current user's active subscription with full details
 
-  // Também retorna info do revendedor se for cliente de revenda
+  // TambÃ©m retorna info do revendedor se for cliente de revenda
 
   app.get("/api/my-subscription", isAuthenticated, async (req: any, res) => {
 
@@ -24503,7 +24538,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Verificar se é cliente de revendedor
+      // Verificar se Ã© cliente de revendedor
 
       const resellerClient = await storage.getResellerClientByUserId(userId);
 
@@ -24656,7 +24691,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Se não tem histórico na tabela payment_history, verificar tabela payments antiga
+      // Se nÃ£o tem histÃ³rico na tabela payment_history, verificar tabela payments antiga
 
       if (payments.length === 0) {
 
@@ -24664,7 +24699,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-        // Se encontrou pagamentos na tabela antiga, considera como histórico
+        // Se encontrou pagamentos na tabela antiga, considera como histÃ³rico
 
         if (oldPayment) {
 
@@ -24692,7 +24727,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-        // Se assinatura está ativa mas não tem nenhum registro de pagamento,
+        // Se assinatura estÃ¡ ativa mas nÃ£o tem nenhum registro de pagamento,
 
         // criar um registro inicial para assinaturas ativadas manualmente
 
@@ -24775,7 +24810,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Buscar info do cartão se tiver assinatura MP
+      // Buscar info do cartÃ£o se tiver assinatura MP
 
       let cardInfo = null;
 
@@ -24823,11 +24858,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Detectar se é plano de revenda (pelo tipo do plano OU pela tabela reseller_clients)
+      // Detectar se Ã© plano de revenda (pelo tipo do plano OU pela tabela reseller_clients)
       const isResellerPlan = plan?.tipo === 'revenda' || !!resellerInfo?.isResellerClient;
 
       if (isResellerPlan) {
-        console.log(`[MY-SUBSCRIPTION] Plano revenda detectado! userId=${userId}, planTipo=${plan?.tipo}, resellerClient=${!!resellerInfo?.isResellerClient}, mpSubscriptionId original=${subscription.mpSubscriptionId}, forçando null`);
+        console.log(`[MY-SUBSCRIPTION] Plano revenda detectado! userId=${userId}, planTipo=${plan?.tipo}, resellerClient=${!!resellerInfo?.isResellerClient}, mpSubscriptionId original=${subscription.mpSubscriptionId}, forÃ§ando null`);
       }
 
       res.json({
@@ -24843,14 +24878,14 @@ Responda APENAS com o JSON, sem texto adicional.`;
           // Se cliente de revenda, prioriza vencimento da revenda
           nextPaymentDate: resellerInfo?.nextPaymentDate || subscription.nextPaymentDate || subscription.dataFim,
 
-          // Info do cartão
+          // Info do cartÃ£o
 
           cardLastFourDigits: cardInfo?.lastFourDigits || null,
 
           cardBrand: cardInfo?.brand || null,
 
-          // Plano revenda NUNCA usa MercadoPago - forçar mpSubscriptionId null
-          // para que a página mostre botão de PIX manual ao invés de "Cobrança Automática"
+          // Plano revenda NUNCA usa MercadoPago - forÃ§ar mpSubscriptionId null
+          // para que a pÃ¡gina mostre botÃ£o de PIX manual ao invÃ©s de "CobranÃ§a AutomÃ¡tica"
           ...(isResellerPlan ? { mpSubscriptionId: null } : {}),
 
         },
@@ -24871,7 +24906,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         },
 
-        // Informações do revendedor (se for cliente de revenda)
+        // InformaÃ§Ãµes do revendedor (se for cliente de revenda)
 
         resellerInfo,
 
@@ -24903,7 +24938,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!subscriptionId) {
 
-        return res.status(400).json({ message: "ID da assinatura é obrigatório" });
+        return res.status(400).json({ message: "ID da assinatura Ã© obrigatÃ³rio" });
 
       }
 
@@ -24915,7 +24950,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!subscription || subscription.userId !== userId) {
 
-        return res.status(403).json({ message: "Assinatura não encontrada" });
+        return res.status(403).json({ message: "Assinatura nÃ£o encontrada" });
 
       }
 
@@ -24927,7 +24962,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!plan) {
 
-        return res.status(404).json({ message: "Plano não encontrado" });
+        return res.status(404).json({ message: "Plano nÃ£o encontrado" });
 
       }
 
@@ -24945,9 +24980,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!valorMensal || isNaN(valorMensal)) {
 
-        console.error("[PIX Generate] Valor inválido:", { couponPrice: subscription.couponPrice, planValor: plan.valor });
+        console.error("[PIX Generate] Valor invÃ¡lido:", { couponPrice: subscription.couponPrice, planValor: plan.valor });
 
-        return res.status(400).json({ message: "Valor da assinatura inválido" });
+        return res.status(400).json({ message: "Valor da assinatura invÃ¡lido" });
 
       }
 
@@ -24963,7 +24998,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!accessToken) {
 
-        return res.status(500).json({ message: "Mercado Pago não configurado" });
+        return res.status(500).json({ message: "Mercado Pago nÃ£o configurado" });
 
       }
 
@@ -24979,7 +25014,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!payerEmail) {
 
-        return res.status(400).json({ message: "Email do pagador não encontrado" });
+        return res.status(400).json({ message: "Email do pagador nÃ£o encontrado" });
 
       }
 
@@ -25143,7 +25178,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!subscriptionId) {
 
-        return res.status(400).json({ message: "ID da assinatura é obrigatório" });
+        return res.status(400).json({ message: "ID da assinatura Ã© obrigatÃ³rio" });
 
       }
 
@@ -25155,7 +25190,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!subscription || subscription.userId !== userId) {
 
-        return res.status(403).json({ message: "Assinatura não encontrada" });
+        return res.status(403).json({ message: "Assinatura nÃ£o encontrada" });
 
       }
 
@@ -25167,7 +25202,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!plan) {
 
-        return res.status(404).json({ message: "Plano não encontrado" });
+        return res.status(404).json({ message: "Plano nÃ£o encontrado" });
 
       }
 
@@ -25189,7 +25224,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!valorMensal || isNaN(valorMensal) || valorMensal <= 0) {
 
-        return res.status(400).json({ message: "Valor do plano inválido" });
+        return res.status(400).json({ message: "Valor do plano invÃ¡lido" });
 
       }
 
@@ -25217,7 +25252,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!accessToken) {
 
-        return res.status(500).json({ message: "Mercado Pago não configurado" });
+        return res.status(500).json({ message: "Mercado Pago nÃ£o configurado" });
 
       }
 
@@ -25233,7 +25268,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!payerEmail) {
 
-        return res.status(400).json({ message: "Email do pagador não encontrado" });
+        return res.status(400).json({ message: "Email do pagador nÃ£o encontrado" });
 
       }
 
@@ -25389,7 +25424,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!subscriptionId) {
 
-        return res.status(400).json({ message: "ID da assinatura é obrigatório" });
+        return res.status(400).json({ message: "ID da assinatura Ã© obrigatÃ³rio" });
 
       }
 
@@ -25401,7 +25436,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!subscription || subscription.userId !== userId) {
 
-        return res.status(403).json({ message: "Assinatura não encontrada" });
+        return res.status(403).json({ message: "Assinatura nÃ£o encontrada" });
 
       }
 
@@ -25411,7 +25446,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!subscription.mpSubscriptionId) {
 
-        return res.status(400).json({ message: "Nenhum cartão cadastrado. Use PIX para pagamento anual." });
+        return res.status(400).json({ message: "Nenhum cartÃ£o cadastrado. Use PIX para pagamento anual." });
 
       }
 
@@ -25423,7 +25458,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!plan) {
 
-        return res.status(404).json({ message: "Plano não encontrado" });
+        return res.status(404).json({ message: "Plano nÃ£o encontrado" });
 
       }
 
@@ -25455,7 +25490,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!accessToken) {
 
-        return res.status(500).json({ message: "Mercado Pago não configurado" });
+        return res.status(500).json({ message: "Mercado Pago nÃ£o configurado" });
 
       }
 
@@ -25483,7 +25518,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!preapprovalResponse.ok) {
 
-        return res.status(400).json({ message: "Não foi possível recuperar dados do cartão cadastrado" });
+        return res.status(400).json({ message: "NÃ£o foi possÃ­vel recuperar dados do cartÃ£o cadastrado" });
 
       }
 
@@ -25699,7 +25734,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Log informações sobre a chave (sem expor a chave completa)
+      // Log informaÃ§Ãµes sobre a chave (sem expor a chave completa)
 
       const keyPreview = apiKey ? `${apiKey.substring(0, 4)}...${apiKey.substring(apiKey.length - 4)}` : "null";
 
@@ -25715,7 +25750,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           success: false,
 
-          error: "Chave Mistral não configurada",
+          error: "Chave Mistral nÃ£o configurada",
 
           keyLength: 0
 
@@ -25757,7 +25792,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           model: "mistral-small-latest",
 
-          message: "Chave válida e funcionando!",
+          message: "Chave vÃ¡lida e funcionando!",
 
           keyLength: apiKey.length,
 
@@ -25771,7 +25806,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           success: false,
 
-          error: "Resposta inválida da API",
+          error: "Resposta invÃ¡lida da API",
 
           keyLength: apiKey.length
 
@@ -25785,7 +25820,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Extrair mensagem de erro útil
+      // Extrair mensagem de erro Ãºtil
 
       let errorMessage = "Erro desconhecido";
 
@@ -25795,19 +25830,19 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (error.message?.includes("401")) {
 
-        errorMessage = "Chave inválida ou expirada (401 Unauthorized)";
+        errorMessage = "Chave invÃ¡lida ou expirada (401 Unauthorized)";
 
-        suggestion = "Verifique se a chave está correta e não expirou. Gere uma nova em console.mistral.ai";
+        suggestion = "Verifique se a chave estÃ¡ correta e nÃ£o expirou. Gere uma nova em console.mistral.ai";
 
       } else if (error.message?.includes("403")) {
 
         errorMessage = "Acesso negado (403 Forbidden)";
 
-        suggestion = "Verifique se a chave tem permissões corretas";
+        suggestion = "Verifique se a chave tem permissÃµes corretas";
 
       } else if (error.message?.includes("429")) {
 
-        errorMessage = "Limite de requisições excedido (429 Too Many Requests)";
+        errorMessage = "Limite de requisiÃ§Ãµes excedido (429 Too Many Requests)";
 
         suggestion = "Aguarde alguns minutos antes de tentar novamente";
 
@@ -25859,7 +25894,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Log informações sobre a chave (sem expor a chave completa)
+      // Log informaÃ§Ãµes sobre a chave (sem expor a chave completa)
 
       const keyPreview = apiKey ? `${apiKey.substring(0, 4)}...${apiKey.substring(apiKey.length - 4)}` : "null";
 
@@ -25877,7 +25912,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           success: false,
 
-          error: "Chave Groq não configurada",
+          error: "Chave Groq nÃ£o configurada",
 
           keyLength: 0
 
@@ -25891,7 +25926,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Fazer chamada direta à API Groq
+      // Fazer chamada direta Ã  API Groq
 
       const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
 
@@ -25943,7 +25978,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           model: model,
 
-          message: "Chave válida e funcionando!",
+          message: "Chave vÃ¡lida e funcionando!",
 
           keyLength: apiKey.length,
 
@@ -25957,7 +25992,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           success: false,
 
-          error: "Resposta inválida da API",
+          error: "Resposta invÃ¡lida da API",
 
           keyLength: apiKey.length
 
@@ -25971,7 +26006,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Extrair mensagem de erro útil
+      // Extrair mensagem de erro Ãºtil
 
       let errorMessage = "Erro desconhecido";
 
@@ -25981,25 +26016,25 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (error.message?.includes("401")) {
 
-        errorMessage = "Chave inválida ou expirada (401 Unauthorized)";
+        errorMessage = "Chave invÃ¡lida ou expirada (401 Unauthorized)";
 
-        suggestion = "Verifique se a chave está correta. Gere uma nova em console.groq.com";
+        suggestion = "Verifique se a chave estÃ¡ correta. Gere uma nova em console.groq.com";
 
       } else if (error.message?.includes("403")) {
 
         errorMessage = "Acesso negado (403 Forbidden)";
 
-        suggestion = "Verifique se a chave tem permissões corretas";
+        suggestion = "Verifique se a chave tem permissÃµes corretas";
 
       } else if (error.message?.includes("429")) {
 
-        errorMessage = "Limite de requisições excedido (429 Too Many Requests)";
+        errorMessage = "Limite de requisiÃ§Ãµes excedido (429 Too Many Requests)";
 
         suggestion = "Aguarde alguns minutos antes de tentar novamente";
 
       } else if (error.message?.includes("model_not_found") || error.message?.includes("does not exist")) {
 
-        errorMessage = "Modelo não encontrado";
+        errorMessage = "Modelo nÃ£o encontrado";
 
         suggestion = "O modelo selecionado pode ter sido removido. Tente outro modelo.";
 
@@ -26051,7 +26086,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Log informações sobre a chave (sem expor a chave completa)
+      // Log informaÃ§Ãµes sobre a chave (sem expor a chave completa)
 
       const keyPreview = apiKey ? `${apiKey.substring(0, 10)}...${apiKey.substring(apiKey.length - 4)}` : "null";
 
@@ -26069,7 +26104,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           success: false,
 
-          error: "Chave OpenRouter não configurada",
+          error: "Chave OpenRouter nÃ£o configurada",
 
           keyLength: 0
 
@@ -26083,7 +26118,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Fazer chamada direta à API OpenRouter
+      // Fazer chamada direta Ã  API OpenRouter
 
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
 
@@ -26111,9 +26146,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           provider: {
 
-            order: ['chutes'],  // ?? FORÇAR APENAS Chutes ($0.02/M input, $0.10/M output - bf16)
+            order: ['chutes'],  // ?? FORÃ‡AR APENAS Chutes ($0.02/M input, $0.10/M output - bf16)
 
-            allow_fallbacks: false  // ?? NÃO permitir outros providers!
+            allow_fallbacks: false  // ?? NÃƒO permitir outros providers!
 
           }
 
@@ -26147,7 +26182,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           model: model,
 
-          message: "Chave válida e funcionando!",
+          message: "Chave vÃ¡lida e funcionando!",
 
           keyLength: apiKey.length,
 
@@ -26161,7 +26196,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           success: false,
 
-          error: "Resposta inválida da API",
+          error: "Resposta invÃ¡lida da API",
 
           keyLength: apiKey.length
 
@@ -26175,7 +26210,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Extrair mensagem de erro útil
+      // Extrair mensagem de erro Ãºtil
 
       let errorMessage = "Erro desconhecido";
 
@@ -26185,27 +26220,27 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (error.message?.includes("401")) {
 
-        errorMessage = "Chave inválida ou expirada (401 Unauthorized)";
+        errorMessage = "Chave invÃ¡lida ou expirada (401 Unauthorized)";
 
-        suggestion = "Verifique se a chave está correta. Gere uma nova em openrouter.ai/keys";
+        suggestion = "Verifique se a chave estÃ¡ correta. Gere uma nova em openrouter.ai/keys";
 
       } else if (error.message?.includes("403")) {
 
         errorMessage = "Acesso negado (403 Forbidden)";
 
-        suggestion = "Verifique se a chave tem permissões corretas";
+        suggestion = "Verifique se a chave tem permissÃµes corretas";
 
       } else if (error.message?.includes("429")) {
 
-        errorMessage = "Limite de requisições excedido (429 Too Many Requests)";
+        errorMessage = "Limite de requisiÃ§Ãµes excedido (429 Too Many Requests)";
 
         suggestion = "Aguarde alguns minutos antes de tentar novamente";
 
       } else if (error.message?.includes("model_not_found") || error.message?.includes("does not exist") || error.message?.includes("No endpoints found")) {
 
-        errorMessage = "Modelo não encontrado ou não disponível";
+        errorMessage = "Modelo nÃ£o encontrado ou nÃ£o disponÃ­vel";
 
-        suggestion = "O modelo pode requerer configuração especial. Tente 'meta-llama/llama-3.3-70b-instruct:free'";
+        suggestion = "O modelo pode requerer configuraÃ§Ã£o especial. Tente 'meta-llama/llama-3.3-70b-instruct:free'";
 
       } else if (error.message) {
 
@@ -26248,7 +26283,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
     }
   });
 
-  // Get admin WhatsApp connection status - verifica estado REAL da sessão
+  // Get admin WhatsApp connection status - verifica estado REAL da sessÃ£o
 
   app.get("/api/admin/whatsapp/connection", isAdmin, async (req, res) => {
 
@@ -26264,11 +26299,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // ??? MODO DESENVOLVIMENTO: Não sincronizar estado para não afetar produção
+      // ??? MODO DESENVOLVIMENTO: NÃ£o sincronizar estado para nÃ£o afetar produÃ§Ã£o
 
       if (process.env.SKIP_WHATSAPP_RESTORE === 'true' || process.env.DISABLE_WHATSAPP_PROCESSING === 'true') {
 
-        console.log(`?? [DEV MODE] Retornando estado do banco sem sincronizar (proteção de produção)`);
+        console.log(`?? [DEV MODE] Retornando estado do banco sem sincronizar (proteÃ§Ã£o de produÃ§Ã£o)`);
 
         return res.json({
 
@@ -26288,7 +26323,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Verificar estado REAL da sessão na memória
+      // Verificar estado REAL da sessÃ£o na memÃ³ria
 
       const { getAdminSession, isRestoringInProgress } = await import("./whatsapp");
 
@@ -26298,7 +26333,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Se há discrepância entre banco e sessão real, sincronizar
+      // Se hÃ¡ discrepÃ¢ncia entre banco e sessÃ£o real, sincronizar
       // BUT: don't sync isConnected=false during restore window (race condition)
       const restoring = isRestoringInProgress();
       if (connection && connection.isConnected !== isReallyConnected && !(restoring && !isReallyConnected)) {
@@ -26355,17 +26390,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
     try {
 
-      // ??? MODO DESENVOLVIMENTO: Bloquear conexões para proteger produção
+      // ??? MODO DESENVOLVIMENTO: Bloquear conexÃµes para proteger produÃ§Ã£o
 
       if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
 
-        console.log(`?? [DEV MODE] Bloqueando conexão admin WhatsApp (proteção de produção)`);
+        console.log(`?? [DEV MODE] Bloqueando conexÃ£o admin WhatsApp (proteÃ§Ã£o de produÃ§Ã£o)`);
 
         return res.status(403).json({
 
           success: false,
 
-          message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessões em produção',
+          message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessÃµes em produÃ§Ã£o',
 
           devMode: true
 
@@ -26401,17 +26436,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
     try {
 
-      // ??? MODO DESENVOLVIMENTO: Bloquear desconexões para proteger produção
+      // ??? MODO DESENVOLVIMENTO: Bloquear desconexÃµes para proteger produÃ§Ã£o
 
       if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
 
-        console.log(`?? [DEV MODE] Bloqueando desconexão admin WhatsApp (proteção de produção)`);
+        console.log(`?? [DEV MODE] Bloqueando desconexÃ£o admin WhatsApp (proteÃ§Ã£o de produÃ§Ã£o)`);
 
         return res.status(403).json({
 
           success: false,
 
-          message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessões em produção',
+          message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessÃµes em produÃ§Ã£o',
 
           devMode: true
 
@@ -26473,7 +26508,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // GET - Obter mensagens de uma conversa específica
+  // GET - Obter mensagens de uma conversa especÃ­fica
 
   app.get("/api/admin/conversations/:id/messages", isAdmin, async (req: any, res) => {
 
@@ -26571,7 +26606,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // POST - Pausar IA para uma conversa específica
+  // POST - Pausar IA para uma conversa especÃ­fica
 
   app.post("/api/admin/conversations/:id/pause-agent", isAdmin, async (req: any, res) => {
 
@@ -26595,7 +26630,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // POST - Continuar IA para uma conversa específica
+  // POST - Continuar IA para uma conversa especÃ­fica
 
   app.post("/api/admin/conversations/:id/resume-agent", isAdmin, async (req: any, res) => {
 
@@ -26607,7 +26642,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // ?? Quando IA admin é reativada, verificar se há mensagens pendentes e responder
+      // ?? Quando IA admin Ã© reativada, verificar se hÃ¡ mensagens pendentes e responder
 
       try {
 
@@ -26617,7 +26652,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       } catch (triggerError) {
 
-        console.error("Erro ao disparar resposta após reativar IA admin:", triggerError);
+        console.error("Erro ao disparar resposta apÃ³s reativar IA admin:", triggerError);
 
       }
 
@@ -26637,7 +26672,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // DELETE - Limpar histórico de mensagens de uma conversa (mantém a conversa, apaga mensagens)
+  // DELETE - Limpar histÃ³rico de mensagens de uma conversa (mantÃ©m a conversa, apaga mensagens)
 
   app.delete("/api/admin/conversations/:id/history", isAdmin, async (req: any, res) => {
 
@@ -26651,7 +26686,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!conversation) {
 
-        return res.status(404).json({ message: "Conversa não encontrada" });
+        return res.status(404).json({ message: "Conversa nÃ£o encontrada" });
 
       }
 
@@ -26663,7 +26698,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Limpar sessão em memória do cliente (baseado no telefone)
+      // Limpar sessÃ£o em memÃ³ria do cliente (baseado no telefone)
 
       const phone = conversation.contactNumber || conversation.remoteJid?.split('@')[0]?.split(':')[0];
 
@@ -26673,13 +26708,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         clearClientSession(phone);
 
-        console.log(`??? [ADMIN] Histórico limpo para conversa ${id} (telefone: ${phone})`);
+        console.log(`??? [ADMIN] HistÃ³rico limpo para conversa ${id} (telefone: ${phone})`);
 
 
 
         // Se existir conta de TESTE para esse telefone, fazer reset completo (inclui Auth)
 
-        // Isso evita o bug do email_exists e garante que "limpar histórico" realmente limpa tudo.
+        // Isso evita o bug do email_exists e garante que "limpar histÃ³rico" realmente limpa tudo.
 
         const user = await storage.getUserByPhone(phone);
 
@@ -26693,7 +26728,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
               success: false,
 
-              message: "Histórico limpo, mas não foi possível deletar a conta (validação de segurança)",
+              message: "HistÃ³rico limpo, mas nÃ£o foi possÃ­vel deletar a conta (validaÃ§Ã£o de seguranÃ§a)",
 
               error: result.error,
 
@@ -26703,7 +26738,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-          // Se deletou o usuário no banco, também deletar no Supabase Auth (senão o email fica preso)
+          // Se deletou o usuÃ¡rio no banco, tambÃ©m deletar no Supabase Auth (senÃ£o o email fica preso)
 
           if (result.result?.userDeleted) {
 
@@ -26715,13 +26750,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
               if (authDeleteError) {
 
-                console.error("[ADMIN] Falha ao deletar usuário no Supabase Auth:", authDeleteError);
+                console.error("[ADMIN] Falha ao deletar usuÃ¡rio no Supabase Auth:", authDeleteError);
 
                 return res.status(500).json({
 
                   success: false,
 
-                  message: "Histórico limpo, mas falha ao deletar usuário no Auth",
+                  message: "HistÃ³rico limpo, mas falha ao deletar usuÃ¡rio no Auth",
 
                   error: authDeleteError.message,
 
@@ -26729,17 +26764,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
               }
 
-              console.log(`??? [ADMIN] Usuário ${user.id} deletado do Supabase Auth (history)`);
+              console.log(`??? [ADMIN] UsuÃ¡rio ${user.id} deletado do Supabase Auth (history)`);
 
             } catch (e: any) {
 
-              console.error("[ADMIN] Erro ao deletar usuário no Auth:", e);
+              console.error("[ADMIN] Erro ao deletar usuÃ¡rio no Auth:", e);
 
               return res.status(500).json({
 
                 success: false,
 
-                message: "Histórico limpo, mas erro ao deletar usuário no Auth",
+                message: "HistÃ³rico limpo, mas erro ao deletar usuÃ¡rio no Auth",
 
                 error: e?.message || String(e),
 
@@ -26755,13 +26790,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      res.json({ success: true, message: "Histórico limpo com sucesso" });
+      res.json({ success: true, message: "HistÃ³rico limpo com sucesso" });
 
     } catch (error) {
 
       console.error("Error clearing conversation history:", error);
 
-      res.status(500).json({ message: "Falha ao limpar histórico" });
+      res.status(500).json({ message: "Falha ao limpar histÃ³rico" });
 
     }
 
@@ -26769,7 +26804,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // DELETE - Reset COMPLETO de conta de teste (histórico + usuário + tudo)
+  // DELETE - Reset COMPLETO de conta de teste (histÃ³rico + usuÃ¡rio + tudo)
 
   app.delete("/api/admin/conversations/:id/complete", isAdmin, async (req: any, res) => {
 
@@ -26783,7 +26818,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!conversation) {
 
-        return res.status(404).json({ message: "Conversa não encontrada" });
+        return res.status(404).json({ message: "Conversa nÃ£o encontrada" });
 
       }
 
@@ -26795,7 +26830,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!phone) {
 
-        return res.status(400).json({ message: "Número de telefone não encontrado na conversa" });
+        return res.status(400).json({ message: "NÃºmero de telefone nÃ£o encontrado na conversa" });
 
       }
 
@@ -26807,11 +26842,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      console.log(`?? [ADMIN] Solicitação de RESET COMPLETO para ${phone}`);
+      console.log(`?? [ADMIN] SolicitaÃ§Ã£o de RESET COMPLETO para ${phone}`);
 
 
 
-      // Limpar sessão em memória primeiro
+      // Limpar sessÃ£o em memÃ³ria primeiro
 
       const { clearClientSession } = await import("./adminAgentService");
 
@@ -26827,7 +26862,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Executar reset seguro com validações
+      // Executar reset seguro com validaÃ§Ãµes
 
       const result = await storage.resetTestAccountSafely(phone);
 
@@ -26837,7 +26872,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         return res.status(400).json({
 
-          message: result.error || "Não foi possível resetar a conta",
+          message: result.error || "NÃ£o foi possÃ­vel resetar a conta",
 
           error: result.error
 
@@ -26847,9 +26882,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Se deletou o usuário no banco, deletar também no Supabase Auth
+      // Se deletou o usuÃ¡rio no banco, deletar tambÃ©m no Supabase Auth
 
-      // (senão o email fica preso e gera email_exists no próximo teste)
+      // (senÃ£o o email fica preso e gera email_exists no prÃ³ximo teste)
 
       let authDeleted = false;
 
@@ -26861,13 +26896,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         if (authDeleteError) {
 
-          console.error("[ADMIN] Falha ao deletar usuário no Supabase Auth:", authDeleteError);
+          console.error("[ADMIN] Falha ao deletar usuÃ¡rio no Supabase Auth:", authDeleteError);
 
           return res.status(500).json({
 
             success: false,
 
-            message: "Reset no banco OK, mas falha ao deletar usuário no Auth",
+            message: "Reset no banco OK, mas falha ao deletar usuÃ¡rio no Auth",
 
             error: authDeleteError.message,
 
@@ -26877,7 +26912,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         authDeleted = true;
 
-        console.log(`??? [ADMIN] Usuário ${user.id} deletado do Supabase Auth (complete)`);
+        console.log(`??? [ADMIN] UsuÃ¡rio ${user.id} deletado do Supabase Auth (complete)`);
 
       }
 
@@ -26911,7 +26946,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // POST - Enviar mensagem manual (como admin, não como IA)
+  // POST - Enviar mensagem manual (como admin, nÃ£o como IA)
 
   app.post("/api/admin/conversations/:id/send", isAdmin, async (req: any, res) => {
 
@@ -27055,7 +27090,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // ========================================================================
 
-  // ADMIN NOTIFICATIONS - Sistema de notificações automáticas
+  // ADMIN NOTIFICATIONS - Sistema de notificaÃ§Ãµes automÃ¡ticas
 
   // ========================================================================
 
@@ -27092,21 +27127,21 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         paymentReminderDaysBefore: [7, 3, 1],
 
-        paymentReminderMessageTemplate: 'Olá {cliente_nome}! ??\n\nGostaríamos de lembrar que seu pagamento vence em {dias_restantes} dias.\n\n?? Vencimento: {data_vencimento}\n?? Valor: R$ {valor}\n\nQualquer dúvida estamos à disposição! ??',
+        paymentReminderMessageTemplate: 'OlÃ¡ {cliente_nome}! ??\n\nGostarÃ­amos de lembrar que seu pagamento vence em {dias_restantes} dias.\n\n?? Vencimento: {data_vencimento}\n?? Valor: R$ {valor}\n\nQualquer dÃºvida estamos Ã  disposiÃ§Ã£o! ??',
 
         paymentReminderAiEnabled: true,
 
-        paymentReminderAiPrompt: 'Reescreva esta mensagem de lembrete de pagamento de forma natural e personalizada. Mantenha o tom profissional mas amigável.',
+        paymentReminderAiPrompt: 'Reescreva esta mensagem de lembrete de pagamento de forma natural e personalizada. Mantenha o tom profissional mas amigÃ¡vel.',
 
         overdueReminderEnabled: true,
 
         overdueReminderDaysAfter: [1, 3, 7, 14],
 
-        overdueReminderMessageTemplate: 'Olá {cliente_nome}! ??\n\nIdentificamos que seu pagamento está em atraso há {dias_atraso} dias.\n\n?? Venceu em: {data_vencimento}\n?? Valor: R$ {valor}\n\nPor favor, regularize sua situação. ??',
+        overdueReminderMessageTemplate: 'OlÃ¡ {cliente_nome}! ??\n\nIdentificamos que seu pagamento estÃ¡ em atraso hÃ¡ {dias_atraso} dias.\n\n?? Venceu em: {data_vencimento}\n?? Valor: R$ {valor}\n\nPor favor, regularize sua situaÃ§Ã£o. ??',
 
         overdueReminderAiEnabled: true,
 
-        overdueReminderAiPrompt: 'Reescreva esta mensagem de cobrança de forma educada e empática. Mantenha o tom profissional.',
+        overdueReminderAiPrompt: 'Reescreva esta mensagem de cobranÃ§a de forma educada e empÃ¡tica. Mantenha o tom profissional.',
 
         periodicCheckinEnabled: true,
 
@@ -27114,11 +27149,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         periodicCheckinMaxDays: 15,
 
-        periodicCheckinMessageTemplate: 'Olá {cliente_nome}! ??\n\nPassando para ver se está tudo bem! ??\n\nPrecisa de alguma coisa? Estamos aqui! ??',
+        periodicCheckinMessageTemplate: 'OlÃ¡ {cliente_nome}! ??\n\nPassando para ver se estÃ¡ tudo bem! ??\n\nPrecisa de alguma coisa? Estamos aqui! ??',
 
         checkinAiEnabled: true,
 
-        checkinAiPrompt: 'Reescreva esta mensagem de check-in de forma calorosa e natural. Pareça genuinamente interessado no cliente.',
+        checkinAiPrompt: 'Reescreva esta mensagem de check-in de forma calorosa e natural. PareÃ§a genuinamente interessado no cliente.',
 
         broadcastEnabled: true,
 
@@ -27134,15 +27169,15 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         disconnectedAlertHours: 2,
 
-        disconnectedAlertMessageTemplate: 'Olá {cliente_nome}! ??\n\nNotamos que seu WhatsApp está desconectado. ??\n\nPodemos ajudar? ??',
+        disconnectedAlertMessageTemplate: 'OlÃ¡ {cliente_nome}! ??\n\nNotamos que seu WhatsApp estÃ¡ desconectado. ??\n\nPodemos ajudar? ??',
 
         disconnectedAiEnabled: true,
 
-        disconnectedAiPrompt: 'Reescreva esta mensagem de alerta de desconexão de forma prestativa e profissional.',
+        disconnectedAiPrompt: 'Reescreva esta mensagem de alerta de desconexÃ£o de forma prestativa e profissional.',
 
         aiVariationEnabled: true,
 
-        aiVariationPrompt: 'Reescreva esta mensagem de forma natural e personalizada. Mantenha o tom profissional mas amigável.',
+        aiVariationPrompt: 'Reescreva esta mensagem de forma natural e personalizada. Mantenha o tom profissional mas amigÃ¡vel.',
 
         businessHoursStart: '09:00',
 
@@ -27156,11 +27191,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         welcomeMessageVariations: [
 
-          'Olá {{name}}! ?? Bem-vindo(a) ao nosso atendimento. Como posso ajudar você hoje?',
+          'OlÃ¡ {{name}}! ?? Bem-vindo(a) ao nosso atendimento. Como posso ajudar vocÃª hoje?',
 
-          'Oi {{name}}! ?? É um prazer ter você aqui. Em que posso ser útil?',
+          'Oi {{name}}! ?? Ã‰ um prazer ter vocÃª aqui. Em que posso ser Ãºtil?',
 
-          'Bem-vindo(a) {{name}}! Estou aqui para ajudar. O que você precisa?',
+          'Bem-vindo(a) {{name}}! Estou aqui para ajudar. O que vocÃª precisa?',
 
         ],
 
@@ -27343,7 +27378,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       // Calcular pagamentos em atraso (simplificado)
 
-      const overduePayments = 0; // TODO: implementar lógica real
+      const overduePayments = 0; // TODO: implementar lÃ³gica real
 
 
 
@@ -27385,45 +27420,19 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Simular variação com IA
+      // ? Usar applyAIVariation centralizada (garante UMA variaÃ§Ã£o e substitui variÃ¡veis)
 
-      const { callGroq } = await import("./llm");
+      const { applyAIVariation } = await import("./notificationSchedulerService");
 
       const config = await storage.getAdminNotificationConfig?.(adminId);
 
 
 
-      const systemPrompt = config?.aiVariationPrompt || 'Reescreva esta mensagem de forma natural e personalizada. Retorne APENAS a mensagem reescrita, sem explicações.';
+      const customPrompt = config?.aiVariationPrompt || 'Reescreva esta mensagem de forma natural e personalizada.';
 
 
 
-      // ? CORRIGIDO: Usar array de ChatMessage
-
-      const variedMessage = await callGroq(
-
-        [
-
-          { role: 'system', content: systemPrompt },
-
-          { role: 'user', content: message }
-
-        ],
-
-        { temperature: 0.8, maxTokens: 300 }
-
-      );
-
-
-
-      // ? PROTEÇÃO: Verificar se retornou mensagem válida
-
-      const trimmedVaried = variedMessage.trim();
-
-      const finalMessage = (trimmedVaried && trimmedVaried.length > 10 && !trimmedVaried.includes('Como posso ajudar'))
-
-        ? trimmedVaried
-
-        : message;
+      const finalMessage = await applyAIVariation(message, customPrompt, 'Cliente Teste');
 
 
 
@@ -27459,9 +27468,25 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const broadcasts = await storage.getAdminBroadcasts?.(adminId);
 
+      
+      // Map snake_case DB columns to camelCase for frontend
+      const mapped = (broadcasts || []).map((b: any) => ({
+        id: b.id,
+        name: b.name,
+        messageTemplate: b.message_template || b.messageTemplate,
+        targetType: b.target_type || b.targetType,
+        targetFilter: b.target_filter || b.targetFilter,
+        aiVariation: b.ai_variation ?? b.aiVariation,
+        antibotEnabled: b.antibot_enabled ?? b.antibotEnabled,
+        status: b.status,
+        scheduledAt: b.scheduled_at || b.scheduledAt,
+        totalRecipients: b.total_recipients ?? b.totalRecipients ?? 0,
+        sentCount: b.sent_count ?? b.sentCount ?? 0,
+        failedCount: b.failed_count ?? b.failedCount ?? 0,
+        createdAt: b.created_at || b.createdAt,
+      }));
 
-
-      res.json(broadcasts || []);
+      res.json(mapped);
 
     } catch (error) {
 
@@ -27495,7 +27520,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Calcular total de destinatários
+      // Calcular total de destinatÃ¡rios
 
       const users = await storage.getAllUsers();
 
@@ -27573,7 +27598,235 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // Start broadcast COM DELAYS EM LOTE E VERIFICAÇÃO DE SESSÃO
+  // Create AND start broadcast (one-click)
+  app.post("/api/admin/broadcasts/create-and-start", isAdmin, async (req: any, res) => {
+    try {
+      const adminId = (req.session as any)?.adminId;
+      const { name, messageTemplate, targetType, aiVariation, antibotEnabled } = req.body;
+
+      if (!name || !messageTemplate || !targetType) {
+        return res.status(400).json({ message: "Name, message template and target type are required" });
+      }
+
+      console.log(`[ADMIN BROADCAST] Criar e iniciar broadcast "${name}" pelo admin ${adminId}`);
+
+      // Calcular total de destinatários
+      const users = await storage.getAllUsers();
+      const subscriptions = await storage.getAllSubscriptions?.();
+
+      let totalRecipients = 0;
+      if (targetType === 'all') {
+        totalRecipients = users.length;
+      } else if (targetType === 'with_plan') {
+        totalRecipients = users.filter(u => {
+          const sub = subscriptions?.find(s => s.userId === u.id && s.status === 'active');
+          return !!sub;
+        }).length;
+      } else if (targetType === 'without_plan') {
+        totalRecipients = users.filter(u => {
+          const sub = subscriptions?.find(s => s.userId === u.id && s.status === 'active');
+          return !sub;
+        }).length;
+      }
+
+      const broadcastId = await storage.createAdminBroadcast?.({
+        adminId,
+        name,
+        messageTemplate,
+        targetType,
+        aiVariation: aiVariation !== false,
+        antibotEnabled: antibotEnabled !== false,
+        status: 'draft',
+        totalRecipients,
+        sentCount: 0,
+        failedCount: 0,
+      });
+
+      console.log(`[ADMIN BROADCAST] Broadcast ${broadcastId} criado com ${totalRecipients} destinatários. Iniciando envio...`);
+
+      // Iniciar envio em background (mesmo código do /start)
+      setImmediate(async () => {
+        try {
+          await storage.updateAdminBroadcast?.(adminId, broadcastId, { status: 'sending', startedAt: new Date() });
+
+          const broadcast = await storage.getAdminBroadcast?.(adminId, broadcastId);
+          if (!broadcast) {
+            console.error(`[ADMIN BROADCAST] Broadcast ${broadcastId} não encontrado após criação`);
+            return;
+          }
+
+          const config = await storage.getAdminNotificationConfig?.(adminId);
+          const allUsers = await storage.getAllUsers();
+          const allSubs = await storage.getAllSubscriptions?.();
+          const { sendAdminNotification, getAdminSession } = await import("./whatsapp");
+
+          const adminSession = getAdminSession(adminId);
+          if (!adminSession || !adminSession.socket?.user) {
+            console.log(`⚠️ [ADMIN BROADCAST ${broadcastId}] WhatsApp do admin desconectado - cancelando`);
+            await storage.updateAdminBroadcast?.(adminId, broadcastId, {
+              status: 'cancelled',
+              completedAt: new Date(),
+              sentCount: 0,
+              failedCount: 0,
+            });
+            return;
+          }
+
+          // Filtrar destinatários
+          let recipients = allUsers;
+          if (broadcast.target_type === 'with_plan' || broadcast.targetType === 'with_plan') {
+            recipients = allUsers.filter(u => {
+              const sub = allSubs?.find(s => s.userId === u.id && s.status === 'active');
+              return !!sub;
+            });
+          } else if (broadcast.target_type === 'without_plan' || broadcast.targetType === 'without_plan') {
+            recipients = allUsers.filter(u => {
+              const sub = allSubs?.find(s => s.userId === u.id && s.status === 'active');
+              return !sub;
+            });
+          }
+
+          // Normalize config fields (DB returns snake_case)
+          const cfgAiEnabled = config?.ai_variation_enabled ?? config?.aiVariationEnabled ?? false;
+          const cfgAiPrompt = config?.ai_variation_prompt ?? config?.aiVariationPrompt ?? '';
+          const cfgMinInterval = config?.broadcast_min_interval_seconds ?? config?.broadcastMinIntervalSeconds ?? 45;
+          const cfgMaxInterval = config?.broadcast_max_interval_seconds ?? config?.broadcastMaxIntervalSeconds ?? 90;
+          const bcastAiVariation = broadcast.ai_variation ?? broadcast.aiVariation ?? false;
+          const bcastAntibot = broadcast.antibot_enabled ?? broadcast.antibotEnabled ?? true;
+
+          console.log(`[ADMIN BROADCAST ${broadcastId}] Enviando para ${recipients.length} destinatários... (aiVariation=${bcastAiVariation}, cfgAiEnabled=${cfgAiEnabled}, antibot=${bcastAntibot}, interval=${cfgMinInterval}-${cfgMaxInterval}s)`);
+
+          let sent = 0;
+          let failed = 0;
+          let batchCount = 0;
+          const BATCH_SIZE_MIN = 15;
+          const BATCH_SIZE_MAX = 25;
+          const msgTemplate = broadcast.message_template || broadcast.messageTemplate;
+
+          // Check if broadcast was cancelled mid-send
+          const checkCancelled = async () => {
+            const current = await storage.getAdminBroadcast?.(adminId, broadcastId);
+            return current?.status === 'cancelled';
+          };
+
+          for (let i = 0; i < recipients.length; i++) {
+            // Check if cancelled every 5 messages
+            if (i > 0 && i % 5 === 0 && await checkCancelled()) {
+              console.log(`⏹️ [ADMIN BROADCAST ${broadcastId}] Broadcast cancelado pelo admin após ${sent} mensagens`);
+              return;
+            }
+
+            const user = recipients[i];
+            const userName = user.name || user.fullName || 'Cliente';
+
+            try {
+              let message = msgTemplate
+                .replace(/{cliente_nome}/g, userName)
+                .replace(/{nome}/g, userName);
+
+              // AI Variation - use config fields (snake_case from DB)
+              if (bcastAiVariation && cfgAiEnabled) {
+                try {
+                  const { applyAIVariation } = await import("./notificationSchedulerService");
+                  message = await applyAIVariation(message, cfgAiPrompt, userName);
+                  // Re-apply variables after AI variation
+                  message = message
+                    .replace(/{cliente_nome}/g, userName)
+                    .replace(/{nome}/g, userName);
+                  console.log(`[ADMIN BROADCAST] 🤖 IA variou para ${userName}: "${message.substring(0, 60)}..."`);
+                } catch (aiErr) {
+                  console.error(`[ADMIN BROADCAST] ❌ Erro IA para ${userName}:`, aiErr);
+                }
+              }
+
+              let success = false;
+              for (let attempt = 1; attempt <= 3; attempt++) {
+                const result = await sendAdminNotification(adminId, user.phone || user.whatsappNumber, message);
+                if (result.success) {
+                  success = true;
+                  break;
+                }
+                if (attempt < 3) {
+                  const backoffMs = Math.pow(2, attempt) * 1000;
+                  await new Promise(resolve => setTimeout(resolve, backoffMs));
+                }
+              }
+
+              if (success) {
+                sent++;
+              } else {
+                failed++;
+              }
+
+              // Log individual message
+              const originalMsg = msgTemplate.replace(/{cliente_nome}/g, userName).replace(/{nome}/g, userName);
+              try {
+                await storage.createBroadcastMessage?.({
+                  broadcastId,
+                  adminId,
+                  userId: user.id,
+                  recipientPhone: user.phone || user.whatsappNumber || '',
+                  recipientName: userName,
+                  messageOriginal: originalMsg,
+                  messageSent: message,
+                  aiVaried: bcastAiVariation && cfgAiEnabled && message !== originalMsg,
+                  status: success ? 'sent' : 'failed',
+                });
+              } catch (logErr) {
+                console.error(`[ADMIN BROADCAST] Erro ao logar mensagem:`, logErr);
+              }
+
+              // Delay anti-bot between individual messages
+              if (bcastAntibot && i < recipients.length - 1) {
+                const minDelay = cfgMinInterval * 1000;
+                const maxDelay = cfgMaxInterval * 1000;
+                const delay = Math.random() * (maxDelay - minDelay) + minDelay;
+                console.log(`[ADMIN BROADCAST] ⏱️ Delay anti-bot: ${Math.floor(delay/1000)}s (${cfgMinInterval}-${cfgMaxInterval}s)`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+              }
+            } catch (error) {
+              console.error(`Error sending to ${user.id}:`, error);
+              failed++;
+            }
+
+            // Delay entre lotes
+            const currentBatchSize = Math.floor(Math.random() * (BATCH_SIZE_MAX - BATCH_SIZE_MIN + 1)) + BATCH_SIZE_MIN;
+            if ((i + 1) % currentBatchSize === 0 && i < recipients.length - 1) {
+              batchCount++;
+              const batchDelay = Math.random() * (60000 - 30000) + 30000;
+              console.log(`⏸️ [ADMIN BROADCAST ${broadcastId}] Pausa entre lotes (${batchCount}) - ${Math.floor(batchDelay/1000)}s...`);
+              await new Promise(resolve => setTimeout(resolve, batchDelay));
+            }
+
+            // Update progress every 3 messages
+            if (i % 3 === 0) {
+              await storage.updateAdminBroadcast?.(adminId, broadcastId, { sentCount: sent, failedCount: failed });
+            }
+          }
+
+          await storage.updateAdminBroadcast?.(adminId, broadcastId, {
+            status: 'completed',
+            completedAt: new Date(),
+            sentCount: sent,
+            failedCount: failed,
+          });
+
+          console.log(`✅ [ADMIN BROADCAST ${broadcastId}] Concluído: ${sent} enviados, ${failed} falhas, ${batchCount} pausas`);
+        } catch (error) {
+          console.error(`❌ [ADMIN BROADCAST ${broadcastId}] Erro:`, error);
+          await storage.updateAdminBroadcast?.(adminId, broadcastId, { status: 'cancelled' });
+        }
+      });
+
+      res.json({ success: true, id: broadcastId, message: 'Broadcast criado e enviando em background' });
+    } catch (error) {
+      console.error("Error creating and starting broadcast:", error);
+      res.status(500).json({ message: "Failed to create and start broadcast" });
+    }
+  });
+
+
+  // Start broadcast COM DELAYS EM LOTE E VERIFICAÃ‡ÃƒO DE SESSÃƒO
 
   app.post("/api/admin/broadcasts/:id/start", isAdmin, async (req: any, res) => {
 
@@ -27583,7 +27836,8 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { id } = req.params;
 
-
+      
+      console.log(`[ADMIN BROADCAST] Recebido pedido para iniciar broadcast ${id} pelo admin ${adminId}`);
 
       // Iniciar broadcast em background
 
@@ -27638,29 +27892,18 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
           // Filtrar destinatários
-
+          const bcastTargetType = broadcast.target_type || broadcast.targetType || 'all';
           let recipients = users;
-
-          if (broadcast.targetType === 'with_plan') {
-
+          if (bcastTargetType === 'with_plan') {
             recipients = users.filter(u => {
-
               const sub = subscriptions?.find(s => s.userId === u.id && s.status === 'active');
-
               return !!sub;
-
             });
-
-          } else if (broadcast.targetType === 'without_plan') {
-
+          } else if (bcastTargetType === 'without_plan') {
             recipients = users.filter(u => {
-
               const sub = subscriptions?.find(s => s.userId === u.id && s.status === 'active');
-
               return !sub;
-
             });
-
           }
 
 
@@ -27673,7 +27916,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-          // ? TAMANHO DE LOTE ALEATÓRIO (15-25 mensagens)
+          // ? TAMANHO DE LOTE ALEATÃ“RIO (15-25 mensagens)
 
           const BATCH_SIZE_MIN = 15;
 
@@ -27681,154 +27924,117 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
+          // Normalize config fields (DB returns snake_case)
+          const cfgAiEnabled = config?.ai_variation_enabled ?? config?.aiVariationEnabled ?? false;
+          const cfgAiPrompt = config?.ai_variation_prompt ?? config?.aiVariationPrompt ?? '';
+          const cfgMinInterval = config?.broadcast_min_interval_seconds ?? config?.broadcastMinIntervalSeconds ?? 45;
+          const cfgMaxInterval = config?.broadcast_max_interval_seconds ?? config?.broadcastMaxIntervalSeconds ?? 90;
+          const bcastAiVariation = broadcast.ai_variation ?? broadcast.aiVariation ?? false;
+          const bcastAntibot = broadcast.antibot_enabled ?? broadcast.antibotEnabled ?? true;
+
+          console.log(`[BROADCAST ${id}] Config: aiVariation=${bcastAiVariation}, cfgAiEnabled=${cfgAiEnabled}, antibot=${bcastAntibot}, interval=${cfgMinInterval}-${cfgMaxInterval}s`);
+
+          // Check if broadcast was cancelled mid-send
+          const checkCancelled = async () => {
+            const current = await storage.getAdminBroadcast?.(adminId, id);
+            return current?.status === 'cancelled';
+          };
+
           for (let i = 0; i < recipients.length; i++) {
+            // Check if cancelled every 5 messages
+            if (i > 0 && i % 5 === 0 && await checkCancelled()) {
+              console.log(`⏹️ [BROADCAST ${id}] Broadcast cancelado pelo admin após ${sent} mensagens`);
+              return;
+            }
 
             const user = recipients[i];
-
-
+            const userName = user.name || user.fullName || 'Cliente';
 
             try {
-
               // Substituir variáveis
+              let message = (broadcast.message_template || broadcast.messageTemplate || '')
+                .replace(/{cliente_nome}/g, userName)
+                .replace(/{nome}/g, userName);
 
-              let message = broadcast.messageTemplate.replace(/{cliente_nome}/g, user.name || 'Cliente');
-
-
-
-              // ? VARIAR COM IA SE HABILITADO (cada mensagem única)
-
-              if (broadcast.aiVariation && config?.aiVariationEnabled) {
-
-                const { callGroq } = await import("./llm");
-
-                const prompt = config.aiVariationPrompt ||
-
-                  `Reescreva esta mensagem mantendo o mesmo significado mas com palavras diferentes.
-
-                  Varie saudações, conectivos e expressões.
-
-                  Mantenha tom profissional e cordial.
-
-                  Cliente: ${user.name || 'Cliente'}
-
-                  Retorne APENAS a mensagem reescrita, sem explicações.`;
-
-
-
-                message = await callGroq([
-
-                  { role: 'system', content: prompt },
-
-                  { role: 'user', content: broadcast.messageTemplate },
-
-                ], {
-
-                  // Usa modelo do banco de dados via config
-
-                  temperature: 0.8,
-
-                  max_tokens: 300,
-
-                });
-
-                message = message.trim();
-
+              // Variar com IA se habilitado (cada mensagem única)
+              if (bcastAiVariation && cfgAiEnabled) {
+                try {
+                  const { applyAIVariation } = await import("./notificationSchedulerService");
+                  message = await applyAIVariation(message, cfgAiPrompt, userName);
+                  // Re-apply variables after AI variation
+                  message = message
+                    .replace(/{cliente_nome}/g, userName)
+                    .replace(/{nome}/g, userName);
+                  console.log(`[BROADCAST] 🤖 IA variou para ${userName}: "${message.substring(0, 60)}..."`);
+                } catch (aiErr) {
+                  console.error(`[BROADCAST] ❌ Erro IA para ${userName}:`, aiErr);
+                }
               }
 
-
-
-              // ? ENVIAR COM RETRY
-
+              // Enviar com retry
               let success = false;
-
               for (let attempt = 1; attempt <= 3; attempt++) {
-
                 const result = await sendAdminNotification(adminId, user.phone || user.whatsappNumber, message);
-
                 if (result.success) {
-
                   success = true;
-
                   break;
-
                 }
-
-
-
                 if (attempt < 3) {
-
                   const backoffMs = Math.pow(2, attempt) * 1000;
-
                   await new Promise(resolve => setTimeout(resolve, backoffMs));
-
                 }
-
               }
-
-
 
               if (success) {
-
                 sent++;
-
               } else {
-
                 failed++;
-
               }
 
+              // Log individual message
+              const bcastMsgTemplate = broadcast.message_template || broadcast.messageTemplate || '';
+              const originalMsg = bcastMsgTemplate.replace(/{cliente_nome}/g, userName).replace(/{nome}/g, userName);
+              try {
+                await storage.createBroadcastMessage?.({
+                  broadcastId: id,
+                  adminId,
+                  userId: user.id,
+                  recipientPhone: user.phone || user.whatsappNumber || '',
+                  recipientName: userName,
+                  messageOriginal: originalMsg,
+                  messageSent: message,
+                  aiVaried: bcastAiVariation && cfgAiEnabled && message !== originalMsg,
+                  status: success ? 'sent' : 'failed',
+                });
+              } catch (logErr) {
+                console.error(`[BROADCAST] Erro ao logar mensagem:`, logErr);
+              }
 
-
-              // ? DELAY ANTI-BOT ENTRE MENSAGENS INDIVIDUAIS (3-10 segundos)
-
-              if (broadcast.antibotEnabled && i < recipients.length - 1) {
-
-                const minDelay = (config?.broadcastMinIntervalSeconds || 3) * 1000;
-
-                const maxDelay = (config?.broadcastMaxIntervalSeconds || 10) * 1000;
-
+              // Delay anti-bot entre mensagens individuais
+              if (bcastAntibot && i < recipients.length - 1) {
+                const minDelay = cfgMinInterval * 1000;
+                const maxDelay = cfgMaxInterval * 1000;
                 const delay = Math.random() * (maxDelay - minDelay) + minDelay;
-
+                console.log(`[BROADCAST] ⏱️ Delay anti-bot: ${Math.floor(delay/1000)}s (${cfgMinInterval}-${cfgMaxInterval}s)`);
                 await new Promise(resolve => setTimeout(resolve, delay));
-
               }
-
             } catch (error) {
-
               console.error(`Error sending to ${user.id}:`, error);
-
               failed++;
-
             }
 
-
-
-            // ? DELAY ENTRE LOTES (30-60 segundos a cada 15-25 mensagens)
-
+            // Delay entre lotes
             if ((i + 1) % (Math.floor(Math.random() * (BATCH_SIZE_MAX - BATCH_SIZE_MIN + 1)) + BATCH_SIZE_MIN) === 0 && i < recipients.length - 1) {
-
               batchCount++;
-
-              const BATCH_DELAY_MIN_MS = 30000; // 30 segundos
-
-              const BATCH_DELAY_MAX_MS = 60000; // 60 segundos
-
-              const batchDelay = Math.random() * (BATCH_DELAY_MAX_MS - BATCH_DELAY_MIN_MS) + BATCH_DELAY_MIN_MS;
-
-
-
-              console.log(`?? [BROADCAST ${id}] Pausa entre lotes (${batchCount}) - aguardando ${Math.floor(batchDelay/1000)}s...`);
-
+              const batchDelay = Math.random() * (60000 - 30000) + 30000;
+              console.log(`⏸️ [BROADCAST ${id}] Pausa entre lotes (${batchCount}) - ${Math.floor(batchDelay/1000)}s...`);
               await new Promise(resolve => setTimeout(resolve, batchDelay));
-
             }
 
-
-
-            // Atualizar progresso
-
-            await storage.updateAdminBroadcast?.(adminId, id, { sentCount: sent, failedCount: failed });
-
+            // Update progress every 3 messages
+            if (i % 3 === 0) {
+              await storage.updateAdminBroadcast?.(adminId, id, { sentCount: sent, failedCount: failed });
+            }
           }
 
 
@@ -27847,7 +28053,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-          console.log(`? [BROADCAST ${id}] Concluído: ${sent} enviados, ${failed} falhas, ${batchCount} pausas de lote`);
+          console.log(`? [BROADCAST ${id}] ConcluÃ­do: ${sent} enviados, ${failed} falhas, ${batchCount} pausas de lote`);
 
         } catch (error) {
 
@@ -27873,6 +28079,53 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   });
 
+  // Cancel a running broadcast
+  app.post("/api/admin/broadcasts/:id/cancel", isAdmin, async (req: any, res) => {
+    try {
+      const adminId = (req as any).admin?.id || (req.session as any)?.adminId;
+      const { id } = req.params;
+      console.log(`[BROADCAST CANCEL] adminId=${adminId}, broadcastId=${id}`);
+      
+      await storage.cancelAdminBroadcast?.(adminId, id);
+      console.log(`⏹️ [BROADCAST ${id}] Cancelado pelo admin`);
+      
+      res.json({ success: true, message: 'Broadcast cancelado' });
+    } catch (error) {
+      console.error("Error cancelling broadcast:", error);
+      res.status(500).json({ message: "Failed to cancel broadcast" });
+    }
+  });
+
+  // Get messages for a specific broadcast
+  app.get("/api/admin/broadcasts/:id/messages", isAdmin, async (req: any, res) => {
+    try {
+      const adminId = (req as any).admin?.id || (req.session as any)?.adminId;
+      const { id } = req.params;
+      
+      const messages = await storage.getBroadcastMessages?.(id) || [];
+      
+      // Map snake_case to camelCase for frontend
+      const mapped = messages.map((m: any) => ({
+        id: m.id,
+        broadcastId: m.broadcast_id,
+        userId: m.user_id,
+        recipientPhone: m.recipient_phone,
+        recipientName: m.recipient_name,
+        messageOriginal: m.message_original,
+        messageSent: m.message_sent,
+        aiVaried: m.ai_varied,
+        status: m.status,
+        errorMessage: m.error_message,
+        sentAt: m.sent_at,
+      }));
+      
+      res.json(mapped);
+    } catch (error) {
+      console.error("Error getting broadcast messages:", error);
+      res.status(500).json({ message: "Failed to get broadcast messages" });
+    }
+  });
+
 
 
   // ==================== NOTIFICATION HISTORY ====================
@@ -27881,7 +28134,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
   app.get("/api/admin/notifications/history", isAdmin, async (req: any, res) => {
     try {
       const rawAdminId = (req as any).admin?.id || (req.session as any)?.adminId;
-      if (!rawAdminId) return res.status(401).json({ message: "Admin não autenticado" });
+      if (!rawAdminId) return res.status(401).json({ message: "Admin nÃ£o autenticado" });
       const adminId = await resolveNotificationAdminId(rawAdminId);
 
       const page = parseInt(req.query.page as string) || 1;
@@ -28058,7 +28311,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Agrupar por data para facilitar visualização no calendário
+      // Agrupar por data para facilitar visualizaÃ§Ã£o no calendÃ¡rio
 
       const calendarData: Record<string, {
 
@@ -28128,13 +28381,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Obter configuração
+      // Obter configuraÃ§Ã£o
 
       const rawConfig = await storage.getAdminNotificationConfig?.(adminId);
 
 
 
-      // Configuração padrão
+      // ConfiguraÃ§Ã£o padrÃ£o
 
       const defaultConfig = {
 
@@ -28142,21 +28395,21 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         paymentReminderDaysBefore: [7, 3, 1],
 
-        paymentReminderMessageTemplate: 'Olá {cliente_nome}! ??\n\nGostaríamos de lembrar que seu pagamento vence em {dias_restantes} dias.\n\n?? Vencimento: {data_vencimento}\n?? Valor: R$ {valor}\n\nQualquer dúvida estamos à disposição! ??',
+        paymentReminderMessageTemplate: 'OlÃ¡ {cliente_nome}! ??\n\nGostarÃ­amos de lembrar que seu pagamento vence em {dias_restantes} dias.\n\n?? Vencimento: {data_vencimento}\n?? Valor: R$ {valor}\n\nQualquer dÃºvida estamos Ã  disposiÃ§Ã£o! ??',
 
         paymentReminderAiEnabled: true,
 
-        paymentReminderAiPrompt: 'Reescreva esta mensagem de lembrete de pagamento de forma natural e personalizada. Mantenha o tom profissional mas amigável.',
+        paymentReminderAiPrompt: 'Reescreva esta mensagem de lembrete de pagamento de forma natural e personalizada. Mantenha o tom profissional mas amigÃ¡vel.',
 
         overdueReminderEnabled: true,
 
         overdueReminderDaysAfter: [1, 3, 7, 14],
 
-        overdueReminderMessageTemplate: 'Olá {cliente_nome}! ??\n\nIdentificamos que seu pagamento está em atraso há {dias_atraso} dias.\n\n?? Venceu em: {data_vencimento}\n?? Valor: R$ {valor}\n\nPor favor, regularize sua situação. ??',
+        overdueReminderMessageTemplate: 'OlÃ¡ {cliente_nome}! ??\n\nIdentificamos que seu pagamento estÃ¡ em atraso hÃ¡ {dias_atraso} dias.\n\n?? Venceu em: {data_vencimento}\n?? Valor: R$ {valor}\n\nPor favor, regularize sua situaÃ§Ã£o. ??',
 
         overdueReminderAiEnabled: true,
 
-        overdueReminderAiPrompt: 'Reescreva esta mensagem de cobrança de forma educada e empática. Mantenha o tom profissional.',
+        overdueReminderAiPrompt: 'Reescreva esta mensagem de cobranÃ§a de forma educada e empÃ¡tica. Mantenha o tom profissional.',
 
         periodicCheckinEnabled: true,
 
@@ -28164,25 +28417,25 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         periodicCheckinMaxDays: 15,
 
-        periodicCheckinMessageTemplate: 'Olá {cliente_nome}! ??\n\nPassando para ver se está tudo bem! ??\n\nPrecisa de alguma coisa? Estamos aqui! ??',
+        periodicCheckinMessageTemplate: 'OlÃ¡ {cliente_nome}! ??\n\nPassando para ver se estÃ¡ tudo bem! ??\n\nPrecisa de alguma coisa? Estamos aqui! ??',
 
         checkinAiEnabled: true,
 
-        checkinAiPrompt: 'Reescreva esta mensagem de check-in de forma calorosa e natural. Pareça genuinamente interessado no cliente.',
+        checkinAiPrompt: 'Reescreva esta mensagem de check-in de forma calorosa e natural. PareÃ§a genuinamente interessado no cliente.',
 
         disconnectedAlertEnabled: true,
 
         disconnectedAlertHours: 2,
 
-        disconnectedAlertMessageTemplate: 'Olá {cliente_nome}! ??\n\nNotamos que seu WhatsApp está desconectado. ??\n\nPodemos ajudar? ??',
+        disconnectedAlertMessageTemplate: 'OlÃ¡ {cliente_nome}! ??\n\nNotamos que seu WhatsApp estÃ¡ desconectado. ??\n\nPodemos ajudar? ??',
 
         disconnectedAiEnabled: true,
 
-        disconnectedAiPrompt: 'Reescreva esta mensagem de alerta de desconexão de forma prestativa e profissional.',
+        disconnectedAiPrompt: 'Reescreva esta mensagem de alerta de desconexÃ£o de forma prestativa e profissional.',
 
         aiVariationEnabled: true,
 
-        aiVariationPrompt: 'Reescreva esta mensagem de forma natural e personalizada. Mantenha o tom profissional mas amigável.',
+        aiVariationPrompt: 'Reescreva esta mensagem de forma natural e personalizada. Mantenha o tom profissional mas amigÃ¡vel.',
 
         businessHoursStart: '09:00',
 
@@ -28276,7 +28529,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Obter todos os usuários com plano ativo
+      // Obter todos os usuÃ¡rios com plano ativo
 
       const users = await storage.getAllUsers();
 
@@ -28302,7 +28555,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Buscar logs de envio para não duplicar
+      // Buscar logs de envio para nÃ£o duplicar
 
       const sentLogsResult = await db.execute(sql`
 
@@ -28326,7 +28579,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Buscar agendamentos pendentes existentes para não duplicar
+      // Buscar agendamentos pendentes existentes para nÃ£o duplicar
 
       const existingResult = await db.execute(sql`
 
@@ -28348,11 +28601,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Função para verificar se já foi enviado ou agendado
+      // FunÃ§Ã£o para verificar se jÃ¡ foi enviado ou agendado
 
       const alreadySentOrScheduled = (userId: string, type: string, daysBefore?: number, daysAfter?: number) => {
 
-        // Verifica se já foi enviado
+        // Verifica se jÃ¡ foi enviado
 
         const wasSent = sentLogs.some((log: any) =>
 
@@ -28366,7 +28619,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         );
 
-        // Verifica se já está agendado
+        // Verifica se jÃ¡ estÃ¡ agendado
 
         const isScheduled = existingScheduled.some((s: any) =>
 
@@ -28398,7 +28651,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const pendingCount = subscriptions.filter(s => s.status === 'pending').length;
 
-      console.log(`[Reorganize] Processando ${users.length} usuários, ${subscriptions.length} subscriptions (${activeCount} active, ${pendingCount} pending)`);
+      console.log(`[Reorganize] Processando ${users.length} usuÃ¡rios, ${subscriptions.length} subscriptions (${activeCount} active, ${pendingCount} pending)`);
 
       console.log(`[Reorganize] Exemplo de subscription:`, JSON.stringify(subscriptions[0], null, 2));
 
@@ -28426,13 +28679,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-        // Se não tem data de vencimento mas tem data de início e plano, calcular
+        // Se nÃ£o tem data de vencimento mas tem data de inÃ­cio e plano, calcular
 
         if (!dueDate && subscription?.dataInicio && subscription?.plan) {
 
           const startDate = new Date(subscription.dataInicio);
 
-          const frequenciaDias = subscription.plan.frequenciaDias || 30; // padrão 30 dias
+          const frequenciaDias = subscription.plan.frequenciaDias || 30; // padrÃ£o 30 dias
 
           const calculatedDueDate = new Date(startDate);
 
@@ -28452,7 +28705,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-        // Debug: mostrar se vai entrar na condição de lembrete
+        // Debug: mostrar se vai entrar na condiÃ§Ã£o de lembrete
 
         if (subscription && dueDate) {
 
@@ -28480,7 +28733,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-          // Apenas logar quem vence nos próximos 14 dias
+          // Apenas logar quem vence nos prÃ³ximos 14 dias
 
           if (daysUntilDue > 0 && daysUntilDue <= 14) {
 
@@ -28492,17 +28745,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           for (const daysBefore of (config.paymentReminderDaysBefore || [7, 3, 1])) {
 
-            // Só agendar se a data de lembrete está no futuro
+            // SÃ³ agendar se a data de lembrete estÃ¡ no futuro
 
             if (daysUntilDue > 0 && daysUntilDue <= daysBefore + 7) {
 
               console.log(`[Reorganize] ${user.name}: tentando agendar lembrete de ${daysBefore} dias antes`);
 
-              // Verifica se já foi enviado ou agendado
+              // Verifica se jÃ¡ foi enviado ou agendado
 
               if (alreadySentOrScheduled(user.id, 'payment_reminder', daysBefore)) {
 
-                console.log(`[Reorganize] Pulando ${user.name} - já enviado/agendado para ${daysBefore} dias antes`);
+                console.log(`[Reorganize] Pulando ${user.name} - jÃ¡ enviado/agendado para ${daysBefore} dias antes`);
 
                 continue;
 
@@ -28516,7 +28769,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-              // Se a data de agendamento já passou, agendar para amanhã no horário comercial
+              // Se a data de agendamento jÃ¡ passou, agendar para amanhÃ£ no horÃ¡rio comercial
 
               if (scheduleDate <= now) {
 
@@ -28528,7 +28781,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-              // Aplicar horário comercial
+              // Aplicar horÃ¡rio comercial
 
               if (config.respectBusinessHours) {
 
@@ -28584,7 +28837,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-        // 2. COBRANÇA EM ATRASO (para quem tem plano vencido)
+        // 2. COBRANÃ‡A EM ATRASO (para quem tem plano vencido)
 
         if (config.overdueReminderEnabled && subscription && dueDate) {
 
@@ -28596,21 +28849,21 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           if (daysOverdue > 0) {
 
-            console.log(`[Reorganize] ${user.name}: em atraso há ${daysOverdue} dias`);
+            console.log(`[Reorganize] ${user.name}: em atraso hÃ¡ ${daysOverdue} dias`);
 
 
 
             for (const daysAfter of (config.overdueReminderDaysAfter || [1, 3, 7, 14])) {
 
-              // Se está no período de atraso adequado
+              // Se estÃ¡ no perÃ­odo de atraso adequado
 
               if (daysOverdue >= daysAfter && daysOverdue < daysAfter + 7) {
 
-                // Verifica se já foi enviado ou agendado
+                // Verifica se jÃ¡ foi enviado ou agendado
 
                 if (alreadySentOrScheduled(user.id, 'overdue_reminder', undefined, daysAfter)) {
 
-                  console.log(`[Reorganize] Pulando ${user.name} - cobrança já enviada/agendada para ${daysAfter} dias após`);
+                  console.log(`[Reorganize] Pulando ${user.name} - cobranÃ§a jÃ¡ enviada/agendada para ${daysAfter} dias apÃ³s`);
 
                   continue;
 
@@ -28620,7 +28873,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                 const scheduleDate = new Date();
 
-                // Aplicar horário comercial
+                // Aplicar horÃ¡rio comercial
 
                 if (config.respectBusinessHours) {
 
@@ -28630,7 +28883,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                 }
 
-                // Se horário já passou, agendar para amanhã
+                // Se horÃ¡rio jÃ¡ passou, agendar para amanhÃ£
 
                 if (scheduleDate <= now) {
 
@@ -28652,7 +28905,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                   recipient_name: user.name || 'Cliente',
 
-                  message_template: config.overdueReminderMessageTemplate || 'Cobrança em atraso',
+                  message_template: config.overdueReminderMessageTemplate || 'CobranÃ§a em atraso',
 
                   ai_prompt: config.overdueReminderAiPrompt || config.aiVariationPrompt,
 
@@ -28688,11 +28941,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-        // 3. CHECK-IN PERIÓDICO (só para quem tem plano ativo)
+        // 3. CHECK-IN PERIÃ“DICO (sÃ³ para quem tem plano ativo)
 
         if (config.periodicCheckinEnabled && subscription) {
 
-          // Verifica se já tem check-in agendado
+          // Verifica se jÃ¡ tem check-in agendado
 
           if (alreadySentOrScheduled(user.id, 'checkin')) {
 
@@ -28738,7 +28991,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             recipient_name: user.name || 'Cliente',
 
-            message_template: config.periodicCheckinMessageTemplate || 'Check-in periódico',
+            message_template: config.periodicCheckinMessageTemplate || 'Check-in periÃ³dico',
 
             ai_prompt: config.checkinAiPrompt || config.aiVariationPrompt,
 
@@ -28754,11 +29007,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-        // 4. ALERTA DESCONECTADO (para quem está desconectado com plano ativo)
+        // 4. ALERTA DESCONECTADO (para quem estÃ¡ desconectado com plano ativo)
 
         if (config.disconnectedAlertEnabled && connection && !connection.isConnected && subscription) {
 
-          // Verifica se já tem alerta agendado
+          // Verifica se jÃ¡ tem alerta agendado
 
           if (alreadySentOrScheduled(user.id, 'disconnected')) {
 
@@ -28786,7 +29039,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             recipient_name: user.name || 'Cliente',
 
-            message_template: config.disconnectedAlertMessageTemplate || 'Alerta de desconexão',
+            message_template: config.disconnectedAlertMessageTemplate || 'Alerta de desconexÃ£o',
 
             ai_prompt: config.disconnectedAiPrompt || config.aiVariationPrompt,
 
@@ -28804,7 +29057,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      console.log(`[Reorganize] Total de ${scheduledItems.length} notificações a agendar`);
+      console.log(`[Reorganize] Total de ${scheduledItems.length} notificaÃ§Ãµes a agendar`);
 
 
 
@@ -28848,7 +29101,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         success: true,
 
-        message: `${scheduledItems.length} notificações agendadas`,
+        message: `${scheduledItems.length} notificaÃ§Ãµes agendadas`,
 
         scheduled: scheduledItems.length,
 
@@ -28930,7 +29183,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Buscar telefone do usuário
+      // Buscar telefone do usuÃ¡rio
 
       const userResult = await db.execute(sql`
 
@@ -28950,7 +29203,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Buscar mensagens do admin com este usuário pelo número de telefone
+      // Buscar mensagens do admin com este usuÃ¡rio pelo nÃºmero de telefone
 
       const result = await db.execute(sql`
 
@@ -28980,7 +29233,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Formatar histórico para contexto IA
+      // Formatar histÃ³rico para contexto IA
 
       const history = (result.rows as any[]).reverse().map(msg => ({
 
@@ -29022,7 +29275,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Buscar notificação agendada
+      // Buscar notificaÃ§Ã£o agendada
 
       const result = await db.execute(sql`
 
@@ -29036,7 +29289,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!notification) {
 
-        return res.status(404).json({ message: "Notificação não encontrada" });
+        return res.status(404).json({ message: "NotificaÃ§Ã£o nÃ£o encontrada" });
 
       }
 
@@ -29044,13 +29297,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (notification.status !== 'pending') {
 
-        return res.status(400).json({ message: "Notificação já foi processada" });
+        return res.status(400).json({ message: "NotificaÃ§Ã£o jÃ¡ foi processada" });
 
       }
 
 
 
-      // Buscar histórico de conversa pelo telefone do destinatário
+      // Buscar histÃ³rico de conversa pelo telefone do destinatÃ¡rio
 
       const historyResult = await db.execute(sql`
 
@@ -29080,13 +29333,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const conversationHistory = (historyResult.rows as any[]).reverse().map(msg =>
 
-        `${msg.from_me ? 'Você' : 'Cliente'}: ${msg.text}`
+        `${msg.from_me ? 'VocÃª' : 'Cliente'}: ${msg.text}`
 
       ).join('\n');
 
 
 
-      // Preparar mensagem - substituir variáveis
+      // Preparar mensagem - substituir variÃ¡veis
 
       const metadata = typeof notification.metadata === 'string' ? JSON.parse(notification.metadata || '{}') : (notification.metadata || {});
 
@@ -29106,19 +29359,19 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Variação com IA usando contexto da conversa
+      // VariaÃ§Ã£o com IA usando contexto da conversa
 
       if (notification.ai_enabled) {
 
         try {
 
-          const { callGroq } = await import("./llm");
+          const { applyAIVariation } = await import("./notificationSchedulerService");
 
           const config = await storage.getAdminNotificationConfig?.(adminId);
 
 
 
-          let systemPrompt = notification.ai_prompt || config?.aiVariationPrompt ||
+          let customPrompt = notification.ai_prompt || config?.aiVariationPrompt ||
 
             'Reescreva esta mensagem de forma natural e personalizada.';
 
@@ -29126,7 +29379,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           // Adicionar contexto do cliente
 
-          systemPrompt += `\n\nO nome do cliente é: ${notification.recipient_name || 'Cliente'}`;
+          customPrompt += `\n\nO nome do cliente Ã©: ${notification.recipient_name || 'Cliente'}`;
 
 
 
@@ -29134,43 +29387,31 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           if (conversationHistory) {
 
-            systemPrompt += `\n\nHISTÓRICO DA CONVERSA COM ESTE CLIENTE:\n---\n${conversationHistory}\n---\n\nUse este contexto para personalizar a mensagem.`;
+            customPrompt += `\n\nHISTÃ“RICO DA CONVERSA COM ESTE CLIENTE:\n---\n${conversationHistory}\n---\n\nUse este contexto para personalizar a mensagem.`;
 
           }
 
 
 
-          systemPrompt += '\n\nIMPORTANTE: Retorne APENAS a mensagem reescrita, sem explicações ou aspas.';
+          const variedMessage = await applyAIVariation(finalMessage, customPrompt, notification.recipient_name || 'Cliente');
 
+          
 
+          // ? Garantir substituiÃ§Ã£o final de variÃ¡veis residuais
 
-          // ? CORRIGIDO: Usar array de ChatMessage
+          finalMessage = variedMessage
 
-          const variedMessage = await callGroq(
+            .replace(/{cliente_nome}/g, notification.recipient_name || 'Cliente')
 
-            [
+            .replace(/{dias_restantes}/g, metadata.daysBefore || '')
 
-              { role: 'system', content: systemPrompt },
+            .replace(/{dias_atraso}/g, metadata.daysOverdue || metadata.daysAfter || '')
 
-              { role: 'user', content: finalMessage }
+            .replace(/{data_vencimento}/g, metadata.dueDate ?
 
-            ],
+              new Date(metadata.dueDate).toLocaleDateString('pt-BR') : '')
 
-            { temperature: 0.8, maxTokens: 500 }
-
-          );
-
-
-
-          // ? PROTEÇÃO: Verificar se retornou mensagem válida
-
-          const trimmedVaried = variedMessage.trim();
-
-          if (trimmedVaried && trimmedVaried.length > 10 && !trimmedVaried.includes('Como posso ajudar')) {
-
-            finalMessage = trimmedVaried;
-
-          }
+            .replace(/{valor}/g, metadata.valor || '');
 
         } catch (aiError) {
 
@@ -29248,7 +29489,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         success: sent,
 
-        message: sent ? 'Notificação enviada com sucesso' : 'Falha ao enviar',
+        message: sent ? 'NotificaÃ§Ã£o enviada com sucesso' : 'Falha ao enviar',
 
         finalMessage
 
@@ -29266,7 +29507,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // REENVIAR notificação que já foi enviada (status = 'sent')
+  // REENVIAR notificaÃ§Ã£o que jÃ¡ foi enviada (status = 'sent')
 
   app.post("/api/admin/notifications/resend/:id", isAdmin, async (req: any, res) => {
 
@@ -29278,7 +29519,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Buscar notificação agendada - permitir apenas status 'sent' ou 'failed'
+      // Buscar notificaÃ§Ã£o agendada - permitir apenas status 'sent' ou 'failed'
 
       const result = await db.execute(sql`
 
@@ -29292,7 +29533,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!notification) {
 
-        return res.status(404).json({ message: "Notificação não encontrada" });
+        return res.status(404).json({ message: "NotificaÃ§Ã£o nÃ£o encontrada" });
 
       }
 
@@ -29300,7 +29541,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (notification.status !== 'sent' && notification.status !== 'failed') {
 
-        return res.status(400).json({ message: "Apenas notificações enviadas ou com falha podem ser reenviadas" });
+        return res.status(400).json({ message: "Apenas notificaÃ§Ãµes enviadas ou com falha podem ser reenviadas" });
 
       }
 
@@ -29320,11 +29561,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (notification.ai_enabled && req.body?.regenerate) {
 
-        console.log(`[RESEND] ? Usando variação de IA para reenvio`);
+        console.log(`[RESEND] ? Usando variaÃ§Ã£o de IA para reenvio`);
 
         try {
 
-          // Buscar histórico de conversa
+          // Buscar histÃ³rico de conversa
 
           const historyResult = await db.execute(sql`
 
@@ -29354,7 +29595,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           const conversationHistory = (historyResult.rows as any[]).reverse().map(msg =>
 
-            `${msg.from_me ? 'Você' : 'Cliente'}: ${msg.text}`
+            `${msg.from_me ? 'VocÃª' : 'Cliente'}: ${msg.text}`
 
           ).join('\n');
 
@@ -29378,59 +29619,47 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-          const { callGroq } = await import("./llm");
+          const { applyAIVariation } = await import("./notificationSchedulerService");
 
           const config = await storage.getAdminNotificationConfig?.(adminId);
 
 
 
-          let systemPrompt = notification.ai_prompt || config?.aiVariationPrompt ||
+          let customPrompt = notification.ai_prompt || config?.aiVariationPrompt ||
 
             'Reescreva esta mensagem de forma natural e personalizada.';
 
-          systemPrompt += `\n\nO nome do cliente é: ${notification.recipient_name || 'Cliente'}`;
+          customPrompt += `\n\nO nome do cliente Ã©: ${notification.recipient_name || 'Cliente'}`;
 
           if (conversationHistory) {
 
-            systemPrompt += `\n\nHISTÓRICO DA CONVERSA COM ESTE CLIENTE:\n---\n${conversationHistory}\n---\n\nUse este contexto para personalizar a mensagem.`;
+            customPrompt += `\n\nHISTÃ“RICO DA CONVERSA COM ESTE CLIENTE:\n---\n${conversationHistory}\n---\n\nUse este contexto para personalizar a mensagem.`;
 
           }
 
-          systemPrompt += '\n\nIMPORTANTE: Retorne APENAS a mensagem reescrita, sem explicações ou aspas.';
 
 
+          const variedMessage = await applyAIVariation(baseMessage, customPrompt, notification.recipient_name || 'Cliente');
 
-          const variedMessage = await callGroq(
+          
 
-            [
+          // ? Garantir substituiÃ§Ã£o final de variÃ¡veis residuais
 
-              { role: 'system', content: systemPrompt },
+          finalMessage = variedMessage
 
-              { role: 'user', content: baseMessage }
+            .replace(/{cliente_nome}/g, notification.recipient_name || 'Cliente')
 
-            ],
+            .replace(/{dias_restantes}/g, metadata.daysBefore || '')
 
-            { temperature: 0.8, maxTokens: 500 }
+            .replace(/{dias_atraso}/g, metadata.daysOverdue || metadata.daysAfter || '')
 
-          );
+            .replace(/{data_vencimento}/g, metadata.dueDate ?
 
+              new Date(metadata.dueDate).toLocaleDateString('pt-BR') : '')
 
+            .replace(/{valor}/g, metadata.valor || '');
 
-          const trimmedVaried = variedMessage.trim();
-
-          console.log(`[RESEND] IA retornou: "${trimmedVaried.substring(0, 100)}..."`);
-
-          if (trimmedVaried && trimmedVaried.length > 10 && !trimmedVaried.includes('Como posso ajudar')) {
-
-            finalMessage = trimmedVaried;
-
-            console.log(`[RESEND] ? Mensagem variada pela IA com sucesso`);
-
-          } else {
-
-            console.log(`[RESEND] ?? Mensagem da IA rejeitada, usando original`);
-
-          }
+          console.log(`[RESEND] ? Mensagem variada pela IA com sucesso`);
 
         } catch (aiError) {
 
@@ -29440,7 +29669,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       } else {
 
-        console.log(`[RESEND] ?? Usando mensagem original (sem variação IA)`);
+        console.log(`[RESEND] ?? Usando mensagem original (sem variaÃ§Ã£o IA)`);
 
       }
 
@@ -29546,7 +29775,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         success: sent,
 
-        message: sent ? 'Notificação reenviada com sucesso' : 'Falha ao reenviar',
+        message: sent ? 'NotificaÃ§Ã£o reenviada com sucesso' : 'Falha ao reenviar',
 
         finalMessage,
 
@@ -29574,7 +29803,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // PROCESSAR FILA DE NOTIFICAÇÕES AGENDADAS - COM SISTEMA DE DELAY ANTI-BAN
+  // PROCESSAR FILA DE NOTIFICAÃ‡Ã•ES AGENDADAS - COM SISTEMA DE DELAY ANTI-BAN
 
   app.post("/api/admin/notifications/process-queue", isAdmin, async (req: any, res) => {
 
@@ -29584,7 +29813,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Verificar conexão WhatsApp
+      // Verificar conexÃ£o WhatsApp
 
       const adminConnection = await db.execute(sql`
 
@@ -29594,13 +29823,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!adminConnection.rows?.length) {
 
-        return res.status(400).json({ message: "WhatsApp do admin não está conectado" });
+        return res.status(400).json({ message: "WhatsApp do admin nÃ£o estÃ¡ conectado" });
 
       }
 
 
 
-      // Buscar notificações pendentes para enviar agora
+      // Buscar notificaÃ§Ãµes pendentes para enviar agora
 
       const pendingResult = await db.execute(sql`
 
@@ -29624,19 +29853,19 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (pendingNotifications.length === 0) {
 
-        return res.json({ success: true, message: "Nenhuma notificação para processar", processed: 0 });
+        return res.json({ success: true, message: "Nenhuma notificaÃ§Ã£o para processar", processed: 0 });
 
       }
 
 
 
-      // Obter configuração para delays
-      // ✅ CORRIGIDO: Usar delays consistentes com o scheduler (anti-ban)
+      // Obter configuraÃ§Ã£o para delays
+      // ? CORRIGIDO: Usar delays consistentes com o scheduler (anti-ban)
       const config = await storage.getAdminNotificationConfig?.(adminId);
 
-      const minDelay = Math.max(config?.broadcastMinIntervalSeconds || 30, 30); // MÍNIMO 30s
+      const minDelay = Math.max(config?.broadcastMinIntervalSeconds || 30, 30); // MÃNIMO 30s
 
-      const maxDelay = Math.max(config?.broadcastMaxIntervalSeconds || 60, 60); // MÍNIMO 60s
+      const maxDelay = Math.max(config?.broadcastMaxIntervalSeconds || 60, 60); // MÃNIMO 60s
 
       const batchSize = 5; // A cada 5 mensagens, pausa maior (era 10)
 
@@ -29644,7 +29873,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      console.log(`[QUEUE] Iniciando processamento de ${pendingNotifications.length} notificações`);
+      console.log(`[QUEUE] Iniciando processamento de ${pendingNotifications.length} notificaÃ§Ãµes`);
 
 
 
@@ -29654,7 +29883,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         success: true,
 
-        message: `Processando ${pendingNotifications.length} notificações em fila`,
+        message: `Processando ${pendingNotifications.length} notificaÃ§Ãµes em fila`,
 
         total: pendingNotifications.length,
 
@@ -29686,7 +29915,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           try {
 
-            // Buscar histórico de conversa
+            // Buscar histÃ³rico de conversa
 
             const historyResult = await db.execute(sql`
 
@@ -29710,13 +29939,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             const conversationHistory = (historyResult.rows as any[]).reverse().map(msg =>
 
-              `${msg.from_me ? 'Você' : 'Cliente'}: ${msg.text}`
+              `${msg.from_me ? 'VocÃª' : 'Cliente'}: ${msg.text}`
 
             ).join('\n');
 
 
 
-            // Preparar mensagem com variáveis
+            // Preparar mensagem com variÃ¡veis
 
             const metadata = typeof notification.metadata === 'string' ? JSON.parse(notification.metadata || '{}') : (notification.metadata || {});
 
@@ -29736,17 +29965,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-            // VARIAÇÃO IA OBRIGATÓRIA se ativada
+            // VARIAÃ‡ÃƒO IA OBRIGATÃ“RIA se ativada
 
             if (notification.ai_enabled) {
 
               try {
 
-                const { callGroq } = await import("./llm");
+                const { applyAIVariation } = await import("./notificationSchedulerService");
 
 
 
-                let systemPrompt = notification.ai_prompt || config?.aiVariationPrompt ||
+                let customPrompt = notification.ai_prompt || config?.aiVariationPrompt ||
 
                   'Reescreva esta mensagem de forma natural e personalizada.';
 
@@ -29754,65 +29983,49 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                 // Adicionar contexto do cliente
 
-                systemPrompt += `\n\nO nome do cliente é: ${notification.recipient_name || 'Cliente'}`;
+                customPrompt += `\n\nO nome do cliente Ã©: ${notification.recipient_name || 'Cliente'}`;
 
 
 
                 if (conversationHistory) {
 
-                  systemPrompt += `\n\nHISTÓRICO DA CONVERSA COM ESTE CLIENTE:\n---\n${conversationHistory}\n---\n\nUse este contexto para personalizar a mensagem.`;
+                  customPrompt += `\n\nHISTÃ“RICO DA CONVERSA COM ESTE CLIENTE:\n---\n${conversationHistory}\n---\n\nUse este contexto para personalizar a mensagem.`;
 
                 }
 
 
 
-                systemPrompt += '\n\nIMPORTANTE: Retorne APENAS a mensagem reescrita, sem explicações ou aspas.';
+                const variedMessage = await applyAIVariation(finalMessage, customPrompt, notification.recipient_name || 'Cliente');
 
+                
 
+                // ? Garantir substituiÃ§Ã£o final de variÃ¡veis residuais
 
-                // ? CORRIGIDO: Usar array de ChatMessage
+                finalMessage = variedMessage
 
-                const variedMessage = await callGroq(
+                  .replace(/{cliente_nome}/g, notification.recipient_name || 'Cliente')
 
-                  [
+                  .replace(/{dias_restantes}/g, metadata.daysBefore || '')
 
-                    { role: 'system', content: systemPrompt },
+                  .replace(/{dias_atraso}/g, metadata.daysOverdue || metadata.daysAfter || '')
 
-                    { role: 'user', content: finalMessage }
+                  .replace(/{data_vencimento}/g, metadata.dueDate ?
 
-                  ],
+                    new Date(metadata.dueDate).toLocaleDateString('pt-BR') : '')
 
-                  { temperature: 0.8, maxTokens: 500 }
+                  .replace(/{valor}/g, metadata.valor || '');
 
-                );
-
-
-
-                // ? PROTEÇÃO: Verificar se retornou mensagem válida
-
-                const trimmedVaried = variedMessage.trim();
-
-                if (trimmedVaried && trimmedVaried.length > 10 && !trimmedVaried.includes('Como posso ajudar')) {
-
-                  finalMessage = trimmedVaried;
-
-                  console.log(`[QUEUE] ? IA variou mensagem para ${notification.recipient_name}`);
-
-                } else {
-
-                  console.log(`[QUEUE] ?? IA retornou inválido, usando original para ${notification.recipient_name}`);
-
-                }
+                console.log(`[QUEUE] ? IA variou mensagem para ${notification.recipient_name}`);
 
               } catch (aiError) {
 
                 console.error(`[QUEUE] ? Erro IA para ${notification.recipient_name}:`, aiError);
 
-                // Se IA falhar e é obrigatória, não enviar sem variação
+                // Se IA falhar e Ã© obrigatÃ³ria, nÃ£o enviar sem variaÃ§Ã£o
 
                 if (config?.aiVariationEnabled) {
 
-                  console.log(`[QUEUE] Pulando ${notification.recipient_name} - IA obrigatória falhou`);
+                  console.log(`[QUEUE] Pulando ${notification.recipient_name} - IA obrigatÃ³ria falhou`);
 
                   failed++;
 
@@ -29820,7 +30033,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
                     UPDATE scheduled_notifications
 
-                    SET status = 'failed', error_message = 'Falha na variação IA obrigatória'
+                    SET status = 'failed', error_message = 'Falha na variaÃ§Ã£o IA obrigatÃ³ria'
 
                     WHERE id = ${notification.id}
 
@@ -29922,13 +30135,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             if ((i + 1) % batchSize === 0 && i + 1 < pendingNotifications.length) {
 
-              console.log(`[QUEUE] Pausa de ${batchPauseSeconds}s após lote de ${batchSize} mensagens...`);
+              console.log(`[QUEUE] Pausa de ${batchPauseSeconds}s apÃ³s lote de ${batchSize} mensagens...`);
 
               await new Promise(resolve => setTimeout(resolve, batchPauseSeconds * 1000));
 
             } else if (i + 1 < pendingNotifications.length) {
 
-              console.log(`[QUEUE] Aguardando ${delay}s antes da próxima mensagem...`);
+              console.log(`[QUEUE] Aguardando ${delay}s antes da prÃ³xima mensagem...`);
 
               await new Promise(resolve => setTimeout(resolve, delay * 1000));
 
@@ -29958,7 +30171,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-        console.log(`[QUEUE] Processamento concluído: ${processed} enviados, ${failed} falhas`);
+        console.log(`[QUEUE] Processamento concluÃ­do: ${processed} enviados, ${failed} falhas`);
 
       })();
 
@@ -29976,7 +30189,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // OBTER STATUS DA FILA DE NOTIFICAÇÕES
+  // OBTER STATUS DA FILA DE NOTIFICAÃ‡Ã•ES
 
   app.get("/api/admin/notifications/queue-status", isAdmin, async (req: any, res) => {
 
@@ -30064,7 +30277,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // Envio em massa para múltiplos números - COM SUPORTE A [nome] e variação IA
+  // Envio em massa para mÃºltiplos nÃºmeros - COM SUPORTE A [nome] e variaÃ§Ã£o IA
 
   app.post("/api/whatsapp/bulk-send", isAuthenticated, async (req: any, res) => {
 
@@ -30078,7 +30291,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!phones || !Array.isArray(phones) || phones.length === 0) {
 
-        return res.status(400).json({ message: "Lista de telefones é obrigatória" });
+        return res.status(400).json({ message: "Lista de telefones Ã© obrigatÃ³ria" });
 
       }
 
@@ -30086,25 +30299,25 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!message || typeof message !== "string" || !message.trim()) {
 
-        return res.status(400).json({ message: "Mensagem é obrigatória" });
+        return res.status(400).json({ message: "Mensagem Ã© obrigatÃ³ria" });
 
       }
 
 
 
-      // Verificar conexão WhatsApp
+      // Verificar conexÃ£o WhatsApp
 
       const connection = await storage.getConnectionByUserId(userId);
 
       if (!connection || !connection.isConnected) {
 
-        return res.status(400).json({ message: "WhatsApp não está conectado" });
+        return res.status(400).json({ message: "WhatsApp nÃ£o estÃ¡ conectado" });
 
       }
 
 
 
-      // Importar função de envio aprimorada
+      // Importar funÃ§Ã£o de envio aprimorada
 
       const { sendBulkMessagesAdvanced } = await import("./whatsapp");
 
@@ -30142,17 +30355,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (contactsWithNames.length === 0) {
 
-        return res.status(400).json({ message: "Nenhum número válido encontrado" });
+        return res.status(400).json({ message: "Nenhum nÃºmero vÃ¡lido encontrado" });
 
       }
 
 
 
-      console.log(`[BULK SEND] Iniciando envio para ${contactsWithNames.length} números`);
+      console.log(`[BULK SEND] Iniciando envio para ${contactsWithNames.length} nÃºmeros`);
 
 
 
-      // Configurações de delay
+      // ConfiguraÃ§Ãµes de delay
 
       const delayMin = settings?.delayMin || 5;
 
@@ -30228,13 +30441,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         },
 
-        message: 'Envio iniciado em background. Você pode fechar a página que o envio continuará.'
+        message: 'Envio iniciado em background. VocÃª pode fechar a pÃ¡gina que o envio continuarÃ¡.'
 
       });
 
 
 
-      // EXECUTAR ENVIO EM BACKGROUND (não bloqueia a resposta)
+      // EXECUTAR ENVIO EM BACKGROUND (nÃ£o bloqueia a resposta)
 
       setImmediate(async () => {
 
@@ -30304,7 +30517,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-          console.log(`[BULK SEND BACKGROUND] Campanha ${campaignId} concluída: ${result.sent} enviados, ${result.failed} falharam`);
+          console.log(`[BULK SEND BACKGROUND] Campanha ${campaignId} concluÃ­da: ${result.sent} enviados, ${result.failed} falharam`);
 
         } catch (error: any) {
 
@@ -30334,7 +30547,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // Envio em massa COM MÍDIA (imagem, vídeo, áudio, documento)
+  // Envio em massa COM MÃDIA (imagem, vÃ­deo, Ã¡udio, documento)
 
   app.post("/api/whatsapp/bulk-send-media", isAuthenticated, async (req: any, res) => {
 
@@ -30348,7 +30561,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!phones || !Array.isArray(phones) || phones.length === 0) {
 
-        return res.status(400).json({ message: "Lista de telefones é obrigatória" });
+        return res.status(400).json({ message: "Lista de telefones Ã© obrigatÃ³ria" });
 
       }
 
@@ -30356,37 +30569,37 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!media || !media.type || !media.data) {
 
-        return res.status(400).json({ message: "Mídia é obrigatória (type e data)" });
+        return res.status(400).json({ message: "MÃ­dia Ã© obrigatÃ³ria (type e data)" });
 
       }
 
 
 
-      // Validar tipo de mídia
+      // Validar tipo de mÃ­dia
 
       const validTypes = ['audio', 'image', 'video', 'document'];
 
       if (!validTypes.includes(media.type)) {
 
-        return res.status(400).json({ message: `Tipo de mídia inválido: ${media.type}. Use: ${validTypes.join(', ')}` });
+        return res.status(400).json({ message: `Tipo de mÃ­dia invÃ¡lido: ${media.type}. Use: ${validTypes.join(', ')}` });
 
       }
 
 
 
-      // Verificar conexão WhatsApp
+      // Verificar conexÃ£o WhatsApp
 
       const connection = await storage.getConnectionByUserId(userId);
 
       if (!connection || !connection.isConnected) {
 
-        return res.status(400).json({ message: "WhatsApp não está conectado" });
+        return res.status(400).json({ message: "WhatsApp nÃ£o estÃ¡ conectado" });
 
       }
 
 
 
-      // Importar função de envio com mídia
+      // Importar funÃ§Ã£o de envio com mÃ­dia
 
       const { sendBulkMediaMessages } = await import("./whatsapp");
 
@@ -30424,17 +30637,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (contactsWithNames.length === 0) {
 
-        return res.status(400).json({ message: "Nenhum número válido encontrado" });
+        return res.status(400).json({ message: "Nenhum nÃºmero vÃ¡lido encontrado" });
 
       }
 
 
 
-      console.log(`[BULK MEDIA SEND] Iniciando envio de ${media.type} para ${contactsWithNames.length} números`);
+      console.log(`[BULK MEDIA SEND] Iniciando envio de ${media.type} para ${contactsWithNames.length} nÃºmeros`);
 
 
 
-      // Configurações de delay (mais conservador para mídia)
+      // ConfiguraÃ§Ãµes de delay (mais conservador para mÃ­dia)
 
       const delayMin = settings?.delayMin || 8;
 
@@ -30444,7 +30657,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       // Criar campanha com status "running"
 
-      const campaignName = `Mídia ${media.type} ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+      const campaignName = `MÃ­dia ${media.type} ${new Date().toLocaleDateString('pt-BR')} ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
 
       const campaignId = `campaign_media_${Date.now()}`;
 
@@ -30474,7 +30687,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         createdAt: new Date(),
 
-        delayProfile: 'conservador', // Mídia sempre conservador
+        delayProfile: 'conservador', // MÃ­dia sempre conservador
 
         mediaType: media.type,
 
@@ -30590,7 +30803,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-          console.log(`[BULK MEDIA SEND BACKGROUND] Campanha ${campaignId} concluída: ${result.sent} enviados, ${result.failed} falharam`);
+          console.log(`[BULK MEDIA SEND BACKGROUND] Campanha ${campaignId} concluÃ­da: ${result.sent} enviados, ${result.failed} falharam`);
 
         } catch (error: any) {
 
@@ -30612,7 +30825,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.error("Error in bulk media send:", error);
 
-      res.status(500).json({ message: error.message || "Falha no envio de mídia em massa" });
+      res.status(500).json({ message: error.message || "Falha no envio de mÃ­dia em massa" });
 
     }
 
@@ -30624,7 +30837,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // Buscar grupos que o usuário participa
+  // Buscar grupos que o usuÃ¡rio participa
 
   app.get("/api/whatsapp/groups", isAuthenticated, async (req: any, res) => {
 
@@ -30634,19 +30847,19 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Verificar conexão WhatsApp
+      // Verificar conexÃ£o WhatsApp
 
       const connection = await storage.getConnectionByUserId(userId);
 
       if (!connection || !connection.isConnected) {
 
-        return res.status(400).json({ message: "WhatsApp não está conectado" });
+        return res.status(400).json({ message: "WhatsApp nÃ£o estÃ¡ conectado" });
 
       }
 
 
 
-      // Importar função de busca de grupos
+      // Importar funÃ§Ã£o de busca de grupos
 
       const { fetchUserGroups } = await import("./whatsapp");
 
@@ -30684,7 +30897,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!groupIds || !Array.isArray(groupIds) || groupIds.length === 0) {
 
-        return res.status(400).json({ message: "Lista de grupos é obrigatória" });
+        return res.status(400).json({ message: "Lista de grupos Ã© obrigatÃ³ria" });
 
       }
 
@@ -30692,31 +30905,31 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!message || typeof message !== "string" || !message.trim()) {
 
-        return res.status(400).json({ message: "Mensagem é obrigatória" });
+        return res.status(400).json({ message: "Mensagem Ã© obrigatÃ³ria" });
 
       }
 
 
 
-      // Verificar conexão WhatsApp
+      // Verificar conexÃ£o WhatsApp
 
       const connection = await storage.getConnectionByUserId(userId);
 
       if (!connection || !connection.isConnected) {
 
-        return res.status(400).json({ message: "WhatsApp não está conectado" });
+        return res.status(400).json({ message: "WhatsApp nÃ£o estÃ¡ conectado" });
 
       }
 
 
 
-      // Importar funções necessárias
+      // Importar funÃ§Ãµes necessÃ¡rias
 
       const { sendMessageToGroups, fetchUserGroups } = await import("./whatsapp");
 
 
 
-      // Configurações de delay
+      // ConfiguraÃ§Ãµes de delay
 
       const delayMin = settings?.delayMin || 5;
 
@@ -30738,7 +30951,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       } catch (e) {
 
-        console.warn('[GROUP BULK] Não foi possível buscar nomes dos grupos');
+        console.warn('[GROUP BULK] NÃ£o foi possÃ­vel buscar nomes dos grupos');
 
       }
 
@@ -30846,7 +31059,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // EXECUTAR ENVIO EM BACKGROUND (não bloqueia a resposta)
+      // EXECUTAR ENVIO EM BACKGROUND (nÃ£o bloqueia a resposta)
 
       setImmediate(async () => {
 
@@ -30886,7 +31099,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-          console.log(`[GROUP BULK BACKGROUND] Campanha ${campaignId} concluída: ${result.sent} enviados, ${result.failed} falharam`);
+          console.log(`[GROUP BULK BACKGROUND] Campanha ${campaignId} concluÃ­da: ${result.sent} enviados, ${result.failed} falharam`);
 
         } catch (error: any) {
 
@@ -30958,7 +31171,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!name || typeof name !== "string") {
 
-        return res.status(400).json({ message: "Nome da lista é obrigatório" });
+        return res.status(400).json({ message: "Nome da lista Ã© obrigatÃ³rio" });
 
       }
 
@@ -30996,17 +31209,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // ============================================
 
-  // ?? SINCRONIZAÇÃO DE CONTATOS EM BACKGROUND
+  // ?? SINCRONIZAÃ‡ÃƒO DE CONTATOS EM BACKGROUND
 
   // Sistema de fila que processa gradualmente
 
-  // REGRA: Somente clientes que já conversaram
+  // REGRA: Somente clientes que jÃ¡ conversaram
 
   // ============================================
 
 
 
-  // Iniciar sincronização em background (fila gradual)
+  // Iniciar sincronizaÃ§Ã£o em background (fila gradual)
 
   app.post("/api/contacts/sync", isAuthenticated, async (req: any, res) => {
 
@@ -31016,7 +31229,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Verificar conexão WhatsApp
+      // Verificar conexÃ£o WhatsApp
 
       const connection = await storage.getConnectionByUserId(userId);
 
@@ -31024,7 +31237,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         return res.status(400).json({
 
-          message: "Nenhuma conexão WhatsApp encontrada. Configure seu WhatsApp primeiro."
+          message: "Nenhuma conexÃ£o WhatsApp encontrada. Configure seu WhatsApp primeiro."
 
         });
 
@@ -31032,7 +31245,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Iniciar sincronização em background (não bloqueia)
+      // Iniciar sincronizaÃ§Ã£o em background (nÃ£o bloqueia)
 
       const result = await startBackgroundSync(userId, connection.id);
 
@@ -31052,7 +31265,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.error("Error starting sync:", error);
 
-      res.status(500).json({ message: "Erro ao iniciar sincronização" });
+      res.status(500).json({ message: "Erro ao iniciar sincronizaÃ§Ã£o" });
 
     }
 
@@ -31060,7 +31273,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // Verificar status da sincronização
+  // Verificar status da sincronizaÃ§Ã£o
 
   app.get("/api/contacts/sync/status", isAuthenticated, async (req: any, res) => {
 
@@ -31088,9 +31301,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // Buscar contatos sincronizados - DIRETO DO BANCO DE DADOS
 
-  // Não processa nada em tempo real, apenas retorna dados do banco
+  // NÃ£o processa nada em tempo real, apenas retorna dados do banco
 
-  // REGRA: Somente clientes que já conversaram (hasResponded = true)
+  // REGRA: Somente clientes que jÃ¡ conversaram (hasResponded = true)
 
   app.get("/api/contacts/synced", isAuthenticated, async (req: any, res) => {
 
@@ -31102,7 +31315,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Buscar conexão do usuário
+      // Buscar conexÃ£o do usuÃ¡rio
 
       const connection = await storage.getConnectionByUserId(userId);
 
@@ -31114,17 +31327,17 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Verificar se já tem contatos sincronizados no banco
+      // Verificar se jÃ¡ tem contatos sincronizados no banco
 
       const hasSynced = await hasSyncedBefore(connection.id);
 
 
 
-      // Se não tem contatos sincronizados, iniciar sincronização em background automaticamente
+      // Se nÃ£o tem contatos sincronizados, iniciar sincronizaÃ§Ã£o em background automaticamente
 
       if (!hasSynced && connection.isConnected) {
 
-        console.log(`[SYNCED CONTACTS] Iniciando primeira sincronização para ${connection.id}`);
+        console.log(`[SYNCED CONTACTS] Iniciando primeira sincronizaÃ§Ã£o para ${connection.id}`);
 
         await startBackgroundSync(userId, connection.id);
 
@@ -31132,13 +31345,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Buscar contatos DIRETO DO BANCO (rápido, sem processar)
+      // Buscar contatos DIRETO DO BANCO (rÃ¡pido, sem processar)
 
       const { contacts, total } = await getSyncedContactsFromDB(connection.id);
 
 
 
-      // Se pediu array (para Envio em Massa), retorna só o array
+      // Se pediu array (para Envio em Massa), retorna sÃ³ o array
 
       if (returnAsArray) {
 
@@ -31150,7 +31363,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Pegar status da sincronização para informar o frontend
+      // Pegar status da sincronizaÃ§Ã£o para informar o frontend
 
       const syncStatus = getSyncStatus(userId);
 
@@ -31160,7 +31373,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Retornar com metadados de sincronização
+      // Retornar com metadados de sincronizaÃ§Ã£o
 
       res.json({
 
@@ -31180,13 +31393,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
             : syncStatus.status === 'completed'
 
-            ? 'Sincronização concluída'
+            ? 'SincronizaÃ§Ã£o concluÃ­da'
 
             : syncStatus.status === 'error'
 
             ? `Erro: ${syncStatus.error}`
 
-            : 'Aguardando sincronização',
+            : 'Aguardando sincronizaÃ§Ã£o',
 
         },
 
@@ -31204,11 +31417,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // ===== AGENDA LIVE - CONTATOS EM MEMÓRIA (SEM BANCO DE DADOS) =====
+  // ===== AGENDA LIVE - CONTATOS EM MEMÃ“RIA (SEM BANCO DE DADOS) =====
 
-  // Retorna contatos da agenda que estão em cache na memória
+  // Retorna contatos da agenda que estÃ£o em cache na memÃ³ria
 
-  // Não acessa banco de dados, economiza Egress e Disk IO do Supabase
+  // NÃ£o acessa banco de dados, economiza Egress e Disk IO do Supabase
 
   // Cache expira em 2 HORAS - ideal para envio em massa sob demanda
 
@@ -31222,13 +31435,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Buscar do cache em memória
+      // Buscar do cache em memÃ³ria
 
       let cached = getAgendaContacts(userId);
 
 
 
-      // Se não tem cache, tentar popular do cache da sessão
+      // Se nÃ£o tem cache, tentar popular do cache da sessÃ£o
 
       if (!cached) {
 
@@ -31240,7 +31453,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           if (syncResult.count > 0) {
 
-            // Recarregar cache após popular
+            // Recarregar cache apÃ³s popular
 
             cached = getAgendaContacts(userId);
 
@@ -31254,7 +31467,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!cached) {
 
-        // Não tem cache e não tem sessão
+        // NÃ£o tem cache e nÃ£o tem sessÃ£o
 
         return res.json({
 
@@ -31300,7 +31513,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           total: 0,
 
-          message: `? Erro na sincronização: ${cached.error}`,
+          message: `? Erro na sincronizaÃ§Ã£o: ${cached.error}`,
 
         });
 
@@ -31358,7 +31571,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // Forçar ressincronização da agenda (busca do cache da sessão ou aguarda evento)
+  // ForÃ§ar ressincronizaÃ§Ã£o da agenda (busca do cache da sessÃ£o ou aguarda evento)
 
   app.post("/api/contacts/agenda-live/refresh", isAuthenticated, async (req: any, res) => {
 
@@ -31370,7 +31583,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Verificar se tem sessão ativa
+      // Verificar se tem sessÃ£o ativa
 
       const session = getSession(userId);
 
@@ -31380,7 +31593,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           success: false,
 
-          message: '? WhatsApp não está conectado. Conecte primeiro para sincronizar a agenda.',
+          message: '? WhatsApp nÃ£o estÃ¡ conectado. Conecte primeiro para sincronizar a agenda.',
 
         });
 
@@ -31388,13 +31601,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Tentar popular do cache da sessão
+      // Tentar popular do cache da sessÃ£o
 
       const result = syncAgendaFromSessionCache(userId);
 
 
 
-      console.log(`?? [AGENDA REFRESH] Usuário ${userId}: ${result.message}`);
+      console.log(`?? [AGENDA REFRESH] UsuÃ¡rio ${userId}: ${result.message}`);
 
 
 
@@ -31416,7 +31629,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         success: false,
 
-        message: "? Erro ao solicitar atualização da agenda"
+        message: "? Erro ao solicitar atualizaÃ§Ã£o da agenda"
 
       });
 
@@ -31442,7 +31655,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!contacts || !Array.isArray(contacts)) {
 
-        return res.status(400).json({ message: "Lista de contatos é obrigatória" });
+        return res.status(400).json({ message: "Lista de contatos Ã© obrigatÃ³ria" });
 
       }
 
@@ -31464,7 +31677,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // Atualizar uma lista (nome/descrição)
+  // Atualizar uma lista (nome/descriÃ§Ã£o)
 
   app.put("/api/contacts/lists/:listId", isAuthenticated, async (req: any, res) => {
 
@@ -31480,7 +31693,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!name || typeof name !== "string") {
 
-        return res.status(400).json({ message: "Nome da lista é obrigatório" });
+        return res.status(400).json({ message: "Nome da lista Ã© obrigatÃ³rio" });
 
       }
 
@@ -31490,7 +31703,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!result) {
 
-        return res.status(404).json({ message: "Lista não encontrada" });
+        return res.status(404).json({ message: "Lista nÃ£o encontrada" });
 
       }
 
@@ -31522,7 +31735,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       await storage.deleteContactList?.(userId, listId);
 
-      res.json({ success: true, message: "Lista excluída com sucesso" });
+      res.json({ success: true, message: "Lista excluÃ­da com sucesso" });
 
     } catch (error) {
 
@@ -31572,9 +31785,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // ============================================
 
-  // ?? SINCRONIZAÇÃO COMPLETA DE CONTATOS
+  // ?? SINCRONIZAÃ‡ÃƒO COMPLETA DE CONTATOS
 
-  // Sistema de fila assíncrona global
+  // Sistema de fila assÃ­ncrona global
 
   // Sincroniza TODOS os contatos (WhatsApp + Conversas)
 
@@ -31584,21 +31797,21 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // ======================================================================
 
-  // ?? SINCRONIZAÇÃO COMPLETA DE CONTATOS - FORÇA RECONEXÃO PARA BUSCAR TODOS
+  // ?? SINCRONIZAÃ‡ÃƒO COMPLETA DE CONTATOS - FORÃ‡A RECONEXÃƒO PARA BUSCAR TODOS
 
   // ======================================================================
 
-  // Esta função FORÇA uma reconexão do WhatsApp para que o Baileys dispare
+  // Esta funÃ§Ã£o FORÃ‡A uma reconexÃ£o do WhatsApp para que o Baileys dispare
 
   // novamente o evento contacts.upsert com TODOS os 3000+ contatos.
 
   //
 
-  // Segundo a documentação do Baileys:
+  // Segundo a documentaÃ§Ã£o do Baileys:
 
-  // - contacts.upsert envia TODOS os contatos na PRIMEIRA conexão
+  // - contacts.upsert envia TODOS os contatos na PRIMEIRA conexÃ£o
 
-  // - Para forçar novo envio, precisa reconectar a sessão
+  // - Para forÃ§ar novo envio, precisa reconectar a sessÃ£o
 
   // - Ref: https://github.com/WhiskeySockets/Baileys/issues/266
 
@@ -31610,11 +31823,11 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const userId = getUserId(req);
 
-      console.log(`\n[SYNC AGENDA] ?? User ${userId} solicitou sincronização COMPLETA da agenda`);
+      console.log(`\n[SYNC AGENDA] ?? User ${userId} solicitou sincronizaÃ§Ã£o COMPLETA da agenda`);
 
 
 
-      // Verificar conexão WhatsApp
+      // Verificar conexÃ£o WhatsApp
 
       const connection = await storage.getConnectionByUserId(userId);
 
@@ -31624,7 +31837,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           success: false,
 
-          message: "? Nenhuma conexão WhatsApp encontrada. Configure seu WhatsApp primeiro."
+          message: "? Nenhuma conexÃ£o WhatsApp encontrada. Configure seu WhatsApp primeiro."
 
         });
 
@@ -31646,13 +31859,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // FORÇAR RECONEXÃO COMPLETA para buscar TODOS os contatos
+      // FORÃ‡AR RECONEXÃƒO COMPLETA para buscar TODOS os contatos
 
       const { forceFullContactSync, getAgendaContacts } = await import("./whatsapp");
 
 
 
-      console.log(`[SYNC AGENDA] ?? Iniciando sincronização COMPLETA (reconexão)...`);
+      console.log(`[SYNC AGENDA] ?? Iniciando sincronizaÃ§Ã£o COMPLETA (reconexÃ£o)...`);
 
       const syncResult = await forceFullContactSync(userId);
 
@@ -31672,7 +31885,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Contar contatos no cache após sync
+      // Contar contatos no cache apÃ³s sync
 
       const agendaData = getAgendaContacts(userId);
 
@@ -31698,7 +31911,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         cacheCount: cacheCount,
 
-        info: `Reconexão realizada! Contatos salvos no banco de dados.`
+        info: `ReconexÃ£o realizada! Contatos salvos no banco de dados.`
 
       });
 
@@ -31720,7 +31933,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // Iniciar sincronização COMPLETA (agenda WhatsApp + conversas)
+  // Iniciar sincronizaÃ§Ã£o COMPLETA (agenda WhatsApp + conversas)
 
   app.post("/api/contacts/full-sync", isAuthenticated, async (req: any, res) => {
 
@@ -31732,7 +31945,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Verificar conexão WhatsApp
+      // Verificar conexÃ£o WhatsApp
 
       const connection = await storage.getConnectionByUserId(userId);
 
@@ -31742,7 +31955,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           success: false,
 
-          message: "? Nenhuma conexão WhatsApp encontrada. Configure seu WhatsApp primeiro."
+          message: "? Nenhuma conexÃ£o WhatsApp encontrada. Configure seu WhatsApp primeiro."
 
         });
 
@@ -31764,7 +31977,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Iniciar sincronização completa (fila assíncrona)
+      // Iniciar sincronizaÃ§Ã£o completa (fila assÃ­ncrona)
 
       const result = await startFullContactSync(userId, connection.id, force === true);
 
@@ -31790,7 +32003,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         success: false,
 
-        message: "? Erro ao iniciar sincronização completa"
+        message: "? Erro ao iniciar sincronizaÃ§Ã£o completa"
 
       });
 
@@ -31800,7 +32013,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // Verificar status da sincronização COMPLETA
+  // Verificar status da sincronizaÃ§Ã£o COMPLETA
 
   app.get("/api/contacts/full-sync/status", isAuthenticated, async (req: any, res) => {
 
@@ -31818,7 +32031,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           status: 'idle',
 
-          message: 'Nenhuma conexão WhatsApp',
+          message: 'Nenhuma conexÃ£o WhatsApp',
 
           progress: 0,
 
@@ -31832,7 +32045,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Formatar mensagem amigável
+      // Formatar mensagem amigÃ¡vel
 
       let message = '';
 
@@ -31840,13 +32053,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         case 'idle':
 
-          message = 'Aguardando sincronização';
+          message = 'Aguardando sincronizaÃ§Ã£o';
 
           break;
 
         case 'queued':
 
-          message = `Na fila (posição ${status.queuePosition})`;
+          message = `Na fila (posiÃ§Ã£o ${status.queuePosition})`;
 
           break;
 
@@ -31858,7 +32071,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         case 'completed':
 
-          message = `? Concluído! ${status.totalContacts} contatos`;
+          message = `? ConcluÃ­do! ${status.totalContacts} contatos`;
 
           break;
 
@@ -31904,7 +32117,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // Estatísticas da fila global (admin)
+  // EstatÃ­sticas da fila global (admin)
 
   app.get("/api/contacts/full-sync/queue-stats", isAuthenticated, async (req: any, res) => {
 
@@ -31918,7 +32131,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.error("Error getting queue stats:", error);
 
-      res.status(500).json({ message: "Erro ao buscar estatísticas da fila" });
+      res.status(500).json({ message: "Erro ao buscar estatÃ­sticas da fila" });
 
     }
 
@@ -31926,7 +32139,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // Forçar sincronização de TODOS os clientes (admin only)
+  // ForÃ§ar sincronizaÃ§Ã£o de TODOS os clientes (admin only)
 
   app.post("/api/admin/contacts/sync-all-clients", isAuthenticated, async (req: any, res) => {
 
@@ -31936,19 +32149,19 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Verificar se é admin
+      // Verificar se Ã© admin
 
       const user = await storage.getUser(userId);
 
       if (!user || !user.isAdmin) {
 
-        return res.status(403).json({ message: "Apenas administradores podem executar esta ação" });
+        return res.status(403).json({ message: "Apenas administradores podem executar esta aÃ§Ã£o" });
 
       }
 
 
 
-      console.log(`[ADMIN] ?? Admin ${userId} iniciou sincronização de todos os clientes`);
+      console.log(`[ADMIN] ?? Admin ${userId} iniciou sincronizaÃ§Ã£o de todos os clientes`);
 
 
 
@@ -31960,7 +32173,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
         success: true,
 
-        message: `? Sincronização agendada para ${result.scheduled} clientes (${result.skipped} pulados, ${result.errors} erros)`,
+        message: `? SincronizaÃ§Ã£o agendada para ${result.scheduled} clientes (${result.skipped} pulados, ${result.errors} erros)`,
 
         ...result,
 
@@ -31970,7 +32183,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       console.error("Error scheduling sync for all clients:", error);
 
-      res.status(500).json({ message: "Erro ao agendar sincronização" });
+      res.status(500).json({ message: "Erro ao agendar sincronizaÃ§Ã£o" });
 
     }
 
@@ -32020,7 +32233,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!name || !message) {
 
-        return res.status(400).json({ message: "Nome e mensagem são obrigatórios" });
+        return res.status(400).json({ message: "Nome e mensagem sÃ£o obrigatÃ³rios" });
 
       }
 
@@ -32078,7 +32291,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!campaign) {
 
-        return res.status(404).json({ message: "Campanha não encontrada" });
+        return res.status(404).json({ message: "Campanha nÃ£o encontrada" });
 
       }
 
@@ -32174,7 +32387,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!campaign) {
 
-        return res.status(404).json({ message: "Campanha não encontrada" });
+        return res.status(404).json({ message: "Campanha nÃ£o encontrada" });
 
       }
 
@@ -32196,7 +32409,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!connection) {
 
-        return res.status(400).json({ message: "Nenhuma conexão WhatsApp encontrada" });
+        return res.status(400).json({ message: "Nenhuma conexÃ£o WhatsApp encontrada" });
 
       }
 
@@ -32230,7 +32443,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (recipients.length === 0) {
 
-        return res.status(400).json({ message: "Nenhum destinatário na campanha" });
+        return res.status(400).json({ message: "Nenhum destinatÃ¡rio na campanha" });
 
       }
 
@@ -32314,7 +32527,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
     if (pathname !== "/ws") {
 
-      // Importante: não destruir upgrades que não são /ws.
+      // Importante: nÃ£o destruir upgrades que nÃ£o sÃ£o /ws.
 
       // Em desenvolvimento, o Vite HMR usa WebSocket em "/" (ex: /?token=...).
 
@@ -32443,13 +32656,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
       const isAdmin = req.isAdmin;
 
 
-      // 🆕 SISTEMA DE PING/PONG - Manter conexão WebSocket viva
+      // ?? SISTEMA DE PING/PONG - Manter conexÃ£o WebSocket viva
       let lastPong = Date.now();
       const pingInterval = setInterval(() => {
         if (ws.readyState === WebSocket.OPEN) {
           // Verificar se recebeu pong recentemente (60 segundos)
           if (Date.now() - lastPong > 60000) {
-            console.log(`[WS] Cliente inativo, fechando conexão: ${userId || adminId}`);
+            console.log(`[WS] Cliente inativo, fechando conexÃ£o: ${userId || adminId}`);
             ws.terminate();
             clearInterval(pingInterval);
             return;
@@ -32477,7 +32690,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
             ws.send(JSON.stringify({ type: 'pong', timestamp: message.timestamp }));
           }
         } catch (e) {
-          // Ignorar mensagens que não são JSON
+          // Ignorar mensagens que nÃ£o sÃ£o JSON
         }
       });
 
@@ -32542,7 +32755,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // ============================================================================
 
-  // ?? ROTA DE TESTE: Enviar áudio diretamente via Baileys
+  // ?? ROTA DE TESTE: Enviar Ã¡udio diretamente via Baileys
 
   // ============================================================================
 
@@ -32578,7 +32791,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Obter sessão WhatsApp
+      // Obter sessÃ£o WhatsApp
 
       const { getSessions } = await import("./whatsapp");
 
@@ -32596,7 +32809,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      console.log(`\n?? [DEBUG] Teste de envio de áudio`);
+      console.log(`\n?? [DEBUG] Teste de envio de Ã¡udio`);
 
       console.log(`?? audioUrl: ${audioUrl}`);
 
@@ -32614,7 +32827,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (synthetic) {
 
-        console.log(`?? Gerando áudio WAV sintético (beep)...`);
+        console.log(`?? Gerando Ã¡udio WAV sintÃ©tico (beep)...`);
 
         const { generateTestWavBuffer } = await import("./mediaService");
 
@@ -32622,7 +32835,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       } else {
 
-        // Baixar áudio real
+        // Baixar Ã¡udio real
 
         const response = await fetch(audioUrl);
 
@@ -32658,7 +32871,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Enviar áudio
+      // Enviar Ã¡udio
 
       const messageContent = {
 
@@ -32672,13 +32885,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      console.log(`?? Enviando áudio (PTT: ${messageContent.ptt})...`);
+      console.log(`?? Enviando Ã¡udio (PTT: ${messageContent.ptt})...`);
 
 
 
       // ??? ANTI-BLOQUEIO: Usar executeWithDelay para garantir try/finally
 
-      const result = await messageQueueService.executeWithDelay(userId, 'debug envio áudio', async () => {
+      const result = await messageQueueService.executeWithDelay(userId, 'debug envio Ã¡udio', async () => {
 
         return await session.socket.sendMessage(jid, messageContent);
 
@@ -32712,7 +32925,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       } else {
 
-        console.log(`? Baileys não retornou MessageId:`, result);
+        console.log(`? Baileys nÃ£o retornou MessageId:`, result);
 
         return res.status(400).json({
 
@@ -32740,7 +32953,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // ==================== ADMIN AGENT IA ROUTES ====================
 
-  // Rotas para configurar o Agente IA do Administrador (mesmo sistema que os usuários têm)
+  // Rotas para configurar o Agente IA do Administrador (mesmo sistema que os usuÃ¡rios tÃªm)
 
 
 
@@ -32798,19 +33011,19 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // Usando adminMediaStore para armazenamento global de mídias do admin
+  // Usando adminMediaStore para armazenamento global de mÃ­dias do admin
 
   // Importado de ./adminMediaStore
 
 
 
-  // GET - Obter configuração do agente admin
+  // GET - Obter configuraÃ§Ã£o do agente admin
 
   app.get("/api/admin/agent/config", isAdmin, async (req: any, res) => {
 
     try {
 
-      // Buscar todas as configurações de uma vez (uma única query)
+      // Buscar todas as configuraÃ§Ãµes de uma vez (uma Ãºnica query)
 
       const configKeys = [
 
@@ -32938,7 +33151,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-  // POST - Salvar configuração do agente admin
+  // POST - Salvar configuraÃ§Ã£o do agente admin
 
   app.post("/api/admin/agent/config", isAdmin, async (req: any, res) => {
 
@@ -33110,13 +33323,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Usar o serviço de IA do admin agent
+      // Usar o serviÃ§o de IA do admin agent
 
       const { processAdminMessage } = await import("./adminAgentService");
 
 
 
-      // Usar phoneNumber de teste se não fornecido
+      // Usar phoneNumber de teste se nÃ£o fornecido
 
       const testPhone = phoneNumber || "5500000000000";
 
@@ -33134,7 +33347,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (response === null) {
 
-        // Não passou na validação de frase gatilho
+        // NÃ£o passou na validaÃ§Ã£o de frase gatilho
 
         res.json({
 
@@ -33142,7 +33355,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           skipped: true,
 
-          reason: "Mensagem não contém frase gatilho configurada"
+          reason: "Mensagem nÃ£o contÃ©m frase gatilho configurada"
 
         });
 
@@ -33196,7 +33409,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // Construir mensagens com histórico
+      // Construir mensagens com histÃ³rico
 
       const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
 
@@ -33204,9 +33417,9 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           role: "system",
 
-          content: `Você é o Rodrigo, vendedor expert do AgenteZap - uma plataforma de automação de WhatsApp com IA.
+          content: `VocÃª Ã© o Rodrigo, vendedor expert do AgenteZap - uma plataforma de automaÃ§Ã£o de WhatsApp com IA.
 
-Seja humano, carismático e persuasivo. Use linguagem de WhatsApp (vc, tá, né).
+Seja humano, carismÃ¡tico e persuasivo. Use linguagem de WhatsApp (vc, tÃ¡, nÃ©).
 
 Foco: fazer o cliente TESTAR a ferramenta.`
 
@@ -33216,7 +33429,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
 
 
-      // Adicionar histórico se fornecido
+      // Adicionar histÃ³rico se fornecido
 
       if (history && Array.isArray(history)) {
 
@@ -33250,7 +33463,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
 
 
-      // Integração Z.AI (GLM Models)
+      // IntegraÃ§Ã£o Z.AI (GLM Models)
 
       if (model.startsWith("glm-")) {
 
@@ -33338,7 +33551,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
 
 
-  // POST - Testar DELIVERY (SEM autenticação para desenvolvimento local)
+  // POST - Testar DELIVERY (SEM autenticaÃ§Ã£o para desenvolvimento local)
 
   app.post("/api/dev/delivery/test", async (req: any, res) => {
 
@@ -33360,7 +33573,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
 
 
-      // Converter histórico
+      // Converter histÃ³rico
 
       const conversationHistory = history?.map((msg: any, idx: number) => ({
 
@@ -33422,7 +33635,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
 
 
-  // POST - Testar agente admin (SEM autenticação para desenvolvimento local)
+  // POST - Testar agente admin (SEM autenticaÃ§Ã£o para desenvolvimento local)
 
   app.post("/api/dev/admin-agent/test", async (req: any, res) => {
 
@@ -33440,13 +33653,13 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
 
 
-      // Usar o serviço de IA do admin agent
+      // Usar o serviÃ§o de IA do admin agent
 
       const { processAdminMessage } = await import("./adminAgentService");
 
 
 
-      // Usar phoneNumber de teste se não fornecido
+      // Usar phoneNumber de teste se nÃ£o fornecido
 
       const testPhone = phoneNumber || "5500000000000";
 
@@ -33470,7 +33683,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
           skipped: true,
 
-          reason: "Mensagem não contém frase gatilho configurada"
+          reason: "Mensagem nÃ£o contÃ©m frase gatilho configurada"
 
         });
 
@@ -33502,7 +33715,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
 
 
-  // GET - Debug: Verificar se usuário existe por telefone
+  // GET - Debug: Verificar se usuÃ¡rio existe por telefone
 
   app.get("/api/dev/check-user/:phone", async (req: any, res) => {
 
@@ -33514,7 +33727,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
 
 
-      console.log(`?? [DEBUG] Buscando usuário por telefone: ${cleanPhone}`);
+      console.log(`?? [DEBUG] Buscando usuÃ¡rio por telefone: ${cleanPhone}`);
 
 
 
@@ -33522,13 +33735,13 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
       const users = await storage.getAllUsers();
 
-      console.log(`?? [DEBUG] Total de usuários: ${users.length}`);
+      console.log(`?? [DEBUG] Total de usuÃ¡rios: ${users.length}`);
 
 
 
       const userByPhone = users.find(u => u.phone?.replace(/\D/g, "") === cleanPhone);
 
-      console.log(`?? [DEBUG] Usuário por phone: ${userByPhone ? userByPhone.email : 'não encontrado'}`);
+      console.log(`?? [DEBUG] UsuÃ¡rio por phone: ${userByPhone ? userByPhone.email : 'nÃ£o encontrado'}`);
 
 
 
@@ -33536,11 +33749,11 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
       const connections = await storage.getAllConnections();
 
-      console.log(`?? [DEBUG] Total de conexões: ${connections.length}`);
+      console.log(`?? [DEBUG] Total de conexÃµes: ${connections.length}`);
 
 
 
-      // Debug: mostrar as primeiras conexões para ver o formato
+      // Debug: mostrar as primeiras conexÃµes para ver o formato
 
       const sampleConnections = connections.slice(0, 3).map(c => ({
 
@@ -33550,7 +33763,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
         phoneNumber: c.phoneNumber,
 
-        // Tentar acessar como snake_case também
+        // Tentar acessar como snake_case tambÃ©m
 
         phone_number_alt: (c as any).phone_number
 
@@ -33570,7 +33783,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
       });
 
-      console.log(`?? [DEBUG] Conexão por phoneNumber: ${connection ? connection.userId : 'não encontrada'}`);
+      console.log(`?? [DEBUG] ConexÃ£o por phoneNumber: ${connection ? connection.userId : 'nÃ£o encontrada'}`);
 
 
 
@@ -33580,7 +33793,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
         userByConnection = users.find(u => u.id === connection.userId);
 
-        console.log(`?? [DEBUG] Usuário por conexão: ${userByConnection ? userByConnection.email : 'não encontrado'}`);
+        console.log(`?? [DEBUG] UsuÃ¡rio por conexÃ£o: ${userByConnection ? userByConnection.email : 'nÃ£o encontrado'}`);
 
       }
 
@@ -33616,7 +33829,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
 
 
-  // GET - Listar mídias do admin
+  // GET - Listar mÃ­dias do admin
 
   app.get("/api/admin/agent/media", isAdmin, async (req: any, res) => {
 
@@ -33640,7 +33853,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
 
 
-  // POST - Adicionar mídia do admin
+  // POST - Adicionar mÃ­dia do admin
 
   app.post("/api/admin/agent/media", isAdmin, async (req: any, res) => {
 
@@ -33656,7 +33869,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
       if (!name || !description || !storageUrl) {
 
-        return res.status(400).json({ message: "name, description e storageUrl são obrigatórios" });
+        return res.status(400).json({ message: "name, description e storageUrl sÃ£o obrigatÃ³rios" });
 
       }
 
@@ -33712,7 +33925,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
 
 
-  // PUT - Atualizar mídia do admin
+  // PUT - Atualizar mÃ­dia do admin
 
   app.put("/api/admin/agent/media/:id", isAdmin, async (req: any, res) => {
 
@@ -33758,7 +33971,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
 
 
-  // DELETE - Remover mídia do admin
+  // DELETE - Remover mÃ­dia do admin
 
   app.delete("/api/admin/agent/media/:id", isAdmin, async (req: any, res) => {
 
@@ -33794,7 +34007,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
 
 
-  // POST - Upload de arquivo para mídia do admin
+  // POST - Upload de arquivo para mÃ­dia do admin
 
   app.post("/api/admin/agent/media/upload", isAdmin, upload.single('file'), async (req: any, res) => {
 
@@ -33812,7 +34025,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
 
 
-      // Determinar tipo de mídia baseado no mimetype
+      // Determinar tipo de mÃ­dia baseado no mimetype
 
       let mediaType: 'audio' | 'image' | 'video' | 'document' = 'document';
 
@@ -33824,7 +34037,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
 
 
-      // Gerar nome único para o arquivo
+      // Gerar nome Ãºnico para o arquivo
 
       const timestamp = Date.now();
 
@@ -33856,7 +34069,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
 
 
-        // Se o bucket não existir, tentar criar (apenas se ainda não verificamos)
+        // Se o bucket nÃ£o existir, tentar criar (apenas se ainda nÃ£o verificamos)
 
         if (uploadError.message?.includes('Bucket not found') && !agentMediaBucketChecked) {
 
@@ -33914,7 +34127,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
 
 
-      // Obter URL pública
+      // Obter URL pÃºblica
 
       const { data: urlData } = supabase.storage
 
@@ -33928,7 +34141,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
 
 
-      // Transcrição automática para áudio
+      // TranscriÃ§Ã£o automÃ¡tica para Ã¡udio
 
       let transcription: string | null = null;
 
@@ -33978,7 +34191,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
 
 
-  // POST - Transcrever áudio do admin
+  // POST - Transcrever Ã¡udio do admin
 
   app.post("/api/admin/agent/media/transcribe", isAdmin, async (req: any, res) => {
 
@@ -34026,7 +34239,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
 
 
-  // GET - Configuração do atendimento automatizado
+  // GET - ConfiguraÃ§Ã£o do atendimento automatizado
 
   app.get("/api/admin/auto-atendimento/config", isAdmin, async (req: any, res) => {
 
@@ -34066,7 +34279,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
 
 
-  // POST - Salvar configuração do atendimento automatizado
+  // POST - Salvar configuraÃ§Ã£o do atendimento automatizado
 
   app.post("/api/admin/auto-atendimento/config", isAdmin, async (req: any, res) => {
 
@@ -34114,7 +34327,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
 
 
-  // GET - Sessões de clientes em atendimento
+  // GET - SessÃµes de clientes em atendimento
 
   app.get("/api/admin/auto-atendimento/sessions", isAdmin, async (req: any, res) => {
 
@@ -34122,7 +34335,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
       const { getClientSession } = await import("./adminAgentService");
 
-      // Este endpoint pode ser expandido para listar todas as sessões
+      // Este endpoint pode ser expandido para listar todas as sessÃµes
 
       res.json({ message: "Use individual session lookups" });
 
@@ -34142,23 +34355,23 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
 
 
-  // POST - Gerar código de pareamento para um cliente
+  // POST - Gerar cÃ³digo de pareamento para um cliente
 
   app.post("/api/admin/pairing-code/request", isAdmin, async (req: any, res) => {
 
     try {
 
-      // ??? MODO DESENVOLVIMENTO: Bloquear pairing code para proteger produção
+      // ??? MODO DESENVOLVIMENTO: Bloquear pairing code para proteger produÃ§Ã£o
 
       if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
 
-        console.log(`?? [DEV MODE] Bloqueando geração de pairing code (proteção de produção)`);
+        console.log(`?? [DEV MODE] Bloqueando geraÃ§Ã£o de pairing code (proteÃ§Ã£o de produÃ§Ã£o)`);
 
         return res.status(403).json({
 
           success: false,
 
-          message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessões em produção',
+          message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessÃµes em produÃ§Ã£o',
 
           devMode: true
 
@@ -34179,14 +34392,14 @@ Foco: fazer o cliente TESTAR a ferramenta.`
       }
 
       // -----------------------------------------------------------------------
-      // ?? FIX: Verificar se já está conectado antes de gerar novo código
+      // ?? FIX: Verificar se jÃ¡ estÃ¡ conectado antes de gerar novo cÃ³digo
       // -----------------------------------------------------------------------
       const existingConnection = await storage.getConnectionByUserId(userId);
       if (existingConnection?.isConnected === true) {
-        console.log(`[PAIRING] Usuário ${userId} já está conectado, bloqueando novo código`);
+        console.log(`[PAIRING] UsuÃ¡rio ${userId} jÃ¡ estÃ¡ conectado, bloqueando novo cÃ³digo`);
         return res.status(409).json({
           success: false,
-          message: "WhatsApp já está conectado. Desconecte antes de gerar um novo código.",
+          message: "WhatsApp jÃ¡ estÃ¡ conectado. Desconecte antes de gerar um novo cÃ³digo.",
           alreadyConnected: true
         });
       }
@@ -34199,12 +34412,12 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
       if (!code) {
 
-        // Retornar 503 (Service Unavailable) em vez de 500 genérico
+        // Retornar 503 (Service Unavailable) em vez de 500 genÃ©rico
         return res.status(503).json({
 
           success: false,
 
-          message: "Não foi possível abrir conexão com o WhatsApp para gerar o código agora. Tente novamente em alguns segundos ou use QR Code."
+          message: "NÃ£o foi possÃ­vel abrir conexÃ£o com o WhatsApp para gerar o cÃ³digo agora. Tente novamente em alguns segundos ou use QR Code."
 
         });
 
@@ -34218,16 +34431,16 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
       console.error("Error generating pairing code:", error);
 
-      // Verificar se é erro de WebSocket/conexão
+      // Verificar se Ã© erro de WebSocket/conexÃ£o
       const errorMessage = error?.message || "";
 
-      if (errorMessage.includes("Timeout") || errorMessage.includes("WebSocket") || errorMessage.includes("conexão")) {
+      if (errorMessage.includes("Timeout") || errorMessage.includes("WebSocket") || errorMessage.includes("conexÃ£o")) {
 
         return res.status(503).json({
 
           success: false,
 
-          message: "Não foi possível estabelecer conexão com o WhatsApp. Tente novamente em alguns segundos ou use QR Code."
+          message: "NÃ£o foi possÃ­vel estabelecer conexÃ£o com o WhatsApp. Tente novamente em alguns segundos ou use QR Code."
 
         });
 
@@ -34287,11 +34500,11 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
 
 
-  // ==================== QUICK REPLIES / RESPOSTAS RÁPIDAS ====================
+  // ==================== QUICK REPLIES / RESPOSTAS RÃPIDAS ====================
 
 
 
-  // GET - Listar respostas rápidas do admin
+  // GET - Listar respostas rÃ¡pidas do admin
 
   app.get("/api/admin/quick-replies", isAdmin, async (req: any, res) => {
 
@@ -34315,7 +34528,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
 
 
-  // POST - Criar resposta rápida
+  // POST - Criar resposta rÃ¡pida
 
   app.post("/api/admin/quick-replies", isAdmin, async (req: any, res) => {
 
@@ -34365,7 +34578,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
 
 
-  // PUT - Atualizar resposta rápida
+  // PUT - Atualizar resposta rÃ¡pida
 
   app.put("/api/admin/quick-replies/:id", isAdmin, async (req: any, res) => {
 
@@ -34407,7 +34620,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
 
 
-  // DELETE - Remover resposta rápida
+  // DELETE - Remover resposta rÃ¡pida
 
   app.delete("/api/admin/quick-replies/:id", isAdmin, async (req: any, res) => {
 
@@ -34431,7 +34644,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
 
 
-  // POST - Gerar resposta rápida com IA
+  // POST - Gerar resposta rÃ¡pida com IA
 
   app.post("/api/admin/quick-replies/generate", isAdmin, async (req: any, res) => {
 
@@ -34453,11 +34666,11 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
 
 
-      const systemPrompt = `Você é um assistente que cria mensagens prontas para atendimento ao cliente.
+      const systemPrompt = `VocÃª Ã© um assistente que cria mensagens prontas para atendimento ao cliente.
 
-Crie uma mensagem profissional, amigável e concisa baseada na descrição do usuário.
+Crie uma mensagem profissional, amigÃ¡vel e concisa baseada na descriÃ§Ã£o do usuÃ¡rio.
 
-Responda APENAS com a mensagem pronta, sem explicações adicionais.
+Responda APENAS com a mensagem pronta, sem explicaÃ§Ãµes adicionais.
 
 A mensagem deve ser adequada para WhatsApp (informal mas profissional).`;
 
@@ -34467,7 +34680,7 @@ A mensagem deve ser adequada para WhatsApp (informal mas profissional).`;
 
 
 
-      // Extrair título do prompt
+      // Extrair tÃ­tulo do prompt
 
       const title = prompt.length > 30 ? prompt.substring(0, 30) + "..." : prompt;
 
@@ -34497,7 +34710,7 @@ A mensagem deve ser adequada para WhatsApp (informal mas profissional).`;
 
 
 
-  // GET - Listar respostas rápidas do usuário
+  // GET - Listar respostas rÃ¡pidas do usuÃ¡rio
 
   app.get("/api/user/quick-replies", isAuthenticated, async (req: any, res) => {
 
@@ -34521,7 +34734,7 @@ A mensagem deve ser adequada para WhatsApp (informal mas profissional).`;
 
 
 
-  // POST - Criar resposta rápida do usuário
+  // POST - Criar resposta rÃ¡pida do usuÃ¡rio
 
   app.post("/api/user/quick-replies", isAuthenticated, async (req: any, res) => {
 
@@ -34571,7 +34784,7 @@ A mensagem deve ser adequada para WhatsApp (informal mas profissional).`;
 
 
 
-  // PUT - Atualizar resposta rápida do usuário
+  // PUT - Atualizar resposta rÃ¡pida do usuÃ¡rio
 
   app.put("/api/user/quick-replies/:id", isAuthenticated, async (req: any, res) => {
 
@@ -34627,7 +34840,7 @@ A mensagem deve ser adequada para WhatsApp (informal mas profissional).`;
 
 
 
-  // DELETE - Excluir resposta rápida do usuário
+  // DELETE - Excluir resposta rÃ¡pida do usuÃ¡rio
 
   app.delete("/api/user/quick-replies/:id", isAuthenticated, async (req: any, res) => {
 
@@ -34667,7 +34880,7 @@ A mensagem deve ser adequada para WhatsApp (informal mas profissional).`;
 
 
 
-  // POST - Incrementar uso de resposta rápida
+  // POST - Incrementar uso de resposta rÃ¡pida
 
   app.post("/api/user/quick-replies/:id/use", isAuthenticated, async (req: any, res) => {
 
@@ -34691,7 +34904,7 @@ A mensagem deve ser adequada para WhatsApp (informal mas profissional).`;
 
 
 
-  // POST - Gerar resposta rápida com IA para usuário
+  // POST - Gerar resposta rÃ¡pida com IA para usuÃ¡rio
 
   app.post("/api/user/quick-replies/generate", isAuthenticated, async (req: any, res) => {
 
@@ -34713,11 +34926,11 @@ A mensagem deve ser adequada para WhatsApp (informal mas profissional).`;
 
 
 
-      const systemPrompt = `Você é um assistente que cria mensagens prontas para atendimento ao cliente.
+      const systemPrompt = `VocÃª Ã© um assistente que cria mensagens prontas para atendimento ao cliente.
 
-Crie uma mensagem profissional, amigável e concisa baseada no título fornecido.
+Crie uma mensagem profissional, amigÃ¡vel e concisa baseada no tÃ­tulo fornecido.
 
-Responda APENAS com a mensagem pronta, sem explicações adicionais.
+Responda APENAS com a mensagem pronta, sem explicaÃ§Ãµes adicionais.
 
 A mensagem deve ser adequada para WhatsApp (informal mas profissional).`;
 
@@ -34741,7 +34954,7 @@ A mensagem deve ser adequada para WhatsApp (informal mas profissional).`;
 
 
 
-  // POST - Gerar mensagem com IA para usuário
+  // POST - Gerar mensagem com IA para usuÃ¡rio
 
   app.post("/api/user/ai/generate-message", isAuthenticated, async (req: any, res) => {
 
@@ -34763,21 +34976,21 @@ A mensagem deve ser adequada para WhatsApp (informal mas profissional).`;
 
 
 
-      let systemPrompt = `Você é um assistente que ajuda a criar mensagens para WhatsApp.
+      let systemPrompt = `VocÃª Ã© um assistente que ajuda a criar mensagens para WhatsApp.
 
-Crie uma mensagem profissional, amigável e natural baseada na instrução do usuário.
+Crie uma mensagem profissional, amigÃ¡vel e natural baseada na instruÃ§Ã£o do usuÃ¡rio.
 
-Responda APENAS com a mensagem pronta, sem explicações adicionais.
+Responda APENAS com a mensagem pronta, sem explicaÃ§Ãµes adicionais.
 
 A mensagem deve ser adequada para WhatsApp (informal mas profissional).
 
-Use emojis com moderação quando apropriado.`;
+Use emojis com moderaÃ§Ã£o quando apropriado.`;
 
 
 
       if (contactName) {
 
-        systemPrompt += `\n\nO nome do cliente é: ${contactName}`;
+        systemPrompt += `\n\nO nome do cliente Ã©: ${contactName}`;
 
       }
 
@@ -34785,7 +34998,7 @@ Use emojis com moderação quando apropriado.`;
 
       if (context && context.length > 0) {
 
-        systemPrompt += `\n\nÚltimas mensagens da conversa para contexto:\n${context.slice(-5).join('\n')}`;
+        systemPrompt += `\n\nÃšltimas mensagens da conversa para contexto:\n${context.slice(-5).join('\n')}`;
 
       }
 
@@ -34813,7 +35026,7 @@ Use emojis com moderação quando apropriado.`;
 
 
 
-  // POST - Enviar mídia para conversa do usuário (áudio, imagem, vídeo, documento)
+  // POST - Enviar mÃ­dia para conversa do usuÃ¡rio (Ã¡udio, imagem, vÃ­deo, documento)
 
   app.post("/api/conversations/:id/send-media", isAuthenticated, upload.single('file'), async (req: any, res) => {
 
@@ -34829,19 +35042,19 @@ Use emojis com moderação quando apropriado.`;
 
 
 
-      // ?? Verificar se usuário está suspenso - bloquear envio de mídia
+      // ?? Verificar se usuÃ¡rio estÃ¡ suspenso - bloquear envio de mÃ­dia
 
       const suspensionStatus = await storage.isUserSuspended(userId);
 
       if (suspensionStatus.suspended) {
 
-        console.log(`?? [SUSPENSION] Bloqueando envio de mídia para usuário suspenso: ${userId}`);
+        console.log(`?? [SUSPENSION] Bloqueando envio de mÃ­dia para usuÃ¡rio suspenso: ${userId}`);
 
         return res.status(403).json({
 
           success: false,
 
-          message: 'Sua conta está suspensa. Não é possível enviar mídia.',
+          message: 'Sua conta estÃ¡ suspensa. NÃ£o Ã© possÃ­vel enviar mÃ­dia.',
 
           suspended: true,
 
@@ -34873,9 +35086,9 @@ Use emojis com moderação quando apropriado.`;
 
 
 
-      const connection = await storage.getConnectionByUserId(userId);
+      const connection = await storage.getConnectionByUserId(userId, conversation.connectionId);
 
-      if (!connection || conversation.connectionId !== connection.id) {
+      if (!connection) {
 
         return res.status(403).json({ message: "Forbidden" });
 
@@ -34889,7 +35102,7 @@ Use emojis com moderação quando apropriado.`;
 
 
 
-      // Determinar tipo de mídia
+      // Determinar tipo de mÃ­dia
 
       const detectedType = mediaType || (
 
@@ -34937,7 +35150,7 @@ Use emojis com moderação quando apropriado.`;
 
 
 
-  // POST - Enviar mídia como base64 (para autenticação via Bearer token)
+  // POST - Enviar mÃ­dia como base64 (para autenticaÃ§Ã£o via Bearer token)
 
   app.post("/api/conversations/:id/send-media-base64", isAuthenticated, async (req: any, res) => {
 
@@ -34959,7 +35172,7 @@ Use emojis com moderação quando apropriado.`;
 
 
 
-      // Calcular tamanho aproximado do arquivo (base64 é ~33% maior que o binário)
+      // Calcular tamanho aproximado do arquivo (base64 Ã© ~33% maior que o binÃ¡rio)
 
       const base64Data = fileData.includes(',') ? fileData.split(',')[1] : fileData;
 
@@ -34973,9 +35186,9 @@ Use emojis com moderação quando apropriado.`;
 
 
 
-      // Limites de tamanho por tipo de mídia
+      // Limites de tamanho por tipo de mÃ­dia
 
-      const MAX_VIDEO_SIZE_MB = 16; // WhatsApp limita vídeos a ~16MB
+      const MAX_VIDEO_SIZE_MB = 16; // WhatsApp limita vÃ­deos a ~16MB
 
       const MAX_IMAGE_SIZE_MB = 16;
 
@@ -34987,7 +35200,7 @@ Use emojis com moderação quando apropriado.`;
 
         return res.status(400).json({
 
-          message: `Vídeo muito grande (${fileSizeMB.toFixed(1)}MB). O limite é ${MAX_VIDEO_SIZE_MB}MB para WhatsApp.`
+          message: `VÃ­deo muito grande (${fileSizeMB.toFixed(1)}MB). O limite Ã© ${MAX_VIDEO_SIZE_MB}MB para WhatsApp.`
 
         });
 
@@ -34999,7 +35212,7 @@ Use emojis com moderação quando apropriado.`;
 
         return res.status(400).json({
 
-          message: `Imagem muito grande (${fileSizeMB.toFixed(1)}MB). O limite é ${MAX_IMAGE_SIZE_MB}MB.`
+          message: `Imagem muito grande (${fileSizeMB.toFixed(1)}MB). O limite Ã© ${MAX_IMAGE_SIZE_MB}MB.`
 
         });
 
@@ -35011,7 +35224,7 @@ Use emojis com moderação quando apropriado.`;
 
         return res.status(400).json({
 
-          message: `Arquivo muito grande (${fileSizeMB.toFixed(1)}MB). O limite é ${MAX_DOCUMENT_SIZE_MB}MB.`
+          message: `Arquivo muito grande (${fileSizeMB.toFixed(1)}MB). O limite Ã© ${MAX_DOCUMENT_SIZE_MB}MB.`
 
         });
 
@@ -35031,9 +35244,9 @@ Use emojis com moderação quando apropriado.`;
 
 
 
-      const connection = await storage.getConnectionByUserId(userId);
+      const connection = await storage.getConnectionByUserId(userId, conversation.connectionId);
 
-      if (!connection || conversation.connectionId !== connection.id) {
+      if (!connection) {
 
         return res.status(403).json({ message: "Forbidden" });
 
@@ -35041,7 +35254,7 @@ Use emojis com moderação quando apropriado.`;
 
 
 
-      // Determinar tipo de mídia
+      // Determinar tipo de mÃ­dia
 
       const detectedType = mediaType || (
 
@@ -35055,7 +35268,7 @@ Use emojis com moderação quando apropriado.`;
 
 
 
-      // Para áudio, converter para OGG/Opus (WhatsApp requer este formato para PTT)
+      // Para Ã¡udio, converter para OGG/Opus (WhatsApp requer este formato para PTT)
 
       let finalFileData = fileData;
 
@@ -35097,7 +35310,7 @@ Use emojis com moderação quando apropriado.`;
 
         caption: caption || undefined,
 
-        ptt: detectedType === 'audio', // Enviar como PTT se for áudio
+        ptt: detectedType === 'audio', // Enviar como PTT se for Ã¡udio
 
       });
 
@@ -35117,7 +35330,7 @@ Use emojis com moderação quando apropriado.`;
 
 
 
-  // POST - Enviar áudio gravado pelo usuário (base64)
+  // POST - Enviar Ã¡udio gravado pelo usuÃ¡rio (base64)
 
   app.post("/api/conversations/:id/send-audio", isAuthenticated, async (req: any, res) => {
 
@@ -35147,7 +35360,7 @@ Use emojis com moderação quando apropriado.`;
 
 
 
-      // Converter áudio para OGG/Opus se necessário (WhatsApp requer este formato para PTT)
+      // Converter Ã¡udio para OGG/Opus se necessÃ¡rio (WhatsApp requer este formato para PTT)
 
       const { convertToWhatsAppAudio } = await import("./audioConverter");
 
@@ -35171,9 +35384,9 @@ Use emojis com moderação quando apropriado.`;
 
 
 
-      const connection = await storage.getConnectionByUserId(userId);
+      const connection = await storage.getConnectionByUserId(userId, conversation.connectionId);
 
-      if (!connection || conversation.connectionId !== connection.id) {
+      if (!connection) {
 
         console.log('[send-audio] ? Forbidden - connection mismatch');
 
@@ -35183,7 +35396,7 @@ Use emojis com moderação quando apropriado.`;
 
 
 
-      // Usar áudio convertido (já processado acima)
+      // Usar Ã¡udio convertido (jÃ¡ processado acima)
 
       console.log('[send-audio] ?? Sending converted audio, mimeType:', converted.mimeType);
 
@@ -35251,21 +35464,21 @@ Use emojis com moderação quando apropriado.`;
 
 
 
-      let systemPrompt = `Você é um assistente que ajuda a criar mensagens para WhatsApp.
+      let systemPrompt = `VocÃª Ã© um assistente que ajuda a criar mensagens para WhatsApp.
 
-Crie uma mensagem profissional, amigável e natural baseada na instrução do usuário.
+Crie uma mensagem profissional, amigÃ¡vel e natural baseada na instruÃ§Ã£o do usuÃ¡rio.
 
-Responda APENAS com a mensagem pronta, sem explicações adicionais.
+Responda APENAS com a mensagem pronta, sem explicaÃ§Ãµes adicionais.
 
 A mensagem deve ser adequada para WhatsApp (informal mas profissional).
 
-Use emojis com moderação quando apropriado.`;
+Use emojis com moderaÃ§Ã£o quando apropriado.`;
 
 
 
       if (context?.contactName) {
 
-        systemPrompt += `\n\nO nome do cliente é: ${context.contactName}`;
+        systemPrompt += `\n\nO nome do cliente Ã©: ${context.contactName}`;
 
       }
 
@@ -35273,7 +35486,7 @@ Use emojis com moderação quando apropriado.`;
 
       if (context?.lastMessages && context.lastMessages.length > 0) {
 
-        systemPrompt += `\n\nÚltimas mensagens da conversa para contexto:\n${context.lastMessages.slice(-5).join('\n')}`;
+        systemPrompt += `\n\nÃšltimas mensagens da conversa para contexto:\n${context.lastMessages.slice(-5).join('\n')}`;
 
       }
 
@@ -35301,7 +35514,7 @@ Use emojis com moderação quando apropriado.`;
 
 
 
-  // POST - Enviar mídia para conversa (áudio, imagem, vídeo, documento)
+  // POST - Enviar mÃ­dia para conversa (Ã¡udio, imagem, vÃ­deo, documento)
 
   app.post("/api/admin/conversations/:id/send-media", isAdmin, upload.single('file'), async (req: any, res) => {
 
@@ -35341,7 +35554,7 @@ Use emojis com moderação quando apropriado.`;
 
 
 
-      // Determinar tipo de mídia
+      // Determinar tipo de mÃ­dia
 
       const detectedType = mediaType || (
 
@@ -35389,7 +35602,7 @@ Use emojis com moderação quando apropriado.`;
 
 
 
-  // POST - Enviar áudio gravado (base64)
+  // POST - Enviar Ã¡udio gravado (base64)
 
   app.post("/api/admin/conversations/:id/send-audio", isAdmin, async (req: any, res) => {
 
@@ -35459,13 +35672,13 @@ Use emojis com moderação quando apropriado.`;
 
 
 
-  // POST - Atualizar prompt do agente com instruções completas do sistema
+  // POST - Atualizar prompt do agente com instruÃ§Ãµes completas do sistema
 
   app.post("/api/dev/update-agent-prompt", isAdmin, async (req: any, res) => {
 
     try {
 
-      const completeSystemPrompt = `Você é o Rodrigo, atendente humano da AgenteZap. Você NÃO é uma IA/robô, você é um humano real.
+      const completeSystemPrompt = `VocÃª Ã© o Rodrigo, atendente humano da AgenteZap. VocÃª NÃƒO Ã© uma IA/robÃ´, vocÃª Ã© um humano real.
 
 
 
@@ -35477,27 +35690,27 @@ Use emojis com moderação quando apropriado.`;
 
 
 
-A AgenteZap é uma plataforma de automação de WhatsApp com Inteligência Artificial que permite:
+A AgenteZap Ã© uma plataforma de automaÃ§Ã£o de WhatsApp com InteligÃªncia Artificial que permite:
 
 - Criar agentes de IA personalizados que atendem clientes 24/7
 
 - Automatizar respostas no WhatsApp com IA conversacional
 
-- Configurar instruções personalizadas para cada negócio
+- Configurar instruÃ§Ãµes personalizadas para cada negÃ³cio
 
-- Integrar com o WhatsApp do cliente via QR Code ou código de pareamento
+- Integrar com o WhatsApp do cliente via QR Code ou cÃ³digo de pareamento
 
 
 
 ------------------------------------------------------------------
 
-                    PLANOS E PREÇOS
+                    PLANOS E PREÃ‡OS
 
 ------------------------------------------------------------------
 
 
 
-PLANO ÚNICO: R$ 99/mês
+PLANO ÃšNICO: R$ 99/mÃªs
 
 - Conversas ilimitadas
 
@@ -35507,17 +35720,17 @@ PLANO ÚNICO: R$ 99/mês
 
 - Acesso ao painel de controle
 
-- Histórico de conversas
+- HistÃ³rico de conversas
 
-- Estatísticas de atendimento
+- EstatÃ­sticas de atendimento
 
-- 24 horas de trial grátis para testar
+- 24 horas de trial grÃ¡tis para testar
 
 
 
 FORMAS DE PAGAMENTO:
 
-- PIX (único método aceito)
+- PIX (Ãºnico mÃ©todo aceito)
 
 - Chave PIX: rodrigoconexao128@gmail.com
 
@@ -35535,37 +35748,37 @@ FORMAS DE PAGAMENTO:
 
 1. PAINEL DO CLIENTE (/dashboard):
 
-   - Ver estatísticas de conversas
+   - Ver estatÃ­sticas de conversas
 
-   - Acessar histórico de mensagens
+   - Acessar histÃ³rico de mensagens
 
    - Configurar agente IA
 
-   - Gerenciar conexão WhatsApp
+   - Gerenciar conexÃ£o WhatsApp
 
 
 
-2. CONEXÃO WHATSAPP (/conexao):
+2. CONEXÃƒO WHATSAPP (/conexao):
 
    - QR Code: Escanear com o WhatsApp Web do celular
 
-   - Código de Pareamento: Para vincular sem QR Code
+   - CÃ³digo de Pareamento: Para vincular sem QR Code
 
-   - O cliente informa o número e recebe um código de 8 dígitos
+   - O cliente informa o nÃºmero e recebe um cÃ³digo de 8 dÃ­gitos
 
-   - Conecta o número dele ao nosso sistema
+   - Conecta o nÃºmero dele ao nosso sistema
 
 
 
-3. CONFIGURAÇÃO DO AGENTE (/agente):
+3. CONFIGURAÃ‡ÃƒO DO AGENTE (/agente):
 
-   - Nome do Agente: Como ele se apresentará
+   - Nome do Agente: Como ele se apresentarÃ¡
 
-   - Descrição da Empresa: O que a empresa faz
+   - DescriÃ§Ã£o da Empresa: O que a empresa faz
 
-   - Função do Agente: Vendedor, suporte, etc
+   - FunÃ§Ã£o do Agente: Vendedor, suporte, etc
 
-   - Instruções Detalhadas: Como deve atender
+   - InstruÃ§Ãµes Detalhadas: Como deve atender
 
 
 
@@ -35583,37 +35796,37 @@ FORMAS DE PAGAMENTO:
 
 ------------------------------------------------------------------
 
-                    COMO VOCÊ DEVE ATENDER
+                    COMO VOCÃŠ DEVE ATENDER
 
 ------------------------------------------------------------------
 
 
 
-ESTILO DE COMUNICAÇÃO:
+ESTILO DE COMUNICAÃ‡ÃƒO:
 
-- Seja natural, simpático e profissional
+- Seja natural, simpÃ¡tico e profissional
 
-- Use linguagem informal mas respeitosa (você, não você)
+- Use linguagem informal mas respeitosa (vocÃª, nÃ£o vocÃª)
 
 - Responda de forma curta e objetiva (2-5 linhas por vez)
 
-- NÃO use formatação markdown (sem ** ou ## ou listas)
+- NÃƒO use formataÃ§Ã£o markdown (sem ** ou ## ou listas)
 
-- Use emojis com moderação (1-2 por mensagem no máximo)
+- Use emojis com moderaÃ§Ã£o (1-2 por mensagem no mÃ¡ximo)
 
-- NUNCA diga que é uma IA ou robô - você é o Rodrigo, humano real
+- NUNCA diga que Ã© uma IA ou robÃ´ - vocÃª Ã© o Rodrigo, humano real
 
 
 
-REGRAS CRÍTICAS:
+REGRAS CRÃTICAS:
 
-1. Se o cliente já tem conta (número cadastrado), NÃO peça email novamente
+1. Se o cliente jÃ¡ tem conta (nÃºmero cadastrado), NÃƒO peÃ§a email novamente
 
-2. Verifique sempre o contexto antes de pedir informações
+2. Verifique sempre o contexto antes de pedir informaÃ§Ãµes
 
 3. Seja proativo em ajudar com problemas
 
-4. Se não souber algo, diga que vai verificar
+4. Se nÃ£o souber algo, diga que vai verificar
 
 
 
@@ -35627,35 +35840,35 @@ REGRAS CRÍTICAS:
 
 NOVO CLIENTE (sem conta):
 
-1. Cumprimentar: "Oi! Aqui é o Rodrigo da AgenteZap ??"
+1. Cumprimentar: "Oi! Aqui Ã© o Rodrigo da AgenteZap ??"
 
 2. Perguntar interesse: "Como posso te ajudar?"
 
-3. Explicar o serviço: IA que atende no WhatsApp 24/7
+3. Explicar o serviÃ§o: IA que atende no WhatsApp 24/7
 
 4. Coletar email para criar conta
 
-5. Ajudar a configurar o agente (nome, empresa, função, instruções)
+5. Ajudar a configurar o agente (nome, empresa, funÃ§Ã£o, instruÃ§Ãµes)
 
-6. Explicar as opções de conexão (QR Code ou código de pareamento)
+6. Explicar as opÃ§Ãµes de conexÃ£o (QR Code ou cÃ³digo de pareamento)
 
-7. Falar sobre trial de 24h e plano de R$ 99/mês
+7. Falar sobre trial de 24h e plano de R$ 99/mÃªs
 
 8. Enviar PIX quando cliente quiser assinar
 
 
 
-CLIENTE EXISTENTE (já tem conta):
+CLIENTE EXISTENTE (jÃ¡ tem conta):
 
-- Verificar se há algum problema (conexão caiu, precisa reconectar)
+- Verificar se hÃ¡ algum problema (conexÃ£o caiu, precisa reconectar)
 
-- Ajudar a alterar configurações do agente
+- Ajudar a alterar configuraÃ§Ãµes do agente
 
-- Processar renovação de pagamento
+- Processar renovaÃ§Ã£o de pagamento
 
-- Tirar dúvidas sobre funcionamento
+- Tirar dÃºvidas sobre funcionamento
 
-- NÃO pedir email novamente - já está cadastrado!
+- NÃƒO pedir email novamente - jÃ¡ estÃ¡ cadastrado!
 
 
 
@@ -35663,9 +35876,9 @@ PROBLEMAS COMUNS:
 
 - "WhatsApp desconectou": Pedir para acessar /conexao e reconectar
 
-- "Agente não responde": Verificar se conexão está ativa
+- "Agente nÃ£o responde": Verificar se conexÃ£o estÃ¡ ativa
 
-- "Quero mudar instruções": Acessar /agente e editar
+- "Quero mudar instruÃ§Ãµes": Acessar /agente e editar
 
 - "Trial acabou": Explicar que precisa pagar R$ 99
 
@@ -35673,7 +35886,7 @@ PROBLEMAS COMUNS:
 
 ------------------------------------------------------------------
 
-                    INFORMAÇÕES TÉCNICAS
+                    INFORMAÃ‡Ã•ES TÃ‰CNICAS
 
 ------------------------------------------------------------------
 
@@ -35705,7 +35918,7 @@ SUPORTE:
 
 
 
-LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
+LEMBRE-SE: VocÃª Ã© o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
@@ -35715,7 +35928,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      console.log("[DEV] Prompt do agente atualizado com instruções completas do sistema");
+      console.log("[DEV] Prompt do agente atualizado com instruÃ§Ãµes completas do sistema");
 
 
 
@@ -35745,23 +35958,23 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-  // POST - Cliente solicita pairing code (página /conexao)
+  // POST - Cliente solicita pairing code (pÃ¡gina /conexao)
 
   app.post("/api/whatsapp/pairing-code", isAuthenticated, async (req: any, res) => {
 
     try {
 
-      // ??? MODO DESENVOLVIMENTO: Bloquear pairing code para proteger produção
+      // ??? MODO DESENVOLVIMENTO: Bloquear pairing code para proteger produÃ§Ã£o
 
       if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
 
-        console.log(`?? [DEV MODE] Bloqueando geração de pairing code (proteção de produção)`);
+        console.log(`?? [DEV MODE] Bloqueando geraÃ§Ã£o de pairing code (proteÃ§Ã£o de produÃ§Ã£o)`);
 
         return res.status(403).json({
 
           success: false,
 
-          message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessões em produção',
+          message: 'WhatsApp desabilitado em modo desenvolvimento para proteger sessÃµes em produÃ§Ã£o',
 
           devMode: true
 
@@ -35784,45 +35997,45 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
       }
 
       // -----------------------------------------------------------------------
-      // ?? VALIDAÇÃO DE NÚMERO: Formato E.164 (apenas dígitos, com DDI)
+      // ?? VALIDAÃ‡ÃƒO DE NÃšMERO: Formato E.164 (apenas dÃ­gitos, com DDI)
       // -----------------------------------------------------------------------
       // O WhatsApp exige formato internacional para pairing code.
-      // Brasil: 55 + DDD (2 dígitos) + número (8-9 dígitos) = 12-13 dígitos
-      // Aceitamos 10-15 dígitos para compatibilidade internacional.
+      // Brasil: 55 + DDD (2 dÃ­gitos) + nÃºmero (8-9 dÃ­gitos) = 12-13 dÃ­gitos
+      // Aceitamos 10-15 dÃ­gitos para compatibilidade internacional.
       // -----------------------------------------------------------------------
-      const cleanPhone = String(phoneNumber).replace(/\D/g, ""); // Remover não-dígitos
+      const cleanPhone = String(phoneNumber).replace(/\D/g, ""); // Remover nÃ£o-dÃ­gitos
 
       if (cleanPhone.length < 10 || cleanPhone.length > 15) {
         return res.status(400).json({
           success: false,
-          message: "Número de telefone inválido. Use o formato: código do país (DDI) + DDD + número. Exemplo para Brasil: 5511999999999",
-          hint: "Formato esperado: 55 + DDD + número (total de 12-13 dígitos para Brasil)"
+          message: "NÃºmero de telefone invÃ¡lido. Use o formato: cÃ³digo do paÃ­s (DDI) + DDD + nÃºmero. Exemplo para Brasil: 5511999999999",
+          hint: "Formato esperado: 55 + DDD + nÃºmero (total de 12-13 dÃ­gitos para Brasil)"
         });
       }
 
-      // Validação adicional para Brasil (se começar com 55)
+      // ValidaÃ§Ã£o adicional para Brasil (se comeÃ§ar com 55)
       if (cleanPhone.startsWith("55") && cleanPhone.length < 12) {
         return res.status(400).json({
           success: false,
-          message: "Número brasileiro incompleto. Use: 55 + DDD (2 dígitos) + número (8-9 dígitos). Exemplo: 5511999999999",
-          hint: "Para Brasil: 55 (DDI) + 11 (DDD de São Paulo) + 999999999 (número)"
+          message: "NÃºmero brasileiro incompleto. Use: 55 + DDD (2 dÃ­gitos) + nÃºmero (8-9 dÃ­gitos). Exemplo: 5511999999999",
+          hint: "Para Brasil: 55 (DDI) + 11 (DDD de SÃ£o Paulo) + 999999999 (nÃºmero)"
         });
       }
 
-      // Log para debug (sem o número completo por privacidade)
-      console.log(`[PAIRING VALIDATION] Número validado: ${cleanPhone.substring(0, 4)}****${cleanPhone.slice(-2)} (${cleanPhone.length} dígitos)`);
+      // Log para debug (sem o nÃºmero completo por privacidade)
+      console.log(`[PAIRING VALIDATION] NÃºmero validado: ${cleanPhone.substring(0, 4)}****${cleanPhone.slice(-2)} (${cleanPhone.length} dÃ­gitos)`);
 
       // -----------------------------------------------------------------------
-      // ?? FIX: Verificar se já está conectado antes de gerar novo código
+      // ?? FIX: Verificar se jÃ¡ estÃ¡ conectado antes de gerar novo cÃ³digo
       // Skip this check when creating a secondary connection (connectionId provided)
       // -----------------------------------------------------------------------
       if (!connectionId) {
         const existingConnection = await storage.getConnectionByUserId(userId);
         if (existingConnection?.isConnected === true) {
-          console.log(`[PAIRING] Usuário ${userId} já está conectado, bloqueando novo código`);
+          console.log(`[PAIRING] UsuÃ¡rio ${userId} jÃ¡ estÃ¡ conectado, bloqueando novo cÃ³digo`);
           return res.status(409).json({
             success: false,
-            message: "WhatsApp já está conectado. Desconecte antes de gerar um novo código.",
+            message: "WhatsApp jÃ¡ estÃ¡ conectado. Desconecte antes de gerar um novo cÃ³digo.",
             alreadyConnected: true
           });
         }
@@ -35836,12 +36049,12 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!code) {
 
-        // Retornar 503 (Service Unavailable) em vez de 500 genérico
+        // Retornar 503 (Service Unavailable) em vez de 500 genÃ©rico
         return res.status(503).json({
 
           success: false,
 
-          message: "Não foi possível abrir conexão com o WhatsApp para gerar o código agora. Tente novamente em alguns segundos ou use QR Code."
+          message: "NÃ£o foi possÃ­vel abrir conexÃ£o com o WhatsApp para gerar o cÃ³digo agora. Tente novamente em alguns segundos ou use QR Code."
 
         });
 
@@ -35855,16 +36068,16 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       console.error("Error generating client pairing code:", error);
 
-      // Verificar se é erro de WebSocket/conexão
+      // Verificar se Ã© erro de WebSocket/conexÃ£o
       const errorMessage = error?.message || "";
 
-      if (errorMessage.includes("Timeout") || errorMessage.includes("WebSocket") || errorMessage.includes("conexão")) {
+      if (errorMessage.includes("Timeout") || errorMessage.includes("WebSocket") || errorMessage.includes("conexÃ£o")) {
 
         return res.status(503).json({
 
           success: false,
 
-          message: "Não foi possível estabelecer conexão com o WhatsApp. Tente novamente em alguns segundos ou use QR Code."
+          message: "NÃ£o foi possÃ­vel estabelecer conexÃ£o com o WhatsApp. Tente novamente em alguns segundos ou use QR Code."
 
         });
 
@@ -35878,7 +36091,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-  // Exportar configuração do admin para uso no WhatsApp handler
+  // Exportar configuraÃ§Ã£o do admin para uso no WhatsApp handler
 
   (app as any).getAdminAgentConfig = () => adminAgentConfig;
 
@@ -35976,7 +36189,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-    // Limpar sessão de cliente
+    // Limpar sessÃ£o de cliente
 
     app.post("/api/test/clear-session", async (req, res) => {
 
@@ -36006,7 +36219,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-    // Obter sessão de cliente
+    // Obter sessÃ£o de cliente
 
     app.get("/api/test/session/:phone", async (req, res) => {
 
@@ -36246,7 +36459,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
           message: newStatus === 'blocked'
 
-            ? '? Kill Switch ATIVADO - Clientes serão bloqueados'
+            ? '? Kill Switch ATIVADO - Clientes serÃ£o bloqueados'
 
             : '? Kill Switch DESATIVADO - Clientes podem acessar',
 
@@ -36266,7 +36479,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-    // Rota para simular verificação de Kill Switch para um usuário específico
+    // Rota para simular verificaÃ§Ã£o de Kill Switch para um usuÃ¡rio especÃ­fico
 
     app.get("/api/test/kill-switch/verify/:userId", async (req, res) => {
 
@@ -36276,7 +36489,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-        // Buscar usuário
+        // Buscar usuÃ¡rio
 
         const user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
 
@@ -36284,7 +36497,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         if (!user.length) {
 
-          return res.json({ error: "Usuário não encontrado" });
+          return res.json({ error: "UsuÃ¡rio nÃ£o encontrado" });
 
         }
 
@@ -36306,7 +36519,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
             wouldBlock: false,
 
-            message: "Usuário não está vinculado a nenhum revendedor",
+            message: "UsuÃ¡rio nÃ£o estÃ¡ vinculado a nenhum revendedor",
 
           });
 
@@ -36334,7 +36547,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
             wouldBlock: false,
 
-            message: "Revendedor não encontrado no banco",
+            message: "Revendedor nÃ£o encontrado no banco",
 
           });
 
@@ -36370,9 +36583,9 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
           message: isBlocked
 
-            ? "? KILL SWITCH ATIVO - Este usuário seria BLOQUEADO ao tentar acessar"
+            ? "? KILL SWITCH ATIVO - Este usuÃ¡rio seria BLOQUEADO ao tentar acessar"
 
-            : "? Acesso permitido - Revendedor está ativo",
+            : "? Acesso permitido - Revendedor estÃ¡ ativo",
 
         });
 
@@ -36408,7 +36621,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         if (!user.length) {
 
-          return res.status(404).json({ error: "Usuário não encontrado" });
+          return res.status(404).json({ error: "UsuÃ¡rio nÃ£o encontrado" });
 
         }
 
@@ -36418,7 +36631,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-        // Definir sessão diretamente (express-session)
+        // Definir sessÃ£o diretamente (express-session)
 
         req.session.userId = dbUser.id;
 
@@ -36438,7 +36651,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
           if (err) {
 
-            return res.status(500).json({ error: "Erro ao criar sessão: " + err.message });
+            return res.status(500).json({ error: "Erro ao criar sessÃ£o: " + err.message });
 
           }
 
@@ -36460,7 +36673,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
             },
 
-            message: "Sessão criada! Agora você pode acessar rotas autenticadas.",
+            message: "SessÃ£o criada! Agora vocÃª pode acessar rotas autenticadas.",
 
             redirectTo: dbUser.resellerId ? "/plans" : "/dashboard",
 
@@ -36480,7 +36693,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-  // ==================== PÁGINA DE TESTE DO AGENTE (PÚBLICA) ====================
+  // ==================== PÃGINA DE TESTE DO AGENTE (PÃšBLICA) ====================
 
 
 
@@ -36490,7 +36703,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
    * POST /api/test-agent/message
 
-   * Não requer autenticação - é para clientes testarem SEU AGENTE
+   * NÃ£o requer autenticaÃ§Ã£o - Ã© para clientes testarem SEU AGENTE
 
    */
 
@@ -36552,7 +36765,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         error: error.message,
 
-        response: "Ops, houve um erro técnico. Por favor, tente novamente."
+        response: "Ops, houve um erro tÃ©cnico. Por favor, tente novamente."
 
       });
 
@@ -36564,7 +36777,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   /**
 
-   * Obter informações do agente para a página de teste
+   * Obter informaÃ§Ãµes do agente para a pÃ¡gina de teste
 
    * GET /api/test-agent/info/:token
 
@@ -36580,7 +36793,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // ?? FIX: Se o token parecer um userId (começa com test- ou tem formato UUID), buscar direto
+      // ?? FIX: Se o token parecer um userId (comeÃ§a com test- ou tem formato UUID), buscar direto
 
       if (token.startsWith('test-') || token.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
 
@@ -36610,9 +36823,9 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         if (userConfig.length > 0 && userConfig[0].userId) {
 
-          // Extrair nome do agente do prompt se possível (ex: "Você é Maria, atendente...")
+          // Extrair nome do agente do prompt se possÃ­vel (ex: "VocÃª Ã© Maria, atendente...")
 
-          const promptMatch = userConfig[0].prompt?.match(/Você é (\w+)/i);
+          const promptMatch = userConfig[0].prompt?.match(/VocÃª Ã© (\w+)/i);
 
           const agentName = promptMatch ? promptMatch[1] : "Agente";
 
@@ -36646,7 +36859,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (testToken) {
 
-        // Token válido - retornar info do agente do cliente
+        // Token vÃ¡lido - retornar info do agente do cliente
 
         return res.json({
 
@@ -36664,7 +36877,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Token não encontrado ou expirado - retornar demo (Rodrigo)
+      // Token nÃ£o encontrado ou expirado - retornar demo (Rodrigo)
 
       res.json({
 
@@ -36690,7 +36903,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   /**
 
-   * Gerar link de teste único para um cliente
+   * Gerar link de teste Ãºnico para um cliente
 
    * POST /api/admin/test-link/generate (apenas admin)
 
@@ -36704,7 +36917,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Gerar token único
+      // Gerar token Ãºnico
 
       const crypto = await import("crypto");
 
@@ -36712,7 +36925,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Salvar configuração do link (em memória por enquanto)
+      // Salvar configuraÃ§Ã£o do link (em memÃ³ria por enquanto)
 
       // TODO: Persistir no banco
 
@@ -36764,7 +36977,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   /**
 
-   * Ativar/Desativar follow-up para uma conversa específica
+   * Ativar/Desativar follow-up para uma conversa especÃ­fica
 
    * POST /api/admin/conversations/:id/followup-toggle
 
@@ -36832,7 +37045,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-  // ==================== CALENDÁRIO DE FOLLOW-UPS ====================
+  // ==================== CALENDÃRIO DE FOLLOW-UPS ====================
 
 
 
@@ -36870,7 +37083,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   /**
 
-   * Obter todos os eventos do calendário (follow-ups + agendamentos)
+   * Obter todos os eventos do calendÃ¡rio (follow-ups + agendamentos)
 
    * GET /api/admin/calendar/events
 
@@ -36900,7 +37113,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   /**
 
-   * Obter estatísticas de follow-ups
+   * Obter estatÃ­sticas de follow-ups
 
    * GET /api/admin/calendar/stats
 
@@ -36950,7 +37163,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      console.log(`??? [API] Solicitação de cancelamento para ID: ${id}, Phone: ${phone}`);
+      console.log(`??? [API] SolicitaÃ§Ã£o de cancelamento para ID: ${id}, Phone: ${phone}`);
 
 
 
@@ -36968,7 +37181,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       // Tentar cancelar como follow-up
 
-      await followUpService.disableFollowUp(id, "Cancelado manualmente pelo calendário");
+      await followUpService.disableFollowUp(id, "Cancelado manualmente pelo calendÃ¡rio");
 
 
 
@@ -36988,7 +37201,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-  // Rota de teste para configurar fluxo de mídia
+  // Rota de teste para configurar fluxo de mÃ­dia
 
   app.use((await import("./testMediaRoute")).default);
 
@@ -36996,7 +37209,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   // ====================================================================
 
-  // ??? ROTA DE TESTE - TTS MULTI-PROVIDER (PÚBLICA)
+  // ??? ROTA DE TESTE - TTS MULTI-PROVIDER (PÃšBLICA)
 
   // ====================================================================
 
@@ -37010,13 +37223,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!text) {
 
-        return res.status(400).json({ error: "Texto é obrigatório" });
+        return res.status(400).json({ error: "Texto Ã© obrigatÃ³rio" });
 
       }
 
 
 
-      console.log(`??? [TEST-TTS] Gerando áudio: "${text.substring(0, 50)}..."`);
+      console.log(`??? [TEST-TTS] Gerando Ã¡udio: "${text.substring(0, 50)}..."`);
 
       console.log(`??? [TEST-TTS] Provider: ${provider || 'auto'}, Voice: ${voice || 'default'}`);
 
@@ -37026,7 +37239,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Gerar áudio usando o serviço multi-provider
+      // Gerar Ã¡udio usando o serviÃ§o multi-provider
 
       const result = await generateTTS({
 
@@ -37042,7 +37255,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Retornar áudio como resposta
+      // Retornar Ã¡udio como resposta
 
       const contentType = result.format === 'wav' ? 'audio/wav' : 'audio/mpeg';
 
@@ -37068,7 +37281,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      console.log(`? [TEST-TTS] Áudio enviado: ${result.audio.length} bytes (${result.provider})`);
+      console.log(`? [TEST-TTS] Ãudio enviado: ${result.audio.length} bytes (${result.provider})`);
 
     } catch (error: any) {
 
@@ -37076,7 +37289,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       res.status(500).json({
 
-        error: "Erro ao gerar áudio",
+        error: "Erro ao gerar Ã¡udio",
 
         details: error.message
 
@@ -37088,13 +37301,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-  // ==================== EXCLUSION LIST / LISTA DE EXCLUSÃO ====================
+  // ==================== EXCLUSION LIST / LISTA DE EXCLUSÃƒO ====================
 
 
 
   /**
 
-   * Obter configuração de exclusão do usuário
+   * Obter configuraÃ§Ã£o de exclusÃ£o do usuÃ¡rio
 
    * GET /api/exclusion/config
 
@@ -37110,7 +37323,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Se não existir, criar configuração padrão
+      // Se nÃ£o existir, criar configuraÃ§Ã£o padrÃ£o
 
       if (!config) {
 
@@ -37142,7 +37355,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   /**
 
-   * Atualizar configuração de exclusão do usuário
+   * Atualizar configuraÃ§Ã£o de exclusÃ£o do usuÃ¡rio
 
    * PUT /api/exclusion/config
 
@@ -37168,7 +37381,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      console.log(`?? [EXCLUSION] Config atualizada para usuário ${userId}: enabled=${isEnabled}, followup=${followupExclusionEnabled}`);
+      console.log(`?? [EXCLUSION] Config atualizada para usuÃ¡rio ${userId}: enabled=${isEnabled}, followup=${followupExclusionEnabled}`);
 
         res.json(config);
 
@@ -37186,7 +37399,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   /**
 
-   * Obter todos os números da lista de exclusão
+   * Obter todos os nÃºmeros da lista de exclusÃ£o
 
    * GET /api/exclusion/list
 
@@ -37216,7 +37429,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   /**
 
-   * Adicionar número à lista de exclusão
+   * Adicionar nÃºmero Ã  lista de exclusÃ£o
 
    * POST /api/exclusion/list
 
@@ -37240,7 +37453,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Limpar número (apenas dígitos)
+      // Limpar nÃºmero (apenas dÃ­gitos)
 
       const cleanNumber = phoneNumber.replace(/\D/g, "");
 
@@ -37272,7 +37485,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      console.log(`?? [EXCLUSION] Número ${cleanNumber} adicionado à lista de exclusão do usuário ${userId}`);
+      console.log(`?? [EXCLUSION] NÃºmero ${cleanNumber} adicionado Ã  lista de exclusÃ£o do usuÃ¡rio ${userId}`);
 
       res.json(item);
 
@@ -37290,7 +37503,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   /**
 
-   * Adicionar MÚLTIPLOS números à lista de exclusão (bulk import)
+   * Adicionar MÃšLTIPLOS nÃºmeros Ã  lista de exclusÃ£o (bulk import)
 
    * POST /api/exclusion/list/bulk
 
@@ -37308,13 +37521,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!numbers || !Array.isArray(numbers) || numbers.length === 0) {
 
-        return res.status(400).json({ message: "Array de números é obrigatório" });
+        return res.status(400).json({ message: "Array de nÃºmeros Ã© obrigatÃ³rio" });
 
       }
 
 
 
-      // Limpar e validar números
+      // Limpar e validar nÃºmeros
 
       const cleanNumbers = numbers
 
@@ -37326,13 +37539,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (cleanNumbers.length === 0) {
 
-        return res.status(400).json({ message: "Nenhum número válido encontrado" });
+        return res.status(400).json({ message: "Nenhum nÃºmero vÃ¡lido encontrado" });
 
       }
 
 
 
-      // Buscar números já existentes para evitar duplicatas
+      // Buscar nÃºmeros jÃ¡ existentes para evitar duplicatas
 
       const existingList = await storage.getExclusionList(userId);
 
@@ -37340,7 +37553,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Filtrar apenas números novos
+      // Filtrar apenas nÃºmeros novos
 
       const newNumbers = cleanNumbers.filter((n: string) => !existingNumbers.has(n));
 
@@ -37388,7 +37601,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      console.log(`?? [EXCLUSION BULK] ${added} números adicionados, ${skipped} ignorados (usuário ${userId})`);
+      console.log(`?? [EXCLUSION BULK] ${added} nÃºmeros adicionados, ${skipped} ignorados (usuÃ¡rio ${userId})`);
 
       res.json({
 
@@ -37398,7 +37611,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         total: cleanNumbers.length,
 
-        message: `${added} números bloqueados com sucesso`
+        message: `${added} nÃºmeros bloqueados com sucesso`
 
       });
 
@@ -37406,7 +37619,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       console.error("Error bulk adding to exclusion list:", error);
 
-      res.status(500).json({ message: "Falha ao adicionar números" });
+      res.status(500).json({ message: "Falha ao adicionar nÃºmeros" });
 
     }
 
@@ -37416,7 +37629,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   /**
 
-   * Atualizar item da lista de exclusão
+   * Atualizar item da lista de exclusÃ£o
 
    * PUT /api/exclusion/list/:id
 
@@ -37434,7 +37647,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Verificar se o item pertence ao usuário
+      // Verificar se o item pertence ao usuÃ¡rio
 
       const existingItem = await storage.getExclusionListItem(id);
 
@@ -37460,7 +37673,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      console.log(`?? [EXCLUSION] Item ${id} atualizado na lista de exclusão`);
+      console.log(`?? [EXCLUSION] Item ${id} atualizado na lista de exclusÃ£o`);
 
       res.json(item);
 
@@ -37478,7 +37691,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   /**
 
-   * Remover (soft delete) número da lista de exclusão
+   * Remover (soft delete) nÃºmero da lista de exclusÃ£o
 
    * DELETE /api/exclusion/list/:id
 
@@ -37496,7 +37709,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Verificar se o item pertence ao usuário
+      // Verificar se o item pertence ao usuÃ¡rio
 
       const existingItem = await storage.getExclusionListItem(id);
 
@@ -37512,13 +37725,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         await storage.deleteFromExclusionList(id);
 
-        console.log(`??? [EXCLUSION] Número ${existingItem.phoneNumber} removido permanentemente da lista de exclusão`);
+        console.log(`??? [EXCLUSION] NÃºmero ${existingItem.phoneNumber} removido permanentemente da lista de exclusÃ£o`);
 
       } else {
 
         await storage.removeFromExclusionList(id);
 
-        console.log(`?? [EXCLUSION] Número ${existingItem.phoneNumber} desativado da lista de exclusão`);
+        console.log(`?? [EXCLUSION] NÃºmero ${existingItem.phoneNumber} desativado da lista de exclusÃ£o`);
 
       }
 
@@ -37540,7 +37753,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   /**
 
-   * Reativar número na lista de exclusão
+   * Reativar nÃºmero na lista de exclusÃ£o
 
    * POST /api/exclusion/list/:id/reactivate
 
@@ -37556,7 +37769,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Verificar se o item pertence ao usuário
+      // Verificar se o item pertence ao usuÃ¡rio
 
       const existingItem = await storage.getExclusionListItem(id);
 
@@ -37570,7 +37783,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const item = await storage.reactivateExclusionListItem(id);
 
-      console.log(`? [EXCLUSION] Número ${existingItem.phoneNumber} reativado na lista de exclusão`);
+      console.log(`? [EXCLUSION] NÃºmero ${existingItem.phoneNumber} reativado na lista de exclusÃ£o`);
 
       res.json(item);
 
@@ -37588,7 +37801,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   /**
 
-   * Verificar se um número está na lista de exclusão (utility endpoint)
+   * Verificar se um nÃºmero estÃ¡ na lista de exclusÃ£o (utility endpoint)
 
    * GET /api/exclusion/check/:phoneNumber
 
@@ -37760,7 +37973,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
               valuePeriod: deal.value_period || 'mensal',
 
-              priority: deal.priority || 'Média',
+              priority: deal.priority || 'MÃ©dia',
 
               assignee: deal.assignee,
 
@@ -37858,13 +38071,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         { funnel_id: funnel.id, name: 'Prospecto', description: 'Lead interessado inicial', color: 'text-slate-700', bg_color: 'bg-slate-100', border_color: 'border-slate-200', icon_color: 'text-slate-500', position: 1 },
 
-        { funnel_id: funnel.id, name: 'Qualificação', description: 'Verificando interesse e fit', color: 'text-blue-700', bg_color: 'bg-blue-100', border_color: 'border-blue-200', icon_color: 'text-blue-500', position: 2 },
+        { funnel_id: funnel.id, name: 'QualificaÃ§Ã£o', description: 'Verificando interesse e fit', color: 'text-blue-700', bg_color: 'bg-blue-100', border_color: 'border-blue-200', icon_color: 'text-blue-500', position: 2 },
 
         { funnel_id: funnel.id, name: 'Proposta', description: 'Proposta enviada', color: 'text-amber-700', bg_color: 'bg-amber-100', border_color: 'border-amber-200', icon_color: 'text-amber-500', position: 3 },
 
-        { funnel_id: funnel.id, name: 'Negociação', description: 'Em negociação', color: 'text-purple-700', bg_color: 'bg-purple-100', border_color: 'border-purple-200', icon_color: 'text-purple-500', position: 4 },
+        { funnel_id: funnel.id, name: 'NegociaÃ§Ã£o', description: 'Em negociaÃ§Ã£o', color: 'text-purple-700', bg_color: 'bg-purple-100', border_color: 'border-purple-200', icon_color: 'text-purple-500', position: 4 },
 
-        { funnel_id: funnel.id, name: 'Fechado', description: 'Venda concluída', color: 'text-emerald-700', bg_color: 'bg-emerald-100', border_color: 'border-emerald-200', icon_color: 'text-emerald-500', position: 5 },
+        { funnel_id: funnel.id, name: 'Fechado', description: 'Venda concluÃ­da', color: 'text-emerald-700', bg_color: 'bg-emerald-100', border_color: 'border-emerald-200', icon_color: 'text-emerald-500', position: 5 },
 
       ];
 
@@ -38560,7 +38773,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
           value_period: valuePeriod || 'mensal',
 
-          priority: priority || 'Média',
+          priority: priority || 'MÃ©dia',
 
           assignee: assignee || null,
 
@@ -38724,7 +38937,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
             action: 'moved',
 
-            notes: `Deal movido para novo estágio`,
+            notes: `Deal movido para novo estÃ¡gio`,
 
           });
 
@@ -39608,13 +39821,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
           { user_id: userId, name: 'Novos', description: 'Leads novos', color: 'bg-blue-500', position: 0, is_default: true },
 
-          { user_id: userId, name: 'Prospectando', description: 'Em prospecção', color: 'bg-purple-500', position: 1, is_default: true },
+          { user_id: userId, name: 'Prospectando', description: 'Em prospecÃ§Ã£o', color: 'bg-purple-500', position: 1, is_default: true },
 
-          { user_id: userId, name: 'Negociando', description: 'Em negociação', color: 'bg-amber-500', position: 2, is_default: true },
+          { user_id: userId, name: 'Negociando', description: 'Em negociaÃ§Ã£o', color: 'bg-amber-500', position: 2, is_default: true },
 
-          { user_id: userId, name: 'Fechado', description: 'Venda concluída', color: 'bg-emerald-500', position: 3, is_default: true },
+          { user_id: userId, name: 'Fechado', description: 'Venda concluÃ­da', color: 'bg-emerald-500', position: 3, is_default: true },
 
-          { user_id: userId, name: 'Perdido', description: 'Não converteu', color: 'bg-slate-400', position: 4, is_default: true },
+          { user_id: userId, name: 'Perdido', description: 'NÃ£o converteu', color: 'bg-slate-400', position: 4, is_default: true },
 
         ];
 
@@ -40162,7 +40375,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   /**
 
-   * Obter configuração de agendamento do usuário
+   * Obter configuraÃ§Ã£o de agendamento do usuÃ¡rio
 
    * GET /api/scheduling/config
 
@@ -40192,7 +40405,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Retornar config padrão se não existir
+      // Retornar config padrÃ£o se nÃ£o existir
 
       if (!config) {
 
@@ -40242,7 +40455,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
           confirmationMessage: 'Seu agendamento foi confirmado! ??',
 
-          reminderMessage: 'Lembrete: Você tem um agendamento amanhã!',
+          reminderMessage: 'Lembrete: VocÃª tem um agendamento amanhÃ£!',
 
           cancellationMessage: 'Seu agendamento foi cancelado.',
 
@@ -40268,7 +40481,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   /**
 
-   * Salvar/atualizar configuração de agendamento
+   * Salvar/atualizar configuraÃ§Ã£o de agendamento
 
    * PUT /api/scheduling/config
 
@@ -40284,13 +40497,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Importar função de invalidação de cache
+      // Importar funÃ§Ã£o de invalidaÃ§Ã£o de cache
 
       const { invalidateSchedulingCache } = await import("./schedulingService");
 
 
 
-      // Verificar se já existe config
+      // Verificar se jÃ¡ existe config
 
       const { data: existing } = await supabase
 
@@ -40360,13 +40573,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Invalidar cache após atualização
+      // Invalidar cache apÃ³s atualizaÃ§Ã£o
 
       invalidateSchedulingCache(userId);
 
 
 
-      console.log(`?? [SCHEDULING] Config atualizada para usuário ${userId}`);
+      console.log(`?? [SCHEDULING] Config atualizada para usuÃ¡rio ${userId}`);
 
       res.json(result);
 
@@ -40384,7 +40597,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   /**
 
-   * Obter todos os agendamentos do usuário
+   * Obter todos os agendamentos do usuÃ¡rio
 
    * GET /api/scheduling/appointments?status=pending,confirmed&from=2025-01-01&to=2025-01-31
 
@@ -40464,7 +40677,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   /**
 
-   * Obter um agendamento específico
+   * Obter um agendamento especÃ­fico
 
    * GET /api/scheduling/appointments/:id
 
@@ -40536,7 +40749,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Buscar configuração para verificar se Google Calendar está habilitado
+      // Buscar configuraÃ§Ã£o para verificar se Google Calendar estÃ¡ habilitado
 
       const { data: config } = await supabase
 
@@ -40584,7 +40797,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         return res.status(409).json({
 
-          message: "Horário já está ocupado no sistema",
+          message: "HorÃ¡rio jÃ¡ estÃ¡ ocupado no sistema",
 
           code: "SLOT_TAKEN"
 
@@ -40612,7 +40825,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
           return res.status(409).json({
 
-            message: `Horário conflita com evento no Google Calendar: ${availability.conflictEvent}`,
+            message: `HorÃ¡rio conflita com evento no Google Calendar: ${availability.conflictEvent}`,
 
             code: "GOOGLE_CALENDAR_CONFLICT",
 
@@ -40894,7 +41107,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // ?? Se confirmado pelo negócio E sendNotification ativo, enviar mensagem ao cliente via IA
+      // ?? Se confirmado pelo negÃ³cio E sendNotification ativo, enviar mensagem ao cliente via IA
 
       if (confirmedBy === 'business' && sendNotification && data) {
 
@@ -40925,7 +41138,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       console.error("Error updating service:", error);
 
-      res.status(500).json({ message: "Falha ao atualizar serviço" });
+      res.status(500).json({ message: "Falha ao atualizar serviÃ§o" });
 
     }
 
@@ -40960,7 +41173,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
         .single();
 
       if (error) throw error;
-      console.log(`❌ [SCHEDULING] Agendamento ${id} cancelado por ${cancelledBy}`);
+      console.log(`? [SCHEDULING] Agendamento ${id} cancelado por ${cancelledBy}`);
       res.json(data);
     } catch (error: any) {
       console.error("Error cancelling appointment:", error);
@@ -40980,7 +41193,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const validStatuses = ['completed', 'no_show'];
       if (!validStatuses.includes(status)) {
-        return res.status(400).json({ message: "Status inválido" });
+        return res.status(400).json({ message: "Status invÃ¡lido" });
       }
 
       const { data, error } = await supabase
@@ -40995,7 +41208,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
         .single();
 
       if (error) throw error;
-      console.log(`✅ [SCHEDULING] Agendamento ${id} marcado como ${status}`);
+      console.log(`? [SCHEDULING] Agendamento ${id} marcado como ${status}`);
       res.json(data);
     } catch (error: any) {
       console.error("Error completing appointment:", error);
@@ -41004,11 +41217,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
   });
 
   // =====================================================================
-  // SCHEDULING SERVICES ROUTES (CRUD de Serviços)
+  // SCHEDULING SERVICES ROUTES (CRUD de ServiÃ§os)
   // =====================================================================
 
   /**
-   * Listar serviços do usuário
+   * Listar serviÃ§os do usuÃ¡rio
    * GET /api/scheduling/services
    */
   app.get("/api/scheduling/services", isAuthenticated, async (req: any, res) => {
@@ -41025,12 +41238,12 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
       res.json(data || []);
     } catch (error: any) {
       console.error("Error fetching services:", error);
-      res.status(500).json({ message: "Falha ao buscar serviços" });
+      res.status(500).json({ message: "Falha ao buscar serviÃ§os" });
     }
   });
 
   /**
-   * Criar novo serviço
+   * Criar novo serviÃ§o
    * POST /api/scheduling/services
    */
   app.post("/api/scheduling/services", isAuthenticated, async (req: any, res) => {
@@ -41039,7 +41252,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
       const { name, description, durationMinutes, price, color, isActive, allowOnline, allowPresencial, requiresConfirmation, bufferBeforeMinutes, bufferAfterMinutes, maxPerDay, icon, displayOrder } = req.body;
 
       if (!name) {
-        return res.status(400).json({ message: "Nome do serviço é obrigatório" });
+        return res.status(400).json({ message: "Nome do serviÃ§o Ã© obrigatÃ³rio" });
       }
 
       const { data, error } = await supabase
@@ -41065,16 +41278,16 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
         .single();
 
       if (error) throw error;
-      console.log(`✅ [SCHEDULING] Serviço criado: ${name} (${userId})`);
+      console.log(`? [SCHEDULING] ServiÃ§o criado: ${name} (${userId})`);
       res.json(data);
     } catch (error: any) {
       console.error("Error creating service:", error);
-      res.status(500).json({ message: "Falha ao criar serviço" });
+      res.status(500).json({ message: "Falha ao criar serviÃ§o" });
     }
   });
 
   /**
-   * Atualizar serviço
+   * Atualizar serviÃ§o
    * PUT /api/scheduling/services/:id
    */
   app.put("/api/scheduling/services/:id", isAuthenticated, async (req: any, res) => {
@@ -41111,13 +41324,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
       res.json(data);
     } catch (error: any) {
       console.error("Error updating service:", error);
-      res.status(500).json({ message: "Falha ao atualizar serviço" });
+      res.status(500).json({ message: "Falha ao atualizar serviÃ§o" });
     }
   });
 
   /**
 
-   * Excluir serviço
+   * Excluir serviÃ§o
 
    * DELETE /api/scheduling/services/:id
 
@@ -41147,13 +41360,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (error) throw error;
 
-      res.json({ message: "Serviço excluído com sucesso" });
+      res.json({ message: "ServiÃ§o excluÃ­do com sucesso" });
 
     } catch (error: any) {
 
       console.error("Error deleting service:", error);
 
-      res.status(500).json({ message: "Falha ao excluir serviço" });
+      res.status(500).json({ message: "Falha ao excluir serviÃ§o" });
 
     }
 
@@ -41162,11 +41375,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
   // =====================================================================
-  // SCHEDULING EXCEPTIONS ROUTES (Feriados, Bloqueios, Horários Especiais)
+  // SCHEDULING EXCEPTIONS ROUTES (Feriados, Bloqueios, HorÃ¡rios Especiais)
   // =====================================================================
 
   /**
-   * Listar exceções do usuário
+   * Listar exceÃ§Ãµes do usuÃ¡rio
    * GET /api/scheduling/exceptions
    */
   app.get("/api/scheduling/exceptions", isAuthenticated, async (req: any, res) => {
@@ -41183,12 +41396,12 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
       res.json(data || []);
     } catch (error: any) {
       console.error("Error fetching exceptions:", error);
-      res.status(500).json({ message: "Falha ao buscar exceções" });
+      res.status(500).json({ message: "Falha ao buscar exceÃ§Ãµes" });
     }
   });
 
   /**
-   * Criar nova exceção
+   * Criar nova exceÃ§Ã£o
    * POST /api/scheduling/exceptions
    */
   app.post("/api/scheduling/exceptions", isAuthenticated, async (req: any, res) => {
@@ -41197,7 +41410,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
       const { exceptionDate, exceptionType, customStartTime, customEndTime, reason } = req.body;
 
       if (!exceptionDate || !exceptionType) {
-        return res.status(400).json({ message: "Data e tipo da exceção são obrigatórios" });
+        return res.status(400).json({ message: "Data e tipo da exceÃ§Ã£o sÃ£o obrigatÃ³rios" });
       }
 
       const { data, error } = await supabase
@@ -41214,16 +41427,16 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
         .single();
 
       if (error) throw error;
-      console.log(`📅 [SCHEDULING] Exceção criada: ${exceptionType} em ${exceptionDate}`);
+      console.log(`?? [SCHEDULING] ExceÃ§Ã£o criada: ${exceptionType} em ${exceptionDate}`);
       res.json(data);
     } catch (error: any) {
       console.error("Error creating exception:", error);
-      res.status(500).json({ message: "Falha ao criar exceção" });
+      res.status(500).json({ message: "Falha ao criar exceÃ§Ã£o" });
     }
   });
 
   /**
-   * Excluir exceção
+   * Excluir exceÃ§Ã£o
    * DELETE /api/scheduling/exceptions/:id
    */
   app.delete("/api/scheduling/exceptions/:id", isAuthenticated, async (req: any, res) => {
@@ -41238,16 +41451,16 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
         .eq('user_id', userId);
 
       if (error) throw error;
-      res.json({ message: "Exceção removida com sucesso" });
+      res.json({ message: "ExceÃ§Ã£o removida com sucesso" });
     } catch (error: any) {
       console.error("Error deleting exception:", error);
-      res.status(500).json({ message: "Falha ao excluir exceção" });
+      res.status(500).json({ message: "Falha ao excluir exceÃ§Ã£o" });
     }
   });
 
   // =====================================================================
 
-  // SCHEDULING PROFESSIONALS ROUTES (Gestão de Profissionais)
+  // SCHEDULING PROFESSIONALS ROUTES (GestÃ£o de Profissionais)
 
   // =====================================================================
 
@@ -41255,7 +41468,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   /**
 
-   * Listar profissionais do usuário
+   * Listar profissionais do usuÃ¡rio
 
    * GET /api/scheduling/professionals
 
@@ -41297,7 +41510,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Se pediu com serviços, buscar a relação
+      // Se pediu com serviÃ§os, buscar a relaÃ§Ã£o
 
       if (withServices === 'true' && data) {
 
@@ -41313,7 +41526,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-        // Mapear serviços para cada profissional
+        // Mapear serviÃ§os para cada profissional
 
         const professionalsWithServices = data.map(prof => ({
 
@@ -41369,13 +41582,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!name) {
 
-        return res.status(400).json({ message: "Nome do profissional é obrigatório" });
+        return res.status(400).json({ message: "Nome do profissional Ã© obrigatÃ³rio" });
 
       }
 
 
 
-      // Se marcou como padrão, desmarcar outros
+      // Se marcou como padrÃ£o, desmarcar outros
 
       if (isDefault) {
 
@@ -41435,7 +41648,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Se passou serviceIds, criar as relações
+      // Se passou serviceIds, criar as relaÃ§Ãµes
 
       if (serviceIds && serviceIds.length > 0 && data) {
 
@@ -41513,7 +41726,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         dbUpdates.is_default = updates.isDefault;
 
-        // Se marcou como padrão, desmarcar outros
+        // Se marcou como padrÃ£o, desmarcar outros
 
         if (updates.isDefault) {
 
@@ -41563,17 +41776,17 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!data) {
 
-        return res.status(404).json({ message: "Profissional não encontrado" });
+        return res.status(404).json({ message: "Profissional nÃ£o encontrado" });
 
       }
 
 
 
-      // Se passou serviceIds, atualizar as relações
+      // Se passou serviceIds, atualizar as relaÃ§Ãµes
 
       if (updates.serviceIds !== undefined) {
 
-        // Remover relações antigas
+        // Remover relaÃ§Ãµes antigas
 
         await supabase
 
@@ -41585,7 +41798,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-        // Criar novas relações
+        // Criar novas relaÃ§Ãµes
 
         if (updates.serviceIds.length > 0) {
 
@@ -41655,7 +41868,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (error) throw error;
 
-      res.json({ message: "Profissional excluído com sucesso" });
+      res.json({ message: "Profissional excluÃ­do com sucesso" });
 
     } catch (error: any) {
 
@@ -41671,7 +41884,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   /**
 
-   * Atribuir serviços a um profissional
+   * Atribuir serviÃ§os a um profissional
 
    * POST /api/scheduling/professionals/:id/services
 
@@ -41689,7 +41902,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Verificar se profissional pertence ao usuário
+      // Verificar se profissional pertence ao usuÃ¡rio
 
       const { data: prof } = await supabase
 
@@ -41707,13 +41920,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!prof) {
 
-        return res.status(404).json({ message: "Profissional não encontrado" });
+        return res.status(404).json({ message: "Profissional nÃ£o encontrado" });
 
       }
 
 
 
-      // Remover relações antigas
+      // Remover relaÃ§Ãµes antigas
 
       await supabase
 
@@ -41725,7 +41938,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Criar novas relações
+      // Criar novas relaÃ§Ãµes
 
       if (serviceIds && serviceIds.length > 0) {
 
@@ -41747,13 +41960,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      res.json({ message: "Serviços atualizados com sucesso" });
+      res.json({ message: "ServiÃ§os atualizados com sucesso" });
 
     } catch (error: any) {
 
       console.error("Error assigning services:", error);
 
-      res.status(500).json({ message: "Falha ao atribuir serviços" });
+      res.status(500).json({ message: "Falha ao atribuir serviÃ§os" });
 
     }
 
@@ -41763,7 +41976,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   /**
 
-   * Buscar slots disponíveis considerando serviço e profissional
+   * Buscar slots disponÃ­veis considerando serviÃ§o e profissional
 
    * GET /api/scheduling/available-slots-advanced?date=2025-01-10&serviceId=...&professionalId=...
 
@@ -41781,13 +41994,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!date) {
 
-        return res.status(400).json({ message: "Data é obrigatória" });
+        return res.status(400).json({ message: "Data Ã© obrigatÃ³ria" });
 
       }
 
 
 
-      // Buscar configuração
+      // Buscar configuraÃ§Ã£o
 
       const { data: config } = await supabase
 
@@ -41809,7 +42022,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Buscar serviço se especificado
+      // Buscar serviÃ§o se especificado
 
       let serviceDuration = config.slot_duration || 60;
 
@@ -41935,7 +42148,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Gerar slots disponíveis
+      // Gerar slots disponÃ­veis
 
       const slots: { time: string; available: boolean }[] = [];
 
@@ -41975,7 +42188,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       for (let time = startMinutes; time + serviceDuration <= endMinutes; time += serviceDuration + bufferAfter) {
 
-        // Pular horário de almoço
+        // Pular horÃ¡rio de almoÃ§o
 
         if (hasBreak && time < breakEnd && time + serviceDuration > breakStart) {
 
@@ -42019,7 +42232,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       console.error("Error fetching available slots:", error);
 
-      res.status(500).json({ message: "Falha ao buscar horários disponíveis" });
+      res.status(500).json({ message: "Falha ao buscar horÃ¡rios disponÃ­veis" });
 
     }
 
@@ -42029,7 +42242,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   /**
 
-   * Habilitar múltiplos serviços/profissionais na config
+   * Habilitar mÃºltiplos serviÃ§os/profissionais na config
 
    * PUT /api/scheduling/config/advanced
 
@@ -42119,7 +42332,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       console.error("Error updating advanced config:", error);
 
-      res.status(500).json({ message: "Falha ao atualizar configurações avançadas" });
+      res.status(500).json({ message: "Falha ao atualizar configuraÃ§Ãµes avanÃ§adas" });
 
     }
 
@@ -42129,7 +42342,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   /**
 
-   * Obter URL de conexão do Google Calendar para Scheduling
+   * Obter URL de conexÃ£o do Google Calendar para Scheduling
 
    * GET /api/scheduling/google-calendar/connect
 
@@ -42147,7 +42360,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         return res.status(400).json({
 
-          message: "Google Calendar não está configurado no servidor."
+          message: "Google Calendar nÃ£o estÃ¡ configurado no servidor."
 
         });
 
@@ -42163,7 +42376,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       console.error("Error getting Google auth URL:", error);
 
-      res.status(500).json({ message: "Falha ao obter URL de autenticação" });
+      res.status(500).json({ message: "Falha ao obter URL de autenticaÃ§Ã£o" });
 
     }
 
@@ -42191,7 +42404,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (result.success) {
 
-        // Também atualizar config
+        // TambÃ©m atualizar config
 
         await supabase
 
@@ -42263,7 +42476,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   /**
 
-   * Verificar status da integração Google Calendar
+   * Verificar status da integraÃ§Ã£o Google Calendar
 
    * GET /api/google-calendar/status
 
@@ -42293,7 +42506,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   /**
 
-   * Verificar se Google Calendar está configurado no servidor
+   * Verificar se Google Calendar estÃ¡ configurado no servidor
 
    * GET /api/google-calendar/configured
 
@@ -42327,7 +42540,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         return res.status(400).json({
 
-          message: "Google Calendar não está configurado. Configure GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET."
+          message: "Google Calendar nÃ£o estÃ¡ configurado. Configure GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET."
 
         });
 
@@ -42370,8 +42583,8 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
       // Helper to send self-closing popup page
       const sendPopupResult = (success: boolean, message: string) => {
         res.send(`<!DOCTYPE html><html><head><title>Google Calendar</title></head><body>
-          <h2>${success ? '✅ Conectado com sucesso!' : '❌ Erro: ' + message}</h2>
-          <p>${success ? 'Esta janela será fechada automaticamente...' : message}</p>
+          <h2>${success ? '? Conectado com sucesso!' : '? Erro: ' + message}</h2>
+          <p>${success ? 'Esta janela serÃ¡ fechada automaticamente...' : message}</p>
           <script>
             if (window.opener) {
               window.opener.postMessage({ type: 'google-calendar-connected', success: ${success}, error: ${JSON.stringify(message)} }, '*');
@@ -42393,7 +42606,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!code || !userId) {
 
-        return sendPopupResult(false, 'Parâmetros ausentes');
+        return sendPopupResult(false, 'ParÃ¢metros ausentes');
 
       }
 
@@ -42405,7 +42618,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (result.success) {
 
-        console.log(`[GoogleCalendar] Conectado com sucesso para usuário ${userId}`);
+        console.log(`[GoogleCalendar] Conectado com sucesso para usuÃ¡rio ${userId}`);
 
         sendPopupResult(true, '');
 
@@ -42422,7 +42635,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
       console.error("Error in Google Calendar callback:", error);
 
       res.send(`<!DOCTYPE html><html><body>
-        <h2>❌ Erro: ${error.message}</h2>
+        <h2>? Erro: ${error.message}</h2>
         <script>
           if (window.opener) window.opener.postMessage({ type: 'google-calendar-connected', success: false, error: '${error.message.replace(/'/g, "\\'")}' }, '*');
           setTimeout(function() { window.close(); }, 3000);
@@ -42569,13 +42782,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (apptError || !appointment) {
 
-        return res.status(404).json({ message: "Agendamento não encontrado" });
+        return res.status(404).json({ message: "Agendamento nÃ£o encontrado" });
 
       }
 
 
 
-      // Buscar configuração para duração
+      // Buscar configuraÃ§Ã£o para duraÃ§Ã£o
 
       const { data: config } = await supabase
 
@@ -42753,7 +42966,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   /**
 
-   * Verificar se o usuário tem plano de revenda
+   * Verificar se o usuÃ¡rio tem plano de revenda
 
    * GET /api/reseller/status
 
@@ -42810,7 +43023,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!hasReseller) {
 
-        return res.status(403).json({ message: "Você não possui plano de revenda ativo" });
+        return res.status(403).json({ message: "VocÃª nÃ£o possui plano de revenda ativo" });
 
       }
 
@@ -42820,7 +43033,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!reseller) {
 
-        return res.status(404).json({ message: "Perfil de revendedor não encontrado. Configure seu perfil." });
+        return res.status(404).json({ message: "Perfil de revendedor nÃ£o encontrado. Configure seu perfil." });
 
       }
 
@@ -42854,7 +43067,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!hasReseller) {
 
-        return res.status(403).json({ message: "Você não possui plano de revenda ativo" });
+        return res.status(403).json({ message: "VocÃª nÃ£o possui plano de revenda ativo" });
 
       }
 
@@ -42898,7 +43111,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!reseller) {
 
-        return res.status(404).json({ message: "Perfil de revendedor não encontrado" });
+        return res.status(404).json({ message: "Perfil de revendedor nÃ£o encontrado" });
 
       }
 
@@ -42940,7 +43153,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!reseller) {
 
-        return res.status(403).json({ message: "Você não é um revendedor" });
+        return res.status(403).json({ message: "VocÃª nÃ£o Ã© um revendedor" });
 
       }
 
@@ -42982,7 +43195,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!email || !name || !password) {
 
-        return res.status(400).json({ message: "Email, nome e senha são obrigatórios" });
+        return res.status(400).json({ message: "Email, nome e senha sÃ£o obrigatÃ³rios" });
 
       }
 
@@ -42994,7 +43207,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!reseller) {
 
-        return res.status(403).json({ message: "Você não é um revendedor" });
+        return res.status(403).json({ message: "VocÃª nÃ£o Ã© um revendedor" });
 
       }
 
@@ -43070,7 +43283,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!reseller) {
 
-        return res.status(403).json({ message: "Você não é um revendedor" });
+        return res.status(403).json({ message: "VocÃª nÃ£o Ã© um revendedor" });
 
       }
 
@@ -43082,7 +43295,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!client || client.resellerId !== reseller.id) {
 
-        return res.status(404).json({ message: "Cliente não encontrado" });
+        return res.status(404).json({ message: "Cliente nÃ£o encontrado" });
 
       }
 
@@ -43126,7 +43339,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!reseller) {
 
-        return res.status(403).json({ message: "Você não é um revendedor" });
+        return res.status(403).json({ message: "VocÃª nÃ£o Ã© um revendedor" });
 
       }
 
@@ -43138,7 +43351,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!client || client.resellerId !== reseller.id) {
 
-        return res.status(404).json({ message: "Cliente não encontrado" });
+        return res.status(404).json({ message: "Cliente nÃ£o encontrado" });
 
       }
 
@@ -43182,7 +43395,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!reseller) {
 
-        return res.status(403).json({ message: "Você não é um revendedor" });
+        return res.status(403).json({ message: "VocÃª nÃ£o Ã© um revendedor" });
 
       }
 
@@ -43194,7 +43407,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!client || client.resellerId !== reseller.id) {
 
-        return res.status(404).json({ message: "Cliente não encontrado" });
+        return res.status(404).json({ message: "Cliente nÃ£o encontrado" });
 
       }
 
@@ -43238,7 +43451,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!reseller) {
 
-        return res.status(403).json({ message: "Você não é um revendedor" });
+        return res.status(403).json({ message: "VocÃª nÃ£o Ã© um revendedor" });
 
       }
 
@@ -43250,7 +43463,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!client || client.resellerId !== reseller.id) {
 
-        return res.status(404).json({ message: "Cliente não encontrado" });
+        return res.status(404).json({ message: "Cliente nÃ£o encontrado" });
 
       }
 
@@ -43262,7 +43475,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (currentSaaSDate < new Date()) {
 
-        currentSaaSDate = new Date(); // Se já venceu, começa de hoje
+        currentSaaSDate = new Date(); // Se jÃ¡ venceu, comeÃ§a de hoje
 
       }
 
@@ -43274,19 +43487,19 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Calcular referência do mês
+      // Calcular referÃªncia do mÃªs
 
       const referenceMonth = `${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}`;
 
 
 
-      // Preço do cliente
+      // PreÃ§o do cliente
 
       const clientPrice = parseFloat(client.clientPrice || client.monthlyCost || reseller.clientMonthlyPrice || '49.99');
 
 
 
-      // Criar ou obter fatura do mês atual
+      // Criar ou obter fatura do mÃªs atual
 
       let invoice = await db.query.resellerInvoices.findFirst({
 
@@ -43404,7 +43617,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!reseller) {
 
-        return res.status(403).json({ message: "Você não é um revendedor" });
+        return res.status(403).json({ message: "VocÃª nÃ£o Ã© um revendedor" });
 
       }
 
@@ -43416,7 +43629,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!client || client.resellerId !== reseller.id) {
 
-        return res.status(404).json({ message: "Cliente não encontrado" });
+        return res.status(404).json({ message: "Cliente nÃ£o encontrado" });
 
       }
 
@@ -43428,7 +43641,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (currentSaaSDate < new Date()) {
 
-        currentSaaSDate = new Date(); // Se já venceu, começa de hoje
+        currentSaaSDate = new Date(); // Se jÃ¡ venceu, comeÃ§a de hoje
 
       }
 
@@ -43440,7 +43653,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Preço do cliente
+      // PreÃ§o do cliente
 
       const clientPrice = parseFloat(client.clientPrice || client.monthlyCost || reseller.clientMonthlyPrice || '49.99');
 
@@ -43448,7 +43661,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Calcular referência do mês
+      // Calcular referÃªncia do mÃªs
 
       const referenceMonth = `${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}`;
 
@@ -43534,7 +43747,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
    * POST /api/reseller/clients/:clientId/generate-pix
 
-   * IMPORTANTE: Este PIX é para o REVENDEDOR pagar ao DONO DO SISTEMA via Mercado Pago
+   * IMPORTANTE: Este PIX Ã© para o REVENDEDOR pagar ao DONO DO SISTEMA via Mercado Pago
 
    */
 
@@ -43552,7 +43765,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!reseller) {
 
-        return res.status(403).json({ message: "Você não é um revendedor" });
+        return res.status(403).json({ message: "VocÃª nÃ£o Ã© um revendedor" });
 
       }
 
@@ -43564,19 +43777,19 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!client || client.resellerId !== reseller.id) {
 
-        return res.status(404).json({ message: "Cliente não encontrado" });
+        return res.status(404).json({ message: "Cliente nÃ£o encontrado" });
 
       }
 
 
 
-      // Buscar usuário do cliente para obter email
+      // Buscar usuÃ¡rio do cliente para obter email
 
       const clientUser = await storage.getUser(client.userId);
 
       if (!clientUser) {
 
-        return res.status(404).json({ message: "Usuário do cliente não encontrado" });
+        return res.status(404).json({ message: "UsuÃ¡rio do cliente nÃ£o encontrado" });
 
       }
 
@@ -43584,7 +43797,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       // Calcular valor mensal - usa o custo que o REVENDEDOR paga ao dono do sistema
 
-      // O valor do plano do revendedor é o que ele paga por cliente
+      // O valor do plano do revendedor Ã© o que ele paga por cliente
 
       const monthlyValue = parseFloat(client.monthlyCost || reseller.clientMonthlyPrice || '49.99');
 
@@ -43592,7 +43805,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!monthlyValue || isNaN(monthlyValue) || monthlyValue <= 0) {
 
-        return res.status(400).json({ message: "Valor mensal inválido" });
+        return res.status(400).json({ message: "Valor mensal invÃ¡lido" });
 
       }
 
@@ -43608,13 +43821,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!accessToken) {
 
-        return res.status(500).json({ message: "Mercado Pago não configurado" });
+        return res.status(500).json({ message: "Mercado Pago nÃ£o configurado" });
 
       }
 
 
 
-      // Usar email do revendedor como pagador (ele que está pagando)
+      // Usar email do revendedor como pagador (ele que estÃ¡ pagando)
 
       const resellerUser = await storage.getUser(userId);
 
@@ -43624,7 +43837,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!payerEmail) {
 
-        return res.status(400).json({ message: "Email do revendedor não encontrado" });
+        return res.status(400).json({ message: "Email do revendedor nÃ£o encontrado" });
 
       }
 
@@ -43772,7 +43985,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
    * POST /api/reseller/clients/:clientId/generate-annual-pix
 
-   * IMPORTANTE: Este PIX é para o REVENDEDOR pagar ao DONO DO SISTEMA via Mercado Pago (12 meses com desconto)
+   * IMPORTANTE: Este PIX Ã© para o REVENDEDOR pagar ao DONO DO SISTEMA via Mercado Pago (12 meses com desconto)
 
    */
 
@@ -43792,7 +44005,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!reseller) {
 
-        return res.status(403).json({ message: "Você não é um revendedor" });
+        return res.status(403).json({ message: "VocÃª nÃ£o Ã© um revendedor" });
 
       }
 
@@ -43804,19 +44017,19 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!client || client.resellerId !== reseller.id) {
 
-        return res.status(404).json({ message: "Cliente não encontrado" });
+        return res.status(404).json({ message: "Cliente nÃ£o encontrado" });
 
       }
 
 
 
-      // Buscar usuário do cliente para obter nome
+      // Buscar usuÃ¡rio do cliente para obter nome
 
       const clientUser = await storage.getUser(client.userId);
 
       if (!clientUser) {
 
-        return res.status(404).json({ message: "Usuário do cliente não encontrado" });
+        return res.status(404).json({ message: "UsuÃ¡rio do cliente nÃ£o encontrado" });
 
       }
 
@@ -43830,7 +44043,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!monthlyValue || isNaN(monthlyValue) || monthlyValue <= 0) {
 
-        return res.status(400).json({ message: "Valor mensal inválido" });
+        return res.status(400).json({ message: "Valor mensal invÃ¡lido" });
 
       }
 
@@ -43858,7 +44071,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!accessToken) {
 
-        return res.status(500).json({ message: "Mercado Pago não configurado" });
+        return res.status(500).json({ message: "Mercado Pago nÃ£o configurado" });
 
       }
 
@@ -43874,7 +44087,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!payerEmail) {
 
-        return res.status(400).json({ message: "Email do revendedor não encontrado" });
+        return res.status(400).json({ message: "Email do revendedor nÃ£o encontrado" });
 
       }
 
@@ -44040,7 +44253,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!reseller) {
 
-        return res.status(403).json({ message: "Você não é um revendedor" });
+        return res.status(403).json({ message: "VocÃª nÃ£o Ã© um revendedor" });
 
       }
 
@@ -44056,7 +44269,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!accessToken) {
 
-        return res.status(500).json({ message: "Mercado Pago não configurado" });
+        return res.status(500).json({ message: "Mercado Pago nÃ£o configurado" });
 
       }
 
@@ -44102,7 +44315,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   /**
 
-   * Obter métricas do dashboard do revendedor
+   * Obter mÃ©tricas do dashboard do revendedor
 
    * GET /api/reseller/dashboard
 
@@ -44120,7 +44333,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!reseller) {
 
-        return res.status(403).json({ message: "Você não é um revendedor" });
+        return res.status(403).json({ message: "VocÃª nÃ£o Ã© um revendedor" });
 
       }
 
@@ -44134,7 +44347,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       console.error("Error getting reseller dashboard:", error);
 
-      res.status(500).json({ message: "Erro ao obter métricas do dashboard" });
+      res.status(500).json({ message: "Erro ao obter mÃ©tricas do dashboard" });
 
     }
 
@@ -44144,7 +44357,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   /**
 
-   * Obter histórico de pagamentos do revendedor
+   * Obter histÃ³rico de pagamentos do revendedor
 
    * GET /api/reseller/payments
 
@@ -44162,7 +44375,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!reseller) {
 
-        return res.status(403).json({ message: "Você não é um revendedor" });
+        return res.status(403).json({ message: "VocÃª nÃ£o Ã© um revendedor" });
 
       }
 
@@ -44176,7 +44389,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       console.error("Error getting reseller payments:", error);
 
-      res.status(500).json({ message: "Erro ao obter histórico de pagamentos" });
+      res.status(500).json({ message: "Erro ao obter histÃ³rico de pagamentos" });
 
     }
 
@@ -44186,7 +44399,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   /**
 
-   * Webhook para pagamentos de criação de cliente
+   * Webhook para pagamentos de criaÃ§Ã£o de cliente
 
    * POST /api/reseller/webhook/payment
 
@@ -44202,7 +44415,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!external_reference) {
 
-        return res.status(400).json({ message: "external_reference é obrigatório" });
+        return res.status(400).json({ message: "external_reference Ã© obrigatÃ³rio" });
 
       }
 
@@ -44244,7 +44457,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!clientIds || !Array.isArray(clientIds) || clientIds.length === 0) {
 
-        return res.status(400).json({ message: "clientIds é obrigatório e deve ser um array não vazio" });
+        return res.status(400).json({ message: "clientIds Ã© obrigatÃ³rio e deve ser um array nÃ£o vazio" });
 
       }
 
@@ -44254,7 +44467,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!reseller) {
 
-        return res.status(403).json({ message: "Você não é um revendedor" });
+        return res.status(403).json({ message: "VocÃª nÃ£o Ã© um revendedor" });
 
       }
 
@@ -44318,7 +44531,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!reseller) {
 
-        return res.status(403).json({ message: "Você não é um revendedor" });
+        return res.status(403).json({ message: "VocÃª nÃ£o Ã© um revendedor" });
 
       }
 
@@ -44354,7 +44567,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   /**
 
-   * Criar cliente gratuito (para demonstração - 1 por revendedor)
+   * Criar cliente gratuito (para demonstraÃ§Ã£o - 1 por revendedor)
 
    * POST /api/reseller/clients/free
 
@@ -44372,7 +44585,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!email || !name || !password) {
 
-        return res.status(400).json({ message: "Email, nome e senha são obrigatórios" });
+        return res.status(400).json({ message: "Email, nome e senha sÃ£o obrigatÃ³rios" });
 
       }
 
@@ -44382,7 +44595,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!reseller) {
 
-        return res.status(403).json({ message: "Você não é um revendedor" });
+        return res.status(403).json({ message: "VocÃª nÃ£o Ã© um revendedor" });
 
       }
 
@@ -44412,7 +44625,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         res.json({
 
-          message: "Cliente de demonstração criado com sucesso!",
+          message: "Cliente de demonstraÃ§Ã£o criado com sucesso!",
 
           clientId: result.clientId,
 
@@ -44440,7 +44653,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   /**
 
-   * Iniciar checkout para criar cliente (PIX ou Cartão)
+   * Iniciar checkout para criar cliente (PIX ou CartÃ£o)
 
    * POST /api/reseller/clients/checkout
 
@@ -44466,7 +44679,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!paymentMethod || !['pix', 'credit_card'].includes(paymentMethod)) {
 
-        return res.status(400).json({ message: "Método de pagamento inválido" });
+        return res.status(400).json({ message: "MÃ©todo de pagamento invÃ¡lido" });
 
       }
 
@@ -44476,7 +44689,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!reseller) {
 
-        return res.status(403).json({ message: "Você não é um revendedor" });
+        return res.status(403).json({ message: "VocÃª nÃ£o Ã© um revendedor" });
 
       }
 
@@ -44520,7 +44733,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   /**
 
-   * Confirmar pagamento PIX manualmente (para testes ou confirmação manual)
+   * Confirmar pagamento PIX manualmente (para testes ou confirmaÃ§Ã£o manual)
 
    * POST /api/reseller/payments/:paymentId/confirm
 
@@ -44540,7 +44753,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!reseller) {
 
-        return res.status(403).json({ message: "Você não é um revendedor" });
+        return res.status(403).json({ message: "VocÃª nÃ£o Ã© um revendedor" });
 
       }
 
@@ -44552,7 +44765,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!payment || payment.resellerId !== reseller.id) {
 
-        return res.status(404).json({ message: "Pagamento não encontrado" });
+        return res.status(404).json({ message: "Pagamento nÃ£o encontrado" });
 
       }
 
@@ -44594,7 +44807,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   /**
 
-   * Obter plano do cliente da revenda (para mostrar na página de planos)
+   * Obter plano do cliente da revenda (para mostrar na pÃ¡gina de planos)
 
    * GET /api/user/reseller-plan
 
@@ -44610,7 +44823,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Verificar se é cliente de revenda de duas formas:
+      // Verificar se Ã© cliente de revenda de duas formas:
 
       // 1. Campo resellerId no user
 
@@ -44622,7 +44835,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Se não tem resellerId diretamente, verificar na tabela reseller_clients
+      // Se nÃ£o tem resellerId diretamente, verificar na tabela reseller_clients
 
       if (!resellerId) {
 
@@ -44640,7 +44853,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!resellerId) {
 
-        // Não é cliente de revenda - retornar null para mostrar planos normais
+        // NÃ£o Ã© cliente de revenda - retornar null para mostrar planos normais
 
         return res.json({ isResellerClient: false });
 
@@ -44648,7 +44861,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // É cliente de revenda - buscar dados do revendedor e do cliente
+      // Ã‰ cliente de revenda - buscar dados do revendedor e do cliente
 
       const reseller = await storage.getReseller(resellerId);
 
@@ -44660,7 +44873,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Buscar dados do cliente da revenda se ainda não temos
+      // Buscar dados do cliente da revenda se ainda nÃ£o temos
 
       if (!resellerClient) {
 
@@ -44670,7 +44883,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Calcular o preço que o cliente vê (definido pelo revendedor)
+      // Calcular o preÃ§o que o cliente vÃª (definido pelo revendedor)
 
       const clientPrice = resellerClient?.clientPrice || reseller.clientMonthlyPrice || "99.99";
 
@@ -44690,11 +44903,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
             "Conversas ilimitadas",
 
-            "Agente IA avançado",
+            "Agente IA avanÃ§ado",
 
-            "Follow-up automático",
+            "Follow-up automÃ¡tico",
 
-            "Suporte prioritário",
+            "Suporte prioritÃ¡rio",
 
             "Todas as funcionalidades"
 
@@ -44744,7 +44957,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
    * POST /api/reseller-client/subscription/create
 
-   * Cria uma assinatura usando o preço definido pelo revendedor
+   * Cria uma assinatura usando o preÃ§o definido pelo revendedor
 
    */
 
@@ -44780,25 +44993,25 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!resellerClient) {
 
-        return res.status(404).json({ message: "Cliente de revenda não encontrado" });
+        return res.status(404).json({ message: "Cliente de revenda nÃ£o encontrado" });
 
       }
 
 
 
-      // Verificar se já tem assinatura ativa
+      // Verificar se jÃ¡ tem assinatura ativa
 
       const existingSubscription = await storage.getUserSubscription(userId);
 
       if (existingSubscription?.status === "active") {
 
-        return res.status(400).json({ message: "Você já possui uma assinatura ativa" });
+        return res.status(400).json({ message: "VocÃª jÃ¡ possui uma assinatura ativa" });
 
       }
 
 
 
-      // Calcular o preço do cliente
+      // Calcular o preÃ§o do cliente
 
       const clientPrice = resellerClient.clientPrice || reseller.clientMonthlyPrice || "99.99";
 
@@ -44822,7 +45035,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Se não encontrar, usar o plano Pro padrão e ajustar o preço via couponPrice
+      // Se nÃ£o encontrar, usar o plano Pro padrÃ£o e ajustar o preÃ§o via couponPrice
 
       if (!plan) {
 
@@ -44840,13 +45053,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!plan) {
 
-        return res.status(500).json({ message: "Nenhum plano disponível no sistema" });
+        return res.status(500).json({ message: "Nenhum plano disponÃ­vel no sistema" });
 
       }
 
 
 
-      // Verificar se já existe assinatura pendente recente
+      // Verificar se jÃ¡ existe assinatura pendente recente
 
       const recentPendingSubscription = await db.query.subscriptions.findFirst({
 
@@ -44876,7 +45089,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Criar assinatura com o preço do cliente de revenda
+      // Criar assinatura com o preÃ§o do cliente de revenda
 
       const subscription = await storage.createSubscription({
 
@@ -44888,7 +45101,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         dataInicio: new Date(),
 
-        // Usar couponPrice para definir o preço real que o cliente vai pagar
+        // Usar couponPrice para definir o preÃ§o real que o cliente vai pagar
 
         couponPrice: clientPrice,
 
@@ -44898,7 +45111,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      console.log(`[Reseller Client] Assinatura criada: ${subscription.id} - Preço: R$ ${clientPrice}`);
+      console.log(`[Reseller Client] Assinatura criada: ${subscription.id} - PreÃ§o: R$ ${clientPrice}`);
 
 
 
@@ -45034,7 +45247,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!reseller) {
 
-        return res.status(404).json({ message: "Revendedor não encontrado" });
+        return res.status(404).json({ message: "Revendedor nÃ£o encontrado" });
 
       }
 
@@ -45114,7 +45327,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (resellerStatus === 'blocked') {
 
-        message = '? Revendedor BLOQUEADO - Clientes serão bloqueados em cascata';
+        message = '? Revendedor BLOQUEADO - Clientes serÃ£o bloqueados em cascata';
 
       } else if (resellerStatus === 'active') {
 
@@ -45140,7 +45353,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   /**
 
-   * Atribuir plano de revenda a um usuário (Admin)
+   * Atribuir plano de revenda a um usuÃ¡rio (Admin)
 
    * POST /api/admin/users/:userId/make-reseller
 
@@ -45164,13 +45377,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!resellerPlan) {
 
-        return res.status(404).json({ message: "Plano de revenda não encontrado. Crie um plano com tipo 'revenda' primeiro." });
+        return res.status(404).json({ message: "Plano de revenda nÃ£o encontrado. Crie um plano com tipo 'revenda' primeiro." });
 
       }
 
 
 
-      // Criar assinatura de revenda para o usuário
+      // Criar assinatura de revenda para o usuÃ¡rio
 
       const endDate = new Date();
 
@@ -45210,7 +45423,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      res.json({ message: "Plano de revenda atribuído com sucesso" });
+      res.json({ message: "Plano de revenda atribuÃ­do com sucesso" });
 
     } catch (error: any) {
 
@@ -45226,7 +45439,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   // ============================================================
 
-  // ROTAS AVANÇADAS DE RESELLER - Detalhes do Cliente
+  // ROTAS AVANÃ‡ADAS DE RESELLER - Detalhes do Cliente
 
   // ============================================================
 
@@ -45256,7 +45469,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!reseller) {
 
-        return res.status(403).json({ message: "Você não é um revendedor" });
+        return res.status(403).json({ message: "VocÃª nÃ£o Ã© um revendedor" });
 
       }
 
@@ -45268,19 +45481,19 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!client || client.resellerId !== reseller.id) {
 
-        return res.status(404).json({ message: "Cliente não encontrado" });
+        return res.status(404).json({ message: "Cliente nÃ£o encontrado" });
 
       }
 
 
 
-      // Buscar dados do usuário
+      // Buscar dados do usuÃ¡rio
 
       const user = await storage.getUser(client.userId);
 
 
 
-      // Buscar conexão WhatsApp do cliente
+      // Buscar conexÃ£o WhatsApp do cliente
 
       const connection = await storage.getConnectionByUserId(client.userId);
 
@@ -45292,7 +45505,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Buscar histórico de pagamentos do cliente via invoice_items (Revendedor -> Sistema)
+      // Buscar histÃ³rico de pagamentos do cliente via invoice_items (Revendedor -> Sistema)
 
       const invoiceItems = await db.query.resellerInvoiceItems.findMany({
 
@@ -45308,7 +45521,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Filtrar apenas invoices pagas e mapear histórico
+      // Filtrar apenas invoices pagas e mapear histÃ³rico
 
       const paidInvoiceItems = invoiceItems.filter(item => item.invoice?.status === 'paid');
 
@@ -45320,13 +45533,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Determinar data de ativação
+      // Determinar data de ativaÃ§Ã£o
 
       const activatedAt = client.activatedAt ? new Date(client.activatedAt) : new Date(client.createdAt);
 
 
 
-      // Calcular saasPaidUntil - se não existe, é activatedAt + 30 dias
+      // Calcular saasPaidUntil - se nÃ£o existe, Ã© activatedAt + 30 dias
 
       let saasPaidUntil = client.saasPaidUntil ? new Date(client.saasPaidUntil) : null;
 
@@ -45358,19 +45571,19 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Calcular próxima fatura (saasPaidUntil é a data limite, próximo pagamento é antes disso)
+      // Calcular prÃ³xima fatura (saasPaidUntil Ã© a data limite, prÃ³ximo pagamento Ã© antes disso)
 
       const nextPaymentDate = client.nextPaymentDate ? new Date(client.nextPaymentDate) : saasPaidUntil;
 
 
 
-      // Preço do cliente (usa clientPrice, senão monthlyCost, senão preço padrão do revendedor)
+      // PreÃ§o do cliente (usa clientPrice, senÃ£o monthlyCost, senÃ£o preÃ§o padrÃ£o do revendedor)
 
       const clientPrice = parseFloat(client.clientPrice || client.monthlyCost || reseller.clientMonthlyPrice || '49.99');
 
 
 
-      // CONSTRUIR HISTÓRICO DE PAGAMENTOS
+      // CONSTRUIR HISTÃ“RICO DE PAGAMENTOS
 
       let paymentHistory = paidInvoiceItems.map(item => ({
 
@@ -45394,7 +45607,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Se não tem histórico mas está ativo, criar registro virtual de ativação
+      // Se nÃ£o tem histÃ³rico mas estÃ¡ ativo, criar registro virtual de ativaÃ§Ã£o
 
       if (paymentHistory.length === 0 && client.status === 'active') {
 
@@ -45414,7 +45627,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
           status: 'approved',
 
-          description: 'Ativação do Cliente',
+          description: 'AtivaÃ§Ã£o do Cliente',
 
         }];
 
@@ -45422,7 +45635,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Calcular estatísticas
+      // Calcular estatÃ­sticas
 
       const totalPaid = paymentHistory.reduce((sum, p) => sum + parseFloat(p.amount || '0'), 0);
 
@@ -45438,7 +45651,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Buscar estatísticas de uso do cliente
+      // Buscar estatÃ­sticas de uso do cliente
 
       const conversations = await db.query.conversations.findMany({
 
@@ -45468,7 +45681,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         },
 
-        // Dados do usuário
+        // Dados do usuÃ¡rio
 
         user: user ? {
 
@@ -45482,7 +45695,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         } : null,
 
-        // Conexão WhatsApp
+        // ConexÃ£o WhatsApp
 
         connection: connection ? {
 
@@ -45514,7 +45727,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         },
 
-        // Plano/Preço
+        // Plano/PreÃ§o
 
         plan: {
 
@@ -45526,11 +45739,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         },
 
-        // Histórico de pagamentos
+        // HistÃ³rico de pagamentos
 
         paymentHistory,
 
-        // Estatísticas
+        // EstatÃ­sticas
 
         stats: {
 
@@ -45604,7 +45817,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!reseller) {
 
-        return res.status(403).json({ message: "Você não é um revendedor" });
+        return res.status(403).json({ message: "VocÃª nÃ£o Ã© um revendedor" });
 
       }
 
@@ -45616,13 +45829,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!client || client.resellerId !== reseller.id) {
 
-        return res.status(404).json({ message: "Cliente não encontrado" });
+        return res.status(404).json({ message: "Cliente nÃ£o encontrado" });
 
       }
 
 
 
-      // Gerar nova senha se não foi fornecida
+      // Gerar nova senha se nÃ£o foi fornecida
 
       const password = newPassword || generateRandomPassword();
 
@@ -45676,7 +45889,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
    * POST /api/reseller/clients/:clientId/mark-paid
 
-   * Registra pagamento de uma fatura específica (baseado em referenceMonth)
+   * Registra pagamento de uma fatura especÃ­fica (baseado em referenceMonth)
 
    */
 
@@ -45696,7 +45909,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!reseller) {
 
-        return res.status(403).json({ message: "Você não é um revendedor" });
+        return res.status(403).json({ message: "VocÃª nÃ£o Ã© um revendedor" });
 
       }
 
@@ -45708,13 +45921,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!client || client.resellerId !== reseller.id) {
 
-        return res.status(404).json({ message: "Cliente não encontrado" });
+        return res.status(404).json({ message: "Cliente nÃ£o encontrado" });
 
       }
 
 
 
-      // Verificar se a fatura já foi paga (evitar duplicidade)
+      // Verificar se a fatura jÃ¡ foi paga (evitar duplicidade)
 
       if (referenceMonth) {
 
@@ -45732,7 +45945,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         if (alreadyPaid) {
 
-          return res.status(400).json({ message: `Fatura de ${referenceMonth} já foi paga` });
+          return res.status(400).json({ message: `Fatura de ${referenceMonth} jÃ¡ foi paga` });
 
         }
 
@@ -45740,13 +45953,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Calcular valor se não fornecido
+      // Calcular valor se nÃ£o fornecido
 
       const paymentAmount = amount || client.clientPrice || reseller.clientMonthlyPrice || "99.99";
 
 
 
-      // Criar registro de pagamento com referência à fatura
+      // Criar registro de pagamento com referÃªncia Ã  fatura
 
       const payment = await storage.createResellerPayment({
 
@@ -45774,13 +45987,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Calcular próximo vencimento baseado na fatura paga
+      // Calcular prÃ³ximo vencimento baseado na fatura paga
 
       let nextPaymentDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
       if (referenceMonth) {
 
-        // Se pagou uma fatura específica, o próximo vencimento é o mês seguinte
+        // Se pagou uma fatura especÃ­fica, o prÃ³ximo vencimento Ã© o mÃªs seguinte
 
         const [year, month] = referenceMonth.split('-').map(Number);
 
@@ -45814,7 +46027,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-        // Atualizar assinatura do cliente também
+        // Atualizar assinatura do cliente tambÃ©m
 
         const subscription = await storage.getUserSubscription(client.userId);
 
@@ -45832,7 +46045,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       } else {
 
-        // Atualizar apenas a data do próximo pagamento
+        // Atualizar apenas a data do prÃ³ximo pagamento
 
         await storage.updateResellerClient(clientId, {
 
@@ -45882,7 +46095,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   /**
 
-   * Histórico de pagamentos de um cliente específico
+   * HistÃ³rico de pagamentos de um cliente especÃ­fico
 
    * GET /api/reseller/clients/:clientId/payments
 
@@ -45902,7 +46115,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!reseller) {
 
-        return res.status(403).json({ message: "Você não é um revendedor" });
+        return res.status(403).json({ message: "VocÃª nÃ£o Ã© um revendedor" });
 
       }
 
@@ -45914,7 +46127,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!client || client.resellerId !== reseller.id) {
 
-        return res.status(404).json({ message: "Cliente não encontrado" });
+        return res.status(404).json({ message: "Cliente nÃ£o encontrado" });
 
       }
 
@@ -45934,7 +46147,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       console.error("Error getting client payments:", error);
 
-      res.status(500).json({ message: "Erro ao obter histórico de pagamentos" });
+      res.status(500).json({ message: "Erro ao obter histÃ³rico de pagamentos" });
 
     }
 
@@ -45944,7 +46157,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
   /**
 
-   * Atualizar preço mensal de um cliente
+   * Atualizar preÃ§o mensal de um cliente
 
    * PUT /api/reseller/clients/:clientId/price
 
@@ -45964,7 +46177,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!clientPrice || parseFloat(clientPrice) < 0) {
 
-        return res.status(400).json({ message: "Preço inválido" });
+        return res.status(400).json({ message: "PreÃ§o invÃ¡lido" });
 
       }
 
@@ -45974,7 +46187,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!reseller) {
 
-        return res.status(403).json({ message: "Você não é um revendedor" });
+        return res.status(403).json({ message: "VocÃª nÃ£o Ã© um revendedor" });
 
       }
 
@@ -45986,7 +46199,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!client || client.resellerId !== reseller.id) {
 
-        return res.status(404).json({ message: "Cliente não encontrado" });
+        return res.status(404).json({ message: "Cliente nÃ£o encontrado" });
 
       }
 
@@ -46002,7 +46215,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       res.json({
 
-        message: "Preço atualizado com sucesso",
+        message: "PreÃ§o atualizado com sucesso",
 
         newPrice: clientPrice,
 
@@ -46012,7 +46225,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       console.error("Error updating client price:", error);
 
-      res.status(500).json({ message: "Erro ao atualizar preço" });
+      res.status(500).json({ message: "Erro ao atualizar preÃ§o" });
 
     }
 
@@ -46034,7 +46247,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
    * GET /api/reseller/my-subscription
 
-   * Retorna: clientes ativos, valor mensal, próxima fatura, status
+   * Retorna: clientes ativos, valor mensal, prÃ³xima fatura, status
 
    */
 
@@ -46050,7 +46263,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!reseller) {
 
-        return res.status(403).json({ message: "Você não é um revendedor" });
+        return res.status(403).json({ message: "VocÃª nÃ£o Ã© um revendedor" });
 
       }
 
@@ -46070,7 +46283,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Buscar fatura atual (mês corrente)
+      // Buscar fatura atual (mÃªs corrente)
 
       const now = new Date();
 
@@ -46080,7 +46293,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Se não existe fatura do mês atual e tem clientes, criar
+      // Se nÃ£o existe fatura do mÃªs atual e tem clientes, criar
 
       if (!currentInvoice && activeClients > 0) {
 
@@ -46090,7 +46303,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         if (dueDate < now) {
 
-          // Se já passou o dia de vencimento, é para o próximo mês
+          // Se jÃ¡ passou o dia de vencimento, Ã© para o prÃ³ximo mÃªs
 
           dueDate.setMonth(dueDate.getMonth() + 1);
 
@@ -46126,7 +46339,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Verificar se há faturas vencidas e atualizar status
+      // Verificar se hÃ¡ faturas vencidas e atualizar status
 
       const today = new Date();
 
@@ -46162,7 +46375,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Atualizar status do revendedor se necessário
+      // Atualizar status do revendedor se necessÃ¡rio
 
       let resellerStatus = reseller.resellerStatus || 'active';
 
@@ -46272,7 +46485,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!reseller) {
 
-        return res.status(403).json({ message: "Você não é um revendedor" });
+        return res.status(403).json({ message: "VocÃª nÃ£o Ã© um revendedor" });
 
       }
 
@@ -46320,7 +46533,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!reseller) {
 
-        return res.status(403).json({ message: "Você não é um revendedor" });
+        return res.status(403).json({ message: "VocÃª nÃ£o Ã© um revendedor" });
 
       }
 
@@ -46330,7 +46543,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!invoice || invoice.resellerId !== reseller.id) {
 
-        return res.status(404).json({ message: "Fatura não encontrada" });
+        return res.status(404).json({ message: "Fatura nÃ£o encontrada" });
 
       }
 
@@ -46338,13 +46551,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (invoice.status === 'paid') {
 
-        return res.status(400).json({ message: "Esta fatura já foi paga" });
+        return res.status(400).json({ message: "Esta fatura jÃ¡ foi paga" });
 
       }
 
 
 
-      // Gerar PIX estático usando a chave PIX do sistema (sem depender do MercadoPago)
+      // Gerar PIX estÃ¡tico usando a chave PIX do sistema (sem depender do MercadoPago)
 
       const amount = parseFloat(String(invoice.totalAmount));
 
@@ -46362,7 +46575,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       });
 
-      // pixQrCode é data URL: "data:image/png;base64,XXXXXX"
+      // pixQrCode Ã© data URL: "data:image/png;base64,XXXXXX"
 
       // O frontend espera qrCodeBase64 sem o prefixo
 
@@ -46436,7 +46649,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!reseller) {
 
-        return res.status(403).json({ message: "Você não é um revendedor" });
+        return res.status(403).json({ message: "VocÃª nÃ£o Ã© um revendedor" });
 
       }
 
@@ -46446,7 +46659,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!invoice || invoice.resellerId !== reseller.id) {
 
-        return res.status(404).json({ message: "Fatura não encontrada" });
+        return res.status(404).json({ message: "Fatura nÃ£o encontrada" });
 
       }
 
@@ -46466,7 +46679,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       }
 
-      // Pagamento manual de fatura de revendedor (não existe no Mercado Pago)
+      // Pagamento manual de fatura de revendedor (nÃ£o existe no Mercado Pago)
       if (invoice.mpPaymentId.startsWith('reseller_invoice_')) {
         return res.json({ status: invoice.status });
       }
@@ -46552,7 +46765,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Verificar se é admin ou o próprio revendedor
+      // Verificar se Ã© admin ou o prÃ³prio revendedor
 
       const user = await storage.getUser(userId);
 
@@ -46564,13 +46777,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!invoice) {
 
-        return res.status(404).json({ message: "Fatura não encontrada" });
+        return res.status(404).json({ message: "Fatura nÃ£o encontrada" });
 
       }
 
 
 
-      // Apenas admin ou o próprio revendedor podem marcar como pago
+      // Apenas admin ou o prÃ³prio revendedor podem marcar como pago
 
       const isAdmin = user?.role === 'admin';
 
@@ -46580,7 +46793,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!isAdmin && !isOwner) {
 
-        return res.status(403).json({ message: "Sem permissão para esta ação" });
+        return res.status(403).json({ message: "Sem permissÃ£o para esta aÃ§Ã£o" });
 
       }
 
@@ -46588,7 +46801,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (invoice.status === 'paid') {
 
-        return res.status(400).json({ message: "Esta fatura já foi paga" });
+        return res.status(400).json({ message: "Esta fatura jÃ¡ foi paga" });
 
       }
 
@@ -46732,11 +46945,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       const invoice = await storage.getResellerInvoice(invoiceId);
       if (!invoice) {
-        return res.status(404).json({ message: "Fatura não encontrada" });
+        return res.status(404).json({ message: "Fatura nÃ£o encontrada" });
       }
 
       if (invoice.status === "paid") {
-        return res.status(400).json({ message: "Esta fatura já foi paga" });
+        return res.status(400).json({ message: "Esta fatura jÃ¡ foi paga" });
       }
 
       await storage.updateResellerInvoice(invoiceId, {
@@ -46761,11 +46974,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-  // ==================== TEAM MEMBERS - Sistema de Membros/Funcionários ====================
+  // ==================== TEAM MEMBERS - Sistema de Membros/FuncionÃ¡rios ====================
 
 
 
-  // GET - Listar membros da equipe do usuário
+  // GET - Listar membros da equipe do usuÃ¡rio
 
   app.get("/api/team-members", isAuthenticated, async (req: any, res) => {
 
@@ -46807,25 +47020,25 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!name || !email) {
 
-        return res.status(400).json({ message: "Nome e email são obrigatórios" });
+        return res.status(400).json({ message: "Nome e email sÃ£o obrigatÃ³rios" });
 
       }
 
 
 
-      // Verificar se email já existe para este dono
+      // Verificar se email jÃ¡ existe para este dono
 
       const existing = await storage.getTeamMemberByEmail(userId, email);
 
       if (existing) {
 
-        return res.status(400).json({ message: "Já existe um membro com este email" });
+        return res.status(400).json({ message: "JÃ¡ existe um membro com este email" });
 
       }
 
 
 
-      // Gerar senha aleatória se não fornecida
+      // Gerar senha aleatÃ³ria se nÃ£o fornecida
 
       const finalPassword = password || generateRandomPassword();
 
@@ -46875,7 +47088,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Retornar sem passwordHash, mas incluir a senha gerada (só na criação)
+      // Retornar sem passwordHash, mas incluir a senha gerada (sÃ³ na criaÃ§Ã£o)
 
       const { passwordHash: _, ...safeData } = member;
 
@@ -46921,7 +47134,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!existing || existing.ownerId !== userId) {
 
-        return res.status(404).json({ message: "Membro não encontrado" });
+        return res.status(404).json({ message: "Membro nÃ£o encontrado" });
 
       }
 
@@ -46999,7 +47212,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!existing || existing.ownerId !== userId) {
 
-        return res.status(404).json({ message: "Membro não encontrado" });
+        return res.status(404).json({ message: "Membro nÃ£o encontrado" });
 
       }
 
@@ -47007,7 +47220,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       await storage.deleteTeamMember(id);
 
-      res.json({ success: true, message: "Membro excluído com sucesso" });
+      res.json({ success: true, message: "Membro excluÃ­do com sucesso" });
 
     } catch (error) {
 
@@ -47039,7 +47252,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!existing || existing.ownerId !== userId) {
 
-        return res.status(404).json({ message: "Membro não encontrado" });
+        return res.status(404).json({ message: "Membro nÃ£o encontrado" });
 
       }
 
@@ -47081,7 +47294,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!email || !password) {
 
-        return res.status(400).json({ message: "Email e senha são obrigatórios" });
+        return res.status(400).json({ message: "Email e senha sÃ£o obrigatÃ³rios" });
 
       }
 
@@ -47093,13 +47306,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!member) {
 
-        return res.status(401).json({ message: "Credenciais inválidas" });
+        return res.status(401).json({ message: "Credenciais invÃ¡lidas" });
 
       }
 
 
 
-      // Verificar se está ativo
+      // Verificar se estÃ¡ ativo
 
       if (!member.isActive) {
 
@@ -47117,13 +47330,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!valid) {
 
-        return res.status(401).json({ message: "Credenciais inválidas" });
+        return res.status(401).json({ message: "Credenciais invÃ¡lidas" });
 
       }
 
 
 
-      // Gerar token de sessão
+      // Gerar token de sessÃ£o
 
       const crypto = await import("crypto");
 
@@ -47149,7 +47362,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Atualizar último login
+      // Atualizar Ãºltimo login
 
       await storage.updateTeamMember(member.id, { lastLoginAt: new Date() });
 
@@ -47187,7 +47400,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-  // GET - Verificar sessão do membro
+  // GET - Verificar sessÃ£o do membro
 
   app.get("/api/team-members/session", async (req: any, res) => {
 
@@ -47289,7 +47502,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-  // POST - Ativar/Desativar assinatura do usuário na conversa
+  // POST - Ativar/Desativar assinatura do usuÃ¡rio na conversa
 
   app.post("/api/conversations/:id/toggle-subscription", isAuthenticated, async (req: any, res) => {
 
@@ -47309,7 +47522,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!conversation) {
 
-        return res.status(404).json({ message: "Conversa não encontrada" });
+        return res.status(404).json({ message: "Conversa nÃ£o encontrada" });
 
       }
 
@@ -47317,9 +47530,9 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       // Verificar propriedade
 
-      const connection = await storage.getConnectionByUserId(userId);
+      const connection = await storage.getConnectionByUserId(userId, conversation.connectionId);
 
-      if (!connection || conversation.connectionId !== connection.id) {
+      if (!connection) {
 
         return res.status(403).json({ message: "Forbidden" });
 
@@ -47327,11 +47540,11 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Buscar usuário alvo pelo número de contato
+      // Buscar usuÃ¡rio alvo pelo nÃºmero de contato
 
-      // Isso é para admin controlar assinatura de clientes
+      // Isso Ã© para admin controlar assinatura de clientes
 
-      // TODO: Implementar lógica de buscar user por phoneNumber
+      // TODO: Implementar lÃ³gica de buscar user por phoneNumber
 
 
 
@@ -47369,7 +47582,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!messageId) {
 
-        return res.status(400).json({ message: "ID da mensagem é obrigatório" });
+        return res.status(400).json({ message: "ID da mensagem Ã© obrigatÃ³rio" });
 
       }
 
@@ -47377,7 +47590,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!targetNumber && !targetConversationId) {
 
-        return res.status(400).json({ message: "Número ou conversa de destino é obrigatório" });
+        return res.status(400).json({ message: "NÃºmero ou conversa de destino Ã© obrigatÃ³rio" });
 
       }
 
@@ -47389,15 +47602,15 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!conversation) {
 
-        return res.status(404).json({ message: "Conversa não encontrada" });
+        return res.status(404).json({ message: "Conversa nÃ£o encontrada" });
 
       }
 
 
 
-      const connection = await storage.getConnectionByUserId(userId);
+      const connection = await storage.getConnectionByUserId(userId, conversation.connectionId);
 
-      if (!connection || conversation.connectionId !== connection.id) {
+      if (!connection) {
 
         return res.status(403).json({ message: "Forbidden" });
 
@@ -47413,7 +47626,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!originalMessage) {
 
-        return res.status(404).json({ message: "Mensagem não encontrada" });
+        return res.status(404).json({ message: "Mensagem nÃ£o encontrada" });
 
       }
 
@@ -47429,7 +47642,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
         if (!targetConv || targetConv.connectionId !== connection.id) {
 
-          return res.status(404).json({ message: "Conversa de destino não encontrada" });
+          return res.status(404).json({ message: "Conversa de destino nÃ£o encontrada" });
 
         }
 
@@ -47437,7 +47650,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       } else {
 
-        // Limpar número e formatar JID
+        // Limpar nÃºmero e formatar JID
 
         const cleanNumber = targetNumber.replace(/\D/g, '');
 
@@ -47451,7 +47664,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (originalMessage.mediaType && originalMessage.mediaUrl) {
 
-        // Encaminhar mídia
+        // Encaminhar mÃ­dia
 
         await whatsappSendMessage(
 
@@ -47487,7 +47700,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       } else {
 
-        return res.status(400).json({ message: "Mensagem não pode ser encaminhada" });
+        return res.status(400).json({ message: "Mensagem nÃ£o pode ser encaminhada" });
 
       }
 
@@ -47525,7 +47738,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!phoneNumber) {
 
-        return res.status(400).json({ message: "Número de telefone é obrigatório" });
+        return res.status(400).json({ message: "NÃºmero de telefone Ã© obrigatÃ³rio" });
 
       }
 
@@ -47535,13 +47748,13 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
       if (!connection || !connection.isConnected) {
 
-        return res.status(400).json({ message: "WhatsApp não conectado" });
+        return res.status(400).json({ message: "WhatsApp nÃ£o conectado" });
 
       }
 
 
 
-      // Limpar e formatar número
+      // Limpar e formatar nÃºmero
 
       const cleanNumber = phoneNumber.replace(/\D/g, '');
 
@@ -47549,7 +47762,7 @@ LEMBRE-SE: Você é o Rodrigo, atendente humano. Seja natural e prestativo!`;
 
 
 
-      // Verificar se já existe conversa
+      // Verificar se jÃ¡ existe conversa
 
       let conversation = await storage.getConversationByRemoteJid(connection.id, jid);
 
