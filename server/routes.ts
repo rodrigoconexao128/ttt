@@ -3392,7 +3392,22 @@ Responda apenas com o nÃºmero do Ã­ndice (0 a ${optionsList.length - 1}) ou 
     }
   });
 
-
+  // POST /api/analytics/segment-access — track when a user accesses a tool from a segment
+  app.post("/api/analytics/segment-access", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { segment, tool } = req.body;
+      if (!segment || !tool) {
+        return res.status(400).json({ message: "segment and tool are required" });
+      }
+      // Log for now; in future could store in a segment_access_log table
+      console.log(`[SegmentAnalytics] user=${userId} segment=${segment} tool=${tool} ts=${new Date().toISOString()}`);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error recording segment access:", error);
+      res.status(500).json({ message: "Failed to record segment access" });
+    }
+  });
 
   // Update user signature
 

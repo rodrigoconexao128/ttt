@@ -1,4 +1,4 @@
-import { useEffect, useState, lazy, Suspense } from "react";
+import React, { useEffect, useState, lazy, Suspense } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
@@ -61,7 +61,7 @@ function CategoryCard({
           ? "ring-2 ring-offset-1"
           : "border-border/70"
       }`}
-      style={isHighlighted ? { ringColor: cat.color, borderColor: cat.color } : {}}
+      style={isHighlighted ? { borderColor: cat.color } as React.CSSProperties : undefined}
       onClick={onClick}
     >
       {isHighlighted && (

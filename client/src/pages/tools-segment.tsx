@@ -134,6 +134,13 @@ export default function ToolsSegmentPage() {
     // Save business type silently
     saveBTMutation.mutate(cat.slug);
 
+    // Track segment analytics (fire-and-forget)
+    fetch("/api/analytics/segment-access", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ segment: cat.slug, tool: cat.targetTool }),
+    }).catch(() => { /* ignore analytics errors */ });
+
     // Show toast
     toast({
       title: `Você está usando a ferramenta para ${cat.name}`,
