@@ -178,6 +178,8 @@ function Router() {
       <Route path="/salon-agendamentos" component={Dashboard} />
       <Route path="/falar-por-audio" component={Dashboard} />
       <Route path="/construtor-fluxo" component={Dashboard} />
+      <Route path="/ferramentas" component={Dashboard} />
+      <Route path="/ferramentas/:slug" component={Dashboard} />
       <Route path="/support" component={Support} />
       {/* Rotas de Tickets */}
       <Route path="/tickets/new" component={() => <RequireAuth component={Dashboard} />} />

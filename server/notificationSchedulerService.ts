@@ -26,6 +26,55 @@ import { callGroq } from "./llm";
 import { db } from "./db";
 import { sql } from "drizzle-orm";
 
+/**
+ * ✅ SANITIZA RESPOSTA DA IA - Remove múltiplas variações e garante uma única mensagem
+ * Problema: A IA às vezes gera 2+ variações separadas por "---", "Ou,", "Opção 2:", etc.
+ * Solução: Extrair apenas a PRIMEIRA variação e substituir variáveis residuais
+ */
+function sanitizeAIVariation(
+  aiOutput: string,
+  replacements: Record<string, string>
+): string {
+  let result = aiOutput.trim();
+  
+  // 1. Remover múltiplas variações - pegar apenas a PRIMEIRA mensagem
+  // Padrões comuns de separação de variações:
+  const separators = [
+    /\n\s*---\s*\n/,                    // --- separador
+    /\n\s*\*?\(?[Oo]u,?\s/,              // "Ou, se preferir..."
+    /\n\s*\*?\(?[Oo]pção\s*\d/i,         // "Opção 2:"
+    /\n\s*\*?Versão\s*\d/i,              // "Versão 2:"
+    /\n\s*\*?Alternativa/i,              // "Alternativa:"
+    /\n\s*\*?Se preferir/i,              // "Se preferir um tom..."
+    /\n\s*\*?Outra opção/i,              // "Outra opção:"
+    /\n\s*\(\s*Ou/,                      // "(Ou, se preferir"
+  ];
+  
+  for (const sep of separators) {
+    const match = result.match(sep);
+    if (match && match.index && match.index > 30) {
+      result = result.substring(0, match.index).trim();
+      console.log(`[AI SANITIZE] Removida variação extra (separador: ${sep.source})`);
+      break;
+    }
+  }
+  
+  // 2. Substituir variáveis de template que a IA pode ter mantido literalmente
+  for (const [variable, value] of Object.entries(replacements)) {
+    result = result.replace(new RegExp(variable.replace(/[{}]/g, '\\$&'), 'g'), value);
+  }
+  
+  // 3. Remover aspas envolventes que a IA pode adicionar
+  if ((result.startsWith('"') && result.endsWith('"')) || (result.startsWith("'") && result.endsWith("'"))) {
+    result = result.slice(1, -1).trim();
+  }
+  
+  // 4. Remover prefixos tipo "Aqui está a mensagem:" ou "Mensagem reescrita:"
+  result = result.replace(/^(Aqui está[^:]*:|Mensagem[^:]*:|Segue[^:]*:)\s*/i, '').trim();
+  
+  return result;
+}
+
 interface NotificationJob {
   type: 'payment_reminder' | 'overdue_reminder' | 'periodic_checkin' | 'disconnected_alert';
   adminId: string;
@@ -106,6 +155,29 @@ async function processNotifications(): Promise<void> {
       }
     } catch (recoveryErr) {
       console.error('🔔 [RECOVERY] Erro ao resetar stuck:', recoveryErr);
+    }
+
+    // ✅ RECOVERY: Resetar notificações que falharam por WhatsApp desconectado (últimas 48h, max 3 retries)
+    try {
+      const disconnectedFailedResult = await db.execute(sql`
+        UPDATE scheduled_notifications
+        SET status = 'pending', 
+            updated_at = NOW(), 
+            error_message = NULL,
+            retry_count = COALESCE(retry_count, 0) + 1,
+            scheduled_for = NOW() + (floor(random() * 30) || ' minutes')::interval
+        WHERE status = 'failed'
+          AND error_message LIKE '%WhatsApp%not connected%'
+          AND scheduled_for >= NOW() - INTERVAL '48 hours'
+          AND COALESCE(retry_count, 0) < 3
+        RETURNING id, recipient_name, notification_type
+      `);
+      const recoveredRows = disconnectedFailedResult.rows as any[];
+      if (recoveredRows.length > 0) {
+        console.log(`🔔 [RECOVERY] ♻️ Reagendou ${recoveredRows.length} notificações que falharam por WhatsApp desconectado`);
+      }
+    } catch (recoveryErr) {
+      console.error('🔔 [RECOVERY] Erro ao recuperar falhas por desconexão:', recoveryErr);
     }
 
     // ✅ Limpar contadores antigos
@@ -735,7 +807,13 @@ async function processAdminScheduledQueue(adminId: string, notifications: any[])
               systemPrompt += `\n\nHISTÓRICO DA CONVERSA COM ESTE CLIENTE:\n---\n${conversationHistory}\n---\n\nUse este contexto para personalizar a mensagem de forma natural.`;
             }
             
-            systemPrompt += '\n\nIMPORTANTE: Retorne APENAS a mensagem reescrita, sem explicações, aspas ou marcadores.';
+            systemPrompt += '\n\nREGRAS OBRIGATÓRIAS:';
+            systemPrompt += '\n1. Retorne APENAS UMA ÚNICA mensagem reescrita.';
+            systemPrompt += '\n2. NÃO gere múltiplas variações ou opções alternativas.';
+            systemPrompt += '\n3. NÃO use separadores como "---" ou "Ou, se preferir".';
+            systemPrompt += '\n4. NÃO inclua explicações, aspas, marcadores ou prefixos.';
+            systemPrompt += '\n5. Use o nome real do cliente na mensagem, NUNCA use {cliente_nome} ou outras variáveis entre chaves.';
+            systemPrompt += `\n6. O nome do cliente é: ${notification.recipient_name || 'Cliente'}. Use este nome diretamente.`;
             
             // ✅ CORRIGIDO: Usar array de ChatMessage ao invés de string
             const variedMessage = await callGroq(
@@ -743,27 +821,40 @@ async function processAdminScheduledQueue(adminId: string, notifications: any[])
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: finalMessage }
               ],
-              { temperature: 0.8, maxTokens: 500 }
+              { temperature: 0.7, maxTokens: 400 }
             );
             
+            // ✅ SANITIZAR: Remover múltiplas variações e substituir variáveis residuais
+            const sanitized = sanitizeAIVariation(variedMessage, {
+              '{cliente_nome}': notification.recipient_name || 'Cliente',
+              '{dias_restantes}': metadata.daysBefore || '',
+              '{dias_atraso}': metadata.daysOverdue || metadata.daysAfter || '',
+              '{data_vencimento}': metadata.dueDate ? new Date(metadata.dueDate).toLocaleDateString('pt-BR') : '',
+              '{valor}': metadata.valor || '',
+            });
+            
             // ✅ PROTEÇÃO REFORÇADA: Verificar se retornou mensagem válida (não genérica)
-            const trimmedVaried = variedMessage.trim();
+            const clientFirstName = (notification.recipient_name || '').split(' ')[0];
             const isGenericMessage = 
-              !trimmedVaried ||
-              trimmedVaried.length < 20 ||
-              trimmedVaried.toLowerCase().includes('como posso ajudar') ||
-              trimmedVaried.toLowerCase().includes('olá! como posso') ||
-              trimmedVaried.toLowerCase().includes('em que posso ajudar') ||
-              trimmedVaried.toLowerCase().includes('posso te ajudar') ||
-              trimmedVaried === 'Olá!' ||
-              trimmedVaried === 'Oi!' ||
-              !trimmedVaried.includes(notification.recipient_name?.split(' ')[0] || '');
+              !sanitized ||
+              sanitized.length < 20 ||
+              sanitized.toLowerCase().includes('como posso ajudar') ||
+              sanitized.toLowerCase().includes('olá! como posso') ||
+              sanitized.toLowerCase().includes('em que posso ajudar') ||
+              sanitized.toLowerCase().includes('posso te ajudar') ||
+              sanitized === 'Olá!' ||
+              sanitized === 'Oi!' ||
+              // Verificar se variáveis de template ficaram sem substituir
+              sanitized.includes('{cliente_nome}') ||
+              sanitized.includes('{dias_restantes}') ||
+              sanitized.includes('{data_vencimento}') ||
+              sanitized.includes('{valor}');
             
             if (!isGenericMessage) {
-              finalMessage = trimmedVaried;
+              finalMessage = sanitized;
               console.log(`📋 [QUEUE] ✅ IA variou mensagem para ${notification.recipient_name}`);
             } else {
-              console.log(`📋 [QUEUE] ⚠️ IA retornou mensagem genérica: "${trimmedVaried.substring(0, 50)}...", usando ORIGINAL para ${notification.recipient_name}`);
+              console.log(`📋 [QUEUE] ⚠️ IA retornou mensagem genérica: "${sanitized.substring(0, 50)}...", usando ORIGINAL para ${notification.recipient_name}`);
               // Manter finalMessage original - NÃO ALTERAR
             }
           } catch (aiError) {
@@ -1268,44 +1359,61 @@ async function sendNotification(
 /**
  * ✅ APLICA VARIAÇÃO COM IA NA MENSAGEM - GERA MENSAGEM ÚNICA PARA CADA CLIENTE
  * Isso evita detecção de bot pelo WhatsApp
+ * ✅ CORRIGIDO: Agora garante UMA ÚNICA variação e substitui {cliente_nome}
  */
 export async function applyAIVariation(message: string, customPrompt?: string, clientName?: string): Promise<string> {
   try {
-    const prompt = customPrompt || 
+    let prompt = customPrompt || 
       `Reescreva esta mensagem mantendo o mesmo significado mas com palavras e estrutura diferentes.
       Mantenha tom profissional e cordial.
-      Varie saudações, conectivos e expressões.
-      ${clientName ? `O nome do cliente é ${clientName}.` : ''}
-      Retorne APENAS a mensagem reescrita, sem explicações ou aspas.`;
+      Varie saudações, conectivos e expressões.`;
+    
+    // ✅ Adicionar regras obrigatórias ao prompt
+    prompt += '\n\nREGRAS OBRIGATÓRIAS:';
+    prompt += '\n1. Retorne APENAS UMA ÚNICA mensagem reescrita.';
+    prompt += '\n2. NÃO gere múltiplas variações ou opções alternativas.';
+    prompt += '\n3. NÃO use separadores como "---" ou "Ou, se preferir".';
+    prompt += '\n4. NÃO inclua explicações, aspas, marcadores ou prefixos.';
+    prompt += '\n5. NÃO use variáveis como {cliente_nome} - use o nome real do cliente diretamente.';
+    if (clientName) {
+      prompt += `\n6. O nome do cliente é: ${clientName}. Use este nome diretamente na mensagem.`;
+    }
 
     const result = await callGroq([
       { role: 'system', content: prompt },
       { role: 'user', content: message },
     ], {
-      // Usa modelo do banco de dados via config
-      temperature: 0.8, // Alta temperatura para máxima variação
-      max_tokens: 300,
+      temperature: 0.7,
+      max_tokens: 400,
     });
 
-    const trimmedResult = result.trim();
+    // ✅ SANITIZAR: Remover múltiplas variações e substituir variáveis residuais
+    const sanitized = sanitizeAIVariation(result, {
+      '{cliente_nome}': clientName || 'Cliente',
+    });
     
-    // ✅ PROTEÇÃO REFORÇADA contra mensagens genéricas
+    // ✅ PROTEÇÃO REFORÇADA contra mensagens genéricas e variáveis não-substituídas
     const isGenericMessage = 
-      !trimmedResult ||
-      trimmedResult.length < 20 ||
-      trimmedResult.toLowerCase().includes('como posso ajudar') ||
-      trimmedResult.toLowerCase().includes('olá! como posso') ||
-      trimmedResult.toLowerCase().includes('em que posso ajudar') ||
-      trimmedResult.toLowerCase().includes('posso te ajudar') ||
-      trimmedResult === 'Olá!' ||
-      trimmedResult === 'Oi!';
+      !sanitized ||
+      sanitized.length < 20 ||
+      sanitized.toLowerCase().includes('como posso ajudar') ||
+      sanitized.toLowerCase().includes('olá! como posso') ||
+      sanitized.toLowerCase().includes('em que posso ajudar') ||
+      sanitized.toLowerCase().includes('posso te ajudar') ||
+      sanitized === 'Olá!' ||
+      sanitized === 'Oi!' ||
+      // Verificar se variáveis de template ficaram sem substituir
+      sanitized.includes('{cliente_nome}') ||
+      sanitized.includes('{dias_restantes}') ||
+      sanitized.includes('{data_vencimento}') ||
+      sanitized.includes('{valor}');
     
     if (isGenericMessage) {
-      console.log(`⚠️ [AI VARIATION] Mensagem genérica detectada, usando original: "${trimmedResult.substring(0, 30)}..."`);
+      console.log(`⚠️ [AI VARIATION] Mensagem genérica detectada, usando original: "${sanitized.substring(0, 30)}..."`);
       return message; // Retornar mensagem original
     }
 
-    return trimmedResult;
+    return sanitized;
   } catch (error) {
     console.error('⚠️ Erro ao aplicar variação IA:', error);
     return message; // Retornar mensagem original se falhar

@@ -3364,6 +3364,34 @@ Responda apenas com o nÃºmero do Ã­ndice (0 a ${optionsList.length - 1}) ou 
 
   });
 
+  // GET user business type
+  app.get("/api/user/business-type", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const user = await storage.getUser(userId);
+      res.json({ businessType: (user as any).businessType || null });
+    } catch (error) {
+      console.error("Error getting business type:", error);
+      res.status(500).json({ message: "Failed to get business type" });
+    }
+  });
+
+  // PUT user business type
+  app.put("/api/user/business-type", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { businessType } = req.body;
+      if (!businessType) {
+        return res.status(400).json({ message: "businessType é obrigatório" });
+      }
+      await storage.updateUser(userId, { businessType } as any);
+      res.json({ success: true, businessType });
+    } catch (error) {
+      console.error("Error updating business type:", error);
+      res.status(500).json({ message: "Failed to update business type" });
+    }
+  });
+
 
 
   // Update user signature
@@ -13473,7 +13501,14 @@ ${config.ai_instructions || ''}
 
       const result = insertAiAgentConfigSchema.partial().safeParse(req.body);
 
-
+      // DEBUG: Log what Zod parsed and what was received
+      console.log(`[AGENT CONFIG DEBUG] req.body keys: ${Object.keys(req.body).join(', ')}`);
+      console.log(`[AGENT CONFIG DEBUG] req.body.greetingEnabled: ${req.body.greetingEnabled}`);
+      console.log(`[AGENT CONFIG DEBUG] result.success: ${result.success}`);
+      if (result.success) {
+        console.log(`[AGENT CONFIG DEBUG] result.data keys: ${Object.keys(result.data).join(', ')}`);
+        console.log(`[AGENT CONFIG DEBUG] result.data.greetingEnabled: ${(result.data as any).greetingEnabled}`);
+      }
 
       if (!result.success) {
 
@@ -26717,79 +26752,8 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-        // Se existir conta de TESTE para esse telefone, fazer reset completo (inclui Auth)
-
-        // Isso evita o bug do email_exists e garante que "limpar histÃ³rico" realmente limpa tudo.
-
-        const user = await storage.getUserByPhone(phone);
-
-        if (user) {
-
-          const result = await storage.resetTestAccountSafely(phone);
-
-          if (!result.success) {
-
-            return res.status(400).json({
-
-              success: false,
-
-              message: "HistÃ³rico limpo, mas nÃ£o foi possÃ­vel deletar a conta (validaÃ§Ã£o de seguranÃ§a)",
-
-              error: result.error,
-
-            });
-
-          }
-
-
-
-          // Se deletou o usuÃ¡rio no banco, tambÃ©m deletar no Supabase Auth (senÃ£o o email fica preso)
-
-          if (result.result?.userDeleted) {
-
-            try {
-
-              const { supabase } = await import("./supabaseAuth");
-
-              const { error: authDeleteError } = await supabase.auth.admin.deleteUser(user.id);
-
-              if (authDeleteError) {
-
-                console.error("[ADMIN] Falha ao deletar usuÃ¡rio no Supabase Auth:", authDeleteError);
-
-                return res.status(500).json({
-
-                  success: false,
-
-                  message: "HistÃ³rico limpo, mas falha ao deletar usuÃ¡rio no Auth",
-
-                  error: authDeleteError.message,
-
-                });
-
-              }
-
-              console.log(`??? [ADMIN] UsuÃ¡rio ${user.id} deletado do Supabase Auth (history)`);
-
-            } catch (e: any) {
-
-              console.error("[ADMIN] Erro ao deletar usuÃ¡rio no Auth:", e);
-
-              return res.status(500).json({
-
-                success: false,
-
-                message: "HistÃ³rico limpo, mas erro ao deletar usuÃ¡rio no Auth",
-
-                error: e?.message || String(e),
-
-              });
-
-            }
-
-          }
-
-        }
+        // Mantem a conta do cliente. Exclusao completa deve ser feita explicitamente
+        // pelo endpoint /complete, separando "limpar conversa" de "excluir conta".
 
       }
 
@@ -33316,73 +33280,147 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
     try {
 
-      const { message, phoneNumber, testTrigger } = req.body;
+      const { message, phoneNumber, testTrigger, mediaType, mediaUrl, contactName } = req.body;
 
-
-
-      if (!message) {
-
-        return res.status(400).json({ message: "Message is required" });
-
+      if (!message && !mediaType) {
+        return res.status(400).json({ message: "Message or mediaType is required" });
       }
 
-
-
-      // Usar o serviÃ§o de IA do admin agent
-
+      // Usar o servico de IA do admin agent
       const { processAdminMessage } = await import("./adminAgentService");
 
+      // Usar phoneNumber de teste se nao fornecido
+      const testPhone = String(phoneNumber || "5500000000000").replace(/\D/g, "");
+      const effectiveMessage = String(message || (mediaType ? "Midia enviada" : "")).trim();
 
-
-      // Usar phoneNumber de teste se nÃ£o fornecido
-
-      const testPhone = phoneNumber || "5500000000000";
-
-
+      if (!effectiveMessage) {
+        return res.status(400).json({ message: "Empty message" });
+      }
 
       // Se testTrigger=true, verifica frases gatilho; se false, skipTriggerCheck=true para testes
-
       const skipTriggerCheck = testTrigger !== true;
 
-
-
-      const response = await processAdminMessage(testPhone, message, undefined, undefined, skipTriggerCheck);
-
-
+      const response = await processAdminMessage(
+        testPhone,
+        effectiveMessage,
+        mediaType,
+        mediaUrl,
+        skipTriggerCheck,
+        contactName
+      );
 
       if (response === null) {
-
-        // NÃ£o passou na validaÃ§Ã£o de frase gatilho
-
-        res.json({
-
+        // Nao passou na validacao de frase gatilho
+        return res.json({
           response: null,
-
           skipped: true,
-
-          reason: "Mensagem nÃ£o contÃ©m frase gatilho configurada"
-
+          reason: "Mensagem nao contem frase gatilho configurada"
         });
-
-      } else {
-
-        res.json({
-
-          response: response.text,
-
-          skipped: false,
-
-          actions: response.actions || {}
-
-        });
-
       }
+
+      const credentials = (response.actions as any)?.testAccountCredentials || null;
+      const demoAssets = (response.actions as any)?.demoAssets || null;
+      const baseUrl = credentials?.loginUrl || process.env.APP_URL || "https://agentezap.online";
+      const testLink = credentials?.simulatorToken
+        ? `${baseUrl}/test/${credentials.simulatorToken}`
+        : null;
+
+      res.json({
+        response: response.text,
+        skipped: false,
+        actions: response.actions || {},
+        mediaActions: response.mediaActions || [],
+        demoAssets,
+        testLink,
+        credentials: credentials
+          ? {
+              email: credentials.email,
+              password: credentials.password || null,
+              loginUrl: credentials.loginUrl || baseUrl,
+              simulatorToken: credentials.simulatorToken || null,
+              simulatorLink: testLink,
+            }
+          : null
+      });
 
     } catch (error) {
 
       console.error("Error testing admin agent:", error);
 
       res.status(500).json({ message: "Failed to test admin agent" });
+
+    }
+
+  });
+
+
+
+  // GET - Historico do simulador do agente admin
+
+  app.get("/api/admin/agent/test/history", isAdmin, async (req: any, res) => {
+
+    try {
+
+      const phoneNumber = String(req.query.phoneNumber || req.query.phone || "").replace(/\D/g, "");
+
+      if (!phoneNumber) {
+        return res.status(400).json({ message: "phoneNumber is required" });
+      }
+
+      const { getClientSession } = await import("./adminAgentService");
+      const session = getClientSession(phoneNumber);
+
+      return res.json({
+        phoneNumber,
+        flowState: session?.flowState || null,
+        history: session?.conversationHistory || [],
+      });
+
+    } catch (error) {
+
+      console.error("Error fetching admin agent test history:", error);
+
+      return res.status(500).json({ message: "Failed to fetch admin agent history" });
+
+    }
+
+  });
+
+
+
+  // POST - Resetar simulador do agente admin
+
+  app.post("/api/admin/agent/test/reset", isAdmin, async (req: any, res) => {
+
+    try {
+
+      const { phoneNumber, deleteTestAccount = false } = req.body || {};
+      const cleanPhone = String(phoneNumber || "").replace(/\D/g, "");
+
+      if (!cleanPhone) {
+        return res.status(400).json({ message: "phoneNumber is required" });
+      }
+
+      const { clearClientSession } = await import("./adminAgentService");
+      const sessionCleared = clearClientSession(cleanPhone);
+
+      let accountReset: any = null;
+      if (deleteTestAccount) {
+        accountReset = await storage.resetTestAccountSafely(cleanPhone);
+      }
+
+      return res.json({
+        success: true,
+        phoneNumber: cleanPhone,
+        sessionCleared,
+        accountReset,
+      });
+
+    } catch (error) {
+
+      console.error("Error resetting admin agent test session:", error);
+
+      return res.status(500).json({ message: "Failed to reset admin agent test session" });
 
     }
 

@@ -157,8 +157,11 @@ export async function startFullApp() {
   // Serve landing page HTML for unauthenticated root route
   app.get('/', (req: Request, res: Response, next) => {
     const hasAuthCookie = req.headers.cookie?.includes('connect.sid');
+    const forceRootLanding = process.env.FORCE_ROOT_LANDING !== 'false';
+    const explicitAppMode = req.query?.app === '1';
+    const shouldServeLanding = !explicitAppMode && (forceRootLanding || !hasAuthCookie);
 
-    if (!hasAuthCookie) {
+    if (shouldServeLanding) {
       const landingPath = path.join(findeasThemePath, 'landing-5.html');
       if (fs.existsSync(landingPath)) {
         return res.sendFile(landingPath);
@@ -212,6 +215,7 @@ export async function startFullApp() {
         restoreExistingSessions().catch((error) => {
           console.error('Failed to restore WhatsApp sessions:', error);
         });
+        startConnectionHealthCheck();
 
         restoreAdminSessions().catch((error) => {
           console.error('Failed to restore admin WhatsApp sessions:', error);
@@ -230,7 +234,6 @@ export async function startFullApp() {
         paymentReminderService.start();
         statusSchedulerService.start();
         startAutoReactivationService();
-        startConnectionHealthCheck();
         startDailySyncCron();
         startMediaCleanupService();
         startNotificationScheduler();

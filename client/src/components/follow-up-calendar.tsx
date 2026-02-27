@@ -52,11 +52,16 @@ interface BusinessHours {
   nextOpenTime: string | null;
 }
 
-export default function FollowUpCalendar() {
+interface FollowUpCalendarProps {
+  defaultSubTab?: string;
+  onSubTabChange?: (subTab: string) => void;
+}
+
+export default function FollowUpCalendar({ defaultSubTab, onSubTabChange }: FollowUpCalendarProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [activeTab, setActiveTab] = useState("pending");
+  const [activeTab, setActiveTab] = useState(defaultSubTab || "pending");
 
   // Buscar eventos do calendário
   const { data: eventsData, isLoading: loadingEvents, refetch: refetchEvents } = useQuery({
@@ -298,7 +303,7 @@ export default function FollowUpCalendar() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); onSubTabChange?.(v); }} className="w-full">
         <TabsList className="grid w-full grid-cols-4 bg-[#1a1a2e]">
           <TabsTrigger value="pending">Pendentes</TabsTrigger>
           <TabsTrigger value="sent">Enviados</TabsTrigger>

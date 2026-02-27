@@ -99,9 +99,11 @@ export interface StatusHistory {
 
 interface AdminStatusPanelProps {
   onTabChange?: (tab: string) => void;
+  defaultSubTab?: string;
+  onSubTabChange?: (subTab: string) => void;
 }
 
-export default function AdminStatusPanel({ onTabChange }: AdminStatusPanelProps) {
+export default function AdminStatusPanel({ onTabChange, defaultSubTab, onSubTabChange }: AdminStatusPanelProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -348,7 +350,7 @@ export default function AdminStatusPanel({ onTabChange }: AdminStatusPanelProps)
           </div>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="library" className="w-full">
+          <Tabs value={defaultSubTab || "library"} onValueChange={(v) => onSubTabChange?.(v)} className="w-full">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="library">Biblioteca</TabsTrigger>
               <TabsTrigger value="schedule">Agendados</TabsTrigger>

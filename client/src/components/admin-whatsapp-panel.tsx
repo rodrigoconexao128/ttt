@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Loader2, MessageCircle, QrCode, CheckCircle2, XCircle, Wifi, WifiOff, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import AdminWhatsAppSimulator from "@/components/admin-whatsapp-simulator";
 
 interface AdminWhatsappConnection {
   id?: string;
@@ -19,6 +20,10 @@ interface AdminSession {
   authenticated: boolean;
   adminId: string;
   adminRole?: string;
+}
+
+interface AdminConversationSummary {
+  id: string;
 }
 
 // Configurações de reconexão
@@ -54,6 +59,11 @@ export default function AdminWhatsappPanel() {
     queryKey: ["/api/admin/whatsapp/connection"],
     refetchInterval: 15000, // Atualizar a cada 15 segundos
     refetchIntervalInBackground: false,
+  });
+
+  const { data: adminConversations = [] } = useQuery<AdminConversationSummary[]>({
+    queryKey: ["/api/admin/conversations"],
+    refetchInterval: 10000,
   });
 
   // Calcular delay de reconexão com backoff exponencial
@@ -368,172 +378,201 @@ export default function AdminWhatsappPanel() {
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <MessageCircle className="w-5 h-5" />
-              WhatsApp do Administrador
-            </CardTitle>
-            <CardDescription>
-              Conecte seu WhatsApp para enviar mensagens de boas-vindas aos novos clientes
-            </CardDescription>
-          </div>
-          <div className="flex items-center gap-2">
-            {/* Indicador de status do WebSocket */}
-            <Badge
-              variant={wsConnected ? "default" : "secondary"}
-              className={`flex items-center gap-1 ${wsConnected ? 'bg-green-100 text-green-800 hover:bg-green-100' : 'bg-gray-100 text-gray-600'}`}
-            >
-              {wsConnected ? (
-                <>
-                  <Wifi className="w-3 h-3" />
-                  Real-time
-                </>
-              ) : (
-                <>
-                  <WifiOff className="w-3 h-3" />
-                  Polling
-                </>
-              )}
-            </Badge>
-            {/* Indicador de reconexão automática */}
-            {!connection?.isConnected && !wsConnected && reconnectAttemptsRef.current > 0 && (
-              <Badge variant="outline" className="flex items-center gap-1 bg-amber-50 text-amber-700 border-amber-200">
-                <RefreshCw className="w-3 h-3 animate-spin" />
-                Reconectando...
-              </Badge>
-            )}
-            {connection?.isConnected ? (
-              <Badge variant="default" className="flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3" />
-                Conectado
-              </Badge>
-            ) : (
-              <Badge variant="secondary" className="flex items-center gap-1">
-                <XCircle className="w-3 h-3" />
-                Desconectado
-              </Badge>
-            )}
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {connection?.isConnected ? (
-          <div className="space-y-4">
-            <div className="p-4 bg-muted rounded-lg">
-              <p className="text-sm font-medium">Número conectado:</p>
-              <p className="text-lg font-semibold">{connection.phoneNumber || "Carregando..."}</p>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <MessageCircle className="w-5 h-5" />
+                WhatsApp do Administrador
+              </CardTitle>
+              <CardDescription>
+                Conecte seu WhatsApp para enviar mensagens de boas-vindas aos novos clientes
+              </CardDescription>
             </div>
-            {/* Status da conexão real-time */}
-            <div className={`flex items-center gap-2 text-xs ${wsConnected ? 'text-green-600' : 'text-amber-600'}`}>
-              <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-500 animate-pulse' : 'bg-amber-500'}`} />
-              {wsConnected
-                ? `Conexão em tempo real ativa (tentativas: ${reconnectAttemptsRef.current})`
-                : reconnectAttemptsRef.current > 0
-                  ? `Reconexão automática em andamento (tentativa ${reconnectAttemptsRef.current}/${WS_MAX_RECONNECT_ATTEMPTS})`
-                  : 'Usando polling a cada 5s'}
-            </div>
-            <Button
-              variant="destructive"
-              onClick={() => disconnectMutation.mutate()}
-              disabled={disconnectMutation.isPending}
-              className="w-full"
-            >
-              {disconnectMutation.isPending ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Desconectando...
-                </>
-              ) : (
-                "Desconectar WhatsApp"
+            <div className="flex items-center gap-2">
+              {/* Indicador de status do WebSocket */}
+              <Badge
+                variant={wsConnected ? "default" : "secondary"}
+                className={`flex items-center gap-1 ${wsConnected ? 'bg-green-100 text-green-800 hover:bg-green-100' : 'bg-gray-100 text-gray-600'}`}
+              >
+                {wsConnected ? (
+                  <>
+                    <Wifi className="w-3 h-3" />
+                    Real-time
+                  </>
+                ) : (
+                  <>
+                    <WifiOff className="w-3 h-3" />
+                    Polling
+                  </>
+                )}
+              </Badge>
+              {/* Indicador de reconexão automática */}
+              {!connection?.isConnected && !wsConnected && reconnectAttemptsRef.current > 0 && (
+                <Badge variant="outline" className="flex items-center gap-1 bg-amber-50 text-amber-700 border-amber-200">
+                  <RefreshCw className="w-3 h-3 animate-spin" />
+                  Reconectando...
+                </Badge>
               )}
-            </Button>
+              {connection?.isConnected ? (
+                <Badge variant="default" className="flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" />
+                  Conectado
+                </Badge>
+              ) : (
+                <Badge variant="secondary" className="flex items-center gap-1">
+                  <XCircle className="w-3 h-3" />
+                  Desconectado
+                </Badge>
+              )}
+            </div>
           </div>
-        ) : (
-          <div className="space-y-4">
-            {isConnecting ? (
-              <div className="flex flex-col items-center space-y-4 p-8">
-                <Loader2 className="w-12 h-12 animate-spin text-primary" />
-                <div className="text-center space-y-2">
-                  <p className="text-lg font-semibold">Conectando...</p>
-                  <p className="text-sm text-muted-foreground">
-                    Aguarde enquanto estabelecemos a conexão com o WhatsApp
-                  </p>
-                </div>
-                {/* Status da conexão */}
-                <div className={`flex items-center gap-2 text-xs ${wsConnected ? 'text-green-600' : 'text-amber-600'}`}>
-                  <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-500 animate-pulse' : 'bg-amber-500'}`} />
-                  {wsConnected
-                    ? 'Conexão em tempo real ativa'
-                    : reconnectAttemptsRef.current > 0
-                      ? `Reconexão automática em andamento (tentativa ${reconnectAttemptsRef.current}/${WS_MAX_RECONNECT_ATTEMPTS})`
-                      : 'Reconectando para atualizações em tempo real...'}
-                </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {connection?.isConnected ? (
+            <div className="space-y-4">
+              <div className="p-4 bg-muted rounded-lg">
+                <p className="text-sm font-medium">Número conectado:</p>
+                <p className="text-lg font-semibold">{connection.phoneNumber || "Carregando..."}</p>
               </div>
-            ) : qrCode ? (
-              <div className="flex flex-col items-center space-y-4">
-                <div className="w-full p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                  <h4 className="font-semibold text-sm mb-2 text-blue-900">Como conectar seu WhatsApp:</h4>
-                  <ol className="text-xs text-blue-800 space-y-1 list-decimal list-inside">
-                    <li>Abra o <strong>WhatsApp</strong> no seu celular</li>
-                    <li>Toque em <strong>Menu</strong> (⋮) ou <strong>Configurações</strong></li>
-                    <li>Toque em <strong>Aparelhos conectados</strong></li>
-                    <li>Toque em <strong>Conectar um aparelho</strong></li>
-                    <li>Aponte a câmera do celular para este QR Code</li>
-                  </ol>
-                </div>
-                <div className="p-4 bg-white border-2 border-gray-200 rounded-lg shadow-sm">
-                  <img src={qrCode} alt="QR Code" className="w-64 h-64" />
-                </div>
-                <div className="text-center space-y-2">
-                  <p className="text-sm font-medium flex items-center justify-center gap-2 text-primary">
-                    <QrCode className="w-4 h-4" />
-                    Escaneie o QR Code acima
-                  </p>
+              {/* Status da conexão real-time */}
+              <div className={`flex items-center gap-2 text-xs ${wsConnected ? 'text-green-600' : 'text-amber-600'}`}>
+                <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-500 animate-pulse' : 'bg-amber-500'}`} />
+                {wsConnected
+                  ? `Conexão em tempo real ativa (tentativas: ${reconnectAttemptsRef.current})`
+                  : reconnectAttemptsRef.current > 0
+                    ? `Reconexão automática em andamento (tentativa ${reconnectAttemptsRef.current}/${WS_MAX_RECONNECT_ATTEMPTS})`
+                    : 'Usando polling a cada 5s'}
+              </div>
+              <Button
+                variant="destructive"
+                onClick={() => disconnectMutation.mutate()}
+                disabled={disconnectMutation.isPending}
+                className="w-full"
+              >
+                {disconnectMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Desconectando...
+                  </>
+                ) : (
+                  "Desconectar WhatsApp"
+                )}
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {isConnecting ? (
+                <div className="flex flex-col items-center space-y-4 p-8">
+                  <Loader2 className="w-12 h-12 animate-spin text-primary" />
+                  <div className="text-center space-y-2">
+                    <p className="text-lg font-semibold">Conectando...</p>
+                    <p className="text-sm text-muted-foreground">
+                      Aguarde enquanto estabelecemos a conexão com o WhatsApp
+                    </p>
+                  </div>
                   {/* Status da conexão */}
                   <div className={`flex items-center gap-2 text-xs ${wsConnected ? 'text-green-600' : 'text-amber-600'}`}>
                     <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-500 animate-pulse' : 'bg-amber-500'}`} />
-                    {wsConnected 
-                      ? 'Atualizações em tempo real ativas' 
-                      : 'Reconectando para atualizações em tempo real...'}
+                    {wsConnected
+                      ? 'Conexão em tempo real ativa'
+                      : reconnectAttemptsRef.current > 0
+                        ? `Reconexão automática em andamento (tentativa ${reconnectAttemptsRef.current}/${WS_MAX_RECONNECT_ATTEMPTS})`
+                        : 'Reconectando para atualizações em tempo real...'}
                   </div>
                 </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <Button
-                  onClick={() => connectMutation.mutate()}
-                  disabled={connectMutation.isPending}
-                  className="w-full"
-                >
-                  {connectMutation.isPending ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Conectando...
-                    </>
-                  ) : (
-                    <>
-                      <MessageCircle className="w-4 h-4 mr-2" />
-                      Conectar WhatsApp
-                    </>
-                  )}
-                </Button>
-                {/* Status da conexão */}
-                <div className={`flex items-center justify-center gap-2 text-xs ${wsConnected ? 'text-green-600' : 'text-amber-600'}`}>
-                  <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-500 animate-pulse' : 'bg-amber-500'}`} />
-                  {wsConnected
-                    ? 'Conexão em tempo real ativa'
-                    : reconnectAttemptsRef.current > 0
-                      ? `Reconexão automática em andamento (tentativa ${reconnectAttemptsRef.current}/${WS_MAX_RECONNECT_ATTEMPTS})`
-                      : 'Conectando para atualizações em tempo real...'}
+              ) : qrCode ? (
+                <div className="flex flex-col items-center space-y-4">
+                  <div className="w-full p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <h4 className="font-semibold text-sm mb-2 text-blue-900">Como conectar seu WhatsApp:</h4>
+                    <ol className="text-xs text-blue-800 space-y-1 list-decimal list-inside">
+                      <li>Abra o <strong>WhatsApp</strong> no seu celular</li>
+                      <li>Toque em <strong>Menu</strong> (⋮) ou <strong>Configurações</strong></li>
+                      <li>Toque em <strong>Aparelhos conectados</strong></li>
+                      <li>Toque em <strong>Conectar um aparelho</strong></li>
+                      <li>Aponte a câmera do celular para este QR Code</li>
+                    </ol>
+                  </div>
+                  <div className="p-4 bg-white border-2 border-gray-200 rounded-lg shadow-sm">
+                    <img src={qrCode} alt="QR Code" className="w-64 h-64" />
+                  </div>
+                  <div className="text-center space-y-2">
+                    <p className="text-sm font-medium flex items-center justify-center gap-2 text-primary">
+                      <QrCode className="w-4 h-4" />
+                      Escaneie o QR Code acima
+                    </p>
+                    {/* Status da conexão */}
+                    <div className={`flex items-center gap-2 text-xs ${wsConnected ? 'text-green-600' : 'text-amber-600'}`}>
+                      <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-500 animate-pulse' : 'bg-amber-500'}`} />
+                      {wsConnected
+                        ? 'Atualizações em tempo real ativas'
+                        : 'Reconectando para atualizações em tempo real...'}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            )}
+              ) : (
+                <div className="space-y-4">
+                  <Button
+                    onClick={() => connectMutation.mutate()}
+                    disabled={connectMutation.isPending}
+                    className="w-full"
+                  >
+                    {connectMutation.isPending ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Conectando...
+                      </>
+                    ) : (
+                      <>
+                        <MessageCircle className="w-4 h-4 mr-2" />
+                        Conectar WhatsApp
+                      </>
+                    )}
+                  </Button>
+                  {/* Status da conexão */}
+                  <div className={`flex items-center justify-center gap-2 text-xs ${wsConnected ? 'text-green-600' : 'text-amber-600'}`}>
+                    <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-green-500 animate-pulse' : 'bg-amber-500'}`} />
+                    {wsConnected
+                      ? 'Conexão em tempo real ativa'
+                      : reconnectAttemptsRef.current > 0
+                        ? `Reconexão automática em andamento (tentativa ${reconnectAttemptsRef.current}/${WS_MAX_RECONNECT_ATTEMPTS})`
+                        : 'Conectando para atualizações em tempo real...'}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MessageCircle className="w-5 h-5" />
+            Conversas do Agente
+          </CardTitle>
+          <CardDescription>
+            Acompanhe todas as conversas da IA com clientes, limpe histórico e exclua contas de teste para validar novamente.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-sm text-muted-foreground">
+            Conversas registradas: <span className="font-semibold text-foreground">{adminConversations.length}</span>
           </div>
-        )}
-      </CardContent>
-    </Card>
+          <Button
+            onClick={() => {
+              window.location.hash = "#conversations";
+              window.dispatchEvent(new CustomEvent("admin-tab-change", { detail: "conversations" }));
+            }}
+          >
+            Abrir painel de conversas
+          </Button>
+        </CardContent>
+      </Card>
+
+      <AdminWhatsAppSimulator />
+    </div>
   );
 }

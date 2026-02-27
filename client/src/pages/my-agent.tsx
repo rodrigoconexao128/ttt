@@ -123,6 +123,13 @@ export default function MyAgent() {
   const [pauseOnManualReply, setPauseOnManualReply] = useState(true);
   const [autoReactivateMinutes, setAutoReactivateMinutes] = useState<number | null>(null);
   
+  // Estado da saudação personalizada e endereço
+  const [customGreeting, setCustomGreeting] = useState<string>("");
+  const [customAddress, setCustomAddress] = useState<string>("");
+  const [greetingVariation, setGreetingVariation] = useState(false);
+  const [greetingEnabled, setGreetingEnabled] = useState(false);
+  const [addressEnabled, setAddressEnabled] = useState(false);
+  
   // Estado do teste - Playground com histórico de mensagens
   const [testMessage, setTestMessage] = useState("");
   const [testResponse, setTestResponse] = useState("");
@@ -175,6 +182,11 @@ export default function MyAgent() {
       setFetchHistoryOnFirstResponse(config.fetchHistoryOnFirstResponse ?? false);
       setPauseOnManualReply((config as any).pauseOnManualReply ?? true);
       setAutoReactivateMinutes((config as any).autoReactivateMinutes ?? null);
+      setCustomGreeting((config as any).customGreeting ?? "");
+      setCustomAddress((config as any).customAddress ?? "");
+      setGreetingVariation((config as any).greetingVariation ?? false);
+      setGreetingEnabled((config as any).greetingEnabled ?? false);
+      setAddressEnabled((config as any).addressEnabled ?? false);
       
       // Se não tem prompt configurado, mostra o gerador
       if (!config.prompt || config.prompt.length < 50) {
@@ -247,6 +259,11 @@ export default function MyAgent() {
           fetchHistoryOnFirstResponse,
           pauseOnManualReply,
           autoReactivateMinutes,
+          customGreeting: customGreeting.trim() || null,
+          customAddress: customAddress.trim() || null,
+          greetingVariation,
+          greetingEnabled,
+          addressEnabled,
         });
       }, 3, 1000);
     },
@@ -724,10 +741,14 @@ export default function MyAgent() {
 
         {/* ============== TABS PRINCIPAIS ============== */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 md:space-y-6">
-          <TabsList className="w-full grid grid-cols-4 h-10 md:h-14 p-1">
+          <TabsList className="w-full grid grid-cols-5 h-10 md:h-14 p-1">
             <TabsTrigger value="prompt" className="gap-1 md:gap-2 text-[10px] md:text-sm px-1 md:px-3">
               <MessageSquare className="w-3.5 h-3.5 md:w-4 md:h-4" />
               <span className="hidden xs:inline">Instruções</span>
+            </TabsTrigger>
+            <TabsTrigger value="info" className="gap-1 md:gap-2 text-[10px] md:text-sm px-1 md:px-3">
+              <Info className="w-3.5 h-3.5 md:w-4 md:h-4" />
+              <span className="hidden xs:inline">Info</span>
             </TabsTrigger>
             <TabsTrigger value="media" className="gap-1 md:gap-2 text-[10px] md:text-sm px-1 md:px-3">
               <ImageIcon className="w-3.5 h-3.5 md:w-4 md:h-4" />
@@ -885,6 +906,174 @@ O QUE NÃO FAZER:
                 </div>
               </div>
             </Card>
+          </TabsContent>
+
+          {/* ============== ABA: INFO - SAUDAÇÃO E ENDEREÇO ============== */}
+          <TabsContent value="info" className="space-y-4">
+            
+            {/* Header da aba */}
+            <Card className="p-4 md:p-6">
+              <div className="flex items-start gap-3">
+                <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30">
+                  <Info className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold">Informações do Negócio</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Configure a saudação inicial e o endereço fixo do seu negócio. 
+                    Essas informações são injetadas automaticamente no prompt da IA.
+                  </p>
+                </div>
+              </div>
+            </Card>
+
+            {/* Saudação Personalizada */}
+            <Card className="p-6">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900/30">
+                      <MessageSquare className="w-5 h-5 text-green-600 dark:text-green-400" />
+                    </div>
+                    <div>
+                      <Label className="text-base font-semibold">Saudação Personalizada</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Primeira mensagem que a IA envia ao cliente. Use <code className="bg-muted px-1 rounded text-xs">{"{nome}"}</code> para o nome do cliente.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="greeting-enabled" className="text-sm font-medium">
+                      {greetingEnabled ? "Ativo" : "Desativado"}
+                    </Label>
+                    <Switch
+                      id="greeting-enabled"
+                      checked={greetingEnabled}
+                      onCheckedChange={setGreetingEnabled}
+                    />
+                  </div>
+                </div>
+
+                {greetingEnabled && (
+                  <>
+                    <Textarea
+                      placeholder="Ex: Olá {nome}! Bem-vindo à nossa loja! Como posso te ajudar hoje?"
+                      value={customGreeting}
+                      onChange={(e) => setCustomGreeting(e.target.value)}
+                      rows={3}
+                      className="resize-none"
+                    />
+
+                    <div className="flex items-center gap-3">
+                      <Switch
+                        id="greeting-variation"
+                        checked={greetingVariation}
+                        onCheckedChange={setGreetingVariation}
+                      />
+                      <Label htmlFor="greeting-variation" className="cursor-pointer">
+                        <span className="font-medium">Variação com IA</span>
+                        <span className="block text-xs text-muted-foreground">
+                          A IA cria variações naturais da saudação mantendo a essência (cada cliente recebe uma versão diferente)
+                        </span>
+                      </Label>
+                    </div>
+
+                    <div className="bg-green-50 dark:bg-green-950/30 p-3 rounded-md">
+                      <p className="text-xs text-green-700 dark:text-green-300">
+                        {customGreeting 
+                          ? greetingVariation 
+                            ? "🎯 A IA vai usar a saudação como base e criar variações naturais para cada cliente. Apenas na PRIMEIRA mensagem."
+                            : "📌 A IA vai usar esta saudação EXATAMENTE como está na PRIMEIRA mensagem (substituindo {nome} pelo nome do cliente)."
+                          : "💡 Preencha a saudação acima para a IA usar na primeira mensagem com cada cliente."
+                        }
+                      </p>
+                    </div>
+                  </>
+                )}
+
+                {!greetingEnabled && (
+                  <div className="bg-gray-50 dark:bg-zinc-800/50 p-3 rounded-md">
+                    <p className="text-xs text-muted-foreground">
+                      🔕 Saudação personalizada desativada. A IA vai cumprimentar conforme definido no prompt.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </Card>
+
+            {/* Endereço do Negócio */}
+            <Card className="p-6">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-lg bg-purple-100 dark:bg-purple-900/30">
+                      <Info className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                    </div>
+                    <div>
+                      <Label className="text-base font-semibold">Endereço do Negócio</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Endereço fixo que a IA SEMPRE vai informar. Nunca vai inventar outro endereço.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="address-enabled" className="text-sm font-medium">
+                      {addressEnabled ? "Ativo" : "Desativado"}
+                    </Label>
+                    <Switch
+                      id="address-enabled"
+                      checked={addressEnabled}
+                      onCheckedChange={setAddressEnabled}
+                    />
+                  </div>
+                </div>
+
+                {addressEnabled && (
+                  <>
+                    <Textarea
+                      placeholder="Ex: Rua das Flores, 123 - Centro, São Paulo/SP - CEP 01010-010"
+                      value={customAddress}
+                      onChange={(e) => setCustomAddress(e.target.value)}
+                      rows={3}
+                      className="resize-none"
+                    />
+
+                    <div className="bg-purple-50 dark:bg-purple-950/30 p-3 rounded-md">
+                      <p className="text-xs text-purple-700 dark:text-purple-300">
+                        {customAddress 
+                          ? "📍 Quando o cliente perguntar sobre endereço, localização ou como chegar, a IA vai responder com este endereço exato."
+                          : "💡 Preencha o endereço acima para a IA informar corretamente quando perguntarem."
+                        }
+                      </p>
+                    </div>
+                  </>
+                )}
+
+                {!addressEnabled && (
+                  <div className="bg-gray-50 dark:bg-zinc-800/50 p-3 rounded-md">
+                    <p className="text-xs text-muted-foreground">
+                      🔕 Endereço fixo desativado. A IA só vai informar o que estiver no prompt.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </Card>
+
+            {/* Botão Salvar */}
+            <div className="flex justify-end">
+              <Button
+                onClick={() => saveConfigMutation.mutate()}
+                disabled={saveConfigMutation.isPending}
+                size="lg"
+              >
+                {saveConfigMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4 mr-2" />
+                )}
+                Salvar Informações
+              </Button>
+            </div>
           </TabsContent>
 
           {/* ============== ABA: MÍDIAS ============== */}

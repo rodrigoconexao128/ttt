@@ -177,6 +177,29 @@ setTimeout(async () => {
       console.log('✅ [DB] Tabela contact_lists já existe');
     }
 
+    // Ensure admin_broadcast_messages table exists
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS admin_broadcast_messages (
+        id TEXT PRIMARY KEY,
+        broadcast_id TEXT NOT NULL,
+        admin_id TEXT NOT NULL,
+        user_id TEXT,
+        recipient_phone TEXT NOT NULL,
+        recipient_name TEXT NOT NULL DEFAULT 'Cliente',
+        message_original TEXT,
+        message_sent TEXT NOT NULL,
+        ai_varied BOOLEAN DEFAULT false,
+        status TEXT DEFAULT 'sent',
+        error_message TEXT,
+        sent_at TIMESTAMP DEFAULT now()
+      )
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_broadcast_messages_broadcast_id 
+      ON admin_broadcast_messages(broadcast_id)
+    `);
+    console.log('✅ [DB] Tabela admin_broadcast_messages garantida');
+
     client.release();
   } catch (error: any) {
     console.error('❌ [DB] Erro ao verificar/criar tabelas:', error.message);

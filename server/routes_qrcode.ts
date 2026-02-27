@@ -1,21 +1,28 @@
 /**
  * QR Code Inteligente - API Routes
- * Step 1: Backend routes for CRUD + download
+ * Step 1: Backend routes for CRUD + download + business categories
  *
  * Endpoints:
- * GET    /api/qrcodes              - List user's QR Codes
- * POST   /api/qrcodes              - Create new QR Code
- * GET    /api/qrcodes/:id          - Get single QR Code
- * PATCH  /api/qrcodes/:id          - Update QR Code
- * DELETE /api/qrcodes/:id          - Delete QR Code
- * GET    /api/qrcodes/:id/download - Download QR as PNG/SVG
- * GET    /api/qrcodes/templates    - List business segment templates
- * POST   /api/qrcodes/preview      - Preview QR without saving
- * POST   /api/qrcodes/:id/scan     - Register a scan (analytics)
+ * GET    /api/qrcodes                       - List user's QR Codes
+ * POST   /api/qrcodes                       - Create new QR Code
+ * GET    /api/qrcodes/:id                   - Get single QR Code
+ * PATCH  /api/qrcodes/:id                   - Update QR Code
+ * DELETE /api/qrcodes/:id                   - Delete QR Code
+ * GET    /api/qrcodes/:id/download          - Download QR as PNG/SVG
+ * GET    /api/qrcodes/templates             - List hardcoded segment templates
+ * POST   /api/qrcodes/preview               - Preview QR without saving
+ * POST   /api/qrcodes/:id/scan              - Register a scan (analytics)
+ *
+ * GET    /api/business-categories           - List all active categories (public)
+ * GET    /api/business-categories/groups    - List macro-groups with their categories
+ * GET    /api/business-categories/:slug     - Get single category by slug
  */
 
 import type { Express, Request, Response } from "express";
 import { z } from "zod";
+import { db } from "./db";
+import { businessCategories } from "../shared/schema";
+import { eq, asc } from "drizzle-orm";
 import {
   createSmartQrcode,
   listUserQrcodes,
@@ -265,4 +272,79 @@ export function registerQrcodeRoutes(app: Express): void {
   });
 
   console.log("✅ [QRCode] Rotas registradas com sucesso!");
+
+  // ─── BUSINESS CATEGORIES (public endpoints) ───────────────────────────────
+
+  // GET /api/business-categories — all active, ordered
+  app.get("/api/business-categories", async (_req: Request, res: Response) => {
+    try {
+      const cats = await db
+        .select()
+        .from(businessCategories)
+        .where(eq(businessCategories.isActive, true))
+        .orderBy(asc(businessCategories.sortOrder));
+      return res.json({ categories: cats });
+    } catch (error) {
+      console.error("[BusinessCategories] Error listing:", error);
+      return res.status(500).json({ error: "Erro ao listar categorias" });
+    }
+  });
+
+  // GET /api/business-categories/groups — macro-groups with nested categories
+  app.get("/api/business-categories/groups", async (_req: Request, res: Response) => {
+    try {
+      const cats = await db
+        .select()
+        .from(businessCategories)
+        .where(eq(businessCategories.isActive, true))
+        .orderBy(asc(businessCategories.sortOrder));
+
+      // Group by categoryGroup
+      const grouped: Record<string, {
+        group: string;
+        groupLabel: string;
+        totalUsers: number;
+        categories: typeof cats;
+      }> = {};
+
+      for (const cat of cats) {
+        if (!grouped[cat.categoryGroup]) {
+          grouped[cat.categoryGroup] = {
+            group: cat.categoryGroup,
+            groupLabel: cat.groupLabel,
+            totalUsers: 0,
+            categories: [],
+          };
+        }
+        grouped[cat.categoryGroup].categories.push(cat);
+        grouped[cat.categoryGroup].totalUsers += cat.userCount;
+      }
+
+      // Sort groups by totalUsers desc
+      const groups = Object.values(grouped).sort((a, b) => b.totalUsers - a.totalUsers);
+      return res.json({ groups });
+    } catch (error) {
+      console.error("[BusinessCategories] Error grouping:", error);
+      return res.status(500).json({ error: "Erro ao agrupar categorias" });
+    }
+  });
+
+  // GET /api/business-categories/:slug — single category
+  app.get("/api/business-categories/:slug", async (req: Request, res: Response) => {
+    try {
+      const [cat] = await db
+        .select()
+        .from(businessCategories)
+        .where(eq(businessCategories.slug, req.params.slug));
+      if (!cat) {
+        return res.status(404).json({ error: "Categoria não encontrada" });
+      }
+      return res.json({ category: cat });
+    } catch (error) {
+      console.error("[BusinessCategories] Error fetching:", error);
+      return res.status(500).json({ error: "Erro ao buscar categoria" });
+    }
+  });
+
+  console.log("✅ [BusinessCategories] Rotas registradas com sucesso!");
 }

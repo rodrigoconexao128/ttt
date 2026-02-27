@@ -69,7 +69,12 @@ interface FollowupEvent {
   followupForNonPayers?: boolean;
 }
 
-export default function AdminFollowUpPanel() {
+interface AdminFollowUpPanelProps {
+  defaultSubTab?: string;
+  onSubTabChange?: (subTab: string) => void;
+}
+
+export default function AdminFollowUpPanel({ defaultSubTab, onSubTabChange }: AdminFollowUpPanelProps) {
   const { toast } = useToast();
 
   // ─── Queries ────────────────────────────────────────────────────────────────
@@ -110,7 +115,7 @@ export default function AdminFollowUpPanel() {
 
   // ─── Local state ─────────────────────────────────────────────────────────────
   const [formData, setFormData] = useState<Partial<FollowupConfig>>({});
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState(defaultSubTab || "overview");
 
   useEffect(() => {
     if (config) setFormData(config);
@@ -313,7 +318,7 @@ export default function AdminFollowUpPanel() {
       </div>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+      <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); onSubTabChange?.(v); }} className="space-y-4">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="overview">Visão Geral</TabsTrigger>
           <TabsTrigger value="pending">Pendentes ({pending?.length ?? 0})</TabsTrigger>

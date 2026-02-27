@@ -30,17 +30,19 @@ async function ensureTmpDir(): Promise<void> {
 }
 
 /**
- * 🧹 Sanitiza texto para TTS - Remove formatação e caracteres que soam estranhos
+ * 🧹 Sanitiza texto para TTS - Remove TUDO que não faz sentido em áudio falado
  * 
- * O WhatsApp usa formatação como:
- * - *texto* para negrito
- * - _texto_ para itálico
- * - ~texto~ para tachado
- * - ```código``` para código
- * - > para citação
+ * O Edge TTS (e qualquer TTS) tropeça em:
+ * - Emojis (lê o nome Unicode: "rosto sorridente com olhos sorridentes")
+ * - Formatação WhatsApp/Markdown (*negrito*, _itálico_, ~tachado~, `código`)
+ * - Aspas de todos os tipos (" " ' ' « »)
+ * - URLs, e-mails
+ * - Símbolos especiais (@, #, $, %, &, =, +, <, >, ^, |)
+ * - Separadores visuais (═══, ━━━, ---, ___) 
+ * - Caracteres de seta (→, ←, ⇒, ➜)
+ * - Caracteres box-drawing e decorativos
  * 
- * Quando a IA fala esses caracteres, fica muito estranho.
- * Esta função remove TUDO que não faz sentido em áudio falado.
+ * O resultado deve ser APENAS texto natural, como se alguém fosse ler em voz alta.
  * 
  * @param text - Texto original com formatação
  * @returns Texto limpo, natural para ser falado
@@ -50,107 +52,161 @@ function sanitizeTextForTTS(text: string): string {
 
   let cleanedText = text;
 
-  // 1. REMOVER URLS (links completos)
-  // Exemplos: https://agentezap.online/..., http://..., www.site.com
+  // ═══════════════════════════════════════════
+  // 1. REMOVER URLS E E-MAILS
+  // ═══════════════════════════════════════════
   cleanedText = cleanedText.replace(/(?:https?:\/\/|www\.)[^\s]+/gi, '');
+  cleanedText = cleanedText.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g, '');
 
-  // 2. REMOVER FORMATAÇÃO DE MARKDOWN/WHATSAPP
+  // ═══════════════════════════════════════════
+  // 2. REMOVER TODOS OS EMOJIS
+  // TTS lê o nome Unicode do emoji, ex: "😊" vira "rosto sorridente"
+  // Isso quebra completamente a fala natural
+  // ═══════════════════════════════════════════
   
-  // Asteriscos (negrito): *texto* → texto
-  // Cuidado: pode ter múltiplos asteriscos **texto** ou ***texto***
-  cleanedText = cleanedText.replace(/\*+([^*]+)\*+/g, '$1');
-  // Asteriscos soltos que sobraram
+  // Regex abrangente para emojis Unicode (inclui todos os blocos de emoji)
+  cleanedText = cleanedText.replace(/[\u{1F600}-\u{1F64F}]/gu, ''); // Emoticons
+  cleanedText = cleanedText.replace(/[\u{1F300}-\u{1F5FF}]/gu, ''); // Misc Symbols & Pictographs
+  cleanedText = cleanedText.replace(/[\u{1F680}-\u{1F6FF}]/gu, ''); // Transport & Map
+  cleanedText = cleanedText.replace(/[\u{1F1E0}-\u{1F1FF}]/gu, ''); // Flags
+  cleanedText = cleanedText.replace(/[\u{2600}-\u{26FF}]/gu, '');   // Misc symbols (☀️, ⚡, etc)
+  cleanedText = cleanedText.replace(/[\u{2700}-\u{27BF}]/gu, '');   // Dingbats (✅, ❌, ✨, etc)
+  cleanedText = cleanedText.replace(/[\u{FE00}-\u{FE0F}]/gu, '');   // Variation Selectors
+  cleanedText = cleanedText.replace(/[\u{1F900}-\u{1F9FF}]/gu, ''); // Supplemental Symbols
+  cleanedText = cleanedText.replace(/[\u{1FA00}-\u{1FA6F}]/gu, ''); // Chess, extended-A
+  cleanedText = cleanedText.replace(/[\u{1FA70}-\u{1FAFF}]/gu, ''); // Symbols extended-A
+  cleanedText = cleanedText.replace(/[\u{200D}]/gu, '');            // Zero-width joiner (combina emojis)
+  cleanedText = cleanedText.replace(/[\u{20E3}]/gu, '');            // Combining enclosing keycap
+  cleanedText = cleanedText.replace(/[\u{E0020}-\u{E007F}]/gu, ''); // Tags (flag sequences)
+  cleanedText = cleanedText.replace(/[\u{2300}-\u{23FF}]/gu, '');   // Misc Technical (⏰, ⏳, etc)
+  cleanedText = cleanedText.replace(/[\u{2B05}-\u{2B55}]/gu, '');   // Arrows & shapes (⬅️, ⭐, etc)
+  cleanedText = cleanedText.replace(/[\u{FE00}-\u{FE0F}]/gu, '');   // Variation selectors
+  cleanedText = cleanedText.replace(/[\u{200B}-\u{200F}]/gu, '');   // Zero-width spaces
+  cleanedText = cleanedText.replace(/[\u{2028}-\u{2029}]/gu, '');   // Line/paragraph separators
+
+  // ═══════════════════════════════════════════
+  // 3. REMOVER FORMATAÇÃO MARKDOWN/WHATSAPP
+  // ═══════════════════════════════════════════
+  
+  // Blocos de código primeiro (podem conter outros marcadores)
+  cleanedText = cleanedText.replace(/```[\s\S]*?```/g, '');
+  
+  // Asteriscos (negrito): *texto* → texto  /  **texto** → texto
+  cleanedText = cleanedText.replace(/\*{1,3}([^*]+)\*{1,3}/g, '$1');
   cleanedText = cleanedText.replace(/\*/g, '');
 
   // Underlines (itálico): _texto_ → texto
   cleanedText = cleanedText.replace(/_+([^_]+)_+/g, '$1');
-  // Underlines soltos
-  cleanedText = cleanedText.replace(/_/g, '');
+  cleanedText = cleanedText.replace(/_/g, ' ');
 
   // Til (tachado): ~texto~ → texto
   cleanedText = cleanedText.replace(/~+([^~]+)~+/g, '$1');
-  // Tils soltos
   cleanedText = cleanedText.replace(/~/g, '');
 
   // Código inline: `código` → código
   cleanedText = cleanedText.replace(/`+([^`]+)`+/g, '$1');
-  // Crases soltas
   cleanedText = cleanedText.replace(/`/g, '');
 
-  // Blocos de código: ```código``` → código
-  cleanedText = cleanedText.replace(/```[\s\S]*?```/g, '');
+  // ═══════════════════════════════════════════
+  // 4. REMOVER ASPAS DE TODOS OS TIPOS
+  // TTS pode ler "abre aspas" / "fecha aspas" que soa horrível
+  // ═══════════════════════════════════════════
+  cleanedText = cleanedText.replace(/[""\u201C\u201D\u201E\u201F\u2033\u2036]/g, ''); // Aspas duplas
+  cleanedText = cleanedText.replace(/[''\u2018\u2019\u201A\u201B\u2032\u2035]/g, ''); // Aspas simples
+  cleanedText = cleanedText.replace(/[«»\u2039\u203A]/g, ''); // Aspas angulares/francesas
+  cleanedText = cleanedText.replace(/'/g, '');  // Apóstrofo simples
+  cleanedText = cleanedText.replace(/"/g, '');  // Aspas simples ASCII
 
-  // 3. REMOVER CARACTERES QUE SOAM ESTRANHOS EM ÁUDIO
+  // ═══════════════════════════════════════════
+  // 5. REMOVER SEPARADORES VISUAIS E LINHAS DECORATIVAS
+  // ═══════════════════════════════════════════
+  cleanedText = cleanedText.replace(/[═━─—–╔╗╚╝╠╣╦╩╬║├┤┬┴┼┌┐└┘│▔▁▂▃▄▅▆▇█▉▊▋▌▍▎▏░▒▓]/g, '');
+  cleanedText = cleanedText.replace(/-{3,}/g, '');  // --- ou mais
+  cleanedText = cleanedText.replace(/_{3,}/g, '');   // ___ ou mais
+
+  // ═══════════════════════════════════════════
+  // 6. REMOVER/SUBSTITUIR SETAS E SÍMBOLOS ESPECIAIS
+  // ═══════════════════════════════════════════
+  
+  // Setas Unicode → remover
+  cleanedText = cleanedText.replace(/[→←↑↓↔↕⇒⇐⇑⇓⇔➜➤➡➔➝➞➠►▶◀◁▷◆◇▸▹▻●○•]/g, '');
+  
+  // Símbolos que TTS pode tentar ler
+  cleanedText = cleanedText.replace(/@/g, '');     // arroba
+  cleanedText = cleanedText.replace(/#(?!\d)/g, ''); // hashtag (preserva #123 = número)
+  cleanedText = cleanedText.replace(/\^/g, '');
+  cleanedText = cleanedText.replace(/\|/g, '');
+  cleanedText = cleanedText.replace(/[<>]/g, '');
+  cleanedText = cleanedText.replace(/[=+]/g, '');
+  cleanedText = cleanedText.replace(/&(?!(\w+;))/g, 'e'); // & → "e" (mas preserva &nbsp; etc)
   
   // Colchetes: [texto] → texto
   cleanedText = cleanedText.replace(/\[([^\]]*)\]/g, '$1');
   
-  // Parênteses duplos ou com conteúdo desnecessário
-  // Ex: ((obs)) → obs
-  cleanedText = cleanedText.replace(/\(\(([^)]*)\)\)/g, '$1');
-  
   // Chaves: {texto} → texto
   cleanedText = cleanedText.replace(/\{([^}]*)\}/g, '$1');
 
-  // Aspas angulares (citação Markdown): > texto → texto
+  // Parênteses: manter se contêm texto curto, remover se vazios ou decorativos
+  cleanedText = cleanedText.replace(/\(\s*\)/g, ''); // () vazio
+  cleanedText = cleanedText.replace(/\(\(([^)]*)\)\)/g, '$1'); // ((texto)) → texto
+
+  // ═══════════════════════════════════════════
+  // 7. SUBSTITUIÇÕES INTELIGENTES (R$, %, etc)
+  // ═══════════════════════════════════════════
+  
+  // R$ 100 → 100 reais (TTS já lê "R$" como "reais" geralmente, mas melhor garantir)
+  cleanedText = cleanedText.replace(/R\$\s*(\d)/g, '$1');
+  
+  // Citação Markdown: > texto → texto  
   cleanedText = cleanedText.replace(/^>\s*/gm, '');
-
-  // 4. REMOVER/SUBSTITUIR SÍMBOLOS ESPECIAIS
   
-  // Bullets e marcadores → natural para lista
-  cleanedText = cleanedText.replace(/^[-•●○◆◇▸▹►▻→]\s*/gm, '');
+  // Bullets e marcadores no início de linhas
+  cleanedText = cleanedText.replace(/^[-•]\s*/gm, '');
   
-  // Hashtags soltas: # texto → texto (não # em numeros)
+  // Hashtags como cabeçalho: ## Título → Título
   cleanedText = cleanedText.replace(/^#+\s+/gm, '');
-  
-  // Emojis de marcação que a IA pode usar
-  // Mantemos emojis normais, mas removemos os que parecem marcadores
-  // cleanedText = cleanedText.replace(/[✅❌⚠️🔴🟢🟡⬛⬜🔲🔳]/g, '');
-  
-  // Barras verticais (tabelas): | → remover
-  cleanedText = cleanedText.replace(/\|/g, '');
-  
-  // Reticências excessivas: ...... → ...
-  cleanedText = cleanedText.replace(/\.{4,}/g, '...');
-  
-  // Exclamações/interrogações excessivas: !!!!! → !
-  cleanedText = cleanedText.replace(/!{2,}/g, '!');
-  cleanedText = cleanedText.replace(/\?{2,}/g, '?');
 
-  // 5. LIMPAR ESCAPE CHARACTERS E FORMATAÇÃO RESIDUAL
-  
-  // Barras invertidas de escape: \n, \t, etc
+  // ═══════════════════════════════════════════
+  // 8. LIMPAR PONTUAÇÃO EXCESSIVA
+  // ═══════════════════════════════════════════
+  cleanedText = cleanedText.replace(/\.{4,}/g, '...');   // ...... → ...
+  cleanedText = cleanedText.replace(/!{2,}/g, '!');       // !!!!! → !
+  cleanedText = cleanedText.replace(/\?{2,}/g, '?');      // ????? → ?
+  cleanedText = cleanedText.replace(/,{2,}/g, ',');        // ,,,, → ,
+  cleanedText = cleanedText.replace(/;{2,}/g, ';');        // ;;;; → ;
+  cleanedText = cleanedText.replace(/:{2,}/g, ':');        // :::: → :
+
+  // ═══════════════════════════════════════════
+  // 9. LIMPAR ESCAPE CHARACTERS E HTML ENTITIES
+  // ═══════════════════════════════════════════
   cleanedText = cleanedText.replace(/\\[nrtfvb]/g, ' ');
   cleanedText = cleanedText.replace(/\\/g, '');
-  
-  // HTML entities comuns
   cleanedText = cleanedText.replace(/&nbsp;/gi, ' ');
   cleanedText = cleanedText.replace(/&amp;/gi, 'e');
   cleanedText = cleanedText.replace(/&lt;/gi, '');
   cleanedText = cleanedText.replace(/&gt;/gi, '');
   cleanedText = cleanedText.replace(/&quot;/gi, '');
+  cleanedText = cleanedText.replace(/&#\d+;/g, '');       // &#123; entities numéricas
+  cleanedText = cleanedText.replace(/&\w+;/g, '');         // Qualquer entity restante
 
-  // 6. NORMALIZAR ESPAÇOS E QUEBRAS DE LINHA
-  
-  // Múltiplas quebras de linha → uma pausa natural
-  cleanedText = cleanedText.replace(/\n{3,}/g, '\n\n');
-  
-  // Espaços múltiplos → um espaço
-  cleanedText = cleanedText.replace(/[ \t]{2,}/g, ' ');
-  
-  // Espaços antes de pontuação
-  cleanedText = cleanedText.replace(/\s+([.,!?;:])/g, '$1');
-  
-  // Trim final
+  // ═══════════════════════════════════════════
+  // 10. NORMALIZAR ESPAÇOS E QUEBRAS DE LINHA
+  // ═══════════════════════════════════════════
+  cleanedText = cleanedText.replace(/\n{3,}/g, '\n\n');   // Max 2 quebras de linha
+  cleanedText = cleanedText.replace(/[ \t]{2,}/g, ' ');   // Espaços múltiplos → um
+  cleanedText = cleanedText.replace(/\s+([.,!?;:])/g, '$1'); // Espaço antes de pontuação
+  cleanedText = cleanedText.replace(/^\s+$/gm, '');        // Linhas só com espaço
   cleanedText = cleanedText.trim();
 
-  // 7. LOG PARA DEBUG (apenas se houve mudança significativa)
+  // ═══════════════════════════════════════════
+  // 11. LOG PARA DEBUG
+  // ═══════════════════════════════════════════
   if (text.length !== cleanedText.length) {
     const removed = text.length - cleanedText.length;
-    console.log(`🧹 [TTS-SANITIZE] Texto sanitizado para áudio:`);
-    console.log(`   📝 Original (${text.length} chars): "${text.substring(0, 80)}..."`);
-    console.log(`   ✨ Limpo (${cleanedText.length} chars): "${cleanedText.substring(0, 80)}..."`);
-    console.log(`   🗑️ Removidos: ${removed} caracteres de formatação`);
+    console.log(`[TTS-SANITIZE] Texto sanitizado para audio:`);
+    console.log(`   Original (${text.length} chars): "${text.substring(0, 80)}..."`);
+    console.log(`   Limpo (${cleanedText.length} chars): "${cleanedText.substring(0, 80)}..."`);
+    console.log(`   Removidos: ${removed} caracteres de formatacao`);
   }
 
   return cleanedText;

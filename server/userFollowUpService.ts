@@ -146,24 +146,16 @@ setInterval(() => {
  */
 function isUserConnectionActive(userId: string, preferredConnectionId?: string): boolean {
   const sessions = getSessions();
-  const candidates = Array.from(sessions.values()).filter((s) => s.userId === userId);
-
   if (preferredConnectionId) {
     const preferred = sessions.get(preferredConnectionId);
-    if (preferred && preferred.userId === userId) {
-      candidates.unshift(preferred);
-    }
+    if (!preferred || preferred.userId !== userId) return false;
+    return preferred.isOpen === true && preferred.socket?.user !== undefined;
   }
 
+  const candidates = Array.from(sessions.values()).filter((s) => s.userId === userId);
   for (const session of candidates) {
     if (!session?.socket || session.socket.user === undefined) continue;
     if (session.isOpen === true) return true;
-
-    // Fallback: some Baileys cycles authenticate the socket but skip conn=open.
-    const wsReadyState = (session.socket as any)?.ws?.readyState;
-    if (wsReadyState === undefined || wsReadyState === 1) {
-      return true;
-    }
   }
 
   return false;
@@ -291,9 +283,10 @@ export class UserFollowUpService {
         console.log(`🔍 [USER-FOLLOW-UP] Encontradas ${pendingConversations.length} conversas para processar`);
       }
 
-      // 🔧 FIX: Deduplicar por numero de telefone - processar apenas a conversa
-      // mais recente de cada numero para evitar followups duplicados
-      const seenPhones = new Set<string>();
+      // 🔧 FIX: Deduplicar por conexão + número de telefone.
+      // O mesmo número pode existir em duas conexões diferentes e deve gerar
+      // follow-up independente em cada canal.
+      const seenConversationScopes = new Set<string>();
       const uniqueConversations = [];
       
       // Ordenar por last_message_time desc para pegar a mais recente primeiro
@@ -304,14 +297,15 @@ export class UserFollowUpService {
       });
       
       for (const conv of sorted) {
-        if (!seenPhones.has(conv.contactNumber)) {
-          seenPhones.add(conv.contactNumber);
+        const scopeKey = `${conv.connectionId || conv.connection?.id || 'unknown'}:${conv.contactNumber}`;
+        if (!seenConversationScopes.has(scopeKey)) {
+          seenConversationScopes.add(scopeKey);
           uniqueConversations.push(conv);
         } else {
-          // Conversa duplicada - desativar followup para evitar spam
-          console.log(`🔧 [USER-FOLLOW-UP] Desativando followup DUPLICADO para ${conv.contactNumber} (conv ${conv.id})`);
+          // Conversa duplicada no mesmo escopo (conexão+número) - desativar para evitar spam
+          console.log(`🔧 [USER-FOLLOW-UP] Desativando followup DUPLICADO no escopo ${scopeKey} (conv ${conv.id})`);
           await db.update(conversations)
-            .set({ followupActive: false, nextFollowupAt: null, followupDisabledReason: 'Duplicado - outra conversa ativa' })
+            .set({ followupActive: false, nextFollowupAt: null, followupDisabledReason: 'Duplicado na mesma conexão - outra conversa ativa' })
             .where(eq(conversations.id, conv.id));
         }
       }
@@ -336,7 +330,14 @@ export class UserFollowUpService {
   private async executeFollowUp(conversation: any) {
     const userId = conversation.connection?.userId;
     if (!userId) {
-      console.warn(`⚠️ [USER-FOLLOW-UP] Conversa ${conversation.id} sem userId`);
+      // 🔧 FIX: Desativar follow-up para conversas órfãs (sem conexão/userId válido)
+      // Evita log spam repetitivo a cada 5 minutos para conversas que nunca serão processadas
+      console.warn(`⚠️ [USER-FOLLOW-UP] Conversa ${conversation.id} sem userId - desativando follow-up (conexão removida)`);
+      try {
+        await db.update(conversations)
+          .set({ followupActive: false, nextFollowupAt: null, followupDisabledReason: 'Conexão removida - sem userId' })
+          .where(eq(conversations.id, conversation.id));
+      } catch (e) { /* ignore */ }
       return;
     }
 
@@ -364,18 +365,31 @@ export class UserFollowUpService {
     // Isso permite processar follow-ups de outros usuários mesmo se este não está conectado
     const preferredConnectionId = conversation.connectionId || conversation.connection?.id;
     if (!isUserConnectionActive(userId, preferredConnectionId)) {
-      // Reagendar apenas ESTA conversa para tentar novamente em 5 minutos
-      // NÃO bloqueia outras conversas de outros usuários!
-      const retryDate = addRandomSeconds(new Date(Date.now() + 5 * 60 * 1000));
-      await db.update(conversations)
-        .set({ 
-          nextFollowupAt: retryDate,
-          followupDisabledReason: '🔄 Aguardando conexão WhatsApp...'
-        })
-        .where(eq(conversations.id, conversation.id));
-      // Log apenas se for primeira vez (evitar spam no console)
-      if (conversation.followupDisabledReason !== '🔄 Aguardando conexão WhatsApp...') {
-        console.log(`⏸️ [USER-FOLLOW-UP] Usuário ${userId} sem conexão ativa - reagendando ${conversation.contactNumber}`);
+      // 🔧 FIX 2026-02-25: NÃO sobrescrever nextFollowupAt se a conversa já está agendada
+      // para o futuro (>10min). Isso evita que PM2 restarts destruam agendamentos corretos.
+      const existingNext = conversation.nextFollowupAt ? new Date(conversation.nextFollowupAt) : null;
+      const tenMinFromNow = new Date(Date.now() + 10 * 60 * 1000);
+      
+      if (existingNext && existingNext > tenMinFromNow) {
+        // Conversa já tem agendamento futuro válido - só marcar reason sem mudar data
+        if (conversation.followupDisabledReason !== '🔄 Aguardando conexão WhatsApp...') {
+          await db.update(conversations)
+            .set({ followupDisabledReason: '🔄 Aguardando conexão WhatsApp...' })
+            .where(eq(conversations.id, conversation.id));
+          console.log(`⏸️ [USER-FOLLOW-UP] Usuário ${userId} sem conexão - marcando ${conversation.contactNumber} (preservando agenda: ${existingNext.toLocaleString()})`);
+        }
+      } else {
+        // Conversa sem agendamento futuro - reagendar para 5 minutos
+        const retryDate = addRandomSeconds(new Date(Date.now() + 5 * 60 * 1000));
+        await db.update(conversations)
+          .set({ 
+            nextFollowupAt: retryDate,
+            followupDisabledReason: '🔄 Aguardando conexão WhatsApp...'
+          })
+          .where(eq(conversations.id, conversation.id));
+        if (conversation.followupDisabledReason !== '🔄 Aguardando conexão WhatsApp...') {
+          console.log(`⏸️ [USER-FOLLOW-UP] Usuário ${userId} sem conexão ativa - reagendando ${conversation.contactNumber} para ${retryDate.toLocaleString()}`);
+        }
       }
       return;
     }
@@ -552,6 +566,14 @@ export class UserFollowUpService {
         if (this.onFollowUpReady && conversation.remoteJid) {
           console.log(`📤 [USER-FOLLOW-UP] Disparando follow-up para ${conversation.contactNumber}`);
           
+          // 🔧 FIX: Definir nextFollowupAt futuro ANTES de enviar
+          // Se advanceToNextStage falhar depois do envio, a conversa
+          // não será reprocessada no próximo ciclo (evita duplicatas rápidas)
+          const safetyDate = addRandomSeconds(new Date(Date.now() + 60 * 60 * 1000)); // 1h safety
+          await db.update(conversations)
+            .set({ nextFollowupAt: safetyDate })
+            .where(eq(conversations.id, conversation.id));
+          
           const result = await this.onFollowUpReady(
             userId,
             conversation.id,
@@ -693,6 +715,7 @@ export class UserFollowUpService {
       where: eq(followupConfigs.userId, userId)
     });
 
+    let result;
     if (existing) {
       const [updated] = await db.update(followupConfigs)
         .set({ ...cleanData, updatedAt: new Date() })
@@ -701,7 +724,7 @@ export class UserFollowUpService {
       
       // 🚀 Atualizar cache
       followupConfigCache.set(userId, { data: updated, timestamp: Date.now() });
-      return updated;
+      result = updated;
     } else {
       const [created] = await db.insert(followupConfigs)
         .values({ userId, ...cleanData })
@@ -709,8 +732,46 @@ export class UserFollowUpService {
       
       // 🚀 Salvar no cache
       followupConfigCache.set(userId, { data: created, timestamp: Date.now() });
-      return created;
+      result = created;
     }
+
+    // 🔧 FIX CRÍTICO 2026-02-26: Quando o follow-up global é DESATIVADO,
+    // desativar TODAS as conversas ativas desse usuário IMEDIATAMENTE!
+    // Isso evita que follow-ups continuem sendo enviados após o usuário desativar.
+    if (cleanData.isEnabled === false) {
+      console.log(`🛑 [USER-FOLLOW-UP] Follow-up GLOBAL desativado pelo usuário ${userId}. Desativando TODAS as conversas ativas...`);
+      try {
+        // Buscar todas as conexões do usuário
+        const userConnections = await db.query.whatsappConnections.findMany({
+          where: eq(whatsappConnections.userId, userId)
+        });
+        
+        const connectionIds = userConnections.map(c => c.id);
+        
+        if (connectionIds.length > 0) {
+          // Desativar follow-up em todas as conversas ativas dessas conexões
+          for (const connId of connectionIds) {
+            await db.update(conversations)
+              .set({ 
+                followupActive: false, 
+                nextFollowupAt: null,
+                followupDisabledReason: 'Usuário desativou follow-up global'
+              })
+              .where(
+                and(
+                  eq(conversations.connectionId, connId),
+                  eq(conversations.followupActive, true)
+                )
+              );
+          }
+          console.log(`✅ [USER-FOLLOW-UP] Todas as conversas ativas do usuário ${userId} foram desativadas.`);
+        }
+      } catch (err) {
+        console.error(`❌ [USER-FOLLOW-UP] Erro ao desativar conversas ativas:`, err);
+      }
+    }
+
+    return result;
   }
 
   /**
@@ -1062,6 +1123,24 @@ ${conversedToday ? '- NUNCA use "Oi", "Olá", "Bom dia/tarde/noite" - JÁ CONVER
         // Remover "Áudio" do final
         message = message.replace(/\s*Áudio\s*$/gi, '').trim();
         message = message.replace(/\s*Audio\s*$/gi, '').trim();
+        
+        // 🔧 FIX 2026-02-26: Remover padrões de traços que parecem IA/GPT
+        // Traços consecutivos (---, -----, etc)
+        message = message.replace(/\-{2,}/g, '');
+        // Bullet dash no início de linha: "- item" → "• item"  
+        message = message.replace(/^[\s]*-\s+/gm, '• ');
+        // Em-dash como separador: " — " → ", "
+        message = message.replace(/\s*—\s*/g, ', ');
+        // En-dash como separador: " – " → ", "
+        message = message.replace(/\s*–\s*/g, ', ');
+        // Traço isolado como separador: " - " → ", " (cuidado com palavras compostas)
+        message = message.replace(/(?<=[a-záéíóúàâêôãõ\s])\s+-\s+(?=[a-záéíóúàâêôãõA-Z])/g, ', ');
+        // Separadores como ━━━, ═══, ─── 
+        message = message.replace(/^[\s]*[━═─_*]{3,}[\s]*$/gm, '');
+        // Limpar vírgulas duplicadas e espaços extras
+        message = message.replace(/,\s*,/g, ',');
+        message = message.replace(/^\s*,\s*/gm, '');
+        
         // Limpar espaços duplos
         message = message.replace(/\s+/g, ' ').trim();
         
@@ -1247,14 +1326,18 @@ ${conversedToday ? '- NUNCA use "Oi", "Olá", "Bom dia/tarde/noite" - JÁ CONVER
       console.log(`⏰ [USER-FOLLOW-UP] Estágio ${currentStage} → ${nextStage}, intervalo: ${delayMinutes} minutos`);
     }
 
+    // 🔧 FIX 2026-02-25: SEMPRE limpar followupDisabledReason ao avançar estágio.
+    // Sem isso, uma reason stale de 'Aguardando conexão' pode fazer clearConnectionWaitingStatus
+    // SOBRESCREVER nextFollowupAt com now+2min após PM2 restart, causando follow-ups em rajada.
     await db.update(conversations)
       .set({ 
         followupStage: nextStage,
-        nextFollowupAt: nextDate 
+        nextFollowupAt: nextDate,
+        followupDisabledReason: null
       })
       .where(eq(conversations.id, conversation.id));
 
-    console.log(`📅 [USER-FOLLOW-UP] Próximo follow-up agendado para ${nextDate.toLocaleString()}`);
+    console.log(`📅 [USER-FOLLOW-UP] Próximo follow-up agendado para ${nextDate.toLocaleString()} (stage ${nextStage}, reason limpa)`);
   }
 
   /**
@@ -1299,6 +1382,17 @@ ${conversedToday ? '- NUNCA use "Oi", "Olá", "Bom dia/tarde/noite" - JÁ CONVER
       return;
     }
 
+    const userId = conversation.connection.userId;
+    const config = await this.getFollowupConfig(userId);
+    
+    // 🔧 FIX CRÍTICO 2026-02-26: Verificar config GLOBAL antes de qualquer re-ativação!
+    // Se o usuário desativou o follow-up globalmente na página /followup,
+    // NUNCA reativar automaticamente, independente do motivo de desativação.
+    if (!config?.isEnabled) {
+      console.log(`🛑 [USER-FOLLOW-UP] Follow-up GLOBAL desabilitado para usuário ${userId}. NÃO reativando conversa ${conversationId}.`);
+      return;
+    }
+
     // 🔧 FIX CRÍTICO: Se follow-up JÁ está ativo, NÃO resetar!
     // Isso evita que cada resposta do agente resete o timer para 10 min,
     // criando um loop infinito de follow-ups a cada 10 minutos.
@@ -1317,20 +1411,23 @@ ${conversedToday ? '- NUNCA use "Oi", "Olá", "Bom dia/tarde/noite" - JÁ CONVER
     //
     // A desativação da IA (isAgentEnabled) NÃO deve afetar o follow-up!
 
-    // 🔧 FIX BUG REATIVAÇÃO: Se foi DESATIVADO MANUALMENTE pelo usuário, NÃO reativar automaticamente
-    // Isso evita que o sistema reative follow-up quando o dono envia uma mensagem
-    if (conversation.followupDisabledReason && conversation.followupDisabledReason.includes('Desativado pelo usuário')) {
-      console.log(`🛑 [USER-FOLLOW-UP] Follow-up foi DESATIVADO MANUALMENTE para ${conversationId}. Motivo: ${conversation.followupDisabledReason}. NÃO reativando automaticamente.`);
-      return;
-    }
-
-    const userId = conversation.connection.userId;
-    const config = await this.getFollowupConfig(userId);
-    
-    // Se follow-up não está habilitado para este usuário, não ativar
-    if (!config?.isEnabled) {
-      console.log(`ℹ️ [USER-FOLLOW-UP] Follow-up desabilitado para usuário ${userId}`);
-      return;
+    // 🔧 FIX BUG REATIVAÇÃO 2026-02-26: Se foi desativado MANUALMENTE pelo usuário OU pelo sistema,
+    // NÃO reativar automaticamente. Checar múltiplos padrões de motivo de desativação.
+    if (conversation.followupDisabledReason) {
+      const reason = conversation.followupDisabledReason;
+      const isManuallyDisabled = 
+        reason.includes('Desativado pelo usuário') ||
+        reason.includes('Usuário desativou') ||
+        reason.includes('Desativado manualmente') ||
+        reason.includes('Conta suspensa') ||
+        reason.includes('lista de exclusão') ||
+        reason.includes('Sequência completa') ||
+        reason.includes('Conexão removida');
+      
+      if (isManuallyDisabled) {
+        console.log(`🛑 [USER-FOLLOW-UP] Follow-up foi DESATIVADO para ${conversationId}. Motivo: ${reason}. NÃO reativando automaticamente.`);
+        return;
+      }
     }
 
     const intervals = config?.intervalsMinutes || DEFAULT_INTERVALS;
@@ -1367,6 +1464,17 @@ ${conversedToday ? '- NUNCA use "Oi", "Olá", "Bom dia/tarde/noite" - JÁ CONVER
       return;
     }
 
+    const userId = conversation.connection.userId;
+    const config = await this.getFollowupConfig(userId);
+    
+    // 🔧 FIX CRÍTICO 2026-02-26: Verificar config GLOBAL ANTES de tudo!
+    // Se o usuário desativou o follow-up globalmente na página /followup,
+    // NUNCA resetar/reativar automaticamente.
+    if (!config?.isEnabled) {
+      console.log(`🛑 [USER-FOLLOW-UP] Follow-up GLOBAL desativado para usuário ${userId}. NÃO resetando ciclo para ${conversationId}.`);
+      return;
+    }
+
     // 🔧 FIX CRÍTICO: NÃO reativar se foi desativado MANUALMENTE pelo usuário
     // Checar tanto followupActive quanto followupDisabledReason
     if (!conversation.followupActive) {
@@ -1374,39 +1482,62 @@ ${conversedToday ? '- NUNCA use "Oi", "Olá", "Bom dia/tarde/noite" - JÁ CONVER
       return;
     }
 
-    // 🔧 FIX BUG REATIVAÇÃO: Se existe motivo de desativação, significa que foi desativado MANUALMENTE
-    // NUNCA reativar automaticamente quando foi desativado pelo usuário
-    if (conversation.followupDisabledReason && conversation.followupDisabledReason.includes('Desativado pelo usuário')) {
-      console.log(`🛑 [USER-FOLLOW-UP] Follow-up foi DESATIVADO MANUALMENTE para ${conversationId}. Motivo: ${conversation.followupDisabledReason}. NÃO reativando automaticamente.`);
-      return;
+    // 🔧 FIX BUG REATIVAÇÃO 2026-02-26: Se existe motivo de desativação que indica desativação intencional,
+    // NUNCA reativar automaticamente. Checar TODOS os padrões possíveis.
+    if (conversation.followupDisabledReason) {
+      const disableReason = conversation.followupDisabledReason;
+      const isIntentionallyDisabled = 
+        disableReason.includes('Desativado pelo usuário') ||
+        disableReason.includes('Usuário desativou') ||
+        disableReason.includes('Desativado manualmente') ||
+        disableReason.includes('Conta suspensa') ||
+        disableReason.includes('lista de exclusão') ||
+        disableReason.includes('Sequência completa') ||
+        disableReason.includes('Conexão removida');
+      
+      if (isIntentionallyDisabled) {
+        console.log(`🛑 [USER-FOLLOW-UP] Follow-up DESATIVADO intencionalmente para ${conversationId}. Motivo: ${disableReason}. NÃO resetando.`);
+        return;
+      }
     }
-
-    const userId = conversation.connection.userId;
-    const config = await this.getFollowupConfig(userId);
     
-    // 🔧 FIX: Verificar se follow-up global está ativado para este usuário
-    if (!config?.isEnabled) {
-      console.log(`ℹ️ [USER-FOLLOW-UP] Follow-up global desativado para usuário ${userId}`);
-      return;
-    }
-    
-    // 🔧 FIX CRÍTICO: Quando cliente responde, dar MUITO mais tempo antes do próximo follow-up
-    // Isso evita que o sistema pareça "perdido" ou "incomodando"
-    // TÉCNICA: Esperar 2 HORAS após cliente responder, não 10 minutos
-    // Se a conversa está ativa, o sistema não deve interferir
+    // 🔧 FIX CRÍTICO: Quando cliente responde, dar mais tempo antes do próximo follow-up
+    // TÉCNICA: Esperar 2 HORAS após cliente responder, mas MANTER o estágio atual!
+    // NÃO resetar para stage 0 - isso causava envio repetido do mesmo estágio dezenas de vezes.
+    // Ex: Cliente no stage 3 responde "ok" → antes resetava pra 0 → stage 0 enviado de novo.
+    // Agora: mantém stage 3, pausa 2h, e na próxima execução avança para stage 4.
     const delayMinutes = 120; // 2 horas de "respiro" após cliente responder
-    const nextDate = addRandomSeconds(new Date(Date.now() + delayMinutes * 60 * 1000));
+    const twoHoursFromNow = addRandomSeconds(new Date(Date.now() + delayMinutes * 60 * 1000));
+    const currentStage = conversation.followupStage || 0;
+
+    // 🔧 FIX BUG "ENVIANDO SEM PARAR" 2026-02-26:
+    // Se advanceToNextStage já agendou o próximo follow-up para ALÉM de 2h (ex: 15-30 dias no infinite_loop),
+    // NÃO encurtar o intervalo para 2h! Isso causava:
+    // 1. Follow-up stage 6 enviado → advanceToNextStage → stage 7 com 20 dias
+    // 2. Cliente responde → resetFollowUpCycle → SOBRESCREVE 20 dias para 2h (BUG!)
+    // 3. Após 2h, envia stage 7 → advance → stage 8 com 25 dias
+    // 4. Cliente responde novamente → 2h → repete → enviando "sem parar"
+    // 
+    // CORREÇÃO: Só aplicar pausa de 2h se nextFollowupAt NÃO está além de 2h.
+    // Se já está agendado para daqui 15 dias, manter esse agendamento.
+    const existingNext = conversation.nextFollowupAt ? new Date(conversation.nextFollowupAt) : null;
+    
+    if (existingNext && existingNext > twoHoursFromNow) {
+      console.log(`ℹ️ [USER-FOLLOW-UP] ${reason || 'Cliente respondeu'}. Follow-up já agendado para ${existingNext.toLocaleString()} (> 2h). Mantendo agendamento existente para ${conversationId} (stage ${currentStage}).`);
+      return;
+    }
 
     await db.update(conversations)
       .set({ 
         followupActive: true,
-        followupStage: 0, // Resetar estágio para não ficar muito insistente
-        nextFollowupAt: nextDate,
+        // 🔧 MANTER estágio atual - NÃO resetar para 0!
+        // followupStage permanece inalterado (não incluído no set)
+        nextFollowupAt: twoHoursFromNow,
         followupDisabledReason: null
       })
       .where(eq(conversations.id, conversationId));
       
-    console.log(`🔄 [USER-FOLLOW-UP] ${reason || 'Cliente respondeu'}. Ciclo pausado por 2h para ${conversationId} (dar espaço à conversa)`);
+    console.log(`🔄 [USER-FOLLOW-UP] ${reason || 'Cliente respondeu'}. Ciclo pausado por 2h para ${conversationId} (stage ${currentStage} mantido, dar espaço à conversa)`);
   }
 
   /**
@@ -1626,12 +1757,31 @@ ${conversedToday ? '- NUNCA use "Oi", "Olá", "Bom dia/tarde/noite" - JÁ CONVER
       // Reagendar para 2 minutos no futuro
       const nextDate = addRandomSeconds(new Date(Date.now() + 2 * 60 * 1000));
       
-      // UPDATE direto apenas nas conversas que realmente precisam (sem SELECT prévio)
-      // Isso economiza 1 query e reduz Disk I/O significativamente
+      // 🔧 FIX 2026-02-25: PROTEGER conversas que já têm nextFollowupAt no futuro (>10min).
+      // Sem isso, após PM2 restart + reconexão, clearConnectionWaitingStatus SOBRESCREVIA
+      // o nextFollowupAt de conversas que já foram corretamente agendadas por advanceToNextStage
+      // (ex: 48h → overwritten para now+2min), causando follow-ups disparados em rajada.
+      // Agora: só reagenda conversas cujo nextFollowupAt já passou ou está próximo (<10min).
+      const futureThreshold = new Date(Date.now() + 10 * 60 * 1000); // 10 min no futuro
+      
       const result = await db.update(conversations)
         .set({ 
           followupDisabledReason: null,
           nextFollowupAt: nextDate
+        })
+        .where(and(
+          eq(conversations.connectionId, connectionId),
+          eq(conversations.followupActive, true),
+          eq(conversations.followupDisabledReason, '🔄 Aguardando conexão WhatsApp...'),
+          lte(conversations.nextFollowupAt, futureThreshold)
+        ))
+        .returning({ id: conversations.id });
+      
+      // Também limpar a reason (sem mudar nextFollowupAt) para conversas futuras
+      // para que não fiquem marcadas como 'Aguardando' eternamente
+      const futureClean = await db.update(conversations)
+        .set({ 
+          followupDisabledReason: null
         })
         .where(and(
           eq(conversations.connectionId, connectionId),
@@ -1641,8 +1791,9 @@ ${conversedToday ? '- NUNCA use "Oi", "Olá", "Bom dia/tarde/noite" - JÁ CONVER
         .returning({ id: conversations.id });
       
       const count = result.length;
-      if (count > 0) {
-        console.log(`🔄 [USER-FOLLOW-UP] ${count} conversas reativadas para conexão ${connectionId}`);
+      const futureCount = futureClean.length;
+      if (count > 0 || futureCount > 0) {
+        console.log(`🔄 [USER-FOLLOW-UP] ${count} conversas reativadas (now+2min) + ${futureCount} limpas (mantendo agenda) para conexão ${connectionId}`);
       }
       return count;
     } catch (error) {

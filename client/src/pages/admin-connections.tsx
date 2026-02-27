@@ -110,6 +110,12 @@ const emptyConnectionForm: ConnectionFormState = {
 
 export default function AdminConnectionsPage() {
   const { toast } = useToast();
+  const getSubTab = () => window.location.hash.replace('#', '') || 'connections';
+  const [activeConnTab, setActiveConnTab] = useState(getSubTab());
+  const handleConnTabChange = (tab: string) => {
+    setActiveConnTab(tab);
+    window.location.hash = tab;
+  };
   const [agentDialogOpen, setAgentDialogOpen] = useState(false);
   const [connectionDialogOpen, setConnectionDialogOpen] = useState(false);
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
@@ -435,7 +441,7 @@ export default function AdminConnectionsPage() {
           </Card>
         </section>
 
-        <Tabs defaultValue="connections" className="w-full">
+        <Tabs value={activeConnTab} onValueChange={handleConnTabChange} className="w-full">
           <TabsList className="grid w-full grid-cols-2 sm:w-auto sm:grid-cols-2 bg-slate-100">
             <TabsTrigger value="connections" className="gap-2">
               <Smartphone className="w-4 h-4" />

@@ -68,11 +68,25 @@ export default function AdminPanel() {
     return urlParams.get('tab') || 'dashboard';
   };
   
+  // Extrair sub-tab da URL (e.g., #whatsapp/broadcast → "broadcast")
+  const getSubTabFromUrl = () => {
+    const hash = window.location.hash.replace('#', '');
+    if (hash) {
+      const parts = hash.split('/');
+      return parts[1] || undefined;
+    }
+    return undefined;
+  };
+
   const [activeTab, setActiveTab] = useState(getTabFromUrl);
+  const [activeSubTab, setActiveSubTab] = useState<string | undefined>(getSubTabFromUrl);
 
   // Sincronizar aba com mudanças de hash (back/forward ou deep link)
   useEffect(() => {
-    const onHashChange = () => setActiveTab(getTabFromUrl());
+    const onHashChange = () => {
+      setActiveTab(getTabFromUrl());
+      setActiveSubTab(getSubTabFromUrl());
+    };
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
@@ -80,6 +94,7 @@ export default function AdminPanel() {
   // Sincronizar aba com URL
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
+    setActiveSubTab(undefined); // Reset sub-tab when changing main tab
 
     if (tab === 'agent') {
       const hash = window.location.hash.replace('#', '');
@@ -90,6 +105,12 @@ export default function AdminPanel() {
     }
 
     window.history.replaceState(null, '', `/admin#${tab}`);
+  };
+  
+  // Callback para sub-tabs mudarem a URL 
+  const handleSubTabChange = (subTab: string) => {
+    setActiveSubTab(subTab);
+    window.history.replaceState(null, '', `/admin#${activeTab}/${subTab}`);
   };
 
   // Listener para evento custom de mudança de tab (usado por subcomponentes como Conversas)
@@ -297,15 +318,18 @@ export default function AdminPanel() {
         return (
           <div className="space-y-6">
             <AdminWhatsappPanel />
-            <AdminNotificationsPanel />
+            <AdminNotificationsPanel 
+              defaultSubTab={activeSubTab} 
+              onSubTabChange={handleSubTabChange}
+            />
           </div>
         );
       case "status":
-        return <AdminStatusPanel />;
+        return <AdminStatusPanel defaultSubTab={activeSubTab} onSubTabChange={handleSubTabChange} />;
       case "conversations":
         return null; // Renderizado fora do container
       case "calendar":
-        return <FollowUpCalendar />;
+        return <FollowUpCalendar defaultSubTab={activeSubTab} onSubTabChange={handleSubTabChange} />;
       case "cupons":
         return <CouponsManager />;
       case "resellers":
@@ -319,7 +343,7 @@ export default function AdminPanel() {
       case "config":
         return <ConfigManager config={config} />;
       case "followup":
-        return <AdminFollowUpPanel />;
+        return <AdminFollowUpPanel defaultSubTab={activeSubTab} onSubTabChange={handleSubTabChange} />;
       default:
         return null;
     }

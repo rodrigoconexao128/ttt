@@ -1,4 +1,4 @@
-﻿import makeWASocket, {
+import makeWASocket, {
   DisconnectReason,
   useMultiFileAuthState,
   WASocket,
@@ -17,6 +17,16 @@ import path from "path";
 import fs from "fs/promises";
 import { registerWhatsAppSession, unregisterWhatsAppSession } from "./whatsappSender";
 import { storage } from "./storage";
+import {
+  clearDistributedKey,
+  getDistributedKeyRemainingMs,
+  isRedisAvailable,
+  refreshDistributedLock,
+  releaseDistributedLock,
+  setDistributedExpiringKey,
+  tryAcquireDistributedLock,
+  type DistributedLockHandle,
+} from "./redisCoordinator";
 import WebSocket from "ws";
 import { generateAIResponse, type AIResponseResult, type AIResponseOptions } from "./aiAgent";
 import { executeMediaActions, downloadMediaAsBuffer } from "./mediaService";
@@ -29,12 +39,12 @@ import { conversations } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
 import { uploadMediaToStorage } from "./mediaStorageService";
 import { processAudioResponseForAgent } from "./audioResponseService";
-// 🆕 ANTI-REENVIO: Importar serviço de deduplicação para proteção contra instabilidade
+// ?? ANTI-REENVIO: Importar servi�o de deduplica��o para prote��o contra instabilidade
 import { isIncomingMessageProcessed, markIncomingMessageProcessed, canSendMessage, getDeduplicationStats, MessageType, MessageSource } from "./messageDeduplicationService";
-// 🆕 v4.0 ANTI-BAN: Serviço de proteção contra bloqueio (rate limiting, safe mode, etc)
+// ?? v4.0 ANTI-BAN: Servi�o de prote��o contra bloqueio (rate limiting, safe mode, etc)
 import { antiBanProtectionService } from "./antiBanProtectionService";
 
-// 🚨 SISTEMA DE RECUPERAÇÃO DE MENSAGENS PENDENTES
+// ?? SISTEMA DE RECUPERA��O DE MENSAGENS PENDENTES
 // Resolve problema de mensagens perdidas durante instabilidade/deploys Railway
 import { 
   pendingMessageRecoveryService,
@@ -51,13 +61,13 @@ import {
 // ?? SISTEMA DE CACHE DE MENSAGENS PARA RETRY (FIX "AGUARDANDO MENSAGEM")
 // -----------------------------------------------------------------------
 // O WhatsApp mostra "Aguardando para carregar mensagem" quando:
-// 1. A mensagem falhou na decripta��o
-// 2. O Baileys precisa reenviar a mensagem mas n�o tem o conte�do original
+// 1. A mensagem falhou na decripta??o
+// 2. O Baileys precisa reenviar a mensagem mas n?o tem o conte?do original
 // 
-// SOLU��O: Armazenar mensagens enviadas em cache para que o Baileys possa
-// recuper�-las via getMessage() quando precisar fazer retry.
+// SOLU??O: Armazenar mensagens enviadas em cache para que o Baileys possa
+// recuper?-las via getMessage() quando precisar fazer retry.
 // 
-// Cache TTL: 24 horas (mensagens mais antigas s�o removidas automaticamente)
+// Cache TTL: 24 horas (mensagens mais antigas s?o removidas automaticamente)
 // -----------------------------------------------------------------------
 interface CachedMessage {
   message: proto.IMessage;
@@ -70,7 +80,7 @@ const messageCache = new Map<string, Map<string, CachedMessage>>();
 // TTL do cache: 24 horas
 const MESSAGE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
-// Fun��o para obter o cache de um usu�rio espec�fico
+// Fun??o para obter o cache de um usu?rio espec?fico
 function getUserMessageCache(userId: string): Map<string, CachedMessage> {
   let cache = messageCache.get(userId);
   if (!cache) {
@@ -80,7 +90,7 @@ function getUserMessageCache(userId: string): Map<string, CachedMessage> {
   return cache;
 }
 
-// Fun��o para armazenar mensagem no cache
+// Fun??o para armazenar mensagem no cache
 function cacheMessage(userId: string, messageId: string, message: proto.IMessage): void {
   const cache = getUserMessageCache(userId);
   cache.set(messageId, {
@@ -90,13 +100,13 @@ function cacheMessage(userId: string, messageId: string, message: proto.IMessage
   console.log(`?? [MSG CACHE] Armazenada mensagem ${messageId} para user ${userId.substring(0, 8)}... (cache size: ${cache.size})`);
 }
 
-// Fun��o para recuperar mensagem do cache
+// Fun??o para recuperar mensagem do cache
 function getCachedMessage(userId: string, messageId: string): proto.IMessage | undefined {
   const cache = getUserMessageCache(userId);
   const cached = cache.get(messageId);
   
   if (!cached) {
-    console.log(`?? [MSG CACHE] Mensagem ${messageId} N�O encontrada no cache para user ${userId.substring(0, 8)}...`);
+    console.log(`?? [MSG CACHE] Mensagem ${messageId} N?O encontrada no cache para user ${userId.substring(0, 8)}...`);
     return undefined;
   }
   
@@ -130,16 +140,16 @@ setInterval(() => {
   }
   
   if (totalCleaned > 0) {
-    console.log(`📦 [MSG CACHE] Limpeza periódica: ${totalCleaned} mensagens expiradas removidas`);
+    console.log(`?? [MSG CACHE] Limpeza peri�dica: ${totalCleaned} mensagens expiradas removidas`);
   }
 }, 30 * 60 * 1000);
 
 // -----------------------------------------------------------------------
-// � MUTEX DE CRIAÇÃO DE CONVERSA (FIX DUPLICATAS)
+// ? MUTEX DE CRIA��O DE CONVERSA (FIX DUPLICATAS)
 // -----------------------------------------------------------------------
-// Previne race condition quando múltiplas mensagens do mesmo contato
+// Previne race condition quando m�ltiplas mensagens do mesmo contato
 // chegam simultaneamente e ambas tentam criar conversa nova.
-// Chave: "connectionId:contactNumber" → Promise que resolve com a conversa
+// Chave: "connectionId:contactNumber" ? Promise que resolve com a conversa
 // -----------------------------------------------------------------------
 const conversationCreationLocks = new Map<string, Promise<any>>();
 
@@ -151,18 +161,18 @@ async function getOrCreateConversationSafe(
 ): Promise<{ conversation: any; wasCreated: boolean }> {
   const lockKey = `${connectionId}:${contactNumber}`;
   
-  // Se já existe um lock ativo, esperar ele terminar e usar o resultado
+  // Se j� existe um lock ativo, esperar ele terminar e usar o resultado
   const existingLock = conversationCreationLocks.get(lockKey);
   if (existingLock) {
     try {
       await existingLock;
     } catch {}
-    // Após o lock liberar, buscar a conversa que foi criada
+    // Ap�s o lock liberar, buscar a conversa que foi criada
     const existing = await lookupFn();
     if (existing) return { conversation: existing, wasCreated: false };
   }
   
-  // Verificar se já existe
+  // Verificar se j� existe
   const existing = await lookupFn();
   if (existing) return { conversation: existing, wasCreated: false };
   
@@ -179,38 +189,38 @@ async function getOrCreateConversationSafe(
 }
 
 // -----------------------------------------------------------------------
-// �🔄 SISTEMA DE VERIFICAÇÃO DE MENSAGENS NÃO PROCESSADAS
+// ??? SISTEMA DE VERIFICA��O DE MENSAGENS N�O PROCESSADAS
 // -----------------------------------------------------------------------
-// NOTA: A implementação real está mais abaixo no arquivo, após as declarações
+// NOTA: A implementa��o real est� mais abaixo no arquivo, ap�s as declara��es
 // de pendingResponses, conversationsBeingProcessed, etc.
 // -----------------------------------------------------------------------
 
-// Map para rastrear última verificação por userId (evita spam)
+// Map para rastrear �ltima verifica��o por userId (evita spam)
 const lastMissedMessageCheck = new Map<string, number>();
 
-// Map para rastrear mensagens já detectadas como faltantes (evita reprocessar)
+// Map para rastrear mensagens j� detectadas como faltantes (evita reprocessar)
 const detectedMissedMessages = new Set<string>(); // key: conversationId_messageId
 
-// Placeholder - será substituído pela função real mais abaixo
+// Placeholder - ser� substitu�do pela fun��o real mais abaixo
 let checkForMissedMessages: (session: WhatsAppSession) => Promise<void> = async () => {};
 
 // Flag para controlar se o polling foi iniciado
 let missedMessagePollingStarted = false;
 
-// Função para iniciar o polling (será chamada depois que sessions for declarado)
+// Fun��o para iniciar o polling (ser� chamada depois que sessions for declarado)
 function startMissedMessagePolling() {
   // ?? MODO DEV: Pular polling de missed messages se DISABLE_WHATSAPP_PROCESSING=true
   if (process.env.DISABLE_WHATSAPP_PROCESSING === 'true') {
-    console.log(`⏸️ [MISSED MSG] DESABILITADO - DISABLE_WHATSAPP_PROCESSING=true`);
+    console.log(`?? [MISSED MSG] DESABILITADO - DISABLE_WHATSAPP_PROCESSING=true`);
     return;
   }
   
   if (missedMessagePollingStarted) return;
   missedMessagePollingStarted = true;
   
-  // Iniciar polling de mensagens não processadas a cada 45 segundos
+  // Iniciar polling de mensagens n�o processadas a cada 45 segundos
   setInterval(async () => {
-    // Verificar se sessions está disponível
+    // Verificar se sessions est� dispon�vel
     if (typeof sessions === 'undefined') return;
     
     for (const [userId, session] of sessions.entries()) {
@@ -224,23 +234,23 @@ function startMissedMessagePolling() {
     }
   }, 45 * 1000);
   
-  console.log(`🔄 [MISSED MSG] Polling de mensagens não processadas iniciado (a cada 45s)`);
+  console.log(`?? [MISSED MSG] Polling de mensagens n�o processadas iniciado (a cada 45s)`);
 }
 
 // -----------------------------------------------------------------------
-// ✅ UPLOAD DE MÍDIA PARA STORAGE (Economia de Egress)
+// ? UPLOAD DE M�DIA PARA STORAGE (Economia de Egress)
 // -----------------------------------------------------------------------
 // Em vez de salvar base64 no banco (que consome muito egress),
 // fazemos upload para o Supabase Storage (usa cached egress via CDN).
 // 
-// Economia estimada: ~90% de redu��o no egress de m�dia
+// Economia estimada: ~90% de redu??o no egress de m?dia
 // -----------------------------------------------------------------------
 
 /**
- * Faz upload de m�dia para Storage ou cria URL base64 como fallback
- * @param buffer Buffer da m�dia
+ * Faz upload de m?dia para Storage ou cria URL base64 como fallback
+ * @param buffer Buffer da m?dia
  * @param mimeType Tipo MIME (ex: image/jpeg, audio/ogg)
- * @param userId ID do usu�rio
+ * @param userId ID do usu?rio
  * @param conversationId ID da conversa (opcional)
  * @returns URL do storage ou data URL base64
  */
@@ -253,28 +263,28 @@ async function uploadMediaOrFallback(
   try {
     const result = await uploadMediaToStorage(buffer, mimeType, userId, conversationId);
     if (result && result.url) {
-      console.log(`📤 [STORAGE] Mídia enviada para Storage: ${result.url.substring(0, 80)}...`);
+      console.log(`?? [STORAGE] M�dia enviada para Storage: ${result.url.substring(0, 80)}...`);
       return result.url;
     } else {
-      console.warn(`⚠️ [STORAGE] Upload retornou resultado inválido:`, result);
+      console.warn(`?? [STORAGE] Upload retornou resultado inv�lido:`, result);
     }
   } catch (error) {
-    console.error(`❌ [STORAGE] Erro ao enviar para Storage:`, error);
+    console.error(`? [STORAGE] Erro ao enviar para Storage:`, error);
   }
   
   // SEM fallback base64 para evitar egress excessivo!
-  console.warn(`⚠️ [STORAGE] Upload falhou, mídia não será salva (sem fallback base64)`);
+  console.warn(`?? [STORAGE] Upload falhou, m�dia n�o ser� salva (sem fallback base64)`);
   return null;
 }
 
 // -----------------------------------------------------------------------
-// ???? SAFE MODE: Prote��o Anti-Bloqueio para Clientes
+// ???? SAFE MODE: Prote??o Anti-Bloqueio para Clientes
 // -----------------------------------------------------------------------
-// Esta funcionalidade � ativada pelo admin quando um cliente tomou bloqueio
-// do WhatsApp e est� reconectando. Ao reconectar com Safe Mode ativo:
+// Esta funcionalidade ? ativada pelo admin quando um cliente tomou bloqueio
+// do WhatsApp e est? reconectando. Ao reconectar com Safe Mode ativo:
 // 1. Zera a fila de mensagens pendentes
 // 2. Desativa todos os follow-ups programados
-// 3. Come�a do zero para evitar novo bloqueio
+// 3. Come?a do zero para evitar novo bloqueio
 // -----------------------------------------------------------------------
 
 /**
@@ -288,7 +298,7 @@ async function executeSafeModeCleanup(userId: string, connectionId: string): Pro
   error?: string;
 }> {
   console.log(`\n??? ---------------------------------------------------------------`);
-  console.log(`??? [SAFE MODE] Iniciando limpeza para usu�rio ${userId.substring(0, 8)}...`);
+  console.log(`??? [SAFE MODE] Iniciando limpeza para usu?rio ${userId.substring(0, 8)}...`);
   console.log(`??? ---------------------------------------------------------------\n`);
 
   let messagesCleared = 0;
@@ -300,7 +310,7 @@ async function executeSafeModeCleanup(userId: string, connectionId: string): Pro
     messagesCleared = queueResult.cleared;
     console.log(`??? [SAFE MODE] ? Fila de mensagens: ${messagesCleared} mensagens removidas`);
 
-    // 2. Desativar follow-ups de todas as conversas deste usu�rio
+    // 2. Desativar follow-ups de todas as conversas deste usu?rio
     // Atualizar todas as conversas para: followupActive = false, nextFollowupAt = null
     const followupResult = await db
       .update(conversations)
@@ -308,7 +318,7 @@ async function executeSafeModeCleanup(userId: string, connectionId: string): Pro
         followupActive: false,
         nextFollowupAt: null,
         followupStage: 0,
-        followupDisabledReason: 'Safe Mode - limpeza ap�s bloqueio do WhatsApp',
+        followupDisabledReason: 'Safe Mode - limpeza ap?s bloqueio do WhatsApp',
         updatedAt: new Date(),
       })
       .where(eq(conversations.connectionId, connectionId))
@@ -317,12 +327,12 @@ async function executeSafeModeCleanup(userId: string, connectionId: string): Pro
     followupsCleared = followupResult.length;
     console.log(`??? [SAFE MODE] ? Follow-ups: ${followupsCleared} conversas com follow-up desativado`);
 
-    // 3. Registrar data/hora da �ltima limpeza
+    // 3. Registrar data/hora da ?ltima limpeza
     await storage.updateConnection(connectionId, {
       safeModeLastCleanupAt: new Date(),
     });
 
-    console.log(`\n??? [SAFE MODE] ? Limpeza conclu�da com sucesso!`);
+    console.log(`\n??? [SAFE MODE] ? Limpeza conclu?da com sucesso!`);
     console.log(`??? [SAFE MODE] ?? Resumo:`);
     console.log(`???   - Mensagens removidas da fila: ${messagesCleared}`);
     console.log(`???   - Follow-ups desativados: ${followupsCleared}`);
@@ -346,8 +356,8 @@ async function executeSafeModeCleanup(userId: string, connectionId: string): Pro
 }
 
 // -----------------------------------------------------------------------
-// 🔄 WRAPPER: uploadMediaSimple - Compatibilidade com código legado
-// A função importada uploadMediaToStorage de mediaStorageService.ts retorna 
+// ?? WRAPPER: uploadMediaSimple - Compatibilidade com c�digo legado
+// A fun��o importada uploadMediaToStorage de mediaStorageService.ts retorna 
 // { url, path, size } e precisa de (buffer, mimeType, userId, conversationId?)
 // Esta wrapper aceita (buffer, mimeType, fileName) e retorna apenas a URL
 // -----------------------------------------------------------------------
@@ -357,16 +367,16 @@ async function uploadMediaSimple(
   fileName?: string
 ): Promise<string | null> {
   try {
-    // Usar "system" como userId genérico para uploads sem contexto de usuário
+    // Usar "system" como userId gen�rico para uploads sem contexto de usu�rio
     const result = await uploadMediaToStorage(buffer, mimeType, "system");
     if (result && result.url) {
-      console.log(`✅ [STORAGE] Upload concluído: ${result.url.substring(0, 80)}...`);
+      console.log(`? [STORAGE] Upload conclu�do: ${result.url.substring(0, 80)}...`);
       return result.url;
     }
-    console.warn(`⚠️ [STORAGE] Upload retornou sem URL`);
+    console.warn(`?? [STORAGE] Upload retornou sem URL`);
     return null;
   } catch (error) {
-    console.error(`❌ [STORAGE] Erro no upload:`, error);
+    console.error(`? [STORAGE] Erro no upload:`, error);
     return null;
   }
 }
@@ -400,7 +410,7 @@ interface AdminWhatsAppSession {
   adminId: string;
   phoneNumber?: string;
   contactsCache: Map<string, Contact>;
-  // 🛡️ SESSION STABILITY - Heartbeat and connection health
+  // ??? SESSION STABILITY - Heartbeat and connection health
   lastHeartbeat?: number;
   heartbeatInterval?: NodeJS.Timeout;
   connectionHealth?: 'healthy' | 'degraded' | 'unhealthy';
@@ -413,7 +423,7 @@ interface AuthenticatedWebSocket extends WebSocket {
 }
 
 // ---------------------------------------------------------------------------
-// 🔑 MULTI-CONNECTION SESSION MAP
+// ?? MULTI-CONNECTION SESSION MAP
 // ---------------------------------------------------------------------------
 // Custom Map that stores sessions keyed by connectionId but also supports
 // lookup by userId for backward compatibility. This enables multiple
@@ -522,7 +532,7 @@ const adminSessions = new Map<string, AdminWhatsAppSession>();
 const wsClients = new Map<string, Set<AuthenticatedWebSocket>>();
 const adminWsClients = new Map<string, Set<AuthenticatedWebSocket>>();
 
-// 🛡️ SESSION STABILITY - Heartbeat configuration
+// ??? SESSION STABILITY - Heartbeat configuration
 const ADMIN_HEARTBEAT_INTERVAL_MS = 30000; // 30 seconds
 const ADMIN_MAX_CONSECUTIVE_DISCONNECTS = 3; // Maximum consecutive disconnects before alert
 const ADMIN_RECONNECT_BACKOFF_BASE_MS = 5000; // Base 5 seconds
@@ -534,22 +544,21 @@ function getSessionWsReadyState(session?: WhatsAppSession): number | undefined {
   return (session?.socket as any)?.ws?.readyState;
 }
 
-function isSessionReadyForMessaging(session?: WhatsAppSession): boolean {
+function hasOperationalSocket(session?: WhatsAppSession): boolean {
   if (!session?.socket) {
     return false;
   }
 
-  const hasIdentity = session.socket.user !== undefined;
-  if (!hasIdentity) {
+  if (session.socket.user === undefined) {
     return false;
-  }
-
-  if (session.isOpen === true) {
-    return true;
   }
 
   const wsReadyState = getSessionWsReadyState(session);
   return wsReadyState === undefined || wsReadyState === 1;
+}
+
+function isSessionReadyForMessaging(session?: WhatsAppSession): boolean {
+  return hasOperationalSocket(session);
 }
 
 function promoteSessionOpenState(session: WhatsAppSession, reason: string): boolean {
@@ -566,15 +575,15 @@ function promoteSessionOpenState(session: WhatsAppSession, reason: string): bool
     clearTimeout(session.openTimeout);
     session.openTimeout = undefined;
   }
-  console.log(`✅ [SESSION PROMOTE] conn ${session.connectionId.substring(0, 8)} marked isOpen=true via ${reason}`);
+  console.log(`? [SESSION PROMOTE] conn ${session.connectionId.substring(0, 8)} marked isOpen=true via ${reason}`);
   return true;
 }
 
-// ?? Set para rastrear IDs de mensagens enviadas pelo agente/usu�rio via sendMessage
-// Evita duplicatas quando Baileys dispara evento fromMe ap�s socket.sendMessage()
+// ?? Set para rastrear IDs de mensagens enviadas pelo agente/usu?rio via sendMessage
+// Evita duplicatas quando Baileys dispara evento fromMe ap?s socket.sendMessage()
 const agentMessageIds = new Set<string>();
 
-// ?? Fun��o exportada para registrar messageIds de m�dias enviadas pelo agente
+// ?? Fun??o exportada para registrar messageIds de m?dias enviadas pelo agente
 // Usado pelo mediaService para evitar que handleOutgoingMessage pause a IA incorretamente
 export function registerAgentMessageId(messageId: string): void {
   if (messageId) {
@@ -583,12 +592,12 @@ export function registerAgentMessageId(messageId: string): void {
   }
 }
 
-// ?? Map para rastrear solicita��es de c�digo de pareamento em andamento
-// Evita m�ltiplas solicita��es simult�neas para o mesmo usu�rio
+// ?? Map para rastrear solicita??es de c?digo de pareamento em andamento
+// Evita m?ltiplas solicita??es simult?neas para o mesmo usu?rio
 const pendingPairingRequests = new Map<string, Promise<string | null>>();
 
-// ?? Map para rastrear sess�es de pairing ativas com expiração
-// Se o usuário não digitar o código em 3 minutos, limpa a sessão automaticamente
+// ?? Map para rastrear sess?es de pairing ativas com expira��o
+// Se o usu�rio n�o digitar o c�digo em 3 minutos, limpa a sess�o automaticamente
 interface PairingSession {
   startedAt: number;
   phone: string;
@@ -597,13 +606,13 @@ interface PairingSession {
   timeoutId?: NodeJS.Timeout;
 }
 const pairingSessions = new Map<string, PairingSession>();
-const PAIRING_SESSION_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutos - WhatsApp às vezes demora para achar a opção
+const PAIRING_SESSION_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutos - WhatsApp �s vezes demora para achar a op��o
 
 // -----------------------------------------------------------------------
-// ?? PAIRING STATE MANAGER - Gerencia estado de pairing com restart automático
+// ?? PAIRING STATE MANAGER - Gerencia estado de pairing com restart autom�tico
 // -----------------------------------------------------------------------
-// Mantém o estado do pairing entre restarts do socket (515 restartRequired)
-// Permite reconexão automática sem perder o auth_pairing
+// Mant�m o estado do pairing entre restarts do socket (515 restartRequired)
+// Permite reconex�o autom�tica sem perder o auth_pairing
 // -----------------------------------------------------------------------
 interface PairingState {
   userId: string;
@@ -615,12 +624,12 @@ interface PairingState {
   retryCount: number;
   lastRetryAt: number;
   isRestarting: boolean;
-  socketRef?: any;  // Referência ao socket atual
-  sessionRef?: WhatsAppSession;  // Referência à sessão atual
+  socketRef?: any;  // Refer�ncia ao socket atual
+  sessionRef?: WhatsAppSession;  // Refer�ncia � sess�o atual
 }
 const pairingStateMap = new Map<string, PairingState>();
 
-// Funções auxiliares do pairing manager
+// Fun��es auxiliares do pairing manager
 function getPairingState(userId: string): PairingState | undefined {
   return pairingStateMap.get(userId);
 }
@@ -660,49 +669,158 @@ const RATE_LIMIT_COOLDOWN_MS = 30 * 60 * 1000; // 30 minutos de cooldown
 // ?? Map para controle de retries de pairing (para tratar 515 restartRequired)
 // Quando o Baileys fecha com 515, precisamos reconectar mantendo o mesmo auth
 const pairingRetries = new Map<string, { count: number; lastAttempt: number }>();
-const MAX_PAIRING_RETRIES = 5; // Máximo de restarts permitidos
+const MAX_PAIRING_RETRIES = 5; // M�ximo de restarts permitidos
 const PAIRING_RETRY_COOLDOWN_MS = 10000; // 10 segundos entre retries
 
-// ?? Map para rastrear conex�es em andamento
-// Evita m�ltiplas tentativas de conex�o simult�neas para o mesmo usu�rio
-// FIX 2026-02-24: Evoluído de Map<string, Promise<void>> para estrutura com metadata + TTL
+// ?? Map para rastrear conex?es em andamento
+// Evita m?ltiplas tentativas de conex?o simult?neas para o mesmo usu?rio
+// FIX 2026-02-24: Evolu�do de Map<string, Promise<void>> para estrutura com metadata + TTL
 interface PendingConnectionEntry {
   promise: Promise<void>;
   startedAt: number;
   connectionId?: string;
   userId: string;
+  distributedLock?: DistributedLockHandle;
+  distributedLockRefresh?: NodeJS.Timeout;
 }
 const pendingConnections = new Map<string, PendingConnectionEntry>();
-const PENDING_LOCK_TTL_MS = 90_000; // 90 seconds — lock expires after this
+const PENDING_LOCK_TTL_MS = 90_000; // 90 seconds � lock expires after this
+const WA_REDIS_CONNECT_LOCK_ENABLED = process.env.WA_REDIS_CONNECT_LOCK !== "false";
+const WA_REDIS_PENDING_LOCK_PREFIX = process.env.WA_REDIS_PENDING_LOCK_PREFIX || "wa:connect:lock:";
+const WA_REDIS_COOLDOWN_PREFIX = process.env.WA_REDIS_COOLDOWN_PREFIX || "wa:open-timeout:";
+const WA_REDIS_PENDING_CRON_LOCK_KEY =
+  process.env.WA_REDIS_PENDING_CRON_LOCK_KEY || "wa:pending-cron:lock";
+const WA_REDIS_PENDING_CRON_LOCK_TTL_MS = Math.max(
+  Number(process.env.WA_REDIS_PENDING_CRON_LOCK_TTL_MS || 90_000),
+  30_000,
+);
+const WA_REDIS_PENDING_LOCK_EXTRA_MS = Math.max(
+  Number(process.env.WA_REDIS_PENDING_LOCK_EXTRA_MS || 30_000),
+  5_000,
+);
+const WA_REDIS_PENDING_LOCK_REFRESH_MS = Math.max(
+  Number(process.env.WA_REDIS_PENDING_LOCK_REFRESH_MS || 30_000),
+  5_000,
+);
 const CONNECT_OPEN_TIMEOUT_MS = Math.max(
   Number(process.env.WA_CONNECT_OPEN_TIMEOUT_MS || 120_000),
   60_000
 ); // wait for "open" before failing the connect promise
 const RESTORE_CONNECT_OPEN_TIMEOUT_MS = Math.max(
-  Number(process.env.WA_RESTORE_CONNECT_OPEN_TIMEOUT_MS || 45_000),
-  20_000
-); // shorter timeout during startup restore to avoid blocking guard for too long
+  Number(process.env.WA_RESTORE_CONNECT_OPEN_TIMEOUT_MS || 90_000),
+  30_000
+); // balanced timeout for restore: avoid false timeout without stalling queue too long
 const RESTORE_BATCH_SIZE = Math.max(
-  Number(process.env.WA_RESTORE_BATCH_SIZE || 3),
+  Number(process.env.WA_RESTORE_BATCH_SIZE || 1),
   1
 );
 const RESTORE_BATCH_DELAY_MS = Math.max(
-  Number(process.env.WA_RESTORE_BATCH_DELAY_MS || 3000),
+  Number(process.env.WA_RESTORE_BATCH_DELAY_MS || 2000),
   0
 );
 const RESTORE_GUARD_MAX_BLOCK_MS = Math.max(
-  Number(process.env.WA_RESTORE_GUARD_MAX_BLOCK_MS || 180_000),
+  Number(process.env.WA_RESTORE_GUARD_MAX_BLOCK_MS || 120_000),
   60_000
 ); // health-check can run after this even if restore still running
+const RESTORE_CONNECTED_ONLY = process.env.WA_RESTORE_CONNECTED_ONLY !== "false";
+const RESTORE_RECENT_GRACE_MS = Math.max(
+  Number(process.env.WA_RESTORE_RECENT_GRACE_MS || 15 * 60 * 1000),
+  0
+);
+const OPEN_TIMEOUT_RETRY_COOLDOWN_MS = Math.max(
+  Number(process.env.WA_OPEN_TIMEOUT_RETRY_COOLDOWN_MS || 180_000),
+  30_000
+);
+const openTimeoutRetryUntil = new Map<string, number>();
+const OPEN_TIMEOUT_COOLDOWN_SOURCES = new Set([
+  "restore",
+  "health_check",
+  "pending_cron",
+  "auto_recovery",
+]);
+
+function toDistributedPendingLockKey(lockKey: string): string {
+  return `${WA_REDIS_PENDING_LOCK_PREFIX}${lockKey}`;
+}
+
+function toDistributedCooldownKey(scopeKey: string): string {
+  return `${WA_REDIS_COOLDOWN_PREFIX}${scopeKey}`;
+}
+
+function stopDistributedLockRefresh(lockKey: string, entry?: PendingConnectionEntry): void {
+  const targetEntry = entry || pendingConnections.get(lockKey);
+  if (targetEntry?.distributedLockRefresh) {
+    clearInterval(targetEntry.distributedLockRefresh);
+    targetEntry.distributedLockRefresh = undefined;
+  }
+}
+
+function releaseDistributedPendingLock(lockKey: string, reason: string, entry?: PendingConnectionEntry): void {
+  const targetEntry = entry || pendingConnections.get(lockKey);
+  if (!targetEntry?.distributedLock) {
+    return;
+  }
+
+  const lock = targetEntry.distributedLock;
+  targetEntry.distributedLock = undefined;
+  stopDistributedLockRefresh(lockKey, targetEntry);
+
+  void releaseDistributedLock(lock)
+    .then((released) => {
+      if (released) {
+        console.log(
+          `?? [PENDING LOCK][REDIS] Released distributed lock for ${lockKey.substring(0, 8)}... (${reason})`,
+        );
+      }
+    })
+    .catch((err) => {
+      console.warn(
+        `?? [PENDING LOCK][REDIS] Failed to release distributed lock for ${lockKey.substring(0, 8)}... (${reason}):`,
+        err,
+      );
+    });
+}
+
+function registerDistributedPendingLockRefresh(
+  lockKey: string,
+  entry: PendingConnectionEntry,
+  ttlMs: number,
+): void {
+  if (!entry.distributedLock) {
+    return;
+  }
+
+  const refreshIntervalMs = Math.max(
+    Math.min(Math.floor(ttlMs / 2), WA_REDIS_PENDING_LOCK_REFRESH_MS),
+    5_000,
+  );
+
+  entry.distributedLockRefresh = setInterval(async () => {
+    if (!entry.distributedLock) {
+      return;
+    }
+    const refreshed = await refreshDistributedLock(entry.distributedLock, ttlMs);
+    if (!refreshed) {
+      console.warn(
+        `?? [PENDING LOCK][REDIS] Lock refresh lost for ${lockKey.substring(0, 8)}...`,
+      );
+      stopDistributedLockRefresh(lockKey, entry);
+    }
+  }, refreshIntervalMs);
+  entry.distributedLockRefresh.unref?.();
+}
 
 /**
- * Helper unificado para limpar lock de conexão pendente.
+ * Helper unificado para limpar lock de conex�o pendente.
  * Chamado em: conn=open, conn=close, 440 conflict, catch, health check.
  */
 function clearPendingConnectionLock(lockKey: string, reason: string): void {
-  if (pendingConnections.has(lockKey)) {
+  const entry = pendingConnections.get(lockKey);
+  if (entry) {
+    stopDistributedLockRefresh(lockKey, entry);
     pendingConnections.delete(lockKey);
-    console.log(`🔓 [PENDING LOCK] Cleared lock for ${lockKey.substring(0, 8)}... reason: ${reason}`);
+    releaseDistributedPendingLock(lockKey, reason, entry);
+    console.log(`?? [PENDING LOCK] Cleared lock for ${lockKey.substring(0, 8)}... reason: ${reason}`);
   }
 }
 
@@ -715,7 +833,9 @@ function evictStalePendingLocks(): number {
   const now = Date.now();
   for (const [key, entry] of pendingConnections.entries()) {
     if (now - entry.startedAt > PENDING_LOCK_TTL_MS) {
-      console.log(`⚠️ [PENDING LOCK] STALE_EVICTED: ${key.substring(0, 8)}... age=${Math.round((now - entry.startedAt) / 1000)}s > TTL=${PENDING_LOCK_TTL_MS / 1000}s`);
+      console.log(`?? [PENDING LOCK] STALE_EVICTED: ${key.substring(0, 8)}... age=${Math.round((now - entry.startedAt) / 1000)}s > TTL=${PENDING_LOCK_TTL_MS / 1000}s`);
+      stopDistributedLockRefresh(key, entry);
+      releaseDistributedPendingLock(key, "stale_evicted", entry);
       pendingConnections.delete(key);
       evicted++;
     }
@@ -723,7 +843,67 @@ function evictStalePendingLocks(): number {
   return evicted;
 }
 
-// ?? Map para rastrear tentativas de reconex�o e evitar loops infinitos
+function shouldApplyOpenTimeoutCooldown(source?: string): boolean {
+  if (!source) return false;
+  if (OPEN_TIMEOUT_COOLDOWN_SOURCES.has(source)) return true;
+  return source.startsWith("pending_") || source.startsWith("health_");
+}
+
+function getOpenTimeoutCooldownRemainingMs(scopeKey: string): number {
+  const until = openTimeoutRetryUntil.get(scopeKey);
+  if (!until) return 0;
+  const remaining = until - Date.now();
+  if (remaining <= 0) {
+    openTimeoutRetryUntil.delete(scopeKey);
+    return 0;
+  }
+  return remaining;
+}
+
+async function getMaxOpenTimeoutCooldownRemainingMs(scopeKeys: string[]): Promise<number> {
+  const localRemaining = scopeKeys.reduce(
+    (max, key) => Math.max(max, getOpenTimeoutCooldownRemainingMs(key)),
+    0,
+  );
+
+  if (!isRedisAvailable()) {
+    return localRemaining;
+  }
+
+  let remoteRemaining = 0;
+  for (const key of scopeKeys) {
+    const ttl = await getDistributedKeyRemainingMs(toDistributedCooldownKey(key));
+    if (ttl > remoteRemaining) {
+      remoteRemaining = ttl;
+    }
+  }
+
+  return Math.max(localRemaining, remoteRemaining);
+}
+
+function registerOpenTimeoutCooldown(scopeKey: string, reason: string): void {
+  const until = Date.now() + OPEN_TIMEOUT_RETRY_COOLDOWN_MS;
+  openTimeoutRetryUntil.set(scopeKey, until);
+  void setDistributedExpiringKey(
+    toDistributedCooldownKey(scopeKey),
+    reason || "open_timeout",
+    OPEN_TIMEOUT_RETRY_COOLDOWN_MS,
+  );
+  console.log(
+    `? [OPEN TIMEOUT COOLDOWN] ${scopeKey.substring(0, 8)}... paused for ${Math.round(
+      OPEN_TIMEOUT_RETRY_COOLDOWN_MS / 1000,
+    )}s (reason=${reason})`,
+  );
+}
+
+function clearOpenTimeoutCooldown(scopeKey: string, reason: string): void {
+  void clearDistributedKey(toDistributedCooldownKey(scopeKey));
+  if (openTimeoutRetryUntil.delete(scopeKey)) {
+    console.log(`? [OPEN TIMEOUT COOLDOWN] Cleared for ${scopeKey.substring(0, 8)}... (reason=${reason})`);
+  }
+}
+
+// ?? Map para rastrear tentativas de reconex?o e evitar loops infinitos
 interface ReconnectAttempt {
   count: number;
   lastAttempt: number;
@@ -763,41 +943,42 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000);
 
-// 🔒 RESTORE GUARD: Prevent health check from killing sessions during restore
+// ?? RESTORE GUARD: Prevent health check from killing sessions during restore
 let _isRestoringInProgress = false;
 let _restoreStartedAt = 0;
+let _isAdminRestoringInProgress = false;
 
 // Export function to check if restore is in progress (used by API endpoints)
 export function isRestoringInProgress(): boolean {
   return _isRestoringInProgress;
 }
 
-// ?? Map para rastrear auto-retry após logout (QR Code)
-// Permite um único auto-retry quando auth inválido causa logout imediato
+// ?? Map para rastrear auto-retry ap�s logout (QR Code)
+// Permite um �nico auto-retry quando auth inv�lido causa logout imediato
 interface LogoutAutoRetry {
   count: number;
   lastAttempt: number;
 }
 const logoutAutoRetry = new Map<string, LogoutAutoRetry>();
 const LOGOUT_AUTO_RETRY_COOLDOWN_MS = 60000; // 60 segundos
-const MAX_LOGOUT_AUTO_RETRY = 1; // Apenas 1 tentativa automática
+const MAX_LOGOUT_AUTO_RETRY = 1; // Apenas 1 tentativa autom�tica
 
-// 🔄 Iniciar polling de mensagens não processadas
-// (variáveis necessárias já foram declaradas acima)
+// ?? Iniciar polling de mensagens n�o processadas
+// (vari�veis necess�rias j� foram declaradas acima)
 startMissedMessagePolling();
 
-// 🚨 SISTEMA DE RECUPERAÇÃO: Registrar callback de processamento
-// Este callback será usado pelo pendingMessageRecoveryService para reprocessar
-// mensagens que não foram processadas durante instabilidade/deploys
-// NOTA: O registerMessageProcessor já foi importado no topo do arquivo junto
-// com outras funções do pendingMessageRecoveryService.
-// A função handleIncomingMessage precisa estar definida primeiro
-// O registro é feito no final do arquivo via setTimeout para garantir ordem
+// ?? SISTEMA DE RECUPERA��O: Registrar callback de processamento
+// Este callback ser� usado pelo pendingMessageRecoveryService para reprocessar
+// mensagens que n�o foram processadas durante instabilidade/deploys
+// NOTA: O registerMessageProcessor j� foi importado no topo do arquivo junto
+// com outras fun��es do pendingMessageRecoveryService.
+// A fun��o handleIncomingMessage precisa estar definida primeiro
+// O registro � feito no final do arquivo via setTimeout para garantir ordem
 
 // -----------------------------------------------------------------------
-// 📇 CACHE DE AGENDA - OTIMIZAÇÃO PARA ENVIO EM MASSA
+// ?? CACHE DE AGENDA - OTIMIZA��O PARA ENVIO EM MASSA
 // -----------------------------------------------------------------------
-// Contatos do WhatsApp s�o armazenados APENAS em mem�ria (n�o no banco)
+// Contatos do WhatsApp s?o armazenados APENAS em mem?ria (n?o no banco)
 // Isso evita crescimento exponencial do Supabase e otimiza Egress/Disk IO
 // Cliente sincroniza sob demanda quando precisa usar Envio em Massa
 // -----------------------------------------------------------------------
@@ -817,12 +998,12 @@ interface AgendaCacheEntry {
 }
 
 // Cache global de contatos da agenda (expira em 2 HORAS)
-// N�o deixa o site lento - � apenas um Map em mem�ria
+// N?o deixa o site lento - ? apenas um Map em mem?ria
 // Impacto: ~1KB por 1000 contatos (muito leve)
 const agendaContactsCache = new Map<string, AgendaCacheEntry>();
 const AGENDA_CACHE_TTL_MS = 2 * 60 * 60 * 1000; // 2 HORAS (antes era 30 min)
 
-// Exportar fun��o para obter contatos da agenda do cache
+// Exportar fun??o para obter contatos da agenda do cache
 export function getAgendaContacts(userId: string): AgendaCacheEntry | undefined {
   const cached = agendaContactsCache.get(userId);
   if (cached && cached.expiresAt > new Date()) {
@@ -835,7 +1016,7 @@ export function getAgendaContacts(userId: string): AgendaCacheEntry | undefined 
   return undefined;
 }
 
-// Fun��o para salvar contatos no cache (chamada quando contacts.upsert dispara)
+// Fun??o para salvar contatos no cache (chamada quando contacts.upsert dispara)
 function saveAgendaToCache(userId: string, contacts: AgendaContact[]): void {
   const now = new Date();
   agendaContactsCache.set(userId, {
@@ -847,7 +1028,7 @@ function saveAgendaToCache(userId: string, contacts: AgendaContact[]): void {
   console.log(`?? [AGENDA CACHE] Salvou ${contacts.length} contatos para user ${userId} (expira em 2 HORAS)`);
 }
 
-// Fun��o para marcar sync como iniciado
+// Fun??o para marcar sync como iniciado
 export function markAgendaSyncing(userId: string): void {
   agendaContactsCache.set(userId, {
     contacts: [],
@@ -857,7 +1038,7 @@ export function markAgendaSyncing(userId: string): void {
   });
 }
 
-// Fun��o para marcar sync como erro
+// Fun??o para marcar sync como erro
 export function markAgendaError(userId: string, error: string): void {
   agendaContactsCache.set(userId, {
     contacts: [],
@@ -868,9 +1049,9 @@ export function markAgendaError(userId: string, error: string): void {
   });
 }
 
-// ===== NOVA: Fun��o para popular agenda do cache da sess�o =====
-// Chamada quando usu�rio clica em "Sincronizar Agenda" e n�o tem cache
-// Busca contatos do contactsCache da sess�o (j� carregados do WhatsApp)
+// ===== NOVA: Fun??o para popular agenda do cache da sess?o =====
+// Chamada quando usu?rio clica em "Sincronizar Agenda" e n?o tem cache
+// Busca contatos do contactsCache da sess?o (j? carregados do WhatsApp)
 export function syncAgendaFromSessionCache(userId: string): { success: boolean; count: number; message: string } {
   const session = sessions.get(userId);
   
@@ -878,7 +1059,7 @@ export function syncAgendaFromSessionCache(userId: string): { success: boolean; 
     return {
       success: false,
       count: 0,
-      message: '? WhatsApp n�o est� conectado. Conecte primeiro para sincronizar a agenda.',
+      message: '? WhatsApp n?o est? conectado. Conecte primeiro para sincronizar a agenda.',
     };
   }
   
@@ -886,11 +1067,11 @@ export function syncAgendaFromSessionCache(userId: string): { success: boolean; 
     // Cache vazio - salvar com 0 contatos e status ready
     // Isso evita ficar eternamente em 'syncing'
     saveAgendaToCache(userId, []);
-    console.log(`?? [AGENDA SYNC] Cache da sess�o est� vazio - salvou cache com 0 contatos`);
+    console.log(`?? [AGENDA SYNC] Cache da sess?o est? vazio - salvou cache com 0 contatos`);
     return {
       success: true,
       count: 0,
-      message: '?? Nenhum contato encontrado no momento. Os contatos ser�o carregados automaticamente quando chegarem do WhatsApp.',
+      message: '?? Nenhum contato encontrado no momento. Os contatos ser?o carregados automaticamente quando chegarem do WhatsApp.',
     };
   }
   
@@ -905,14 +1086,14 @@ export function syncAgendaFromSessionCache(userId: string): { success: boolean; 
     // Extrair phoneNumber do contact ou do key
     let phoneNumber = contact.phoneNumber || null;
     
-    // Se n�o tem phoneNumber, tentar extrair do contact.id
+    // Se n?o tem phoneNumber, tentar extrair do contact.id
     if (!phoneNumber && contact.id) {
       // Tentar formato: 5511999887766@s.whatsapp.net
       const match1 = contact.id.match(/^(\d{8,15})@s\.whatsapp\.net$/);
       if (match1) {
         phoneNumber = match1[1];
       } else {
-        // Tentar formato gen�rico: n�meros@qualquercoisa
+        // Tentar formato gen?rico: n?meros@qualquercoisa
         const match2 = contact.id.match(/^(\d+)@/);
         if (match2 && match2[1].length >= 8) {
           phoneNumber = match2[1];
@@ -920,7 +1101,7 @@ export function syncAgendaFromSessionCache(userId: string): { success: boolean; 
       }
     }
     
-    // Se ainda n�o tem, tentar extrair da key do Map
+    // Se ainda n?o tem, tentar extrair da key do Map
     if (!phoneNumber && key) {
       const match1 = key.match(/^(\d{8,15})@s\.whatsapp\.net$/);
       if (match1) {
@@ -933,7 +1114,7 @@ export function syncAgendaFromSessionCache(userId: string): { success: boolean; 
       }
     }
     
-    // Evitar duplicatas e validar n�mero
+    // Evitar duplicatas e validar n?mero
     if (phoneNumber && phoneNumber.length >= 8 && !seenPhones.has(phoneNumber)) {
       seenPhones.add(phoneNumber);
       agendaContacts.push({
@@ -956,7 +1137,7 @@ export function syncAgendaFromSessionCache(userId: string): { success: boolean; 
   saveAgendaToCache(userId, agendaContacts);
   
   if (agendaContacts.length > 0) {
-    console.log(`?? [AGENDA SYNC] Populou cache com ${agendaContacts.length} contatos da sess�o`);
+    console.log(`?? [AGENDA SYNC] Populou cache com ${agendaContacts.length} contatos da sess?o`);
     return {
       success: true,
       count: agendaContacts.length,
@@ -964,29 +1145,29 @@ export function syncAgendaFromSessionCache(userId: string): { success: boolean; 
     };
   }
   
-  // Se processou mas n�o encontrou nenhum, retornar ready com 0 contatos
-  console.log(`?? [AGENDA SYNC] Nenhum contato encontrado no cache da sess�o (size: ${session.contactsCache.size})`);
+  // Se processou mas n?o encontrou nenhum, retornar ready com 0 contatos
+  console.log(`?? [AGENDA SYNC] Nenhum contato encontrado no cache da sess?o (size: ${session.contactsCache.size})`);
   return {
     success: true,
     count: 0,
-    message: '?? Nenhum contato encontrado. Os contatos ser�o carregados automaticamente quando chegarem do WhatsApp.',
+    message: '?? Nenhum contato encontrado. Os contatos ser?o carregados automaticamente quando chegarem do WhatsApp.',
   };
 }
 
 // ?? MODO DESENVOLVIMENTO: Desabilita processamento de mensagens em localhost
-// �til quando Railway est� rodando em produ��o e voc� quer desenvolver sem conflitos
+// ?til quando Railway est? rodando em produ??o e voc? quer desenvolver sem conflitos
 // Defina DISABLE_WHATSAPP_PROCESSING=true no .env para ativar
 const DISABLE_MESSAGE_PROCESSING = process.env.DISABLE_WHATSAPP_PROCESSING === 'true';
 
 if (DISABLE_MESSAGE_PROCESSING) {
   console.log(`\n?? [DEV MODE] ?????????????????????????????????????????????????????`);
   console.log(`?? [DEV MODE] PROCESSAMENTO DE MENSAGENS WHATSAPP DESABILITADO`);
-  console.log(`?? [DEV MODE] Isso evita conflitos com servidor de produ��o (Railway)`);
+  console.log(`?? [DEV MODE] Isso evita conflitos com servidor de produ??o (Railway)`);
   console.log(`?? [DEV MODE] Para reativar, remova DISABLE_WHATSAPP_PROCESSING do .env`);
   console.log(`?? [DEV MODE] ?????????????????????????????????????????????????????\n`);
 }
 
-// ?? SISTEMA DE ACUMULA��O DE MENSAGENS
+// ?? SISTEMA DE ACUMULA??O DE MENSAGENS
 // Rastreia timeouts pendentes e mensagens acumuladas por conversa
 interface PendingResponse {
   timeout: NodeJS.Timeout;
@@ -997,16 +1178,16 @@ interface PendingResponse {
   contactNumber: string;
   jidSuffix: string;
   startTime: number;
-  isProcessing?: boolean; // ?? FLAG ANTI-DUPLICA��O
-  isCTWAFallback?: boolean; // 📢 Flag: mensagem veio de Meta Ads (CTWA) e PDO falhou - IA deve tratar como saudação de interesse
+  isProcessing?: boolean; // ?? FLAG ANTI-DUPLICA??O
+  isCTWAFallback?: boolean; // ?? Flag: mensagem veio de Meta Ads (CTWA) e PDO falhou - IA deve tratar como sauda��o de interesse
 }
 const pendingResponses = new Map<string, PendingResponse>(); // key: conversationId
 
-// 🔴 ANTI-DUPLICAÇÃO: Map para rastrear conversas em processamento (value = timestamp)
-// Evita que múltiplos timeouts processem a mesma conversa simultaneamente
-// Agora com TTL: se uma conversa ficar presa por mais de PROCESSING_TTL_MS, é liberada
+// ?? ANTI-DUPLICA��O: Map para rastrear conversas em processamento (value = timestamp)
+// Evita que m�ltiplos timeouts processem a mesma conversa simultaneamente
+// Agora com TTL: se uma conversa ficar presa por mais de PROCESSING_TTL_MS, � liberada
 const conversationsBeingProcessed = new Map<string, number>();
-const PROCESSING_TTL_MS = 120_000; // 2 minutos — máximo esperado para processar IA
+const PROCESSING_TTL_MS = 120_000; // 2 minutos � m�ximo esperado para processar IA
 
 // -----------------------------------------------------------------------
 // FIX 2026-02-24: RETRY COUNTER for Connection Closed errors
@@ -1014,35 +1195,35 @@ const PROCESSING_TTL_MS = 120_000; // 2 minutos — máximo esperado para proces
 // After MAX_SEND_RETRIES, the timer is marked as failed to prevent infinite loops.
 // Entries are cleaned up when a timer completes or fails.
 // -----------------------------------------------------------------------
-const pendingRetryCounter = new Map<string, number>(); // key: conversationId → retry count
+const pendingRetryCounter = new Map<string, number>(); // key: conversationId ? retry count
 const MAX_SEND_RETRIES = 12; // Max 12 retries with exponential backoff
 
 const SESSION_AVAILABLE_RETRY_MS = 30 * 1000;
 const SESSION_UNAVAILABLE_RETRY_MS = 5 * 60 * 1000;
 const SESSION_UNAVAILABLE_MAX_AGE_MS = 30 * 60 * 1000;
-// ⚡ FIX: Retry rápido quando erro é Connection Closed (socket reconectando)
+// ? FIX: Retry r�pido quando erro � Connection Closed (socket reconectando)
 const CONNECTION_CLOSED_RETRY_MS = 5 * 1000; // 5 segundos
 const SESSION_RECOVERY_ATTEMPT_COOLDOWN_MS = 60 * 1000; // evita storm de reconnect por timer
 const sessionRecoveryAttemptAt = new Map<string, number>(); // key: connectionId or userId
 
 // -----------------------------------------------------------------------
-// 🔄 IMPLEMENTAÇÃO REAL: checkForMissedMessages
+// ?? IMPLEMENTA��O REAL: checkForMissedMessages
 // -----------------------------------------------------------------------
 // Agora que pendingResponses e conversationsBeingProcessed foram declarados,
-// podemos implementar a função real.
+// podemos implementar a fun��o real.
 // -----------------------------------------------------------------------
 checkForMissedMessages = async function(session: WhatsAppSession): Promise<void> {
   if (!session.socket || !session.isConnected) return;
   
   const { userId, connectionId } = session;
   
-  // Rate limit: verificar apenas a cada 45 segundos por sessão
+  // Rate limit: verificar apenas a cada 45 segundos por sess�o
   const lastCheck = lastMissedMessageCheck.get(userId) || 0;
   if (Date.now() - lastCheck < 45000) return;
   lastMissedMessageCheck.set(userId, Date.now());
   
   try {
-    // 1. Buscar conversas com mensagens recentes (últimos 5 minutos)
+    // 1. Buscar conversas com mensagens recentes (�ltimos 5 minutos)
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
     
     const { pool } = await import("./db");
@@ -1080,70 +1261,71 @@ checkForMissedMessages = async function(session: WhatsAppSession): Promise<void>
     const agentConfig = await storage.getAgentConfig(userId);
     if (!agentConfig?.isActive) return;
     
-    // 3. Processar mensagens não respondidas
+    // 3. Processar mensagens n�o respondidas
     for (const row of result.rows) {
       const cacheKey = `${row.conversation_id}_${row.message_id}`;
       
-      // Evitar reprocessar mensagens já detectadas
+      // Evitar reprocessar mensagens j� detectadas
       if (detectedMissedMessages.has(cacheKey)) continue;
       detectedMissedMessages.add(cacheKey);
       
-      // Limpar cache antigo (manter últimas 1000 entradas)
+      // Limpar cache antigo (manter �ltimas 1000 entradas)
       if (detectedMissedMessages.size > 1000) {
         const entries = Array.from(detectedMissedMessages);
         entries.slice(0, 500).forEach(e => detectedMissedMessages.delete(e));
       }
       
-      // Verificar se já tem resposta pendente
+      // Verificar se j� tem resposta pendente
       if (pendingResponses.has(row.conversation_id)) {
-        console.log(`🔄 [MISSED MSG] ${row.contact_number} - Já tem resposta pendente`);
+        console.log(`?? [MISSED MSG] ${row.contact_number} - J� tem resposta pendente`);
         continue;
       }
       
-      // Verificar se está sendo processada
+      // Verificar se est� sendo processada
       if (conversationsBeingProcessed.has(row.conversation_id)) {
-        console.log(`🔄 [MISSED MSG] ${row.contact_number} - Em processamento`);
+        console.log(`?? [MISSED MSG] ${row.contact_number} - Em processamento`);
         continue;
       }
       
-      console.log(`\n🚨 [MISSED MSG] MENSAGEM NÃO PROCESSADA DETECTADA!`);
-      console.log(`   📱 Contato: ${row.contact_number}`);
-      console.log(`   💬 Mensagem: "${(row.text || '[mídia]').substring(0, 50)}..."`);
-      console.log(`   ⏰ Enviada em: ${row.timestamp}`);
-      console.log(`   🔄 Triggando resposta da IA...`);
+      console.log(`\n?? [MISSED MSG] MENSAGEM N�O PROCESSADA DETECTADA!`);
+      console.log(`   ?? Contato: ${row.contact_number}`);
+      console.log(`   ?? Mensagem: "${(row.text || '[m�dia]').substring(0, 50)}..."`);
+      console.log(`   ? Enviada em: ${row.timestamp}`);
+      console.log(`   ?? Triggando resposta da IA...`);
       
       // Agendar resposta com delay
       const responseDelaySeconds = agentConfig?.responseDelaySeconds ?? 30;
       
       const pending: PendingResponse = {
         timeout: null as any,
-        messages: [row.text || '[mídia recebida]'],
+        messages: [row.text || '[m�dia recebida]'],
         conversationId: row.conversation_id,
         userId,
+        connectionId,
         contactNumber: row.contact_number,
         jidSuffix: row.jid_suffix || DEFAULT_JID_SUFFIX,
         startTime: Date.now(),
       };
       
       pending.timeout = setTimeout(async () => {
-        console.log(`🚀 [MISSED MSG] Processando resposta para ${row.contact_number}`);
+        console.log(`?? [MISSED MSG] Processando resposta para ${row.contact_number}`);
         await processAccumulatedMessages(pending);
       }, responseDelaySeconds * 1000);
       
       pendingResponses.set(row.conversation_id, pending);
-      console.log(`   ✅ Resposta agendada em ${responseDelaySeconds}s\n`);
+      console.log(`   ? Resposta agendada em ${responseDelaySeconds}s\n`);
     }
     
   } catch (error) {
-    // Silenciar erros para não poluir logs
+    // Silenciar erros para n�o poluir logs
     if ((error as any).code !== 'ECONNREFUSED') {
-      console.error(`❌ [MISSED MSG] Erro na verificação:`, error);
+      console.error(`? [MISSED MSG] Erro na verifica��o:`, error);
     }
   }
 };
 
-// 🔴 ANTI-DUPLICAÇÃO: Cache de mensagens recentes enviadas (últimos 5 minutos)
-// Evita enviar mensagens id�nticas em sequ�ncia
+// ?? ANTI-DUPLICA��O: Cache de mensagens recentes enviadas (�ltimos 5 minutos)
+// Evita enviar mensagens id?nticas em sequ?ncia
 const recentlySentMessages = new Map<string, { text: string; timestamp: number }[]>();
 
 // Limpar cache de mensagens enviadas a cada 5 minutos
@@ -1159,7 +1341,7 @@ setInterval(() => {
   }
 }, 60 * 1000);
 
-// ?? Fun��o para verificar se mensagem � duplicata recente
+// ?? Fun??o para verificar se mensagem ? duplicata recente
 function isRecentDuplicate(conversationId: string, text: string): boolean {
   const recent = recentlySentMessages.get(conversationId) || [];
   const twoMinutesAgo = Date.now() - 2 * 60 * 1000;
@@ -1172,16 +1354,16 @@ function isRecentDuplicate(conversationId: string, text: string): boolean {
   return false;
 }
 
-// ?? Fun��o para registrar mensagem enviada
+// ?? Fun??o para registrar mensagem enviada
 function registerSentMessageCache(conversationId: string, text: string): void {
   const recent = recentlySentMessages.get(conversationId) || [];
   recent.push({ text, timestamp: Date.now() });
-  // Manter apenas �ltimas 10 mensagens
+  // Manter apenas ?ltimas 10 mensagens
   if (recent.length > 10) recent.shift();
   recentlySentMessages.set(conversationId, recent);
 }
 
-// ?? SISTEMA DE ACUMULA��O (ADMIN AUTO-ATENDIMENTO)
+// ?? SISTEMA DE ACUMULA??O (ADMIN AUTO-ATENDIMENTO)
 interface PendingAdminResponse {
   timeout: NodeJS.Timeout | null;
   messages: string[];
@@ -1195,23 +1377,23 @@ interface PendingAdminResponse {
 }
 const pendingAdminResponses = new Map<string, PendingAdminResponse>(); // key: contactNumber
 
-// ?? Set para rastrear conversas j� verificadas na sess�o atual (evita reprocessamento)
+// ?? Set para rastrear conversas j? verificadas na sess?o atual (evita reprocessamento)
 const checkedConversationsThisSession = new Set<string>();
 
 // -----------------------------------------------------------------------
-// 🛡️ SISTEMA ANTI-BLOQUEIO v4.0 - Registro do Callback de Envio Real
+// ??? SISTEMA ANTI-BLOQUEIO v4.0 - Registro do Callback de Envio Real
 // -----------------------------------------------------------------------
-// Esta função é chamada pelo messageQueueService para enviar mensagens reais
+// Esta fun��o � chamada pelo messageQueueService para enviar mensagens reais
 // O callback permite que a fila controle o timing entre mensagens
-// 🆕 v4.0: Agora simula "digitando..." antes de enviar para parecer mais humano
-// 🆕 v4.1: Wait-for-reconnect — se a sessão está reconectando, espera até 15s
+// ?? v4.0: Agora simula "digitando..." antes de enviar para parecer mais humano
+// ?? v4.1: Wait-for-reconnect � se a sess�o est� reconectando, espera at� 15s
 async function internalSendMessageRaw(
   userId: string, 
   jid: string, 
   text: string, 
   options?: { isFromAgent?: boolean; conversationId?: string; connectionId?: string }
 ): Promise<string | null> {
-  const SEND_WAIT_MAX_MS = 15_000; // máx 15s esperando reconexão
+  const SEND_WAIT_MAX_MS = 15_000; // m�x 15s esperando reconex�o
   const SEND_WAIT_INTERVAL_MS = 2_000; // checar a cada 2s
   const RECOVERY_WAIT_MS = 8_000;
 
@@ -1222,21 +1404,35 @@ async function internalSendMessageRaw(
 
   const resolveReadySession = (preferredConnectionId?: string): WhatsAppSession | undefined => {
     if (preferredConnectionId) {
-      const byConnection = sessions.get(preferredConnectionId);
-      if (isSessionReadyForMessaging(byConnection)) {
-        return byConnection;
-      }
+      return sessions.get(preferredConnectionId);
     }
 
-    const byUser = sessions.get(userId);
-    if (isSessionReadyForMessaging(byUser)) {
-      return byUser;
+    const userSessions = sessions.getAllByUserId(userId);
+    const readySessions = userSessions.filter((session) => isSessionReadyForMessaging(session));
+
+    if (readySessions.length === 1) {
+      return readySessions[0];
     }
 
-    // Fallback (can still be not-ready, caller validates)
-    return preferredConnectionId
-      ? (sessions.get(preferredConnectionId) || byUser)
-      : byUser;
+    if (readySessions.length > 1) {
+      console.warn(
+        `?? [SEND] Multiple ready sessions for user ${userId.substring(0, 8)}... without connectionId context. Blocking ambiguous send.`,
+      );
+      return undefined;
+    }
+
+    if (userSessions.length === 1) {
+      return userSessions[0];
+    }
+
+    if (userSessions.length > 1) {
+      console.warn(
+        `?? [SEND] Multiple sessions for user ${userId.substring(0, 8)}... without connectionId context. Blocking ambiguous send.`,
+      );
+      return undefined;
+    }
+
+    return undefined;
   };
 
   const waitForReadySession = async (
@@ -1249,12 +1445,12 @@ async function internalSendMessageRaw(
     }
 
     const startWait = Date.now();
-    console.log(`⏳ [SEND] Sessão indisponível para ${userId.substring(0, 8)}... — aguardando reconexão (máx ${Math.round(maxWaitMs / 1000)}s)`);
+    console.log(`? [SEND] Sess�o indispon�vel para ${userId.substring(0, 8)}... � aguardando reconex�o (m�x ${Math.round(maxWaitMs / 1000)}s)`);
     while (Date.now() - startWait < maxWaitMs) {
       await new Promise(resolve => setTimeout(resolve, SEND_WAIT_INTERVAL_MS));
       candidate = resolveReadySession(preferredConnectionId);
       if (isSessionReadyForMessaging(candidate)) {
-        console.log(`✅ [SEND] Sessão reconectada para ${userId.substring(0, 8)}... após ${Math.round((Date.now() - startWait) / 1000)}s`);
+        console.log(`? [SEND] Sess�o reconectada para ${userId.substring(0, 8)}... ap�s ${Math.round((Date.now() - startWait) / 1000)}s`);
         return candidate;
       }
     }
@@ -1269,13 +1465,24 @@ async function internalSendMessageRaw(
       const conversation = await storage.getConversation(options.conversationId);
       resolvedConnectionId = conversation?.connectionId;
     } catch (error) {
-      console.warn(`⚠️ [SEND] Falha ao resolver connectionId por conversationId (${options.conversationId}):`, error);
+      console.warn(`?? [SEND] Falha ao resolver connectionId por conversationId (${options.conversationId}):`, error);
     }
   }
 
   if (!resolvedConnectionId) {
-    const connection = await storage.getConnectionByUserId(userId);
-    resolvedConnectionId = connection?.id;
+    const userConnections = await storage.getConnectionsByUserId(userId);
+    if (userConnections.length === 1) {
+      resolvedConnectionId = userConnections[0].id;
+    } else if (userConnections.length > 1) {
+      console.warn(
+        `?? [SEND] Ambiguous connection context for user ${userId.substring(0, 8)}... ` +
+        `(${userConnections.length} connections). conversationId/connectionId obrigat�rio para evitar envio no n�mero errado.`,
+      );
+      throw new Error("Ambiguous connection context: conversationId or connectionId required");
+    } else {
+      const fallbackConnection = await storage.getConnectionByUserId(userId);
+      resolvedConnectionId = fallbackConnection?.id;
+    }
   }
 
   const sendWithSession = async (activeSession: WhatsAppSession, attemptReason: string): Promise<string | null> => {
@@ -1289,18 +1496,18 @@ async function internalSendMessageRaw(
       throw new Error("Connection Closed");
     }
 
-    // 🆕 v4.0 ANTI-BAN: Simular "digitando..." antes de enviar
+    // ?? v4.0 ANTI-BAN: Simular "digitando..." antes de enviar
     try {
       const typingDuration = antiBanProtectionService.calculateTypingDuration(text.length);
       await activeSession.socket.sendPresenceUpdate('composing', jid);
-      console.log(`🛡️ [ANTI-BAN] ⌨️ Simulando digitação por ${Math.round(typingDuration/1000)}s...`);
+      console.log(`??? [ANTI-BAN] ?? Simulando digita��o por ${Math.round(typingDuration/1000)}s...`);
       await new Promise(resolve => setTimeout(resolve, typingDuration));
       await activeSession.socket.sendPresenceUpdate('paused', jid);
       const finalDelay = 500 + Math.random() * 1000;
       await new Promise(resolve => setTimeout(resolve, finalDelay));
     } catch (err) {
-      // Não falhar se não conseguir enviar status de digitação
-      console.log(`🛡️ [ANTI-BAN] ⚠️ Não foi possível enviar status de digitação:`, err);
+      // N�o falhar se n�o conseguir enviar status de digita��o
+      console.log(`??? [ANTI-BAN] ?? N�o foi poss�vel enviar status de digita��o:`, err);
     }
 
     const wsBeforeSend = getSessionWsReadyState(activeSession);
@@ -1317,7 +1524,7 @@ async function internalSendMessageRaw(
       } else {
         cacheMessage(userId, sentMessage.key.id, { conversation: text });
       }
-      console.log(`🛡️ [ANTI-BLOCK] ✅ Mensagem enviada - ID: ${sentMessage.key.id}`);
+      console.log(`??? [ANTI-BLOCK] ? Mensagem enviada - ID: ${sentMessage.key.id}`);
     }
 
     return sentMessage?.key.id || null;
@@ -1350,11 +1557,11 @@ async function internalSendMessageRaw(
 
       if (resolvedConnectionId) {
         sessionRecoveryAttemptAt.set(recoveryScope, Date.now());
-        console.warn(`🔄 [SEND] Connection Closed ao enviar para ${jid}. Forçando reconnect (conn=${resolvedConnectionId.substring(0, 8)}, user=${userId.substring(0, 8)})`);
+        console.warn(`?? [SEND] Connection Closed ao enviar para ${jid}. For�ando reconnect (conn=${resolvedConnectionId.substring(0, 8)}, user=${userId.substring(0, 8)})`);
         try {
           await connectWhatsApp(userId, resolvedConnectionId);
         } catch (reconnectError) {
-          console.warn(`⚠️ [SEND] Reconnect após Connection Closed falhou:`, reconnectError);
+          console.warn(`?? [SEND] Reconnect ap�s Connection Closed falhou:`, reconnectError);
         }
       }
     }
@@ -1374,14 +1581,14 @@ messageQueueService.registerSendCallback(internalSendMessageRaw);
 // -----------------------------------------------------------------------
 // ??? WRAPPER UNIVERSAL PARA ENVIO COM DELAY ANTI-BLOQUEIO
 // -----------------------------------------------------------------------
-// Esta fun��o DEVE ser usada para TODOS os envios de mensagem!
+// Esta fun??o DEVE ser usada para TODOS os envios de mensagem!
 // Garante delay de 5-10s entre mensagens do MESMO WhatsApp.
 
 /**
  * Envia qualquer tipo de mensagem respeitando a fila anti-bloqueio
- * @param queueId - ID da fila (userId para usu�rios, "admin_" + adminId para admins)
- * @param description - Descri��o do envio para logs
- * @param sendFn - Fun��o que faz o envio real
+ * @param queueId - ID da fila (userId para usu?rios, "admin_" + adminId para admins)
+ * @param description - Descri??o do envio para logs
+ * @param sendFn - Fun??o que faz o envio real
  */
 async function sendWithQueue<T>(
   queueId: string,
@@ -1392,30 +1599,30 @@ async function sendWithQueue<T>(
 }
 
 // -----------------------------------------------------------------------
-// ?? VERIFICA��O DE MENSAGENS N�O RESPONDIDAS AO RECONECTAR
+// ?? VERIFICA??O DE MENSAGENS N?O RESPONDIDAS AO RECONECTAR
 // -----------------------------------------------------------------------
-// Quando o WhatsApp reconecta (ap�s desconex�o/restart), verificamos se h�
-// clientes que mandaram mensagem nas �ltimas 24h e n�o foram respondidos.
-// Isso resolve o problema de mensagens perdidas durante desconex�es.
+// Quando o WhatsApp reconecta (ap?s desconex?o/restart), verificamos se h?
+// clientes que mandaram mensagem nas ?ltimas 24h e n?o foram respondidos.
+// Isso resolve o problema de mensagens perdidas durante desconex?es.
 // -----------------------------------------------------------------------
 async function checkUnrespondedMessages(session: WhatsAppSession): Promise<void> {
   const { userId, connectionId } = session;
   
-  console.log(`\n?? [UNRESPONDED CHECK] Iniciando verifica��o de mensagens n�o respondidas...`);
-  console.log(`   ?? Usu�rio: ${userId}`);
+  console.log(`\n?? [UNRESPONDED CHECK] Iniciando verifica??o de mensagens n?o respondidas...`);
+  console.log(`   ?? Usu?rio: ${userId}`);
   
   try {
-    // 1. Verificar se o agente est� ativo
+    // 1. Verificar se o agente est? ativo
     const agentConfig = await storage.getAgentConfig(userId);
     if (!agentConfig?.isActive) {
-      console.log(`?? [UNRESPONDED CHECK] Agente inativo, pulando verifica��o`);
+      console.log(`?? [UNRESPONDED CHECK] Agente inativo, pulando verifica??o`);
       return;
     }
     
-    // 2. Buscar todas as conversas deste usu�rio
+    // 2. Buscar todas as conversas deste usu?rio
     const allConversations = await storage.getConversationsByConnectionId(connectionId);
     
-    // 3. Filtrar conversas das �ltimas 24 horas
+    // 3. Filtrar conversas das ?ltimas 24 horas
     const now = new Date();
     const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     
@@ -1425,19 +1632,19 @@ async function checkUnrespondedMessages(session: WhatsAppSession): Promise<void>
       return lastMsgTime >= twentyFourHoursAgo;
     });
     
-    console.log(`?? [UNRESPONDED CHECK] ${recentConversations.length} conversas nas �ltimas 24h`);
+    console.log(`?? [UNRESPONDED CHECK] ${recentConversations.length} conversas nas ?ltimas 24h`);
     
     let unrespondedCount = 0;
     let processedCount = 0;
     
     for (const conversation of recentConversations) {
-      // Evitar reprocessar na mesma sess�o
+      // Evitar reprocessar na mesma sess?o
       if (checkedConversationsThisSession.has(conversation.id)) {
         continue;
       }
       checkedConversationsThisSession.add(conversation.id);
       
-      // 4. Verificar se agente est� pausado para esta conversa
+      // 4. Verificar se agente est? pausado para esta conversa
       const isDisabled = await storage.isAgentDisabledForConversation(conversation.id);
       if (isDisabled) {
         continue;
@@ -1447,32 +1654,33 @@ async function checkUnrespondedMessages(session: WhatsAppSession): Promise<void>
       const messages = await storage.getMessagesByConversationId(conversation.id);
       if (messages.length === 0) continue;
       
-      // 6. Verificar �ltima mensagem
+      // 6. Verificar ?ltima mensagem
       const lastMessage = messages[messages.length - 1];
       
-      // Se �ltima mensagem � do cliente (n�o � fromMe), precisa responder
+      // Se ?ltima mensagem ? do cliente (n?o ? fromMe), precisa responder
       if (!lastMessage.fromMe) {
         unrespondedCount++;
         
-        // 7. Verificar se j� tem resposta pendente
+        // 7. Verificar se j? tem resposta pendente
         if (pendingResponses.has(conversation.id)) {
-          console.log(`? [UNRESPONDED CHECK] ${conversation.contactNumber} - J� tem resposta pendente`);
+          console.log(`? [UNRESPONDED CHECK] ${conversation.contactNumber} - J? tem resposta pendente`);
           continue;
         }
         
-        console.log(`?? [UNRESPONDED CHECK] ${conversation.contactNumber} - �ltima mensagem do cliente SEM RESPOSTA`);
-        console.log(`   ?? Mensagem: "${(lastMessage.text || '[m�dia]').substring(0, 50)}..."`);
+        console.log(`?? [UNRESPONDED CHECK] ${conversation.contactNumber} - ?ltima mensagem do cliente SEM RESPOSTA`);
+        console.log(`   ?? Mensagem: "${(lastMessage.text || '[m?dia]').substring(0, 50)}..."`);
         console.log(`   ?? Enviada em: ${lastMessage.timestamp}`);
         
-        // 8. Agendar resposta com delay para n�o sobrecarregar
+        // 8. Agendar resposta com delay para n?o sobrecarregar
         const responseDelaySeconds = agentConfig?.responseDelaySeconds ?? 30;
         const delayForThisMessage = (processedCount * 5000) + (responseDelaySeconds * 1000); // 5s entre cada + delay normal
         
         const pending: PendingResponse = {
           timeout: null as any,
-          messages: [lastMessage.text || '[m�dia recebida]'],
+          messages: [lastMessage.text || '[m?dia recebida]'],
           conversationId: conversation.id,
           userId,
+          connectionId,
           contactNumber: conversation.contactNumber,
           jidSuffix: conversation.jidSuffix || DEFAULT_JID_SUFFIX,
           startTime: Date.now(),
@@ -1490,13 +1698,13 @@ async function checkUnrespondedMessages(session: WhatsAppSession): Promise<void>
       }
     }
     
-    console.log(`\n? [UNRESPONDED CHECK] Verifica��o conclu�da:`);
+    console.log(`\n? [UNRESPONDED CHECK] Verifica??o conclu?da:`);
     console.log(`   ?? Total conversas 24h: ${recentConversations.length}`);
-    console.log(`   ? N�o respondidas: ${unrespondedCount}`);
+    console.log(`   ? N?o respondidas: ${unrespondedCount}`);
     console.log(`   ?? Respostas agendadas: ${processedCount}\n`);
     
   } catch (error) {
-    console.error(`? [UNRESPONDED CHECK] Erro na verifica��o:`, error);
+    console.error(`? [UNRESPONDED CHECK] Erro na verifica??o:`, error);
   }
 }
 
@@ -1529,14 +1737,14 @@ async function getAdminAgentRuntimeConfig(): Promise<{
     ]);
 
     const messageSplitChars = clampInt(parseInt(splitChars?.valor || "400", 10) || 400, 0, 5000);
-    // Alterado padr�o de 30s para 6s conforme solicita��o
+    // Alterado padr?o de 30s para 6s conforme solicita??o
     let responseDelaySeconds = clampInt(parseInt(responseDelay?.valor || "6", 10) || 6, 1, 180);
     const typingDelayMin = clampInt(parseInt(typingMin?.valor || "2", 10) || 2, 0, 60);
     const typingDelayMax = clampInt(parseInt(typingMax?.valor || "5", 10) || 5, typingDelayMin, 120);
     const messageIntervalMin = clampInt(parseInt(intervalMin?.valor || "3", 10) || 3, 0, 120);
     const messageIntervalMax = clampInt(parseInt(intervalMax?.valor || "8", 10) || 8, messageIntervalMin, 240);
 
-    // Se o estilo for "human", for�ar um delay menor para parecer mais natural (se estiver alto)
+    // Se o estilo for "human", for?ar um delay menor para parecer mais natural (se estiver alto)
     const style = promptStyle?.valor || "nuclear";
     if (style === "human" && responseDelaySeconds > 10) {
       console.log(`? [ADMIN AGENT] Estilo Human detectado: Reduzindo delay de ${responseDelaySeconds}s para 6s`);
@@ -1578,13 +1786,13 @@ async function scheduleAdminAccumulatedResponse(params: {
   console.log(`\n?? [ADMIN AGENT] Mensagem recebida de ${contactNumber}`);
   console.log(`   ?? Delay configurado: ${config.responseDelayMs}ms (${config.responseDelayMs/1000}s)`);
 
-  // ?? FIX: Inscrever-se explicitamente para receber atualiza��es de presen�a (digitando/pausado)
-  // Sem isso, o Baileys pode n�o receber os eventos 'presence.update'
+  // ?? FIX: Inscrever-se explicitamente para receber atualiza??es de presen?a (digitando/pausado)
+  // Sem isso, o Baileys pode n?o receber os eventos 'presence.update'
   try {
     const normalizedJid = jidNormalizedUser(remoteJid);
     await socket.presenceSubscribe(normalizedJid);
-    await socket.sendPresenceUpdate('available'); // For�ar status online
-    console.log(`   ?? [PRESENCE] Inscrito para atualiza��es de: ${normalizedJid}`);
+    await socket.sendPresenceUpdate('available'); // For?ar status online
+    console.log(`   ?? [PRESENCE] Inscrito para atualiza??es de: ${normalizedJid}`);
   } catch (err) {
     console.error(`   ? [PRESENCE] Falha ao inscrever:`, err);
   }
@@ -1603,7 +1811,7 @@ async function scheduleAdminAccumulatedResponse(params: {
     return;
   }
 
-  // Verificar se conversa j� existe no banco
+  // Verificar se conversa j? existe no banco
   const existingConversation = conversationId ? await storage.getAdminConversation(conversationId) : null;
   const isNewConversation = !existingConversation;
 
@@ -1659,37 +1867,37 @@ async function processAdminAccumulatedMessages(params: {
   try {
     // ?? RE-VERIFICAR STATUS DO AGENTE (Double Check)
     // Isso previne que mensagens acumuladas sejam enviadas se o agente foi desativado durante o delay
-    // ou se a verifica��o inicial falhou.
+    // ou se a verifica??o inicial falhou.
     if (pending.conversationId) {
         const isEnabled = await storage.isAdminAgentEnabledForConversation(pending.conversationId);
         if (!isEnabled) {
-            console.log(`?? [ADMIN AGENT] Agente desativado durante acumula��o para ${pending.contactNumber}. Cancelando envio.`);
+            console.log(`?? [ADMIN AGENT] Agente desativado durante acumula??o para ${pending.contactNumber}. Cancelando envio.`);
             pendingAdminResponses.delete(key);
             return;
         }
     } else {
-        // Fallback: Tentar buscar conversa pelo n�mero se n�o tiver ID salvo no pending
+        // Fallback: Tentar buscar conversa pelo n?mero se n?o tiver ID salvo no pending
         try {
             const admins = await storage.getAllAdmins();
             if (admins.length > 0) {
                 const conv = await storage.getAdminConversationByContact(admins[0].id, pending.contactNumber);
                 if (conv && !conv.isAgentEnabled) {
-                    console.log(`?? [ADMIN AGENT] Agente desativado (verifica��o tardia) para ${pending.contactNumber}. Cancelando envio.`);
+                    console.log(`?? [ADMIN AGENT] Agente desativado (verifica??o tardia) para ${pending.contactNumber}. Cancelando envio.`);
                     pendingAdminResponses.delete(key);
                     return;
                 }
             }
         } catch (err) {
-            console.error("Erro na verifica��o tardia de status:", err);
+            console.error("Erro na verifica??o tardia de status:", err);
         }
     }
 
     const { processAdminMessage, getOwnerNotificationNumber } = await import("./adminAgentService");
 
-    // skipTriggerCheck = false para aplicar valida��o de frases gatilho no WhatsApp real
+    // skipTriggerCheck = false para aplicar valida??o de frases gatilho no WhatsApp real
     const response = await processAdminMessage(pending.contactNumber, combinedText, undefined, undefined, false);
 
-    // Se response � null, significa que n�o passou na valida��o de frase gatilho
+    // Se response ? null, significa que n?o passou na valida??o de frase gatilho
     if (response === null) {
       console.log(`?? [ADMIN AGENT] Mensagem ignorada - sem frase gatilho`);
       pendingAdminResponses.delete(key);
@@ -1703,29 +1911,29 @@ async function processAdminAccumulatedMessages(params: {
       return;
     }
 
-    // Delay de digita��o humanizada
+    // Delay de digita??o humanizada
     const typingDelay = randomBetween(config.typingDelayMinMs, config.typingDelayMaxMs);
     await new Promise((r) => setTimeout(r, typingDelay));
 
-    // ?? CHECK FINAL DE PRESEN�A (Double Check)
-    // Se o usu�rio come�ou a digitar durante o delay de digita��o, abortar envio
+    // ?? CHECK FINAL DE PRESEN?A (Double Check)
+    // Se o usu?rio come?ou a digitar durante o delay de digita??o, abortar envio
     let checkPresence = pendingAdminResponses.get(key);
     
-    // L�gica de Retry para "Composing" travado (Solicitado pelo usu�rio: "logica profunda")
+    // L?gica de Retry para "Composing" travado (Solicitado pelo usu?rio: "logica profunda")
     // Se estiver digitando, vamos aguardar um pouco e verificar novamente
-    // Isso resolve casos onde a conex�o cai e n�o recebemos o "paused"
+    // Isso resolve casos onde a conex?o cai e n?o recebemos o "paused"
     let retryCount = 0;
     const maxRetries = 3;
     
     while (checkPresence && (checkPresence.timeout !== null || checkPresence.lastKnownPresence === 'composing') && retryCount < maxRetries) {
-        console.log(`? [ADMIN AGENT] Usu�rio digitando (check final). Aguardando confirma��o... (${retryCount + 1}/${maxRetries})`);
+        console.log(`? [ADMIN AGENT] Usu?rio digitando (check final). Aguardando confirma??o... (${retryCount + 1}/${maxRetries})`);
         await new Promise(r => setTimeout(r, 5000)); // Espera 5s
         checkPresence = pendingAdminResponses.get(key);
         retryCount++;
     }
 
     if (checkPresence && (checkPresence.timeout !== null || checkPresence.lastKnownPresence === 'composing')) {
-        // Se ainda estiver digitando ap�s retries, verificar se o status � antigo (stale)
+        // Se ainda estiver digitando ap?s retries, verificar se o status ? antigo (stale)
         const lastUpdate = checkPresence.lastPresenceUpdate || 0;
         const timeSinceUpdate = Date.now() - lastUpdate;
         const STALE_THRESHOLD = 45000; // 45 segundos
@@ -1734,7 +1942,7 @@ async function processAdminAccumulatedMessages(params: {
              console.log(`?? [ADMIN AGENT] Status 'composing' parece travado (${Math.floor(timeSinceUpdate/1000)}s). Ignorando e enviando.`);
              // Prossegue para envio...
         } else {
-             console.log(`? [ADMIN AGENT] Usu�rio voltou a digitar (check final). Abortando envio.`);
+             console.log(`? [ADMIN AGENT] Usu?rio voltou a digitar (check final). Abortando envio.`);
              return;
         }
     }
@@ -1749,16 +1957,16 @@ async function processAdminAccumulatedMessages(params: {
         return;
       }
 
-      // ?? CHECK DE PRESEN�A NO LOOP
+      // ?? CHECK DE PRESEN?A NO LOOP
       if (current.timeout !== null || current.lastKnownPresence === 'composing') {
-          // Verificar se � stale
+          // Verificar se ? stale
           const lastUpdate = current.lastPresenceUpdate || 0;
           const timeSinceUpdate = Date.now() - lastUpdate;
           
           if (timeSinceUpdate > 45000) {
               console.log(`?? [ADMIN AGENT] Status 'composing' travado durante envio. Ignorando.`);
           } else {
-              console.log(`? [ADMIN AGENT] Usu�rio voltou a digitar durante envio. Abortando.`);
+              console.log(`? [ADMIN AGENT] Usu?rio voltou a digitar durante envio. Abortando.`);
               return;
           }
       }
@@ -1789,7 +1997,7 @@ async function processAdminAccumulatedMessages(params: {
           isFromAgent: true,
         });
         
-        // Atualizar �ltima mensagem da conversa
+        // Atualizar ?ltima mensagem da conversa
         await storage.updateAdminConversation(pending.conversationId, {
           lastMessageText: response.text.substring(0, 255),
           lastMessageTime: new Date(),
@@ -1801,36 +2009,36 @@ async function processAdminAccumulatedMessages(params: {
       }
     }
 
-    // Notifica��o de pagamento
+    // Notifica??o de pagamento
     if (response.actions?.notifyOwner) {
       const ownerNumber = await getOwnerNotificationNumber();
       const ownerJid = `${ownerNumber}@s.whatsapp.net`;
-      const notificationText = `?? *NOTIFICA��O DE PAGAMENTO*\n\n?? Cliente: ${pending.contactNumber}\n? ${new Date().toLocaleString("pt-BR")}\n\n?? Verificar comprovante e liberar conta`;
+      const notificationText = `?? *NOTIFICA??O DE PAGAMENTO*\n\n?? Cliente: ${pending.contactNumber}\n? ${new Date().toLocaleString("pt-BR")}\n\n?? Verificar comprovante e liberar conta`;
       // ??? ANTI-BLOQUEIO
-      await sendWithQueue('ADMIN_AGENT', 'notifica��o pagamento', async () => {
+      await sendWithQueue('ADMIN_AGENT', 'notifica??o pagamento', async () => {
         await socket.sendMessage(ownerJid, { text: notificationText });
       });
-      console.log(`?? [ADMIN AGENT] Notifica��o enviada para ${ownerNumber}`);
+      console.log(`?? [ADMIN AGENT] Notifica??o enviada para ${ownerNumber}`);
     }
 
-    // ?? Enviar m�dias se houver
+    // ?? Enviar m?dias se houver
     if (response.mediaActions && response.mediaActions.length > 0) {
-      console.log(`?? [ADMIN AGENT] Enviando ${response.mediaActions.length} m�dia(s)...`);
+      console.log(`?? [ADMIN AGENT] Enviando ${response.mediaActions.length} m?dia(s)...`);
       
       for (const action of response.mediaActions) {
         if (action.mediaData) {
           try {
             const media = action.mediaData;
-            console.log(`?? [ADMIN AGENT] Enviando m�dia: ${media.name} (${media.mediaType})`);
+            console.log(`?? [ADMIN AGENT] Enviando m?dia: ${media.name} (${media.mediaType})`);
             
-            // Baixar m�dia da URL
+            // Baixar m?dia da URL
             const mediaBuffer = await downloadMediaAsBuffer(media.storageUrl);
             
             if (mediaBuffer) {
               switch (media.mediaType) {
                 case 'image':
                   // ??? ANTI-BLOQUEIO
-                  await sendWithQueue('ADMIN_AGENT', 'm�dia imagem', async () => {
+                  await sendWithQueue('ADMIN_AGENT', 'm?dia imagem', async () => {
                     await socket.sendMessage(pending.remoteJid, {
                       image: mediaBuffer,
                       caption: media.caption || undefined,
@@ -1839,7 +2047,7 @@ async function processAdminAccumulatedMessages(params: {
                   break;
                 case 'audio':
                   // ??? ANTI-BLOQUEIO
-                  await sendWithQueue('ADMIN_AGENT', 'm�dia �udio', async () => {
+                  await sendWithQueue('ADMIN_AGENT', 'm?dia ?udio', async () => {
                     await socket.sendMessage(pending.remoteJid, {
                       audio: mediaBuffer,
                       mimetype: media.mimeType || 'audio/ogg; codecs=opus',
@@ -1849,7 +2057,7 @@ async function processAdminAccumulatedMessages(params: {
                   break;
                 case 'video':
                   // ??? ANTI-BLOQUEIO
-                  await sendWithQueue('ADMIN_AGENT', 'm�dia v�deo', async () => {
+                  await sendWithQueue('ADMIN_AGENT', 'm?dia v?deo', async () => {
                     await socket.sendMessage(pending.remoteJid, {
                       video: mediaBuffer,
                       caption: media.caption || undefined,
@@ -1858,7 +2066,7 @@ async function processAdminAccumulatedMessages(params: {
                   break;
                 case 'document':
                   // ??? ANTI-BLOQUEIO
-                  await sendWithQueue('ADMIN_AGENT', 'm�dia documento', async () => {
+                  await sendWithQueue('ADMIN_AGENT', 'm?dia documento', async () => {
                     await socket.sendMessage(pending.remoteJid, {
                       document: mediaBuffer,
                       fileName: media.fileName || 'document',
@@ -1867,15 +2075,15 @@ async function processAdminAccumulatedMessages(params: {
                   });
                   break;
               }
-              console.log(`? [ADMIN AGENT] M�dia ${media.name} enviada com sucesso`);
+              console.log(`? [ADMIN AGENT] M?dia ${media.name} enviada com sucesso`);
             } else {
-              console.error(`? [ADMIN AGENT] Falha ao baixar m�dia: ${media.storageUrl}`);
+              console.error(`? [ADMIN AGENT] Falha ao baixar m?dia: ${media.storageUrl}`);
             }
           } catch (mediaError) {
-            console.error(`? [ADMIN AGENT] Erro ao enviar m�dia ${action.media_name}:`, mediaError);
+            console.error(`? [ADMIN AGENT] Erro ao enviar m?dia ${action.media_name}:`, mediaError);
           }
           
-          // Pequeno delay entre m�dias
+          // Pequeno delay entre m?dias
           await new Promise(r => setTimeout(r, 500));
         }
       }
@@ -1888,57 +2096,57 @@ async function processAdminAccumulatedMessages(params: {
         const clientSession = getClientSession(pending.contactNumber);
         
         if (clientSession?.userId) {
-          console.log(`?? [ADMIN AGENT] Desconectando WhatsApp do usu�rio ${clientSession.userId}...`);
+          console.log(`?? [ADMIN AGENT] Desconectando WhatsApp do usu?rio ${clientSession.userId}...`);
           await disconnectWhatsApp(clientSession.userId);
           // ??? ANTI-BLOQUEIO
-          await sendWithQueue('ADMIN_AGENT', 'desconex�o confirma��o', async () => {
-            await socket.sendMessage(pending.remoteJid, { text: "Pronto! ?? Seu WhatsApp foi desconectado. Quando quiser reconectar, � s� me avisar!" });
+          await sendWithQueue('ADMIN_AGENT', 'desconex?o confirma??o', async () => {
+            await socket.sendMessage(pending.remoteJid, { text: "Pronto! ?? Seu WhatsApp foi desconectado. Quando quiser reconectar, ? s? me avisar!" });
           });
           console.log(`? [ADMIN AGENT] WhatsApp desconectado para ${clientSession.userId}`);
         } else {
           // ??? ANTI-BLOQUEIO
-          await sendWithQueue('ADMIN_AGENT', 'desconex�o n�o encontrada', async () => {
-            await socket.sendMessage(pending.remoteJid, { text: "N�o encontrei uma conex�o ativa para desconectar. Voc� j� est� desconectado!" });
+          await sendWithQueue('ADMIN_AGENT', 'desconex?o n?o encontrada', async () => {
+            await socket.sendMessage(pending.remoteJid, { text: "N?o encontrei uma conex?o ativa para desconectar. Voc? j? est? desconectado!" });
           });
         }
       } catch (disconnectError) {
         console.error("? [ADMIN AGENT] Erro ao desconectar WhatsApp:", disconnectError);
         // ??? ANTI-BLOQUEIO
-        await sendWithQueue('ADMIN_AGENT', 'desconex�o erro', async () => {
+        await sendWithQueue('ADMIN_AGENT', 'desconex?o erro', async () => {
           await socket.sendMessage(pending.remoteJid, { text: "Tive um problema ao tentar desconectar. Pode tentar de novo?" });
         });
       }
     }
 
-    // ?? Enviar c�digo de pareamento se solicitado
+    // ?? Enviar c?digo de pareamento se solicitado
     if (response.actions?.connectWhatsApp) {
-      console.log(`?? [ADMIN AGENT] A��o connectWhatsApp (c�digo pareamento) detectada!`);
+      console.log(`?? [ADMIN AGENT] A??o connectWhatsApp (c?digo pareamento) detectada!`);
       try {
-        // Buscar userId da sess�o do cliente
+        // Buscar userId da sess?o do cliente
         const { getClientSession, createClientAccount, updateClientSession } = await import("./adminAgentService");
         const { ensurePairingCodeSentToClient } = await import("./adminConnectionFlows");
         let clientSession = getClientSession(pending.contactNumber);
-        console.log(`?? [ADMIN AGENT] Sess�o do cliente para pareamento:`, clientSession ? `userId=${clientSession.userId}, email=${clientSession.email}` : "n�o encontrada");
+        console.log(`?? [ADMIN AGENT] Sess?o do cliente para pareamento:`, clientSession ? `userId=${clientSession.userId}, email=${clientSession.email}` : "n?o encontrada");
         
-        // ?? BUSCAR NO BANCO SE N�O TEM userId NA SESS�O
+        // ?? BUSCAR NO BANCO SE N?O TEM userId NA SESS?O
         if (!clientSession?.userId) {
           const cleanPhone = "+" + pending.contactNumber.replace(/\D/g, "");
-          console.log(`?? [ADMIN AGENT] Buscando usu�rio no banco pelo telefone: ${cleanPhone}`);
+          console.log(`?? [ADMIN AGENT] Buscando usu?rio no banco pelo telefone: ${cleanPhone}`);
           const existingUser = await storage.getUserByPhone(cleanPhone);
           if (existingUser) {
-            console.log(`?? [ADMIN AGENT] Usu�rio encontrado no banco: ${existingUser.id}`);
-            // Atualizar sess�o com userId do banco
+            console.log(`?? [ADMIN AGENT] Usu?rio encontrado no banco: ${existingUser.id}`);
+            // Atualizar sess?o com userId do banco
             updateClientSession(pending.contactNumber, { userId: existingUser.id, email: existingUser.email || undefined });
             clientSession = getClientSession(pending.contactNumber);
           }
         }
         
-        // Se n�o tem userId mas tem email, criar conta automaticamente
+        // Se n?o tem userId mas tem email, criar conta automaticamente
         if (!clientSession?.userId && clientSession?.email) {
-          console.log(`?? [ADMIN AGENT] Criando conta para ${clientSession.email} antes de gerar c�digo...`);
+          console.log(`?? [ADMIN AGENT] Criando conta para ${clientSession.email} antes de gerar c?digo...`);
           const result = await createClientAccount(clientSession);
           if (result.success) {
-            clientSession = getClientSession(pending.contactNumber); // Recarregar sess�o atualizada
+            clientSession = getClientSession(pending.contactNumber); // Recarregar sess?o atualizada
             console.log(`? [ADMIN AGENT] Conta criada com ID: ${result.userId}`);
           }
         }
@@ -1950,7 +2158,7 @@ async function processAdminAccumulatedMessages(params: {
             getConnectionByUserId: (userId) => storage.getConnectionByUserId(userId),
             requestPairingCode: requestClientPairingCode,
             // ??? ANTI-BLOQUEIO: Enviar via fila
-            sendText: (text) => sendWithQueue('ADMIN_AGENT', 'pareamento c�digo', async () => {
+            sendText: (text) => sendWithQueue('ADMIN_AGENT', 'pareamento c?digo', async () => {
               await socket.sendMessage(pending.remoteJid, { text });
             }).then(() => undefined),
           });
@@ -1961,13 +2169,13 @@ async function processAdminAccumulatedMessages(params: {
           });
         }
       } catch (codeError) {
-        console.error("? [ADMIN AGENT] Erro ao gerar c�digo de pareamento:", codeError);
+        console.error("? [ADMIN AGENT] Erro ao gerar c?digo de pareamento:", codeError);
         const errorMsg = (codeError as Error).message || String(codeError);
         console.error("? [ADMIN AGENT] Detalhes do erro:", errorMsg);
         // ??? ANTI-BLOQUEIO
         await sendWithQueue('ADMIN_AGENT', 'pareamento erro', async () => {
           await socket.sendMessage(pending.remoteJid, {
-            text: "Desculpa, tive um problema t�cnico ao gerar o c�digo agora. Eu continuo tentando e te envio automaticamente assim que sair.\n\nSe preferir, tamb�m posso conectar por QR Code.",
+            text: "Desculpa, tive um problema t?cnico ao gerar o c?digo agora. Eu continuo tentando e te envio automaticamente assim que sair.\n\nSe preferir, tamb?m posso conectar por QR Code.",
           });
         });
       }
@@ -1975,32 +2183,32 @@ async function processAdminAccumulatedMessages(params: {
 
     // ?? Enviar QR Code como imagem se solicitado
     if (response.actions?.sendQrCode) {
-      console.log(`?? [ADMIN AGENT] A��o sendQrCode detectada! Iniciando processo...`);
+      console.log(`?? [ADMIN AGENT] A??o sendQrCode detectada! Iniciando processo...`);
       try {
         const { getClientSession, createClientAccount, updateClientSession } = await import("./adminAgentService");
         const { ensureQrCodeSentToClient } = await import("./adminConnectionFlows");
         let clientSession = getClientSession(pending.contactNumber);
-        console.log(`?? [ADMIN AGENT] Sess�o do cliente:`, clientSession ? `userId=${clientSession.userId}, email=${clientSession.email}` : "n�o encontrada");
+        console.log(`?? [ADMIN AGENT] Sess?o do cliente:`, clientSession ? `userId=${clientSession.userId}, email=${clientSession.email}` : "n?o encontrada");
         
-        // ?? BUSCAR NO BANCO SE N�O TEM userId NA SESS�O
+        // ?? BUSCAR NO BANCO SE N?O TEM userId NA SESS?O
         if (!clientSession?.userId) {
           const cleanPhone = "+" + pending.contactNumber.replace(/\D/g, "");
-          console.log(`?? [ADMIN AGENT] Buscando usu�rio no banco pelo telefone: ${cleanPhone}`);
+          console.log(`?? [ADMIN AGENT] Buscando usu?rio no banco pelo telefone: ${cleanPhone}`);
           const existingUser = await storage.getUserByPhone(cleanPhone);
           if (existingUser) {
-            console.log(`?? [ADMIN AGENT] Usu�rio encontrado no banco: ${existingUser.id}`);
-            // Atualizar sess�o com userId do banco
+            console.log(`?? [ADMIN AGENT] Usu?rio encontrado no banco: ${existingUser.id}`);
+            // Atualizar sess?o com userId do banco
             updateClientSession(pending.contactNumber, { userId: existingUser.id, email: existingUser.email || undefined });
             clientSession = getClientSession(pending.contactNumber);
           }
         }
         
-        // Se n�o tem userId mas tem email, criar conta automaticamente
+        // Se n?o tem userId mas tem email, criar conta automaticamente
         if (!clientSession?.userId && clientSession?.email) {
           console.log(`?? [ADMIN AGENT] Criando conta para ${clientSession.email} antes de gerar QR Code...`);
           const result = await createClientAccount(clientSession);
           if (result.success) {
-            clientSession = getClientSession(pending.contactNumber); // Recarregar sess�o atualizada
+            clientSession = getClientSession(pending.contactNumber); // Recarregar sess?o atualizada
             console.log(`? [ADMIN AGENT] Conta criada com ID: ${result.userId}`);
           }
         }
@@ -2012,10 +2220,10 @@ async function processAdminAccumulatedMessages(params: {
             getConnectionByUserId: (userId) => storage.getConnectionByUserId(userId),
             connectWhatsApp,
             // ??? ANTI-BLOQUEIO: Enviar via fila
-            sendText: (text) => sendWithQueue('ADMIN_AGENT', 'QR c�digo texto', async () => {
+            sendText: (text) => sendWithQueue('ADMIN_AGENT', 'QR c?digo texto', async () => {
               await socket.sendMessage(pending.remoteJid, { text });
             }).then(() => undefined),
-            sendImage: (image, caption) => sendWithQueue('ADMIN_AGENT', 'QR c�digo imagem', async () => {
+            sendImage: (image, caption) => sendWithQueue('ADMIN_AGENT', 'QR c?digo imagem', async () => {
               await socket.sendMessage(pending.remoteJid, { image, caption });
             }).then(() => undefined),
           });
@@ -2030,13 +2238,13 @@ async function processAdminAccumulatedMessages(params: {
         // ??? ANTI-BLOQUEIO
         await sendWithQueue('ADMIN_AGENT', 'QR erro', async () => {
           await socket.sendMessage(pending.remoteJid, {
-            text: "Desculpa, tive um problema pra gerar o QR Code agora. Eu continuo tentando e te envio automaticamente assim que aparecer.\n\nSe preferir, tamb�m posso conectar pelo c�digo de 8 d�gitos.",
+            text: "Desculpa, tive um problema pra gerar o QR Code agora. Eu continuo tentando e te envio automaticamente assim que aparecer.\n\nSe preferir, tamb?m posso conectar pelo c?digo de 8 d?gitos.",
           });
         });
       }
     }
 
-    // Limpar fila (somente se ainda for a gera��o atual)
+    // Limpar fila (somente se ainda for a gera??o atual)
     const current = pendingAdminResponses.get(key);
     if (current && current.generation === generation) {
       pendingAdminResponses.delete(key);
@@ -2046,13 +2254,13 @@ async function processAdminAccumulatedMessages(params: {
   }
 }
 
-// ?? HUMANIZA��O: Quebra mensagem longa em partes menores
-// Best practices: WhatsApp, Intercom, Drift quebram a cada 2-3 par�grafos ou 300-500 chars
+// ?? HUMANIZA??O: Quebra mensagem longa em partes menores
+// Best practices: WhatsApp, Intercom, Drift quebram a cada 2-3 par?grafos ou 300-500 chars
 // Fonte: https://www.drift.com/blog/conversational-marketing-best-practices/
-// CORRE��O 2025: N�o corta palavras nem frases no meio - divide corretamente respeitando limites naturais
-// EXPORTADA para uso no simulador (/api/agent/test) - garante consist�ncia entre simulador e WhatsApp real
+// CORRE??O 2025: N?o corta palavras nem frases no meio - divide corretamente respeitando limites naturais
+// EXPORTADA para uso no simulador (/api/agent/test) - garante consist?ncia entre simulador e WhatsApp real
 export function splitMessageHumanLike(message: string, maxChars: number = 400): string[] {
-  // Se maxChars = 0, retorna mensagem completa sem divis�o
+  // Se maxChars = 0, retorna mensagem completa sem divis?o
   if (maxChars === 0) {
     return [message];
   }
@@ -2065,10 +2273,10 @@ export function splitMessageHumanLike(message: string, maxChars: number = 400): 
   const MAX_CHARS = maxChars;
   const finalParts: string[] = [];
   
-  // FASE 1: Dividir por par�grafos duplos (quebras de se��o)
+  // FASE 1: Dividir por par?grafos duplos (quebras de se??o)
   const sections = message.split('\n\n').filter(s => s.trim());
   
-  // FASE 2: Processar cada se��o, quebrando em partes menores se necess�rio
+  // FASE 2: Processar cada se??o, quebrando em partes menores se necess?rio
   for (const section of sections) {
     const sectionParts = splitSectionIntoChunks(section, MAX_CHARS);
     finalParts.push(...sectionParts);
@@ -2092,7 +2300,7 @@ export function splitMessageHumanLike(message: string, maxChars: number = 400): 
     }
   }
   
-  // Adicionar �ltimo buffer
+  // Adicionar ?ltimo buffer
   if (currentBuffer.trim()) {
     optimizedParts.push(currentBuffer.trim());
   }
@@ -2105,16 +2313,16 @@ export function splitMessageHumanLike(message: string, maxChars: number = 400): 
   return optimizedParts.length > 0 ? optimizedParts : [message];
 }
 
-// Fun��o auxiliar para dividir uma se��o em chunks menores sem cortar palavras/frases
+// Fun??o auxiliar para dividir uma se??o em chunks menores sem cortar palavras/frases
 function splitSectionIntoChunks(section: string, maxChars: number): string[] {
-  // Se a se��o cabe no limite, retorna direto
+  // Se a se??o cabe no limite, retorna direto
   if (section.length <= maxChars) {
     return [section];
   }
   
   const chunks: string[] = [];
   
-  // ESTRAT�GIA 1: Tentar dividir por quebras de linha simples
+  // ESTRAT?GIA 1: Tentar dividir por quebras de linha simples
   const lines = section.split('\n').filter(l => l.trim());
   if (lines.length > 1) {
     let currentChunk = '';
@@ -2126,7 +2334,7 @@ function splitSectionIntoChunks(section: string, maxChars: number): string[] {
         if (currentChunk.trim()) {
           chunks.push(currentChunk.trim());
         }
-        // Se a linha individual � maior que o limite, processa ela recursivamente
+        // Se a linha individual ? maior que o limite, processa ela recursivamente
         if (line.length > maxChars) {
           const subChunks = splitTextBySentences(line, maxChars);
           chunks.push(...subChunks);
@@ -2142,15 +2350,15 @@ function splitSectionIntoChunks(section: string, maxChars: number): string[] {
     return chunks;
   }
   
-  // ESTRAT�GIA 2: Dividir por frases (pontua��o)
+  // ESTRAT?GIA 2: Dividir por frases (pontua??o)
   return splitTextBySentences(section, maxChars);
 }
 
-// Divide texto por frases, garantindo que n�o corte palavras ou URLs
+// Divide texto por frases, garantindo que n?o corte palavras ou URLs
 function splitTextBySentences(text: string, maxChars: number): string[] {
-  // PROTE��O DE URLs: Substituir pontos em URLs por placeholder tempor�rio
+  // PROTE??O DE URLs: Substituir pontos em URLs por placeholder tempor?rio
   // para evitar que a regex de frases corte no meio de URLs
-  const urlPlaceholder = '�URL_DOT�';
+  const urlPlaceholder = '?URL_DOT?';
   const urlRegex = /(https?:\/\/[^\s]+)/g;
   const protectedUrls: string[] = [];
   
@@ -2159,12 +2367,12 @@ function splitTextBySentences(text: string, maxChars: number): string[] {
     const index = protectedUrls.length;
     protectedUrls.push(match);
     // Substituir pontos dentro da URL por placeholder
-    return `�URL_${index}�`;
+    return `?URL_${index}?`;
   });
   
-  // Regex para encontrar frases (terminadas em . ! ? seguidos de espa�o/fim)
-  // IMPORTANTE: Removido o h�fen (-) como delimitador de frase para n�o cortar
-  // palavras compostas como "segunda-feira", "ter�a-feira", etc.
+  // Regex para encontrar frases (terminadas em . ! ? seguidos de espa?o/fim)
+  // IMPORTANTE: Removido o h?fen (-) como delimitador de frase para n?o cortar
+  // palavras compostas como "segunda-feira", "ter?a-feira", etc.
   const sentencePattern = /[^.!?]+[.!?]+(?:\s|$)|[^.!?]+$/g;
   const sentences = protectedText.match(sentencePattern) || [protectedText];
   
@@ -2172,7 +2380,7 @@ function splitTextBySentences(text: string, maxChars: number): string[] {
   const restoredSentences = sentences.map(sentence => {
     let restored = sentence;
     protectedUrls.forEach((url, index) => {
-      restored = restored.replace(`�URL_${index}�`, url);
+      restored = restored.replace(`?URL_${index}?`, url);
     });
     return restored;
   });
@@ -2194,7 +2402,7 @@ function splitTextBySentences(text: string, maxChars: number): string[] {
         chunks.push(currentChunk.trim());
       }
       
-      // Se a frase individual � maior que o limite, divide por palavras
+      // Se a frase individual ? maior que o limite, divide por palavras
       if (trimmedSentence.length > maxChars) {
         const wordChunks = splitByWords(trimmedSentence, maxChars);
         chunks.push(...wordChunks);
@@ -2205,7 +2413,7 @@ function splitTextBySentences(text: string, maxChars: number): string[] {
     }
   }
   
-  // Adicionar �ltimo chunk
+  // Adicionar ?ltimo chunk
   if (currentChunk.trim()) {
     chunks.push(currentChunk.trim());
   }
@@ -2213,7 +2421,7 @@ function splitTextBySentences(text: string, maxChars: number): string[] {
   return chunks.length > 0 ? chunks : [text];
 }
 
-// �ltima estrat�gia: divide por palavras (nunca corta uma palavra no meio, PROTEGE URLs)
+// ?ltima estrat?gia: divide por palavras (nunca corta uma palavra no meio, PROTEGE URLs)
 function splitByWords(text: string, maxChars: number): string[] {
   const words = text.split(/\s+/);
   const chunks: string[] = [];
@@ -2232,14 +2440,14 @@ function splitByWords(text: string, maxChars: number): string[] {
         chunks.push(currentChunk.trim());
       }
       
-      // Se a palavra individual � maior que o limite
+      // Se a palavra individual ? maior que o limite
       if (word.length > maxChars) {
-        // PROTE��O: Se for uma URL, NUNCA quebrar - coloca inteira mesmo que ultrapasse o limite
+        // PROTE??O: Se for uma URL, NUNCA quebrar - coloca inteira mesmo que ultrapasse o limite
         if (word.match(/^https?:\/\//i)) {
-          console.log(`?? [SPLIT] URL protegida (n�o ser� cortada): ${word.substring(0, 50)}...`);
+          console.log(`?? [SPLIT] URL protegida (n?o ser? cortada): ${word.substring(0, 50)}...`);
           currentChunk = word; // URL fica inteira, mesmo que ultrapasse o limite
         } else {
-          // �ltimo recurso para palavras n�o-URL: quebra caractere por caractere
+          // ?ltimo recurso para palavras n?o-URL: quebra caractere por caractere
           console.log(`?? [SPLIT] Palavra muito longa sendo quebrada: ${word.substring(0, 30)}...`);
           let remaining = word;
           while (remaining.length > maxChars) {
@@ -2254,7 +2462,7 @@ function splitByWords(text: string, maxChars: number): string[] {
     }
   }
   
-  // Adicionar �ltimo chunk
+  // Adicionar ?ltimo chunk
   if (currentChunk.trim()) {
     chunks.push(currentChunk.trim());
   }
@@ -2376,13 +2584,13 @@ async function parseRemoteJid(remoteJid: string, contactsCache?: Map<string, Con
   console.log(`   Cache size: ${contactsCache?.size || 0}`);
   console.log(`   ConnectionId provided: ${connectionId || "N/A"}`);
 
-  // FIX LID 2025: Para @lid, retornar o pr�prio LID (sem tentar converter)
+  // FIX LID 2025: Para @lid, retornar o pr?prio LID (sem tentar converter)
   let contactNumber = cleanContactNumber(rawUser);
   
   if (remoteJid.includes("@lid")) {
     console.log(`   ?? [LID DETECTED] Instagram/Facebook Business contact`);
     console.log(`      LID: ${remoteJid}`);
-    console.log(`      ?? LIDs s�o IDs do Meta, n�o n�meros WhatsApp`);
+    console.log(`      ?? LIDs s?o IDs do Meta, n?o n?meros WhatsApp`);
     console.log(`      ? Usando LID diretamente (comportamento correto)`);
   }  const normalizedJid = contactNumber
     ? jidNormalizedUser(`${contactNumber}@${jidSuffix}`)
@@ -2471,7 +2679,7 @@ function broadcastToAdmin(adminId: string, data: any) {
   });
 }
 
-// Função para limpar arquivos de autenticação
+// Fun��o para limpar arquivos de autentica��o
 async function clearAuthFiles(authPath: string): Promise<void> {
   try {
     const exists = await fs.access(authPath).then(() => true).catch(() => false);
@@ -2484,20 +2692,20 @@ async function clearAuthFiles(authPath: string): Promise<void> {
   }
 }
 
-// Força reconexão limpando sessão existente na memória (sem apagar arquivos de auth)
+// For�a reconex�o limpando sess�o existente na mem�ria (sem apagar arquivos de auth)
 export async function forceReconnectWhatsApp(userId: string, connectionId?: string): Promise<void> {
-  // 🛡️ MODO DESENVOLVIMENTO: Bloquear reconexões para evitar conflito com produção
+  // ??? MODO DESENVOLVIMENTO: Bloquear reconex�es para evitar conflito com produ��o
   if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
-    console.log(`\n🛡️ [DEV MODE] forceReconnectWhatsApp bloqueado para user ${userId}`);
-    console.log(`   💡 SKIP_WHATSAPP_RESTORE=true - Modo desenvolvimento ativo`);
-    console.log(`   ✅ Sessões do WhatsApp em produção não serão afetadas\n`);
-    throw new Error('WhatsApp desabilitado em modo desenvolvimento (SKIP_WHATSAPP_RESTORE=true). Isso protege suas sessões em produção.');
+    console.log(`\n??? [DEV MODE] forceReconnectWhatsApp bloqueado para user ${userId}`);
+    console.log(`   ?? SKIP_WHATSAPP_RESTORE=true - Modo desenvolvimento ativo`);
+    console.log(`   ? Sess�es do WhatsApp em produ��o n�o ser�o afetadas\n`);
+    throw new Error('WhatsApp desabilitado em modo desenvolvimento (SKIP_WHATSAPP_RESTORE=true). Isso protege suas sess�es em produ��o.');
   }
   
   const lookupKey = connectionId || userId;
   console.log(`[FORCE RECONNECT] Starting force reconnection for ${lookupKey}...`);
   
-  // Limpar sessão existente na memória (se houver)
+  // Limpar sess�o existente na mem�ria (se houver)
   const existingSession = sessions.get(lookupKey);
   if (existingSession?.socket) {
     console.log(`[FORCE RECONNECT] Found existing session in memory, closing it...`);
@@ -2511,7 +2719,7 @@ export async function forceReconnectWhatsApp(userId: string, connectionId?: stri
     unregisterWhatsAppSession(lookupKey);
   }
   
-  // Limpar pending connections e tentativas de reconexão
+  // Limpar pending connections e tentativas de reconex�o
   clearPendingConnectionLock(lookupKey, 'disconnect_before_reconnect');
   reconnectAttempts.delete(lookupKey);
   
@@ -2520,7 +2728,7 @@ export async function forceReconnectWhatsApp(userId: string, connectionId?: stri
 }
 
 // ======================================================================
-// 🛡️ SESSION STABILITY - Heartbeat and Auto-Reconnection
+// ??? SESSION STABILITY - Heartbeat and Auto-Reconnection
 // ======================================================================
 /**
  * Start heartbeat mechanism to keep admin session alive
@@ -2555,12 +2763,12 @@ function startAdminHeartbeat(adminId: string): void {
     const isResponsive = currentSession.socket.user !== undefined;
 
     if (!isResponsive) {
-      console.warn(`[HEARTBEAT] ⚠️ Admin ${adminId} connection is not responsive (last heartbeat: ${Math.round(timeSinceLastHeartbeat / 1000)}s ago)`);
+      console.warn(`[HEARTBEAT] ?? Admin ${adminId} connection is not responsive (last heartbeat: ${Math.round(timeSinceLastHeartbeat / 1000)}s ago)`);
       currentSession.connectionHealth = 'unhealthy';
       currentSession.consecutiveDisconnects = (currentSession.consecutiveDisconnects || 0) + 1;
 
       if (currentSession.consecutiveDisconnects >= ADMIN_MAX_CONSECUTIVE_DISCONNECTS) {
-        console.error(`[HEARTBEAT] ❌ Admin ${adminId} has ${currentSession.consecutiveDisconnects} consecutive disconnects - forcing reconnect`);
+        console.error(`[HEARTBEAT] ? Admin ${adminId} has ${currentSession.consecutiveDisconnects} consecutive disconnects - forcing reconnect`);
         currentSession.consecutiveDisconnects = 0;
         // Force reconnect with exponential backoff
         const backoffMs = ADMIN_RECONNECT_BACKOFF_BASE_MS * Math.pow(ADMIN_RECONNECT_BACKOFF_MULTIPLIER, 0);
@@ -2589,52 +2797,52 @@ function stopAdminHeartbeat(adminId: string): void {
 }
 
 // ======================================================================
-// 📱 FORCE FULL CONTACT SYNC - Reconecta para buscar TODOS os contatos
+// ?? FORCE FULL CONTACT SYNC - Reconecta para buscar TODOS os contatos
 // ======================================================================
-// Esta função força uma reconexão REAL do WhatsApp para que o Baileys
+// Esta fun��o for�a uma reconex�o REAL do WhatsApp para que o Baileys
 // dispare novamente o evento contacts.upsert com TODOS os contatos.
 //
-// Segundo a documentação do Baileys:
-// - contacts.upsert envia TODOS os contatos na PRIMEIRA conexão
-// - Para forçar novo envio, precisa reconectar a sessão
+// Segundo a documenta��o do Baileys:
+// - contacts.upsert envia TODOS os contatos na PRIMEIRA conex�o
+// - Para for�ar novo envio, precisa reconectar a sess�o
 // - Ref: https://github.com/WhiskeySockets/Baileys/issues/266
 // ======================================================================
 export async function forceFullContactSync(userId: string): Promise<{ success: boolean; message: string }> {
-  // 🛡️ MODO DESENVOLVIMENTO: Bloquear reconexões
+  // ??? MODO DESENVOLVIMENTO: Bloquear reconex�es
   if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
-    console.log(`\n🛡️ [DEV MODE] forceFullContactSync bloqueado para user ${userId}`);
+    console.log(`\n??? [DEV MODE] forceFullContactSync bloqueado para user ${userId}`);
     return { success: false, message: 'Modo desenvolvimento - WhatsApp desabilitado' };
   }
 
   console.log(`\n========================================`);
-  console.log(`📱 [FORCE FULL SYNC] Iniciando sincronização COMPLETA de contatos`);
-  console.log(`📱 [FORCE FULL SYNC] User ID: ${userId}`);
+  console.log(`?? [FORCE FULL SYNC] Iniciando sincroniza��o COMPLETA de contatos`);
+  console.log(`?? [FORCE FULL SYNC] User ID: ${userId}`);
   console.log(`========================================\n`);
 
-  // Limpar cache de agenda existente para forçar nova sincronização
+  // Limpar cache de agenda existente para for�ar nova sincroniza��o
   agendaContactsCache.delete(userId);
-  console.log(`📱 [FORCE FULL SYNC] Cache de agenda limpo`);
+  console.log(`?? [FORCE FULL SYNC] Cache de agenda limpo`);
 
-  // Verificar se existe sessão ativa
+  // Verificar se existe sess�o ativa
   const existingSession = sessions.get(userId);
   if (!existingSession?.socket) {
-    console.log(`📱 [FORCE FULL SYNC] Nenhuma sessão ativa - conectando do zero...`);
+    console.log(`?? [FORCE FULL SYNC] Nenhuma sess�o ativa - conectando do zero...`);
     await connectWhatsApp(userId);
-    return { success: true, message: 'Conexão iniciada - aguarde os contatos serem sincronizados' };
+    return { success: true, message: 'Conex�o iniciada - aguarde os contatos serem sincronizados' };
   }
 
-  console.log(`📱 [FORCE FULL SYNC] Sessão encontrada - reconectando para buscar todos os contatos...`);
+  console.log(`?? [FORCE FULL SYNC] Sess�o encontrada - reconectando para buscar todos os contatos...`);
 
   try {
-    // 1. Fechar socket atual (mantém credenciais)
-    console.log(`📱 [FORCE FULL SYNC] Fechando conexão atual...`);
+    // 1. Fechar socket atual (mant�m credenciais)
+    console.log(`?? [FORCE FULL SYNC] Fechando conex�o atual...`);
     try {
       existingSession.socket.end(undefined);
     } catch (e) {
-      console.log(`📱 [FORCE FULL SYNC] Erro ao fechar socket (ignorando):`, e);
+      console.log(`?? [FORCE FULL SYNC] Erro ao fechar socket (ignorando):`, e);
     }
 
-    // 2. Limpar da memória
+    // 2. Limpar da mem�ria
     sessions.delete(userId);
     unregisterWhatsAppSession(userId);
     clearPendingConnectionLock(userId, 'force_full_sync');
@@ -2644,13 +2852,13 @@ export async function forceFullContactSync(userId: string): Promise<{ success: b
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     // 4. Reconectar - isso vai disparar contacts.upsert com TODOS os contatos
-    console.log(`📱 [FORCE FULL SYNC] Reconectando para sincronizar todos os contatos...`);
+    console.log(`?? [FORCE FULL SYNC] Reconectando para sincronizar todos os contatos...`);
     await connectWhatsApp(userId);
 
     // 5. Aguardar sync inicial (o contacts.upsert acontece automaticamente)
-    console.log(`📱 [FORCE FULL SYNC] Aguardando sincronização de contatos...`);
+    console.log(`?? [FORCE FULL SYNC] Aguardando sincroniza��o de contatos...`);
 
-    // Aguardar até 30 segundos para os contatos serem sincronizados
+    // Aguardar at� 30 segundos para os contatos serem sincronizados
     let attempts = 0;
     const maxAttempts = 15;
     let contactCount = 0;
@@ -2661,11 +2869,11 @@ export async function forceFullContactSync(userId: string): Promise<{ success: b
       const agendaData = getAgendaContacts(userId);
       contactCount = agendaData?.contacts?.length || 0;
 
-      console.log(`📱 [FORCE FULL SYNC] Tentativa ${attempts + 1}/${maxAttempts} - ${contactCount} contatos encontrados`);
+      console.log(`?? [FORCE FULL SYNC] Tentativa ${attempts + 1}/${maxAttempts} - ${contactCount} contatos encontrados`);
 
       // Se tiver mais de 100 contatos, provavelmente terminou o sync inicial
       if (contactCount > 100) {
-        console.log(`📱 [FORCE FULL SYNC] ✅ Sync parece completo com ${contactCount} contatos`);
+        console.log(`?? [FORCE FULL SYNC] ? Sync parece completo com ${contactCount} contatos`);
         break;
       }
 
@@ -2673,38 +2881,38 @@ export async function forceFullContactSync(userId: string): Promise<{ success: b
     }
 
     console.log(`\n========================================`);
-    console.log(`📱 [FORCE FULL SYNC] ✅ CONCLUÍDO!`);
-    console.log(`📱 [FORCE FULL SYNC] Total de contatos sincronizados: ${contactCount}`);
+    console.log(`?? [FORCE FULL SYNC] ? CONCLU�DO!`);
+    console.log(`?? [FORCE FULL SYNC] Total de contatos sincronizados: ${contactCount}`);
     console.log(`========================================\n`);
 
     return {
       success: true,
-      message: `✅ Sincronização completa! ${contactCount} contatos encontrados.`
+      message: `? Sincroniza��o completa! ${contactCount} contatos encontrados.`
     };
 
   } catch (error) {
-    console.error(`📱 [FORCE FULL SYNC] ❌ Erro:`, error);
+    console.error(`?? [FORCE FULL SYNC] ? Erro:`, error);
     return {
       success: false,
-      message: `Erro na sincronização: ${error instanceof Error ? error.message : 'Erro desconhecido'}`
+      message: `Erro na sincroniza��o: ${error instanceof Error ? error.message : 'Erro desconhecido'}`
     };
   }
 }
 
-// Força reset COMPLETO - apaga arquivos de autenticação (força novo QR Code)
+// For�a reset COMPLETO - apaga arquivos de autentica��o (for�a novo QR Code)
 export async function forceResetWhatsApp(userId: string, connectionId?: string): Promise<void> {
-  // 🛡️ MODO DESENVOLVIMENTO: Bloquear reset para evitar conflito com produção
+  // ??? MODO DESENVOLVIMENTO: Bloquear reset para evitar conflito com produ��o
   if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
-    console.log(`\n🛡️ [DEV MODE] forceResetWhatsApp bloqueado para user ${userId}`);
-    console.log(`   💡 SKIP_WHATSAPP_RESTORE=true - Modo desenvolvimento ativo`);
-    console.log(`   ✅ Sessões do WhatsApp em produção não serão afetadas\n`);
-    throw new Error('WhatsApp desabilitado em modo desenvolvimento (SKIP_WHATSAPP_RESTORE=true). Isso protege suas sessões em produção.');
+    console.log(`\n??? [DEV MODE] forceResetWhatsApp bloqueado para user ${userId}`);
+    console.log(`   ?? SKIP_WHATSAPP_RESTORE=true - Modo desenvolvimento ativo`);
+    console.log(`   ? Sess�es do WhatsApp em produ��o n�o ser�o afetadas\n`);
+    throw new Error('WhatsApp desabilitado em modo desenvolvimento (SKIP_WHATSAPP_RESTORE=true). Isso protege suas sess�es em produ��o.');
   }
   
   const lookupKey = connectionId || userId;
   console.log(`[FORCE RESET] Starting complete reset for ${lookupKey}...`);
   
-  // Limpar sessão existente na memória (se houver)
+  // Limpar sess�o existente na mem�ria (se houver)
   const existingSession = sessions.get(lookupKey);
   if (existingSession?.socket) {
     console.log(`[FORCE RESET] Found existing session in memory, closing it...`);
@@ -2717,11 +2925,11 @@ export async function forceResetWhatsApp(userId: string, connectionId?: string):
     unregisterWhatsAppSession(lookupKey);
   }
   
-  // Limpar pending connections e tentativas de reconexão
+  // Limpar pending connections e tentativas de reconex�o
   clearPendingConnectionLock(lookupKey, 'force_reset');
   reconnectAttempts.delete(lookupKey);
   
-  // APAGAR arquivos de autenticação (força novo QR Code)
+  // APAGAR arquivos de autentica��o (for�a novo QR Code)
   // For secondary connections, ONLY clear auth_{connectionId} (don't touch primary's auth_{userId})
   let isSecondary = false;
   if (connectionId) {
@@ -2772,32 +2980,75 @@ export async function connectWhatsApp(
   targetConnectionId?: string,
   options?: ConnectWhatsAppOptions,
 ): Promise<void> {
-  // 🛡️ MODO DESENVOLVIMENTO: Bloquear conexões para evitar conflito com produção
+  // ??? MODO DESENVOLVIMENTO: Bloquear conex�es para evitar conflito com produ��o
   if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
-    console.log(`\n🛡️ [DEV MODE] Conexão WhatsApp bloqueada para user ${userId}`);
-    console.log(`   💡 SKIP_WHATSAPP_RESTORE=true - Modo desenvolvimento ativo`);
-    console.log(`   ✅ Sessões do WhatsApp em produção não serão afetadas\n`);
-    throw new Error('WhatsApp desabilitado em modo desenvolvimento (SKIP_WHATSAPP_RESTORE=true). Isso protege suas sessões em produção.');
+    console.log(`\n??? [DEV MODE] Conex�o WhatsApp bloqueada para user ${userId}`);
+    console.log(`   ?? SKIP_WHATSAPP_RESTORE=true - Modo desenvolvimento ativo`);
+    console.log(`   ? Sess�es do WhatsApp em produ��o n�o ser�o afetadas\n`);
+    throw new Error('WhatsApp desabilitado em modo desenvolvimento (SKIP_WHATSAPP_RESTORE=true). Isso protege suas sess�es em produ��o.');
   }
   
-  // 🔑 Determine the connection lock key: use connectionId if provided, otherwise userId
+  // ?? Determine the connection lock key: use connectionId if provided, otherwise userId
   const lockKey = targetConnectionId || userId;
+  const connectSource = options?.source || "direct";
   const effectiveOpenTimeoutMs = Math.max(options?.openTimeoutMs ?? CONNECT_OPEN_TIMEOUT_MS, 15_000);
+
+  // Prevent reconnect storms after open-timeout for automated flows.
+  if (shouldApplyOpenTimeoutCooldown(connectSource)) {
+    const scopeKeys = [lockKey, userId];
+    if (targetConnectionId && targetConnectionId !== lockKey) {
+      scopeKeys.push(targetConnectionId);
+    }
+    const remaining = await getMaxOpenTimeoutCooldownRemainingMs(scopeKeys);
+    if (remaining > 0) {
+      const cooldownError = new Error(
+        `Reconnect blocked by open-timeout cooldown (${Math.ceil(remaining / 1000)}s remaining, source=${connectSource})`,
+      );
+      (cooldownError as any).code = "WA_OPEN_TIMEOUT_COOLDOWN";
+      throw cooldownError;
+    }
+  }
   
-  // ⏳ FIX: Evict stale locks before checking
+  // ? FIX: Evict stale locks before checking
   evictStalePendingLocks();
   
-  // ⏳ Verificar se já existe uma conexão em andamento
+  // ? Verificar se j� existe uma conex�o em andamento
   const existingPendingConnection = pendingConnections.get(lockKey);
   if (existingPendingConnection) {
     console.log(`[CONNECT] Connection already in progress for ${lockKey}, waiting for it to complete...`);
     return existingPendingConnection.promise;
   }
 
-  // 🔄 Resetar contador de tentativas de reconexão quando usuário inicia conexão manualmente
+  let distributedLock: DistributedLockHandle | undefined;
+  const distributedLockTtlMs = Math.max(
+    effectiveOpenTimeoutMs + WA_REDIS_PENDING_LOCK_EXTRA_MS,
+    PENDING_LOCK_TTL_MS,
+  );
+  if (WA_REDIS_CONNECT_LOCK_ENABLED && isRedisAvailable()) {
+    const lockResult = await tryAcquireDistributedLock(
+      toDistributedPendingLockKey(lockKey),
+      distributedLockTtlMs,
+    );
+    if (lockResult.status === "acquired") {
+      distributedLock = lockResult.lock;
+      console.log(
+        `?? [PENDING LOCK][REDIS] Acquired distributed lock for ${lockKey.substring(0, 8)}... ttl=${Math.round(
+          distributedLockTtlMs / 1000,
+        )}s`,
+      );
+    } else if (lockResult.status === "busy") {
+      const remainingSec = Math.max(1, Math.ceil(lockResult.remainingMs / 1000));
+      console.log(
+        `?? [PENDING LOCK][REDIS] Lock busy for ${lockKey.substring(0, 8)}... (${remainingSec}s remaining). Skipping duplicate connect attempt.`,
+      );
+      return;
+    }
+  }
+
+  // ?? Resetar contador de tentativas de reconex�o quando usu�rio inicia conex�o manualmente
   reconnectAttempts.delete(lockKey);
 
-  // 🔒 CRÍTICO: Criar e registrar a promise IMEDIATAMENTE para evitar race conditions
+  // ?? CR�TICO: Criar e registrar a promise IMEDIATAMENTE para evitar race conditions
   let resolveConnection: () => void;
   let rejectConnection: (error: Error) => void;
   let connectionPromiseSettled = false;
@@ -2833,33 +3084,40 @@ export async function connectWhatsApp(
     rejectConnection!(rejectError);
   };
   
-  // Registrar ANTES de qualquer operação async — now with metadata
-  pendingConnections.set(lockKey, {
+  // Registrar ANTES de qualquer opera��o async � now with metadata
+  const pendingEntry: PendingConnectionEntry = {
     promise: connectionPromise,
     startedAt: Date.now(),
     connectionId: targetConnectionId,
     userId,
-  });
+    distributedLock,
+  };
+  pendingConnections.set(lockKey, pendingEntry);
+  if (pendingEntry.distributedLock) {
+    registerDistributedPendingLockRefresh(lockKey, pendingEntry, distributedLockTtlMs);
+  }
   console.log(`[CONNECT] Registered pending connection for user ${userId}${targetConnectionId ? ` (connectionId: ${targetConnectionId})` : ''}`);
 
-  // Agora executar a lógica de conexão
+  // Agora executar a l�gica de conex�o
   (async () => {
     try {
       console.log(`[CONNECT] Starting connection for user ${userId}${targetConnectionId ? ` connectionId=${targetConnectionId}` : ''}...`);
       
-      // Verificar se já existe uma sessão ativa para esta conexão específica
+      // Verificar se j� existe uma sess�o ativa para esta conex�o espec�fica
       const existingSession = targetConnectionId ? sessions.get(targetConnectionId) : sessions.get(userId);
       if (existingSession?.socket) {
-        // Verificar se o socket está realmente conectado
-        const isSocketConnected = existingSession.socket.user !== undefined;
-        if (isSocketConnected && existingSession.isOpen === true) {
+        const wsReadyState = getSessionWsReadyState(existingSession);
+        const isSocketOperational = hasOperationalSocket(existingSession);
+        if (isSocketOperational && existingSession.isOpen === true) {
           console.log(`[CONNECT] ${lockKey} already has an active/open session, reusing existing socket`);
           clearPendingConnectionLock(lockKey, 'already_connected');
           settleConnectionPromise("resolve", "already_connected");
           return;
         } else {
-          // Sessão existe mas não está conectada - limpar e recriar
-          console.log(`[CONNECT] ${lockKey} has stale session (not connected), cleaning up...`);
+          // Sess�o existe mas n�o est� conectada - limpar e recriar
+          console.log(
+            `[CONNECT] ${lockKey} has stale session (isOpen=${existingSession.isOpen}, hasUser=${existingSession.socket.user !== undefined}, wsReadyState=${wsReadyState ?? 'unknown'}), cleaning up...`,
+          );
           try {
             existingSession.socket.end(undefined);
           } catch (e) {
@@ -2997,28 +3255,28 @@ export async function connectWhatsApp(
       level: 'debug',
       fatal: (...args: any[]) => {
         const summary = summarizeBaileysArgs(...args);
-        if (summary) console.error(`💀 [BAILEYS] ${summary}`);
+        if (summary) console.error(`?? [BAILEYS] ${summary}`);
       },
       error: (...args: any[]) => {
         if (isDecryptNoise(...args)) return;
         if (!isCTWARelated(...args)) return;
         const summary = summarizeBaileysArgs(...args);
-        if (summary) console.error(`❌ [BAILEYS-CTWA] ${summary}`);
+        if (summary) console.error(`? [BAILEYS-CTWA] ${summary}`);
       },
       warn: (...args: any[]) => {
         if (!isCTWARelated(...args)) return;
         const summary = summarizeBaileysArgs(...args);
-        if (summary) console.warn(`⚠️ [BAILEYS-CTWA] ${summary}`);
+        if (summary) console.warn(`?? [BAILEYS-CTWA] ${summary}`);
       },
       info: (...args: any[]) => {
         if (!isCTWARelated(...args)) return;
         const summary = summarizeBaileysArgs(...args);
-        if (summary) console.log(`ℹ️ [BAILEYS-CTWA] ${summary}`);
+        if (summary) console.log(`?? [BAILEYS-CTWA] ${summary}`);
       },
       debug: (...args: any[]) => {
         if (!isCTWARelated(...args)) return;
         const summary = summarizeBaileysArgs(...args);
-        if (summary) console.log(`🔍 [BAILEYS-CTWA] ${summary}`);
+        if (summary) console.log(`?? [BAILEYS-CTWA] ${summary}`);
       },
       trace: (...args: any[]) => { /* silent */ },
       child: () => ctwaLogger,
@@ -3042,33 +3300,33 @@ export async function connectWhatsApp(
       // Captures CTWA/PDO/placeholder debug messages from Baileys while keeping other logs silent
       logger: ctwaLogger as any,
       // ======================================================================
-      // 📱 FIX 2025: SINCRONIZAÇÃO COMPLETA DE CONTATOS DA AGENDA
+      // ?? FIX 2025: SINCRONIZA��O COMPLETA DE CONTATOS DA AGENDA
       // ======================================================================
-      // IMPORTANTE: Estas configurações fazem o Baileys receber TODOS os
-      // contatos da agenda do WhatsApp na PRIMEIRA conexão após scan do QR.
+      // IMPORTANTE: Estas configura��es fazem o Baileys receber TODOS os
+      // contatos da agenda do WhatsApp na PRIMEIRA conex�o ap�s scan do QR.
       //
-      // 1. browser: Browsers.macOS('Desktop') - Emula conexão desktop para
-      //    receber histórico completo (mais contatos e mensagens)
-      // 2. syncFullHistory: true - Habilita sync completo de contatos e histórico
-      // 3. shouldSyncHistoryMessage: () => true - Necessário após atualização
+      // 1. browser: Browsers.macOS('Desktop') - Emula conex�o desktop para
+      //    receber hist�rico completo (mais contatos e mensagens)
+      // 2. syncFullHistory: true - Habilita sync completo de contatos e hist�rico
+      // 3. shouldSyncHistoryMessage: () => true - Necess�rio ap�s atualiza��o
       //    do Baileys (master 2026-02) que mudou o default para pular FULL sync
       //
-      // O evento contacts.upsert será disparado com TODOS os contatos logo
-      // após o QR Code ser escaneado e conexão estabelecida.
+      // O evento contacts.upsert ser� disparado com TODOS os contatos logo
+      // ap�s o QR Code ser escaneado e conex�o estabelecida.
       // Ref: https://github.com/WhiskeySockets/Baileys/issues/266
       // ======================================================================
       browser: Browsers.macOS('Desktop'),
       // -----------------------------------------------------------------------
       // FIX 2026-02-24: WhatsApp rejeitou Platform.WEB (405 error)
-      // Versão fixa que funciona com Platform.MACOS
+      // Vers�o fixa que funciona com Platform.MACOS
       // Ref: https://github.com/WhiskeySockets/Baileys/issues/2370
       // -----------------------------------------------------------------------
       version: [2, 3000, 1033893291],
       // -----------------------------------------------------------------------
-      // FIX 2026-02-24: Estabilidade de conexão para SaaS multi-session
+      // FIX 2026-02-24: Estabilidade de conex�o para SaaS multi-session
       // connectTimeoutMs: Aumentado para 60s (auth com 3000+ files demora)
-      // keepAliveIntervalMs: 25s heartbeat (evita 408 timeout com 70+ sessões)
-      // retryRequestDelayMs: Retry rápido de requests falhados
+      // keepAliveIntervalMs: 25s heartbeat (evita 408 timeout com 70+ sess�es)
+      // retryRequestDelayMs: Retry r�pido de requests falhados
       // -----------------------------------------------------------------------
       connectTimeoutMs: 60_000,
       keepAliveIntervalMs: 25_000,
@@ -3089,8 +3347,8 @@ export async function connectWhatsApp(
       // -----------------------------------------------------------------------
       // ?? FIX "AGUARDANDO PARA CARREGAR MENSAGEM" (WAITING FOR MESSAGE)
       // -----------------------------------------------------------------------
-      // Esta fun��o � chamada pelo Baileys quando precisa reenviar uma mensagem
-      // que falhou na decripta��o. Sem ela, o WhatsApp mostra "Aguardando..."
+      // Esta fun??o ? chamada pelo Baileys quando precisa reenviar uma mensagem
+      // que falhou na decripta??o. Sem ela, o WhatsApp mostra "Aguardando..."
       // 
       // Ref: https://github.com/WhiskeySockets/Baileys/issues/1767
       // -----------------------------------------------------------------------
@@ -3099,7 +3357,7 @@ export async function connectWhatsApp(
         
         console.log(`?? [getMessage] Baileys solicitou mensagem ${key.id} para retry`);
         
-        // Tentar recuperar do cache em mem�ria
+        // Tentar recuperar do cache em mem?ria
         const cached = getCachedMessage(userId, key.id);
         if (cached) {
           return cached;
@@ -3110,8 +3368,8 @@ export async function connectWhatsApp(
           const dbMessage = await storage.getMessageByMessageId(key.id);
           if (dbMessage) {
             console.log(`?? [getMessage] Mensagem ${key.id} recuperada do banco de dados (tipo: ${(dbMessage as any).messageType || 'text'})`);
-            // FIX 2026: Retornar proto.IMessage completo quando disponível
-            // Para mídia, o formato { conversation: text } não funciona no retry
+            // FIX 2026: Retornar proto.IMessage completo quando dispon�vel
+            // Para m�dia, o formato { conversation: text } n�o funciona no retry
             if ((dbMessage as any).rawMessage) {
               try {
                 const raw = JSON.parse((dbMessage as any).rawMessage);
@@ -3126,13 +3384,13 @@ export async function connectWhatsApp(
           console.error(`? [getMessage] Erro ao buscar mensagem do banco:`, err);
         }
         
-        console.log(`?? [getMessage] Mensagem ${key.id} n�o encontrada em nenhum cache`);
+        console.log(`?? [getMessage] Mensagem ${key.id} n?o encontrada em nenhum cache`);
         return undefined;
       },
     });
 
     // ======================================================================
-    // 📢 CTWA FIX VERIFICATION: Verify Baileys has PR #2334 CTWA fix loaded
+    // ?? CTWA FIX VERIFICATION: Verify Baileys has PR #2334 CTWA fix loaded
     // ======================================================================
     try {
       // Test 1: Check if proto has PLACEHOLDER_MESSAGE_RESEND (basic proto check)
@@ -3148,14 +3406,14 @@ export async function connectWhatsApp(
         baileysVersion = pkg.version || 'no-version';
       } catch { baileysVersion = 'read-failed'; }
       
-      console.log(`📢 [CTWA-STARTUP] Baileys v${baileysVersion} | PLACEHOLDER_MESSAGE_RESEND=${hasPDOType} | CIPHERTEXT_STUB=${hasCiphertextStub}`);
+      console.log(`?? [CTWA-STARTUP] Baileys v${baileysVersion} | PLACEHOLDER_MESSAGE_RESEND=${hasPDOType} | CIPHERTEXT_STUB=${hasCiphertextStub}`);
       if (hasPDOType) {
-        console.log(`✅ [CTWA-STARTUP] Baileys CTWA fix (PR #2334) proto definitions present. PDO placeholder resend should work.`);
+        console.log(`? [CTWA-STARTUP] Baileys CTWA fix (PR #2334) proto definitions present. PDO placeholder resend should work.`);
       } else {
-        console.error(`❌ [CTWA-STARTUP] Baileys may be missing CTWA fix proto definitions!`);
+        console.error(`? [CTWA-STARTUP] Baileys may be missing CTWA fix proto definitions!`);
       }
     } catch (e) {
-      console.error(`⚠️ [CTWA-STARTUP] Could not verify Baileys CTWA fix:`, e);
+      console.error(`?? [CTWA-STARTUP] Could not verify Baileys CTWA fix:`, e);
     }
 
     const session: WhatsAppSession = {
@@ -3167,17 +3425,19 @@ export async function connectWhatsApp(
       createdAt: Date.now(),
     };
 
-    // 🔑 MULTI-CONNECTION: Store by connectionId (SessionMap handles userId lookups)
+    // ?? MULTI-CONNECTION: Store by connectionId (SessionMap handles userId lookups)
     sessions.set(connection.id, session);
 
-    // Failsafe para não manter lock/promise indefinidamente quando "open" nunca chega.
+    // Failsafe para n�o manter lock/promise indefinidamente quando "open" nunca chega.
     connectionOpenTimeout = setTimeout(() => {
       const currentSession = sessions.get(session.connectionId);
       if (currentSession?.socket !== sock || currentSession?.isOpen === true) {
         return;
       }
       const timeoutError = new Error(`Connection did not reach open within ${effectiveOpenTimeoutMs}ms`);
-      console.log(`⚠️ [CONNECT] OPEN TIMEOUT for user ${userId.substring(0, 8)}... conn ${session.connectionId.substring(0, 8)} — closing socket`);
+      console.log(`?? [CONNECT] OPEN TIMEOUT for user ${userId.substring(0, 8)}... conn ${session.connectionId.substring(0, 8)} � closing socket`);
+      registerOpenTimeoutCooldown(session.connectionId, "open_timeout");
+      registerOpenTimeoutCooldown(userId, "open_timeout");
       clearPendingConnectionLock(session.connectionId, 'connect_open_timeout');
       clearPendingConnectionLock(userId, 'connect_open_timeout');
       try {
@@ -3190,11 +3450,11 @@ export async function connectWhatsApp(
     }, effectiveOpenTimeoutMs);
     session.openTimeout = connectionOpenTimeout;
     
-    // 📲 Registrar sessão no serviço de envio para notificações do sistema (delivery, etc)
+    // ?? Registrar sess�o no servi�o de envio para notifica��es do sistema (delivery, etc)
     registerWhatsAppSession(userId, sock);
 
     // ======================================================================
-    // FIX LID 2025 - CACHE WARMING (Carregar contatos do DB para mem�ria)
+    // FIX LID 2025 - CACHE WARMING (Carregar contatos do DB para mem?ria)
     // ======================================================================
     // Previne race condition: mensagens @lid chegam antes de contacts.upsert
     try {
@@ -3221,13 +3481,13 @@ export async function connectWhatsApp(
     }
 
     // ======================================================================
-    // 📱 CONTACTS SYNC - SINCRONIZAÇÃO COMPLETA DA AGENDA DO WHATSAPP
+    // ?? CONTACTS SYNC - SINCRONIZA��O COMPLETA DA AGENDA DO WHATSAPP
     // ======================================================================
-    // IMPORTANTE: Este evento é disparado pelo Baileys com TODOS os contatos
-    // da agenda do WhatsApp na PRIMEIRA conexão após scan do QR Code.
+    // IMPORTANTE: Este evento � disparado pelo Baileys com TODOS os contatos
+    // da agenda do WhatsApp na PRIMEIRA conex�o ap�s scan do QR Code.
     //
-    // Com a configuração browser: Browsers.macOS('Desktop') + syncFullHistory: true,
-    // o Baileys emula uma conexão desktop que recebe histórico completo.
+    // Com a configura��o browser: Browsers.macOS('Desktop') + syncFullHistory: true,
+    // o Baileys emula uma conex�o desktop que recebe hist�rico completo.
     //
     // Ref: https://github.com/WhiskeySockets/Baileys/issues/266
     // "After scanning the QR code and establishing the first connection,
@@ -3235,11 +3495,11 @@ export async function connectWhatsApp(
     // ======================================================================
     sock.ev.on("contacts.upsert", async (contacts) => {
       console.log(`\n========================================`);
-      console.log(`📱 [CONTACTS.UPSERT] Baileys emitiu ${contacts.length} contatos`);
-      console.log(`📱 [CONTACTS.UPSERT] User ID: ${userId}`);
-      console.log(`📱 [CONTACTS.UPSERT] Connection ID: ${connection.id}`);
-      console.log(`📱 [CONTACTS.UPSERT] Primeiro contato: ${contacts[0]?.id || 'N/A'}`);
-      console.log(`📱 [CONTACTS.UPSERT] Último contato: ${contacts[contacts.length - 1]?.id || 'N/A'}`);
+      console.log(`?? [CONTACTS.UPSERT] Baileys emitiu ${contacts.length} contatos`);
+      console.log(`?? [CONTACTS.UPSERT] User ID: ${userId}`);
+      console.log(`?? [CONTACTS.UPSERT] Connection ID: ${connection.id}`);
+      console.log(`?? [CONTACTS.UPSERT] Primeiro contato: ${contacts[0]?.id || 'N/A'}`);
+      console.log(`?? [CONTACTS.UPSERT] �ltimo contato: ${contacts[contacts.length - 1]?.id || 'N/A'}`);
       console.log(`========================================\n`);
 
       // Array para novos contatos desta batch
@@ -3254,7 +3514,7 @@ export async function connectWhatsApp(
       }> = [];
 
       for (const contact of contacts) {
-        // Extrair número do contact.id quando phoneNumber não vem preenchido
+        // Extrair n�mero do contact.id quando phoneNumber n�o vem preenchido
         let phoneNumber = contact.phoneNumber || null;
         if (!phoneNumber && contact.id) {
           const match = contact.id.match(/^(\d+)@/);
@@ -3263,7 +3523,7 @@ export async function connectWhatsApp(
           }
         }
 
-        // 1. Atualizar cache em memória da sessão (para resolver @lid)
+        // 1. Atualizar cache em mem�ria da sess�o (para resolver @lid)
         contactsCache.set(contact.id, contact);
         if (contact.lid) {
           contactsCache.set(contact.lid, contact);
@@ -3278,7 +3538,7 @@ export async function connectWhatsApp(
           name: contact.name || contact.notify || undefined,
         });
 
-        // 3. Adicionar ao array de agenda (se tiver número válido)
+        // 3. Adicionar ao array de agenda (se tiver n�mero v�lido)
         if (phoneNumber && phoneNumber.length >= 8) {
           newAgendaContacts.push({
             id: contact.id,
@@ -3290,18 +3550,18 @@ export async function connectWhatsApp(
       }
 
       // 4. PERSISTIR NO BANCO DE DADOS - IMPORTANTE!
-      // Salvar contatos no banco para não perder em restart
+      // Salvar contatos no banco para n�o perder em restart
       try {
         if (dbContacts.length > 0) {
           await storage.batchUpsertContacts(dbContacts);
-          console.log(`📱 [CONTACTS.UPSERT] 💾 Salvou ${dbContacts.length} contatos no banco de dados`);
+          console.log(`?? [CONTACTS.UPSERT] ?? Salvou ${dbContacts.length} contatos no banco de dados`);
         }
       } catch (dbError) {
-        console.error(`📱 [CONTACTS.UPSERT] ❌ Erro ao salvar contatos no DB:`, dbError);
+        console.error(`?? [CONTACTS.UPSERT] ? Erro ao salvar contatos no DB:`, dbError);
       }
 
-      // 5. IMPORTANTE: Mesclar com contatos existentes no cache (acumula múltiplas batches)
-      // O Baileys pode emitir contacts.upsert múltiplas vezes durante a sincronização inicial
+      // 5. IMPORTANTE: Mesclar com contatos existentes no cache (acumula m�ltiplas batches)
+      // O Baileys pode emitir contacts.upsert m�ltiplas vezes durante a sincroniza��o inicial
       const existingCache = getAgendaContacts(userId);
       const existingContacts = existingCache?.contacts || [];
       const existingPhones = new Set(existingContacts.map(c => c.phoneNumber));
@@ -3313,25 +3573,25 @@ export async function connectWhatsApp(
       if (mergedContacts.length > 0) {
         saveAgendaToCache(userId, mergedContacts);
 
-        // Broadcast para o frontend informando que os contatos estão prontos
+        // Broadcast para o frontend informando que os contatos est�o prontos
         broadcastToUser(userId, {
           type: "agenda_synced",
           count: mergedContacts.length,
           status: "ready",
-          message: `📱 ${mergedContacts.length} contatos sincronizados da agenda!`
+          message: `?? ${mergedContacts.length} contatos sincronizados da agenda!`
         });
 
-        console.log(`📱 [CONTACTS.UPSERT] ✅ Novos: ${uniqueNewContacts.length} | Total no cache: ${mergedContacts.length}`);
+        console.log(`?? [CONTACTS.UPSERT] ? Novos: ${uniqueNewContacts.length} | Total no cache: ${mergedContacts.length}`);
       } else {
-        console.log(`📱 [CONTACTS.UPSERT] ⚠️ Nenhum contato válido encontrado nesta batch`);
+        console.log(`?? [CONTACTS.UPSERT] ?? Nenhum contato v�lido encontrado nesta batch`);
       }
     });
 
     // ======================================================================
-    // 📚 HISTORY SYNC - BUSCA TODOS OS CONTATOS DO HISTÓRICO DO WHATSAPP
+    // ?? HISTORY SYNC - BUSCA TODOS OS CONTATOS DO HIST�RICO DO WHATSAPP
     // ======================================================================
-    // Este evento é disparado durante o sync inicial e traz TODOS os contatos
-    // do histórico do WhatsApp (chats, contacts, messages)
+    // Este evento � disparado durante o sync inicial e traz TODOS os contatos
+    // do hist�rico do WhatsApp (chats, contacts, messages)
     // Ref: https://baileys.wiki/docs/socket/history-sync/
     // ======================================================================
     sock.ev.on("messaging-history.set", async ({ chats, contacts, messages, isLatest }) => {
@@ -3340,7 +3600,7 @@ export async function connectWhatsApp(
       }
 
       console.log(`\n========================================`);
-      console.log(`[HISTORY SYNC] 📚 Baileys emitiu messaging-history.set`);
+      console.log(`[HISTORY SYNC] ?? Baileys emitiu messaging-history.set`);
       console.log(`[HISTORY SYNC] User ID: ${userId}`);
       console.log(`[HISTORY SYNC] Chats: ${chats?.length || 0}`);
       console.log(`[HISTORY SYNC] Contacts: ${contacts?.length || 0}`);
@@ -3348,10 +3608,10 @@ export async function connectWhatsApp(
       console.log(`[HISTORY SYNC] isLatest: ${isLatest}`);
       console.log(`========================================\n`);
 
-      // ─────────────────────────────────────────────────────────────────────────
+      // -------------------------------------------------------------------------
       // FIX 2026: Processar mensagens RECENTES do history sync para auto-resposta
-      // Mensagens que chegaram durante desconexão precisam ser processadas
-      // ─────────────────────────────────────────────────────────────────────────
+      // Mensagens que chegaram durante desconex�o precisam ser processadas
+      // -------------------------------------------------------------------------
       if (shouldReplayHistoryMessages && messages && messages.length > 0) {
         const now = Date.now();
         const MAX_AGE_MS = 10 * 60 * 1000; // 10 minutos
@@ -3380,16 +3640,16 @@ export async function connectWhatsApp(
         }
 
         if (processedCount > 0) {
-          console.log(`[HISTORY SYNC] 🔄 ${processedCount} mensagens recentes re-emitidas para processamento`);
+          console.log(`[HISTORY SYNC] ?? ${processedCount} mensagens recentes re-emitidas para processamento`);
         }
       }
 
-      // Processar contatos do histórico
+      // Processar contatos do hist�rico
       if (contacts && contacts.length > 0) {
         const agendaContacts: AgendaContact[] = [];
 
         for (const contact of contacts) {
-          // Extrair número do contact.id
+          // Extrair n�mero do contact.id
           let phoneNumber: string | null = null;
 
           // Tentar pegar do phoneNumber primeiro
@@ -3401,7 +3661,7 @@ export async function connectWhatsApp(
           }
 
           if (phoneNumber) {
-            // Adicionar ao cache da sessão
+            // Adicionar ao cache da sess�o
             contactsCache.set(contact.id, contact);
 
             // Adicionar ao array de agenda
@@ -3426,15 +3686,15 @@ export async function connectWhatsApp(
         if (mergedContacts.length > 0) {
           saveAgendaToCache(userId, mergedContacts);
 
-          console.log(`[HISTORY SYNC] ✅ ${newContacts.length} novos contatos adicionados`);
-          console.log(`[HISTORY SYNC] 📊 Total no cache: ${mergedContacts.length} contatos`);
+          console.log(`[HISTORY SYNC] ? ${newContacts.length} novos contatos adicionados`);
+          console.log(`[HISTORY SYNC] ?? Total no cache: ${mergedContacts.length} contatos`);
 
           // Broadcast para o frontend
           broadcastToUser(userId, {
             type: "agenda_synced",
             count: mergedContacts.length,
             status: "ready",
-            message: `📚 ${mergedContacts.length} contatos sincronizados do histórico!`
+            message: `?? ${mergedContacts.length} contatos sincronizados do hist�rico!`
           });
         }
       }
@@ -3447,12 +3707,12 @@ export async function connectWhatsApp(
           // Ignorar grupos
           if (chat.id?.endsWith('@g.us')) continue;
 
-          // Extrair número do chat.id
+          // Extrair n�mero do chat.id
           const match = chat.id?.match(/^(\d+)@/);
           if (match && match[1].length >= 8) {
             const phoneNumber = match[1];
 
-            // Verificar se já não está no cache
+            // Verificar se j� n�o est� no cache
             const existingCache = getAgendaContacts(userId);
             const existingPhones = new Set((existingCache?.contacts || []).map(c => c.phoneNumber));
 
@@ -3474,15 +3734,15 @@ export async function connectWhatsApp(
 
           saveAgendaToCache(userId, mergedContacts);
 
-          console.log(`[HISTORY SYNC] 💬 ${chatContacts.length} contatos adicionados dos chats`);
-          console.log(`[HISTORY SYNC] 📊 Total no cache: ${mergedContacts.length} contatos`);
+          console.log(`[HISTORY SYNC] ?? ${chatContacts.length} contatos adicionados dos chats`);
+          console.log(`[HISTORY SYNC] ?? Total no cache: ${mergedContacts.length} contatos`);
 
           // Broadcast atualizado
           broadcastToUser(userId, {
             type: "agenda_synced",
             count: mergedContacts.length,
             status: "ready",
-            message: `📚 ${mergedContacts.length} contatos sincronizados!`
+            message: `?? ${mergedContacts.length} contatos sincronizados!`
           });
         }
       }
@@ -3519,10 +3779,10 @@ export async function connectWhatsApp(
           console.error(`[CONNECTION UPDATE] Failed to persist implicit open for ${session.connectionId}:`, implicitOpenDbErr);
         }
         broadcastToUser(userId, { type: "connected", phoneNumber, connectionId: session.connectionId });
-        console.log(`✅ [CONN OPEN FALLBACK] Promoted ${session.connectionId.substring(0, 8)} via connection=undefined + socket.user`);
+        console.log(`? [CONN OPEN FALLBACK] Promoted ${session.connectionId.substring(0, 8)} via connection=undefined + socket.user`);
       }
 
-      // Log adicional em caso de close para diagnóstico
+      // Log adicional em caso de close para diagn�stico
       if (conn === "close") {
         console.log(`[CONNECTION CLOSE] Details:`, {
           userId: userId.substring(0, 8) + '...',
@@ -3535,8 +3795,8 @@ export async function connectWhatsApp(
                            `unknown(${statusCode})`
         });
 
-        // Logar amostra dos arquivos de auth sem varrer diretório inteiro
-        // (evita overhead alto quando há dezenas de milhares de arquivos).
+        // Logar amostra dos arquivos de auth sem varrer diret�rio inteiro
+        // (evita overhead alto quando h� dezenas de milhares de arquivos).
         try {
           const userAuthPath = path.join(SESSIONS_BASE, `auth_${userId}`);
           const sample: string[] = [];
@@ -3585,7 +3845,7 @@ export async function connectWhatsApp(
         }
       }
 
-      // Estado "connecting" - quando o QR Code foi escaneado e está conectando
+      // Estado "connecting" - quando o QR Code foi escaneado e est� conectando
       if (conn === "connecting") {
         console.log(`User ${userId} is connecting... (connection: ${connection.id})`);
         broadcastToUser(userId, { type: "connecting", connectionId: connection.id });
@@ -3608,7 +3868,7 @@ export async function connectWhatsApp(
                                      /replaced|conflict/i.test(errorMsg);
         if (isConnectionReplaced) {
           waObservability.conflict440Count++;
-          console.log(`[440 CONFLICT] ⛔ Connection ${connection.id.substring(0, 8)} replaced by another session (status=${statusCode}). NOT reconnecting to prevent infinite loop.`);
+          console.log(`[440 CONFLICT] ? Connection ${connection.id.substring(0, 8)} replaced by another session (status=${statusCode}). NOT reconnecting to prevent infinite loop.`);
           console.log(`[440 CONFLICT] Error: ${errorMsg}`);
           // Clean up session but do NOT reconnect
           const currentSession440 = sessions.get(connection.id);
@@ -3629,43 +3889,44 @@ export async function connectWhatsApp(
           await storage.updateConnection(connection.id, { isConnected: false, qrCode: null });
           broadcastToUser(userId, { type: "disconnected", reason: "connection_replaced", connectionId: connection.id });
           reconnectAttempts.delete(connection.id);
-          return; // EXIT — do NOT reconnect
+          return; // EXIT � do NOT reconnect
         }
 
         // -----------------------------------------------------------------------
         // ?? GUARD CONTRA SOCKET STALE
         // -----------------------------------------------------------------------
-        // Um socket "antigo" pode fechar depois que um socket mais novo já conectou.
-        // Se processarmos o close do socket antigo, vamos apagar a sessão nova e
+        // Um socket "antigo" pode fechar depois que um socket mais novo j� conectou.
+        // Se processarmos o close do socket antigo, vamos apagar a sess�o nova e
         // marcar isConnected=false no banco, mesmo com o socket ativo.
         //
-        // Solução: verificar se este sock ainda é o socket atual antes de tomar
-        // ações destrutivas (delete, update DB, reconnect).
+        // Solu��o: verificar se este sock ainda � o socket atual antes de tomar
+        // a��es destrutivas (delete, update DB, reconnect).
         // -----------------------------------------------------------------------
         const currentSession = sessions.get(connection.id);
 
         if (currentSession?.socket !== sock) {
           console.log(`[CONNECTION CLOSE] ?? STALE SOCKET IGNORED - Connection ${connection.id.substring(0, 8)}... User ${userId.substring(0, 8)}...`);
           console.log(`[CONNECTION CLOSE] Current socket differs from closing socket, ignoring close event`);
-          settleConnectionPromise("reject", "stale_socket_closed", new Error("Socket superseded by newer session"));
-          // Não fazer nada - o socket atual está ativo, este é um socket antigo
+          // FIX 2026-05-27: Do NOT settle the promise here. This close event belongs
+          // to a stale (old) socket � the current socket is still alive and its own
+          // event handlers will resolve or reject its promise in due course.
           return;
         }
 
         // -----------------------------------------------------------------------
-        // 🚨 SISTEMA DE RECUPERAÇÃO: Registrar desconexão
+        // ??? SISTEMA DE RECUPERA��O: Registrar desconex�o
         // -----------------------------------------------------------------------
-        // Salvar evento de desconexão para diagnóstico e recuperação
+        // Salvar evento de desconex�o para diagn�stico e recupera��o
         try {
           const disconnectReason = (lastDisconnect?.error as any)?.message ||
                                    `statusCode: ${statusCode}`;
           await logConnectionDisconnection(userId, session.connectionId, disconnectReason);
         } catch (logErr) {
-          console.error(`🚨 [RECOVERY] Erro ao logar desconexão:`, logErr);
+          console.error(`?? [RECOVERY] Erro ao logar desconex�o:`, logErr);
         }
 
-        // Sempre deletar a sessão primeiro (só se for o socket atual, verificado acima)
-        // 🔑 MULTI-CONNECTION: Delete by connectionId, NOT userId
+        // Sempre deletar a sess�o primeiro (s� se for o socket atual, verificado acima)
+        // ?? MULTI-CONNECTION: Delete by connectionId, NOT userId
         // FIX 2026-02-24: Clear open timeout to prevent double reconnects
         if (session.openTimeout) {
           clearTimeout(session.openTimeout);
@@ -3679,7 +3940,7 @@ export async function connectWhatsApp(
         clearPendingConnectionLock(session.connectionId, 'conn_close');
         clearPendingConnectionLock(userId, 'conn_close');
 
-        // Atualizar banco de dados - conexão principal
+        // Atualizar banco de dados - conex�o principal
         await storage.updateConnection(session.connectionId, {
           isConnected: false,
           qrCode: null,
@@ -3689,15 +3950,15 @@ export async function connectWhatsApp(
         // Each connection has its own socket and lifecycle.
 
         // -----------------------------------------------------------------------
-        // 🛡️ RECONEXÃO INTELIGENTE: Só reconecta se a sessão tinha auth válido
-        // Verifica cred_*.json no disco — sem creds = sessão nunca completou pareamento
+        // ??? RECONEX�O INTELIGENTE: S� reconecta se a sess�o tinha auth v�lido
+        // Verifica cred_*.json no disco � sem creds = sess�o nunca completou pareamento
         // Contador ABSOLUTO com back-off exponencial (NUNCA reseta)
         // -----------------------------------------------------------------------
         const reconnectKey = session.connectionId;
         let attempt = reconnectAttempts.get(reconnectKey) || { count: 0, lastAttempt: 0 };
 
         if (shouldReconnect) {
-          // 🔍 Verificar se tem arquivos de auth válidos no disco
+          // ?? Verificar se tem arquivos de auth v�lidos no disco
           let hasValidAuth = false;
           try {
             const authPaths = [
@@ -3712,18 +3973,18 @@ export async function connectWhatsApp(
                   hasValidAuth = true;
                   break;
                 }
-              } catch { /* dir não existe */ }
+              } catch { /* dir n�o existe */ }
             }
           } catch { /* erro lendo disco */ }
 
           if (!hasValidAuth) {
-            // Sem auth no disco = sessão nunca foi pareada com sucesso. NÃO reconectar.
+            // Sem auth no disco = sess�o nunca foi pareada com sucesso. N�O reconectar.
             console.log(`[RECONNECT] User ${userId.substring(0,8)} conn ${session.connectionId.substring(0,8)} - NO auth files on disk. Stopping reconnection (was never paired).`);
             broadcastToUser(userId, { type: "disconnected", reason: "no_auth", connectionId: session.connectionId });
             reconnectAttempts.delete(reconnectKey);
             await storage.updateConnection(session.connectionId, { qrCode: null });
           } else {
-            // Tem auth — reconectar com back-off exponencial (contador NUNCA reseta)
+            // Tem auth � reconectar com back-off exponencial (contador NUNCA reseta)
             attempt.count++;
             attempt.lastAttempt = Date.now();
             reconnectAttempts.set(reconnectKey, attempt);
@@ -3735,7 +3996,7 @@ export async function connectWhatsApp(
               if (attempt.count === 1) {
                 broadcastToUser(userId, { type: "disconnected", connectionId: session.connectionId });
               }
-              // 🔑 MULTI-CONNECTION: Reconnect the specific connection with back-off
+              // ?? MULTI-CONNECTION: Reconnect the specific connection with back-off
               setTimeout(() => connectWhatsApp(userId, session.connectionId), delayMs);
             } else {
               console.log(`[RECONNECT] User ${userId.substring(0,8)} conn ${session.connectionId.substring(0,8)} - max reconnect attempts (${MAX_RECONNECT_ATTEMPTS}) reached. Auth exists but connection unstable.`);
@@ -3770,18 +4031,18 @@ export async function connectWhatsApp(
 
           broadcastToUser(userId, { type: "disconnected", reason: "logout", connectionId: session.connectionId });
 
-          // Resetar tentativas de reconexão
+          // Resetar tentativas de reconex�o
           reconnectAttempts.delete(session.connectionId);
 
           // -----------------------------------------------------------------------
-          // ?? AUTO-RETRY APÓS LOGOUT: Recuperar automaticamente se o usuário estiver na tela
+          // ?? AUTO-RETRY AP�S LOGOUT: Recuperar automaticamente se o usu�rio estiver na tela
           // -----------------------------------------------------------------------
-          // Quando há um auth inválido no volume, o Baileys retorna loggedOut imediatamente.
-          // Se o usuário clicou em "Conectar" (tem WS client ativo), faremos um auto-retry
-          // único para gerar o QR code sem exigir um segundo clique.
+          // Quando h� um auth inv�lido no volume, o Baileys retorna loggedOut imediatamente.
+          // Se o usu�rio clicou em "Conectar" (tem WS client ativo), faremos um auto-retry
+          // �nico para gerar o QR code sem exigir um segundo clique.
           // -----------------------------------------------------------------------
           const now = Date.now();
-          const hasLiveClient = wsClients.has(userId); // Cliente está na tela
+          const hasLiveClient = wsClients.has(userId); // Cliente est� na tela
           const retryState = logoutAutoRetry.get(userId) || { count: 0, lastAttempt: 0 };
 
           // Resetar contador se passou do cooldown
@@ -3800,7 +4061,7 @@ export async function connectWhatsApp(
             setTimeout(() => {
               console.log(`[LOGOUT AUTO-RETRY] Executando connectWhatsApp para ${userId.substring(0, 8)}...`);
               connectWhatsApp(userId, session.connectionId).catch((err) => {
-                console.error(`[LOGOUT AUTO-RETRY] Erro na reconexão automática:`, err);
+                console.error(`[LOGOUT AUTO-RETRY] Erro na reconex�o autom�tica:`, err);
               });
             }, 750);
           } else {
@@ -3813,7 +4074,7 @@ export async function connectWhatsApp(
         }
       } else if (conn === "open") {
         // -----------------------------------------------------------------------
-        // 🔑 MULTI-CONNECTION: Store by connectionId on open
+        // ?? MULTI-CONNECTION: Store by connectionId on open
         // -----------------------------------------------------------------------
         sessions.set(session.connectionId, session);
 
@@ -3825,20 +4086,22 @@ export async function connectWhatsApp(
         if (session.openTimeout) {
           clearTimeout(session.openTimeout);
           session.openTimeout = undefined;
-          console.log(`✅ [CONN OPEN] Connection ${session.connectionId.substring(0, 8)} reached "open" — timeout cleared`);
+          console.log(`? [CONN OPEN] Connection ${session.connectionId.substring(0, 8)} reached "open" � timeout cleared`);
         }
 
-        // Conexão estabelecida com sucesso - limpar pendentes
-        // NÃO resetar reconnectAttempts imediatamente — só após 2min de estabilidade
-        // Isso evita loop infinito: open→close→attempt1→open→close→attempt1...
+        // Conex�o estabelecida com sucesso - limpar pendentes
+        // N�O resetar reconnectAttempts imediatamente � s� ap�s 2min de estabilidade
+        // Isso evita loop infinito: open?close?attempt1?open?close?attempt1...
         clearPendingConnectionLock(session.connectionId, 'conn_open');
         clearPendingConnectionLock(userId, 'conn_open');
+        clearOpenTimeoutCooldown(session.connectionId, "conn_open");
+        clearOpenTimeoutCooldown(userId, "conn_open");
         settleConnectionPromise("resolve", "conn_open");
 
-        // Agendar reset do contador de reconexão após 2 minutos de estabilidade
+        // Agendar reset do contador de reconex�o ap�s 2 minutos de estabilidade
         const STABILITY_DELAY_MS = 120_000; // 2 min
         setTimeout(() => {
-          // Só reseta se este MESMO socket ainda estiver ativo
+          // S� reseta se este MESMO socket ainda estiver ativo
           const currentSess = sessions.get(session.connectionId);
           if (currentSess?.socket === sock) {
             reconnectAttempts.delete(session.connectionId);
@@ -3855,19 +4118,19 @@ export async function connectWhatsApp(
           qrCode: null,
         });
 
-        // 🔑 MULTI-CONNECTION: Each connection is independent, no cross-sync
+        // ?? MULTI-CONNECTION: Each connection is independent, no cross-sync
 
         broadcastToUser(userId, { type: "connected", phoneNumber, connectionId: session.connectionId });
 
         // ======================================================================
-        // ??? SAFE MODE: Verificar se o cliente est� em modo seguro anti-bloqueio
+        // ??? SAFE MODE: Verificar se o cliente est? em modo seguro anti-bloqueio
         // ======================================================================
-        // Se o admin ativou o Safe Mode para este cliente (p�s-bloqueio),
+        // Se o admin ativou o Safe Mode para este cliente (p?s-bloqueio),
         // executar limpeza completa antes de permitir qualquer envio
         try {
           const currentConnection = await storage.getConnectionByUserId(userId);
           if (currentConnection?.safeModeEnabled) {
-            console.log(`??? [SAFE MODE] Cliente ${userId.substring(0, 8)}... est� em modo seguro - executando limpeza!`);
+            console.log(`??? [SAFE MODE] Cliente ${userId.substring(0, 8)}... est? em modo seguro - executando limpeza!`);
             
             const cleanupResult = await executeSafeModeCleanup(userId, session.connectionId);
             
@@ -3887,63 +4150,63 @@ export async function connectWhatsApp(
         }
 
         // ======================================================================
-        // FIX LID 2025 - WORKAROUND: Contatos ser�o populados ao receber mensagens
+        // FIX LID 2025 - WORKAROUND: Contatos ser?o populados ao receber mensagens
         // ======================================================================
-        // Baileys 7.0.0-rc.6 n�o tem makeInMemoryStore e n�o emite contacts.upsert
-        // em sess�es restauradas. Os contatos ser�o populados quando:
+        // Baileys 7.0.0-rc.6 n?o tem makeInMemoryStore e n?o emite contacts.upsert
+        // em sess?es restauradas. Os contatos ser?o populados quando:
         // 1. Primeira mensagem de cada contato chegar (contacts.upsert dispara)
-        // 2. Usu�rio enviar mensagem (parseRemoteJid salva no DB via fallback)
+        // 2. Usu?rio enviar mensagem (parseRemoteJid salva no DB via fallback)
         
-        // ─────────────────────────────────────────────────────────────────────
-        // FIX 2026: Enviar presenceUpdate('available') após conexão aberta
-        // Sem isso, WhatsApp pode não rotear mensagens novas pro Baileys
-        // ─────────────────────────────────────────────────────────────────────
+        // ---------------------------------------------------------------------
+        // FIX 2026: Enviar presenceUpdate('available') ap�s conex�o aberta
+        // Sem isso, WhatsApp pode n�o rotear mensagens novas pro Baileys
+        // ---------------------------------------------------------------------
         try {
           await sock.sendPresenceUpdate('available');
-          console.log(`✅ [PRESENCE] Status 'available' enviado para socket principal`);
+          console.log(`? [PRESENCE] Status 'available' enviado para socket principal`);
         } catch (presErr) {
-          console.error(`❌ [PRESENCE] Erro ao enviar presença:`, presErr);
+          console.error(`? [PRESENCE] Erro ao enviar presen�a:`, presErr);
         }
 
         console.log(`\n?? [CONTACTS INFO] Aguardando contatos do Baileys...`);
-        console.log(`   Contatos serão sincronizados automaticamente quando:`);
+        console.log(`   Contatos ser�o sincronizados automaticamente quando:`);
         console.log(`   1. Evento contacts.upsert do Baileys disparar`);
         console.log(`   2. Mensagens forem recebidas/enviadas`);
         console.log(`   Cache warming carregou ${contactsCache.size} contatos do DB\n`);
         
         // ======================================================================
-        // ?? VERIFICA��O DE MENSAGENS N�O RESPONDIDAS (24H)
+        // ?? VERIFICA??O DE MENSAGENS N?O RESPONDIDAS (24H)
         // ======================================================================
-        // Aguardar 10s para socket estabilizar, depois verificar se h� clientes
-        // que mandaram mensagem nas �ltimas 24h e n�o foram respondidos
-        // (resolve problema de mensagens perdidas durante desconex�es)
+        // Aguardar 10s para socket estabilizar, depois verificar se h? clientes
+        // que mandaram mensagem nas ?ltimas 24h e n?o foram respondidos
+        // (resolve problema de mensagens perdidas durante desconex?es)
         setTimeout(async () => {
           try {
             await checkUnrespondedMessages(session);
           } catch (error) {
             console.error(`? [UNRESPONDED CHECK] Erro ao verificar mensagens:`, error);
           }
-        }, 10000); // 10 segundos ap�s conex�o
+        }, 10000); // 10 segundos ap?s conex?o
         
         // ======================================================================
-        // 🚨 SISTEMA DE RECUPERAÇÃO: Processar mensagens pendentes
+        // ?? SISTEMA DE RECUPERA��O: Processar mensagens pendentes
         // ======================================================================
-        // Quando a conexão estabiliza, verificar se há mensagens que chegaram
-        // durante instabilidade/deploy e não foram processadas
+        // Quando a conex�o estabiliza, verificar se h� mensagens que chegaram
+        // durante instabilidade/deploy e n�o foram processadas
         // ======================================================================
         try {
-          console.log(`🚨 [RECOVERY] Iniciando recuperação de mensagens pendentes para ${userId.substring(0, 8)}...`);
+          console.log(`?? [RECOVERY] Iniciando recupera��o de mensagens pendentes para ${userId.substring(0, 8)}...`);
           await startMessageRecovery(userId, session.connectionId);
         } catch (recoveryError) {
-          console.error(`🚨 [RECOVERY] Erro ao iniciar recuperação:`, recoveryError);
+          console.error(`?? [RECOVERY] Erro ao iniciar recupera��o:`, recoveryError);
         }
         
         // ======================================================================
-        // ⚡ FIX: Processar timers de IA pendentes IMEDIATAMENTE após reconexão
+        // ? FIX: Processar timers de IA pendentes IMEDIATAMENTE ap�s reconex�o
         // ======================================================================
         // Quando Connection Closed causou falha de envio, o timer fica pendente
         // no banco com retry de 5-30s. Ao reconectar, processar IMEDIATAMENTE
-        // para que o cliente não espere mais.
+        // para que o cliente n�o espere mais.
         // ======================================================================
         setTimeout(async () => {
           try {
@@ -3955,7 +4218,7 @@ export async function connectWhatsApp(
               return t.userId === userId;
             });
             if (userTimers.length > 0) {
-              console.log(`⚡ [RECONNECT-RECOVERY] ${userTimers.length} timers pendentes para ${userId.substring(0, 8)}... - processando IMEDIATAMENTE!`);
+              console.log(`? [RECONNECT-RECOVERY] ${userTimers.length} timers pendentes para ${userId.substring(0, 8)}... - processando IMEDIATAMENTE!`);
               
               let processed = 0;
               for (const timer of userTimers) {
@@ -3974,7 +4237,7 @@ export async function connectWhatsApp(
                   startTime: timer.scheduledAt.getTime(),
                 };
                 
-                const delayMs = processed * 2000; // 2s entre cada para não sobrecarregar
+                const delayMs = processed * 2000; // 2s entre cada para n�o sobrecarregar
                 rPending.timeout = setTimeout(async () => {
                   await processAccumulatedMessages(rPending);
                 }, delayMs);
@@ -3982,129 +4245,129 @@ export async function connectWhatsApp(
                 pendingResponses.set(timer.conversationId, rPending);
                 processed++;
                 
-                if (processed >= 10) break; // Limitar a 10 por reconexão
+                if (processed >= 10) break; // Limitar a 10 por reconex�o
               }
               
               if (processed > 0) {
-                console.log(`⚡ [RECONNECT-RECOVERY] ${processed} timers processados imediatamente após reconexão`);
+                console.log(`? [RECONNECT-RECOVERY] ${processed} timers processados imediatamente ap�s reconex�o`);
               }
             }
           } catch (recErr) {
-            console.error(`⚡ [RECONNECT-RECOVERY] Erro ao processar timers pendentes:`, recErr);
+            console.error(`? [RECONNECT-RECOVERY] Erro ao processar timers pendentes:`, recErr);
           }
-        }, 3000); // 3s após reconexão para dar tempo ao socket estabilizar
+        }, 3000); // 3s ap�s reconex�o para dar tempo ao socket estabilizar
         
         // ======================================================================
-        // ?? FOLLOW-UP: Reativar follow-ups que estavam aguardando conex�o
+        // ?? FOLLOW-UP: Reativar follow-ups que estavam aguardando conex?o
         // ======================================================================
         // Quando o WhatsApp reconecta, os follow-ups que foram pausados por falta
-        // de conex�o devem ser reagendados para processar em breve
-        // ?? IMPORTANTE: N�O reativar se Safe Mode est� ativo (cliente p�s-bloqueio)
+        // de conex?o devem ser reagendados para processar em breve
+        // ?? IMPORTANTE: N?O reativar se Safe Mode est? ativo (cliente p?s-bloqueio)
         setTimeout(async () => {
           try {
-            // Verificar se Safe Mode est� ativo - se sim, N�O reativar follow-ups
+            // Verificar se Safe Mode est? ativo - se sim, N?O reativar follow-ups
             const connCheck = await storage.getConnectionByUserId(userId);
             if (connCheck?.safeModeEnabled) {
-              console.log(`??? [SAFE MODE] Pulando reativa��o de follow-ups - modo seguro ativo`);
+              console.log(`??? [SAFE MODE] Pulando reativa??o de follow-ups - modo seguro ativo`);
               return;
             }
             
             await userFollowUpService.clearConnectionWaitingStatus(session.connectionId);
-            console.log(`? [FOLLOW-UP] Status de aguardo de conex�o limpo para ${userId}`);
+            console.log(`? [FOLLOW-UP] Status de aguardo de conex?o limpo para ${userId}`);
           } catch (error) {
             console.error(`? [FOLLOW-UP] Erro ao limpar status de aguardo:`, error);
           }
-        }, 5000); // 5 segundos ap�s conex�o
+        }, 5000); // 5 segundos ap?s conex?o
       }
     });
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // ═══════════════════════════════════════════════════════════════════════════
-    // HANDLER DE ATUALIZAÇÕES DE MENSAGENS (messages.update) v3.1
+    // ---------------------------------------------------------------------------
+    // ---------------------------------------------------------------------------
+    // HANDLER DE ATUALIZA��ES DE MENSAGENS (messages.update) v3.1
     // - Processa votos de enquete (poll updates)
     // - FIX 2026: Processa mensagens que chegam descriptografadas via retry
     //   (resolve "Aguardando mensagem" / "Waiting for this message")
     // - FIX 2026-02: Detecta CTWA placeholder resend requests (PR #2334)
-    // ═══════════════════════════════════════════════════════════════════════════
+    // ---------------------------------------------------------------------------
     sock.ev.on("messages.update", async (updates) => {
       for (const { key, update } of updates) {
-        // ─────────────────────────────────────────────────────────────────────
+        // ---------------------------------------------------------------------
         // FIX 2026-02: Log CTWA placeholder resend status (from Baileys PR #2334)
         // When Baileys detects a CTWA message, it emits an update with
         // requestId in messageStubParameters[1]. Log this for monitoring.
-        // ─────────────────────────────────────────────────────────────────────
+        // ---------------------------------------------------------------------
         const stubParams = (update as any).messageStubParameters;
         if (stubParams && Array.isArray(stubParams) && stubParams.length >= 2) {
           const requestIdFromStub = stubParams[1];
           if (requestIdFromStub && typeof requestIdFromStub === 'string' && requestIdFromStub.length > 5) {
-            console.log(`📢 [CTWA-PDO-REQUEST] Baileys solicitou placeholder resend para mensagem ${key.id} de ${key.remoteJid} (requestId=${requestIdFromStub})`);
+            console.log(`?? [CTWA-PDO-REQUEST] Baileys solicitou placeholder resend para mensagem ${key.id} de ${key.remoteJid} (requestId=${requestIdFromStub})`);
           }
         }
 
-        // ─────────────────────────────────────────────────────────────────────
-        // FIX 2026: Se uma mensagem que estava "pending" agora tem conteúdo,
+        // ---------------------------------------------------------------------
+        // FIX 2026: Se uma mensagem que estava "pending" agora tem conte�do,
         // cachear para retry e re-emitir como upsert para processamento
-        // ─────────────────────────────────────────────────────────────────────
+        // ---------------------------------------------------------------------
         if ((update as any).message && key.remoteJid && !key.fromMe) {
           const msgContent = (update as any).message;
           if (key.id && msgContent) {
             cacheMessage(userId, key.id, msgContent);
-            console.log(`🔄 [MSG-UPDATE] Mensagem ${key.id} descriptografada via retry, re-emitindo como upsert`);
-            console.log(`   📨 JID: ${key.remoteJid}`);
-            console.log(`   📝 Tipo de conteúdo: ${Object.keys(msgContent).join(', ')}`);
+            console.log(`?? [MSG-UPDATE] Mensagem ${key.id} descriptografada via retry, re-emitindo como upsert`);
+            console.log(`   ?? JID: ${key.remoteJid}`);
+            console.log(`   ?? Tipo de conte�do: ${Object.keys(msgContent).join(', ')}`);
             // Re-emitir como upsert notify para que seja processada normalmente
-            // NOTA: O dedupe system permite reprocessamento pois stubs NÃO são marcados
+            // NOTA: O dedupe system permite reprocessamento pois stubs N�O s�o marcados
             sock.ev.emit('messages.upsert', {
               type: 'notify',
               messages: [{
                 key,
                 message: msgContent,
                 messageTimestamp: Math.floor(Date.now() / 1000),
-                // Preservar pushName se disponível no update
+                // Preservar pushName se dispon�vel no update
                 pushName: (update as any).pushName || undefined,
               } as any],
             });
           }
         }
 
-        // Verificar se é um voto de enquete
+        // Verificar se � um voto de enquete
         if (update.pollUpdates && update.pollUpdates.length > 0) {
           try {
-            console.log(`🗳️ [POLL-UPDATE v2.0] Recebido voto de enquete!`);
-            console.log(`   📨 Poll ID: ${key.id}`);
-            console.log(`   👤 JID: ${key.remoteJid}`);
+            console.log(`??? [POLL-UPDATE v2.0] Recebido voto de enquete!`);
+            console.log(`   ?? Poll ID: ${key.id}`);
+            console.log(`   ?? JID: ${key.remoteJid}`);
             
-            // Importar funções de mapeamento de polls
+            // Importar fun��es de mapeamento de polls
             const { getButtonIdFromPollVote, getPollMapping } = await import('./centralizedMessageSender');
             
             // Obter mapping da enquete original
             const pollMapping = key.id ? getPollMapping(key.id) : null;
             
             if (!pollMapping) {
-              console.log(`🗳️ [POLL-UPDATE] Poll não encontrado no mapeamento, ignorando...`);
+              console.log(`??? [POLL-UPDATE] Poll n�o encontrado no mapeamento, ignorando...`);
               continue;
             }
             
-            // Processar cada atualização de voto usando getAggregateVotesInPollMessage
+            // Processar cada atualiza��o de voto usando getAggregateVotesInPollMessage
             for (const pollUpdate of update.pollUpdates) {
               const vote = pollUpdate.vote;
               
-              // Verificar se há opções selecionadas
+              // Verificar se h� op��es selecionadas
               if (!vote?.selectedOptions || vote.selectedOptions.length === 0) {
-                console.log(`🗳️ [POLL-UPDATE] Nenhuma opção selecionada, pulando...`);
+                console.log(`??? [POLL-UPDATE] Nenhuma op��o selecionada, pulando...`);
                 continue;
               }
               
-              console.log(`🗳️ [POLL-UPDATE] Votos detectados. Buscando no mapeamento...`);
-              console.log(`   📋 Opções disponíveis: ${pollMapping.buttons.map((b: any) => b.title || b.reply?.title).join(', ')}`);
-              console.log(`   🔢 Hashes selecionados: ${vote.selectedOptions.length}`);
+              console.log(`??? [POLL-UPDATE] Votos detectados. Buscando no mapeamento...`);
+              console.log(`   ?? Op��es dispon�veis: ${pollMapping.buttons.map((b: any) => b.title || b.reply?.title).join(', ')}`);
+              console.log(`   ?? Hashes selecionados: ${vote.selectedOptions.length}`);
               
-              // ═══════════════════════════════════════════════════════════════
-              // NOVA ABORDAGEM: Usar o primeiro hash SHA256 para encontrar opção
-              // Os hashes são SHA256 dos textos das opções
-              // ═══════════════════════════════════════════════════════════════
+              // ---------------------------------------------------------------
+              // NOVA ABORDAGEM: Usar o primeiro hash SHA256 para encontrar op��o
+              // Os hashes s�o SHA256 dos textos das op��es
+              // ---------------------------------------------------------------
               
-              // Criar hash map das opções do poll
+              // Criar hash map das op��es do poll
               const crypto = await import('crypto');
               const optionHashMap = new Map<string, string>();
               
@@ -4112,31 +4375,31 @@ export async function connectWhatsApp(
                 const title = btn.title || btn.reply?.title || '';
                 const hash = crypto.createHash('sha256').update(title).digest('hex');
                 optionHashMap.set(hash, title);
-                console.log(`   🔐 Hash: ${hash.substring(0, 16)}... → "${title}"`);
+                console.log(`   ?? Hash: ${hash.substring(0, 16)}... ? "${title}"`);
               });
               
-              // Tentar encontrar a opção votada pelo hash
+              // Tentar encontrar a op��o votada pelo hash
               let votedOptionText: string | null = null;
               
               for (const selectedHash of vote.selectedOptions) {
-                // selectedOptions são Buffer/Uint8Array - converter para hex
+                // selectedOptions s�o Buffer/Uint8Array - converter para hex
                 const hashHex = Buffer.from(selectedHash).toString('hex');
-                console.log(`   🔍 Buscando hash: ${hashHex.substring(0, 16)}...`);
+                console.log(`   ?? Buscando hash: ${hashHex.substring(0, 16)}...`);
                 
                 if (optionHashMap.has(hashHex)) {
                   votedOptionText = optionHashMap.get(hashHex)!;
-                  console.log(`   ✅ Encontrado! Opção: "${votedOptionText}"`);
+                  console.log(`   ? Encontrado! Op��o: "${votedOptionText}"`);
                   break;
                 }
               }
               
-              // Se não encontrou pelo hash, usar a primeira opção como fallback
+              // Se n�o encontrou pelo hash, usar a primeira op��o como fallback
               if (!votedOptionText) {
-                console.log(`   ⚠️ Hash não encontrado, usando primeira opção como fallback`);
+                console.log(`   ?? Hash n�o encontrado, usando primeira op��o como fallback`);
                 votedOptionText = pollMapping.buttons[0]?.title || pollMapping.buttons[0]?.reply?.title || '1';
               }
               
-              // Criar mensagem fake com o texto da opção votada
+              // Criar mensagem fake com o texto da op��o votada
               const fakeMessage = {
                 key: {
                   id: `poll_vote_${Date.now()}`,
@@ -4150,7 +4413,7 @@ export async function connectWhatsApp(
                 pushName: 'Voto de Enquete',
               };
               
-              console.log(`🗳️ [POLL-UPDATE] Processando voto como mensagem: "${fakeMessage.message.conversation}"`);
+              console.log(`??? [POLL-UPDATE] Processando voto como mensagem: "${fakeMessage.message.conversation}"`);
               
               // Disparar evento fake de mensagem para processar o voto
               sock.ev.emit('messages.upsert', {
@@ -4159,7 +4422,7 @@ export async function connectWhatsApp(
               });
             }
           } catch (pollError) {
-            console.error(`🗳️ [POLL-UPDATE] Erro ao processar voto:`, pollError);
+            console.error(`??? [POLL-UPDATE] Erro ao processar voto:`, pollError);
           }
         }
       }
@@ -4169,11 +4432,11 @@ export async function connectWhatsApp(
       const source = m.type;
       const requestId = (m as any).requestId;
 
-      // ═══════════════════════════════════════════════════════════════════
-      // 📋 ALL-MESSAGES LOGGER v1.0: Log EVERY message for CTWA debugging
+      // -------------------------------------------------------------------
+      // ?? ALL-MESSAGES LOGGER v1.0: Log EVERY message for CTWA debugging
       // Shows message type, content keys, stub info - essential for diagnosing
       // missing Instagram/Facebook ads messages (CTWA/Click-to-WhatsApp)
-      // ═══════════════════════════════════════════════════════════════════
+      // -------------------------------------------------------------------
       for (const msg of m.messages || []) {
         const jid = msg?.key?.remoteJid || 'unknown';
         const msgId = msg?.key?.id || 'no-id';
@@ -4185,34 +4448,34 @@ export async function connectWhatsApp(
         
         // Only log non-fromMe or protocol messages (to reduce noise)
         if (!msg?.key?.fromMe || hasProtocol || stubType) {
-          console.log(`📋 [MSG-UPSERT] ${fromMe} ${source}${requestId ? ' PDO:'+requestId : ''} | ${jid.split('@')[0]} | id=${msgId.substring(0,12)} | content=[${contentKeys}] | stub=${stubType || 'none'}${stubParams ? ' params='+JSON.stringify(stubParams) : ''}`);
+          console.log(`?? [MSG-UPSERT] ${fromMe} ${source}${requestId ? ' PDO:'+requestId : ''} | ${jid.split('@')[0]} | id=${msgId.substring(0,12)} | content=[${contentKeys}] | stub=${stubType || 'none'}${stubParams ? ' params='+JSON.stringify(stubParams) : ''}`);
         }
         
-        // ═══════════════════════════════════════════════════════════════════
-        // 🔄 USERLAND PDO RESPONSE HANDLER (Fallback for Baileys PR #2334)
+        // -------------------------------------------------------------------
+        // ?? USERLAND PDO RESPONSE HANDLER (Fallback for Baileys PR #2334)
         // If Baileys' internal processMessage fails to decode the PDO response,
         // this catches it and manually decodes webMessageInfoBytes.
         // This handles the case where the phone responds to the placeholder
         // resend request but Baileys fails to process it internally.
-        // ═══════════════════════════════════════════════════════════════════
+        // -------------------------------------------------------------------
         const protocolMsg = msg?.message?.protocolMessage;
         if (protocolMsg) {
           const pdoResponse = (protocolMsg as any).peerDataOperationRequestResponseMessage;
           if (pdoResponse) {
             const peerResults = pdoResponse.peerDataOperationResult || [];
-            console.log(`📢 [CTWA-PDO-RESPONSE] Received PDO response from phone! stanzaId=${pdoResponse.stanzaId}, results=${peerResults.length}`);
+            console.log(`?? [CTWA-PDO-RESPONSE] Received PDO response from phone! stanzaId=${pdoResponse.stanzaId}, results=${peerResults.length}`);
             
             for (const result of peerResults) {
               const resendResponse = result?.placeholderMessageResendResponse;
               if (resendResponse?.webMessageInfoBytes) {
-                console.log(`📢 [CTWA-PDO-DECODE] Found webMessageInfoBytes in PDO response (${resendResponse.webMessageInfoBytes.length} bytes)`);
+                console.log(`?? [CTWA-PDO-DECODE] Found webMessageInfoBytes in PDO response (${resendResponse.webMessageInfoBytes.length} bytes)`);
                 
                 // Note: Baileys' processMessage should handle this automatically.
                 // This log confirms the phone DID respond - if CTWA-RESOLVED doesn't
                 // follow, then processMessage has a bug.
                 try {
                   const decoded = proto.WebMessageInfo.decode(resendResponse.webMessageInfoBytes);
-                  console.log(`📢 [CTWA-PDO-DECODE] Decoded message: id=${decoded?.key?.id}, from=${decoded?.key?.remoteJid}, contentKeys=${decoded?.message ? Object.keys(decoded.message).join(',') : 'NONE'}`);
+                  console.log(`?? [CTWA-PDO-DECODE] Decoded message: id=${decoded?.key?.id}, from=${decoded?.key?.remoteJid}, contentKeys=${decoded?.message ? Object.keys(decoded.message).join(',') : 'NONE'}`);
                   
                   // If Baileys didn't emit the resolved message within 3 seconds, do it ourselves
                   const decodedMsgId = decoded?.key?.id;
@@ -4221,19 +4484,19 @@ export async function connectWhatsApp(
                       // Check if this message was already processed by checking our cache
                       const alreadyCached = getCachedMessage(userId, decodedMsgId);
                       if (!alreadyCached) {
-                        console.log(`⚠️ [CTWA-FALLBACK] Baileys didn't emit resolved message after 3s. Manually emitting as upsert!`);
+                        console.log(`?? [CTWA-FALLBACK] Baileys didn't emit resolved message after 3s. Manually emitting as upsert!`);
                         sock.ev.emit('messages.upsert', {
                           messages: [decoded],
                           type: 'notify',
                           requestId: pdoResponse.stanzaId || 'userland-fallback'
                         } as any);
                       } else {
-                        console.log(`✅ [CTWA-PDO-DECODE] Message ${decodedMsgId} already in cache - Baileys handled it correctly`);
+                        console.log(`? [CTWA-PDO-DECODE] Message ${decodedMsgId} already in cache - Baileys handled it correctly`);
                       }
                     }, 3000);
                   }
                 } catch (decodeErr) {
-                  console.error(`❌ [CTWA-PDO-DECODE] Failed to decode webMessageInfoBytes:`, decodeErr);
+                  console.error(`? [CTWA-PDO-DECODE] Failed to decode webMessageInfoBytes:`, decodeErr);
                 }
               }
             }
@@ -4241,22 +4504,22 @@ export async function connectWhatsApp(
         }
       }
 
-      // ═══════════════════════════════════════════════════════════════════
+      // -------------------------------------------------------------------
       // LOG + FIX: Mensagem CTWA resolvida via Placeholder Resend (PR #2334)
-      // Quando requestId está presente, significa que o Baileys resolveu
-      // uma mensagem de anúncio Instagram/Facebook via PDO (Peer Data Operation)
-      // ═══════════════════════════════════════════════════════════════════
+      // Quando requestId est� presente, significa que o Baileys resolveu
+      // uma mensagem de an�ncio Instagram/Facebook via PDO (Peer Data Operation)
+      // -------------------------------------------------------------------
       if (requestId) {
         const msgIds = (m.messages || []).map(msg => msg?.key?.id).join(', ');
         const remoteJids = (m.messages || []).map(msg => msg?.key?.remoteJid).join(', ');
         const contentTypes = (m.messages || []).map(msg => msg?.message ? Object.keys(msg.message).join(',') : 'NONE').join('; ');
-        console.log(`📢 [CTWA-RESOLVED] ✅ Mensagem CTWA DESCRIPTOGRAFADA com sucesso!`);
-        console.log(`   📡 requestId=${requestId}`);
-        console.log(`   💬 msgs=[${msgIds}]`);
-        console.log(`   📨 from=[${remoteJids}]`);
-        console.log(`   📝 content=[${contentTypes}]`);
+        console.log(`?? [CTWA-RESOLVED] ? Mensagem CTWA DESCRIPTOGRAFADA com sucesso!`);
+        console.log(`   ?? requestId=${requestId}`);
+        console.log(`   ?? msgs=[${msgIds}]`);
+        console.log(`   ?? from=[${remoteJids}]`);
+        console.log(`   ?? content=[${contentTypes}]`);
         
-        // Atualizar mensagem stub no banco com o conteúdo real
+        // Atualizar mensagem stub no banco com o conte�do real
         for (const msg of m.messages || []) {
           if (msg?.key?.id && msg?.message) {
             // Cachear mensagem resolvida
@@ -4277,14 +4540,14 @@ export async function connectWhatsApp(
             }
             
             if (realText) {
-              console.log(`   🔓 Texto real descriptografado: "${realText.substring(0, 100)}"`);
+              console.log(`   ?? Texto real descriptografado: "${realText.substring(0, 100)}"`);
               
               // Tentar atualizar a mensagem stub no banco para o texto real
               try {
                 const dbMsg = await storage.getMessageByMessageId(msg.key.id);
                 if (dbMsg && dbMsg.text && (dbMsg.text.includes('Mensagem incompleta') || dbMsg.text === 'Oi' || dbMsg.text === 'oi')) {
                   await storage.updateMessage(dbMsg.id, { text: realText });
-                  console.log(`   📝 Mensagem ${dbMsg.id} atualizada no banco: stub → "${realText.substring(0, 50)}"`);
+                  console.log(`   ?? Mensagem ${dbMsg.id} atualizada no banco: stub ? "${realText.substring(0, 50)}"`);
                   
                   // Broadcast para UI
                   broadcastToUser(userId, {
@@ -4295,7 +4558,7 @@ export async function connectWhatsApp(
                   });
                 }
               } catch (dbErr) {
-                console.error(`   ❌ Erro ao atualizar mensagem no banco:`, dbErr);
+                console.error(`   ? Erro ao atualizar mensagem no banco:`, dbErr);
               }
             }
           }
@@ -4312,9 +4575,9 @@ export async function connectWhatsApp(
         const eventTs = hasValidTs ? new Date(nTs * 1000) : new Date();
         const ageMs = Math.max(0, Date.now() - eventTs.getTime());
 
-        // FIX 2026: Aumentado threshold de 2min para 10min para não perder
-        // mensagens recentes que chegam via append após reconexão.
-        // Meta ads leads e mensagens durante desconexão podem chegar como append.
+        // FIX 2026: Aumentado threshold de 2min para 10min para n�o perder
+        // mensagens recentes que chegam via append ap�s reconex�o.
+        // Meta ads leads e mensagens durante desconex�o podem chegar como append.
         const isAppendRecent =
           source === "append" &&
           ((hasValidTs && ageMs <= 10 * 60 * 1000) || (!hasValidTs && (m.messages?.length || 0) <= 5 && !!message.key.id));
@@ -4327,7 +4590,7 @@ export async function connectWhatsApp(
         const shouldProcess = source === "notify" || isAppendRecent || isCTWAResolved;
         
         if (isCTWAResolved) {
-          console.log(`📢 [CTWA-PROCESS] Processing CTWA-resolved message from PDO: ${message.key.id} from ${remoteJid} (source=${source}, requestId=${requestId})`);
+          console.log(`?? [CTWA-PROCESS] Processing CTWA-resolved message from PDO: ${message.key.id} from ${remoteJid} (source=${source}, requestId=${requestId})`);
         }
 
         // Cache message for getMessage() retries
@@ -4335,22 +4598,22 @@ export async function connectWhatsApp(
           cacheMessage(userId, message.key.id, message.message);
         }
 
-        // ═══════════════════════════════════════════════════════════════════
-        // FIX 2026-02: MONITORAMENTO DE MENSAGENS CTWA (Anúncios Instagram/Facebook)
-        // ═══════════════════════════════════════════════════════════════════
-        // Após atualização do Baileys para master (PR #2334), mensagens de
-        // anúncios CTWA agora são detectadas automaticamente pelo Baileys.
+        // -------------------------------------------------------------------
+        // FIX 2026-02: MONITORAMENTO DE MENSAGENS CTWA (An�ncios Instagram/Facebook)
+        // -------------------------------------------------------------------
+        // Ap�s atualiza��o do Baileys para master (PR #2334), mensagens de
+        // an�ncios CTWA agora s�o detectadas automaticamente pelo Baileys.
         // O Baileys chama requestPlaceholderResend() internamente e re-emite
         // a mensagem real via messages.upsert com type: 'notify'.
         //
         // Este bloco monitora e loga quando uma mensagem chega como stub/
-        // placeholder (sem conteúdo), que pode indicar CTWA ou retry em andamento.
-        // ═══════════════════════════════════════════════════════════════════
+        // placeholder (sem conte�do), que pode indicar CTWA ou retry em andamento.
+        // -------------------------------------------------------------------
         if (!message.message && remoteJid && !message.key.fromMe) {
           if (!remoteJid.includes("@g.us") && !remoteJid.includes("@broadcast")) {
             const stubType = (message as any).messageStubType;
             const stubParams = (message as any).messageStubParameters;
-            console.log(`📡 [CTWA-MONITOR] Mensagem sem conteúdo de ${remoteJid} (stub=${stubType}, params=${JSON.stringify(stubParams)}, source=${source}) - Baileys irá solicitar placeholder resend automaticamente`);
+            console.log(`?? [CTWA-MONITOR] Mensagem sem conte�do de ${remoteJid} (stub=${stubType}, params=${JSON.stringify(stubParams)}, source=${source}) - Baileys ir� solicitar placeholder resend automaticamente`);
           }
         }
 
@@ -4464,7 +4727,7 @@ export async function connectWhatsApp(
       }
     });
 
-    // Socket inicializado; promise permanece pendente até "open" (ou close/timeout).
+    // Socket inicializado; promise permanece pendente at� "open" (ou close/timeout).
     console.log(`[CONNECT] WhatsApp socket initialized for user ${userId}, waiting for conn=open...`);
 
     } catch (error) {
@@ -4474,12 +4737,12 @@ export async function connectWhatsApp(
     }
   })();
 
-  // Retornar a promise (j� foi registrada no mapa antes de iniciar a async)
+  // Retornar a promise (j? foi registrada no mapa antes de iniciar a async)
   return connectionPromise;
 }
 
 // -----------------------------------------------------------------------
-// ?? NOVA FUN��O: Processar mensagens enviadas pelo DONO no WhatsApp
+// ?? NOVA FUN??O: Processar mensagens enviadas pelo DONO no WhatsApp
 // -----------------------------------------------------------------------
 // Quando o dono responde direto no WhatsApp (fromMe: true),
 // precisamos salvar essa mensagem no sistema para evitar "buracos"
@@ -4496,12 +4759,12 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
   if (!remoteJid) return;
   // ?? FIX BUG DUPLICATA: Ignorar mensagens enviadas pelo agente IA
   // Quando IA envia via socket.sendMessage(), Baileys dispara evento fromMe:true
-  // MAS a mensagem j� foi salva no createMessage() do setTimeout do agente.
+  // MAS a mensagem j? foi salva no createMessage() do setTimeout do agente.
   // Se salvar novamente aqui = DUPLICATA!
   const messageId = waMessage.key.id;
   if (messageId && agentMessageIds.has(messageId)) {
-    console.log(`?? [FROM ME] Ignorando mensagem do agente (j� salva): ${messageId}`);
-    agentMessageIds.delete(messageId); // Limpar ap�s verificar
+    console.log(`?? [FROM ME] Ignorando mensagem do agente (j? salva): ${messageId}`);
+    agentMessageIds.delete(messageId); // Limpar ap?s verificar
     return;
   }
 
@@ -4519,7 +4782,7 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
     return;
   }
 
-  // Resolver contactNumber usando mesma l�gica do handleIncomingMessage
+  // Resolver contactNumber usando mesma l?gica do handleIncomingMessage
   let contactNumber: string;
   let normalizedJid: string;
 
@@ -4539,9 +4802,9 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
     return;
   }
   
-  // 🆕 v4.0 ANTI-BAN CRÍTICO: Registrar mensagem MANUAL do dono no sistema de proteção
+  // ?? v4.0 ANTI-BAN CR�TICO: Registrar mensagem MANUAL do dono no sistema de prote��o
   // Isso faz com que o bot ESPERE antes de enviar qualquer mensagem para evitar
-  // padrão de "bot enviando imediatamente após humano" que a Meta detecta como spam
+  // padr�o de "bot enviando imediatamente ap�s humano" que a Meta detecta como spam
   const msg = waMessage.message;
   let messageType: 'text' | 'media' | 'audio' = 'text';
   if (msg?.audioMessage) {
@@ -4551,16 +4814,16 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
   }
   
   antiBanProtectionService.registerOwnerManualMessage(session.userId, contactNumber, messageType);
-  console.log(`🛡️ [ANTI-BAN v4.0] 👤 Mensagem MANUAL do DONO registrada - Bot aguardará antes de responder`);
+  console.log(`??? [ANTI-BAN v4.0] ?? Mensagem MANUAL do DONO registrada - Bot aguardar� antes de responder`);
   
-  // Extrair texto da mensagem E MÍDIA (incluindo áudio para transcrição)
+  // Extrair texto da mensagem E M�DIA (incluindo �udio para transcri��o)
   let messageText = "";
   let mediaType: string | null = null;
   let mediaUrl: string | null = null;
   let mediaMimeType: string | null = null;
   
-  // 🔑 METADADOS PARA RE-DOWNLOAD DE MÍDIA (igual handleIncomingMessage)
-  // Esses campos permitem baixar a mídia novamente do WhatsApp
+  // ?? METADADOS PARA RE-DOWNLOAD DE M�DIA (igual handleIncomingMessage)
+  // Esses campos permitem baixar a m�dia novamente do WhatsApp
   let mediaKey: string | null = null;
   let directPath: string | null = null;
   let mediaUrlOriginal: string | null = null;
@@ -4572,7 +4835,7 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
     
     // ?? FIX BUG DUPLICATA: Baileys as vezes envia texto 2x no mesmo campo
     // Exemplo: "Texto\nTexto" (repetido separado por \n)
-    // Detectar e remover duplica��o
+    // Detectar e remover duplica??o
     const lines = messageText.split('\n');
     const halfLength = Math.floor(lines.length / 2);
     if (lines.length > 2 && lines.length % 2 === 0) {
@@ -4588,24 +4851,24 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
     mediaType = "image";
     mediaMimeType = msg.imageMessage.mimetype || "image/jpeg";
     
-    // 🔑 Extrair metadados para re-download posterior
+    // ?? Extrair metadados para re-download posterior
     if (msg.imageMessage.mediaKey) {
       mediaKey = Buffer.from(msg.imageMessage.mediaKey).toString("base64");
     }
     directPath = msg.imageMessage.directPath || null;
     mediaUrlOriginal = msg.imageMessage.url || null;
     
-    // 🖼️ IMAGEM DO DONO: Baixar e fazer upload para Storage (economiza egress!)
+    // ??? IMAGEM DO DONO: Baixar e fazer upload para Storage (economiza egress!)
     try {
-      console.log(`🖼️ [FROM ME] Baixando imagem do dono com caption...`);
-      console.log(`🖼️ [FROM ME] mediaKey presente:`, !!msg.imageMessage.mediaKey);
-      console.log(`🖼️ [FROM ME] directPath presente:`, !!msg.imageMessage.directPath);
+      console.log(`??? [FROM ME] Baixando imagem do dono com caption...`);
+      console.log(`??? [FROM ME] mediaKey presente:`, !!msg.imageMessage.mediaKey);
+      console.log(`??? [FROM ME] directPath presente:`, !!msg.imageMessage.directPath);
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
-      // 🔼 Upload para Storage em vez de base64 para economizar egress
+      // ?? Upload para Storage em vez de base64 para economizar egress
       mediaUrl = await uploadMediaOrFallback(buffer, mediaMimeType, session.userId);
-      console.log(`✅ [FROM ME] Imagem do dono processada: ${buffer.length} bytes`);
+      console.log(`? [FROM ME] Imagem do dono processada: ${buffer.length} bytes`);
     } catch (error: any) {
-      console.error("❌ [FROM ME] Erro ao baixar imagem:", error?.message || error);
+      console.error("? [FROM ME] Erro ao baixar imagem:", error?.message || error);
       mediaUrl = null;
     }
   } else if (msg?.imageMessage) {
@@ -4613,24 +4876,24 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
     mediaType = "image";
     mediaMimeType = msg.imageMessage.mimetype || "image/jpeg";
     
-    // 🔑 Extrair metadados para re-download posterior
+    // ?? Extrair metadados para re-download posterior
     if (msg.imageMessage.mediaKey) {
       mediaKey = Buffer.from(msg.imageMessage.mediaKey).toString("base64");
     }
     directPath = msg.imageMessage.directPath || null;
     mediaUrlOriginal = msg.imageMessage.url || null;
     
-    // 🖼️ IMAGEM DO DONO: Baixar e fazer upload para Storage (economiza egress!)
+    // ??? IMAGEM DO DONO: Baixar e fazer upload para Storage (economiza egress!)
     try {
-      console.log(`🖼️ [FROM ME] Baixando imagem do dono sem caption...`);
-      console.log(`🖼️ [FROM ME] mediaKey presente:`, !!msg.imageMessage.mediaKey);
-      console.log(`🖼️ [FROM ME] directPath presente:`, !!msg.imageMessage.directPath);
+      console.log(`??? [FROM ME] Baixando imagem do dono sem caption...`);
+      console.log(`??? [FROM ME] mediaKey presente:`, !!msg.imageMessage.mediaKey);
+      console.log(`??? [FROM ME] directPath presente:`, !!msg.imageMessage.directPath);
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
-      // 🔼 Upload para Storage em vez de base64 para economizar egress
+      // ?? Upload para Storage em vez de base64 para economizar egress
       mediaUrl = await uploadMediaOrFallback(buffer, mediaMimeType, session.userId);
-      console.log(`✅ [FROM ME] Imagem do dono processada: ${buffer.length} bytes`);
+      console.log(`? [FROM ME] Imagem do dono processada: ${buffer.length} bytes`);
     } catch (error: any) {
-      console.error("❌ [FROM ME] Erro ao baixar imagem:", error?.message || error);
+      console.error("? [FROM ME] Erro ao baixar imagem:", error?.message || error);
       mediaUrl = null;
     }
   } else if (msg?.videoMessage?.caption) {
@@ -4638,62 +4901,62 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
     mediaType = "video";
     mediaMimeType = msg.videoMessage.mimetype || "video/mp4";
     
-    // 🔑 Extrair metadados para re-download posterior
+    // ?? Extrair metadados para re-download posterior
     if (msg.videoMessage.mediaKey) {
       mediaKey = Buffer.from(msg.videoMessage.mediaKey).toString("base64");
     }
     directPath = msg.videoMessage.directPath || null;
     mediaUrlOriginal = msg.videoMessage.url || null;
     
-    // 🎬 VÍDEO DO DONO: Baixar e fazer upload para Storage (economiza egress!)
+    // ?? V�DEO DO DONO: Baixar e fazer upload para Storage (economiza egress!)
     try {
-      console.log(`🎬 [FROM ME] Baixando vídeo do dono com caption...`);
-      console.log(`🎬 [FROM ME] waMessage.key:`, JSON.stringify(waMessage.key));
-      console.log(`🎬 [FROM ME] mediaKey presente:`, !!msg.videoMessage.mediaKey);
-      console.log(`🎬 [FROM ME] directPath presente:`, !!msg.videoMessage.directPath);
+      console.log(`?? [FROM ME] Baixando v�deo do dono com caption...`);
+      console.log(`?? [FROM ME] waMessage.key:`, JSON.stringify(waMessage.key));
+      console.log(`?? [FROM ME] mediaKey presente:`, !!msg.videoMessage.mediaKey);
+      console.log(`?? [FROM ME] directPath presente:`, !!msg.videoMessage.directPath);
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
-      // 🔼 Upload para Storage em vez de base64 para economizar egress
+      // ?? Upload para Storage em vez de base64 para economizar egress
       mediaUrl = await uploadMediaOrFallback(buffer, mediaMimeType, session.userId);
-      console.log(`✅ [FROM ME] Vídeo do dono processado: ${buffer.length} bytes`);
+      console.log(`? [FROM ME] V�deo do dono processado: ${buffer.length} bytes`);
     } catch (error: any) {
-      console.error("❌ [FROM ME] Erro ao baixar vídeo:", error?.message || error);
-      console.error("❌ [FROM ME] Erro completo:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
+      console.error("? [FROM ME] Erro ao baixar v�deo:", error?.message || error);
+      console.error("? [FROM ME] Erro completo:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
       mediaUrl = null;
     }
   } else if (msg?.videoMessage) {
-    messageText = "[Vídeo enviado]";
+    messageText = "[V�deo enviado]";
     mediaType = "video";
     mediaMimeType = msg.videoMessage.mimetype || "video/mp4";
     
-    // 🔑 Extrair metadados para re-download posterior
+    // ?? Extrair metadados para re-download posterior
     if (msg.videoMessage.mediaKey) {
       mediaKey = Buffer.from(msg.videoMessage.mediaKey).toString("base64");
     }
     directPath = msg.videoMessage.directPath || null;
     mediaUrlOriginal = msg.videoMessage.url || null;
     
-    // 🎬 VÍDEO DO DONO: Baixar e fazer upload para Storage (economiza egress!)
+    // ?? V�DEO DO DONO: Baixar e fazer upload para Storage (economiza egress!)
     try {
-      console.log(`🎬 [FROM ME] Baixando vídeo do dono sem caption...`);
-      console.log(`🎬 [FROM ME] waMessage.key:`, JSON.stringify(waMessage.key));
-      console.log(`🎬 [FROM ME] mediaKey presente:`, !!msg.videoMessage.mediaKey);
-      console.log(`🎬 [FROM ME] directPath presente:`, !!msg.videoMessage.directPath);
+      console.log(`?? [FROM ME] Baixando v�deo do dono sem caption...`);
+      console.log(`?? [FROM ME] waMessage.key:`, JSON.stringify(waMessage.key));
+      console.log(`?? [FROM ME] mediaKey presente:`, !!msg.videoMessage.mediaKey);
+      console.log(`?? [FROM ME] directPath presente:`, !!msg.videoMessage.directPath);
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
-      // 🔼 Upload para Storage em vez de base64 para economizar egress
+      // ?? Upload para Storage em vez de base64 para economizar egress
       mediaUrl = await uploadMediaOrFallback(buffer, mediaMimeType, session.userId);
-      console.log(`✅ [FROM ME] Vídeo do dono processado: ${buffer.length} bytes`);
+      console.log(`? [FROM ME] V�deo do dono processado: ${buffer.length} bytes`);
     } catch (error: any) {
-      console.error("❌ [FROM ME] Erro ao baixar vídeo:", error?.message || error);
-      console.error("❌ [FROM ME] Erro completo:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
+      console.error("? [FROM ME] Erro ao baixar v�deo:", error?.message || error);
+      console.error("? [FROM ME] Erro completo:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
       mediaUrl = null;
     }
   } else if (msg?.audioMessage) {
-    // 🎵 ÁUDIO DO DONO: Baixar e preparar para transcrição (igual cliente)
+    // ?? �UDIO DO DONO: Baixar e preparar para transcri��o (igual cliente)
     mediaType = "audio";
     mediaMimeType = msg.audioMessage.mimetype || "audio/ogg; codecs=opus";
-    messageText = "[Áudio enviado]"; // Texto placeholder, será substituído pela transcrição
+    messageText = "[�udio enviado]"; // Texto placeholder, ser� substitu�do pela transcri��o
     
-    // 🔑 Extrair metadados para re-download posterior
+    // ?? Extrair metadados para re-download posterior
     if (msg.audioMessage.mediaKey) {
       mediaKey = Buffer.from(msg.audioMessage.mediaKey).toString("base64");
     }
@@ -4701,46 +4964,46 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
     mediaUrlOriginal = msg.audioMessage.url || null;
     
     try {
-      console.log(`🎵 [FROM ME] Baixando áudio do dono para transcrição...`);
-      console.log(`🎵 [FROM ME] mediaKey presente:`, !!msg.audioMessage.mediaKey);
-      console.log(`🎵 [FROM ME] directPath presente:`, !!msg.audioMessage.directPath);
+      console.log(`?? [FROM ME] Baixando �udio do dono para transcri��o...`);
+      console.log(`?? [FROM ME] mediaKey presente:`, !!msg.audioMessage.mediaKey);
+      console.log(`?? [FROM ME] directPath presente:`, !!msg.audioMessage.directPath);
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
-      // 🔼 Upload para Storage em vez de base64 para economizar egress
-      // ✅ FIX: Usar session.userId em vez de userId (que não existe neste escopo)
+      // ?? Upload para Storage em vez de base64 para economizar egress
+      // ? FIX: Usar session.userId em vez de userId (que n�o existe neste escopo)
       mediaUrl = await uploadMediaOrFallback(buffer, mediaMimeType, session.userId);
-      console.log(`✅ [FROM ME] Áudio do dono processado: ${buffer.length} bytes`);
+      console.log(`? [FROM ME] �udio do dono processado: ${buffer.length} bytes`);
     } catch (error: any) {
-      console.error("? [FROM ME] Erro ao baixar �udio:", error?.message || error);
+      console.error("? [FROM ME] Erro ao baixar ?udio:", error?.message || error);
       mediaUrl = null;
     }
   }
   // -----------------------------------------------------------------------
-  // 📄 DOCUMENTO COM LEGENDA (documentWithCaptionMessage) - FROM ME
+  // ?? DOCUMENTO COM LEGENDA (documentWithCaptionMessage) - FROM ME
   // -----------------------------------------------------------------------
   else if (msg?.documentWithCaptionMessage?.message?.documentMessage) {
     const docMsg = msg.documentWithCaptionMessage.message.documentMessage;
-    messageText = docMsg.caption || `📄 ${docMsg.fileName || "Documento"}`;
+    messageText = docMsg.caption || `?? ${docMsg.fileName || "Documento"}`;
     mediaType = "document";
     mediaMimeType = docMsg.mimetype || "application/octet-stream";
     
-    // 🔑 Extrair metadados para re-download posterior
+    // ?? Extrair metadados para re-download posterior
     if (docMsg.mediaKey) {
       mediaKey = Buffer.from(docMsg.mediaKey).toString("base64");
     }
     directPath = docMsg.directPath || null;
     mediaUrlOriginal = docMsg.url || null;
     
-    // 📄 DOCUMENTO DO DONO (COM CAPTION): Baixar e fazer upload para Storage (economiza egress!)
+    // ?? DOCUMENTO DO DONO (COM CAPTION): Baixar e fazer upload para Storage (economiza egress!)
     try {
-      console.log(`📄 [FROM ME] Baixando documento do dono (com caption): ${docMsg.fileName}...`);
-      console.log(`📄 [FROM ME] mediaKey presente:`, !!docMsg.mediaKey);
-      console.log(`📄 [FROM ME] directPath presente:`, !!docMsg.directPath);
+      console.log(`?? [FROM ME] Baixando documento do dono (com caption): ${docMsg.fileName}...`);
+      console.log(`?? [FROM ME] mediaKey presente:`, !!docMsg.mediaKey);
+      console.log(`?? [FROM ME] directPath presente:`, !!docMsg.directPath);
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
-      // 🔼 Upload para Storage em vez de base64 para economizar egress
+      // ?? Upload para Storage em vez de base64 para economizar egress
       mediaUrl = await uploadMediaOrFallback(buffer, mediaMimeType, session.userId);
-      console.log(`✅ [FROM ME] Documento do dono (com caption) processado: ${buffer.length} bytes`);
+      console.log(`? [FROM ME] Documento do dono (com caption) processado: ${buffer.length} bytes`);
     } catch (error: any) {
-      console.error("❌ [FROM ME] Erro ao baixar documento (com caption):", error?.message || error);
+      console.error("? [FROM ME] Erro ao baixar documento (com caption):", error?.message || error);
       mediaUrl = null;
     }
   } else if (msg?.documentMessage?.caption) {
@@ -4748,64 +5011,64 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
     mediaType = "document";
     mediaMimeType = msg.documentMessage.mimetype || "application/octet-stream";
     
-    // 🔑 Extrair metadados para re-download posterior
+    // ?? Extrair metadados para re-download posterior
     if (msg.documentMessage.mediaKey) {
       mediaKey = Buffer.from(msg.documentMessage.mediaKey).toString("base64");
     }
     directPath = msg.documentMessage.directPath || null;
     mediaUrlOriginal = msg.documentMessage.url || null;
     
-    // 📄 DOCUMENTO DO DONO: Baixar e fazer upload para Storage (economiza egress!)
+    // ?? DOCUMENTO DO DONO: Baixar e fazer upload para Storage (economiza egress!)
     try {
-      console.log(`📄 [FROM ME] Baixando documento do dono com caption: ${msg.documentMessage.fileName}...`);
-      console.log(`📄 [FROM ME] mediaKey presente:`, !!msg.documentMessage.mediaKey);
-      console.log(`📄 [FROM ME] directPath presente:`, !!msg.documentMessage.directPath);
+      console.log(`?? [FROM ME] Baixando documento do dono com caption: ${msg.documentMessage.fileName}...`);
+      console.log(`?? [FROM ME] mediaKey presente:`, !!msg.documentMessage.mediaKey);
+      console.log(`?? [FROM ME] directPath presente:`, !!msg.documentMessage.directPath);
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
-      // 🔼 Upload para Storage em vez de base64 para economizar egress
+      // ?? Upload para Storage em vez de base64 para economizar egress
       mediaUrl = await uploadMediaOrFallback(buffer, mediaMimeType, session.userId);
-      messageText = `📄 ${msg.documentMessage.fileName || "Documento"}`;
-      console.log(`✅ [FROM ME] Documento do dono processado: ${buffer.length} bytes`);
+      messageText = `?? ${msg.documentMessage.fileName || "Documento"}`;
+      console.log(`? [FROM ME] Documento do dono processado: ${buffer.length} bytes`);
     } catch (error: any) {
-      console.error("❌ [FROM ME] Erro ao baixar documento:", error?.message || error);
+      console.error("? [FROM ME] Erro ao baixar documento:", error?.message || error);
       mediaUrl = null;
     }
   } else if (msg?.documentMessage) {
-    messageText = `📄 ${msg.documentMessage.fileName || "Documento"}`;
+    messageText = `?? ${msg.documentMessage.fileName || "Documento"}`;
     mediaType = "document";
     mediaMimeType = msg.documentMessage.mimetype || "application/octet-stream";
     
-    // 🔑 Extrair metadados para re-download posterior
+    // ?? Extrair metadados para re-download posterior
     if (msg.documentMessage.mediaKey) {
       mediaKey = Buffer.from(msg.documentMessage.mediaKey).toString("base64");
     }
     directPath = msg.documentMessage.directPath || null;
     mediaUrlOriginal = msg.documentMessage.url || null;
     
-    // 📄 DOCUMENTO DO DONO: Baixar e fazer upload para Storage (economiza egress!)
+    // ?? DOCUMENTO DO DONO: Baixar e fazer upload para Storage (economiza egress!)
     try {
-      console.log(`📄 [FROM ME] Baixando documento do dono: ${msg.documentMessage.fileName}...`);
-      console.log(`📄 [FROM ME] mediaKey presente:`, !!msg.documentMessage.mediaKey);
-      console.log(`📄 [FROM ME] directPath presente:`, !!msg.documentMessage.directPath);
+      console.log(`?? [FROM ME] Baixando documento do dono: ${msg.documentMessage.fileName}...`);
+      console.log(`?? [FROM ME] mediaKey presente:`, !!msg.documentMessage.mediaKey);
+      console.log(`?? [FROM ME] directPath presente:`, !!msg.documentMessage.directPath);
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
-      // 🔼 Upload para Storage em vez de base64 para economizar egress
+      // ?? Upload para Storage em vez de base64 para economizar egress
       mediaUrl = await uploadMediaOrFallback(buffer, mediaMimeType, session.userId);
-      console.log(`✅ [FROM ME] Documento do dono processado: ${buffer.length} bytes`);
+      console.log(`? [FROM ME] Documento do dono processado: ${buffer.length} bytes`);
     } catch (error: any) {
-      console.error("❌ [FROM ME] Erro ao baixar documento:", error?.message || error);
+      console.error("? [FROM ME] Erro ao baixar documento:", error?.message || error);
       mediaUrl = null;
     }
   } else {
-    console.log(`📭 [FROM ME] Unsupported message type, skipping`);
+    console.log(`?? [FROM ME] Unsupported message type, skipping`);
     return;
   }
 
-  // Buscar/criar conversa - FIX: usar getActiveConversation para não pegar conversa fechada
+  // Buscar/criar conversa - FIX: usar getActiveConversation para n�o pegar conversa fechada
   let conversation = await storage.getActiveConversationByContactNumber(
     session.connectionId,
     contactNumber
   );
 
-  // Fallback: se não tem conversa ativa, tentar a antiga (para outgoing em conversa fechada)
+  // Fallback: se n�o tem conversa ativa, tentar a antiga (para outgoing em conversa fechada)
   if (!conversation) {
     conversation = await storage.getConversationByContactNumber(
       session.connectionId,
@@ -4831,11 +5094,11 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
     });
   }
 
-  // ?? VERIFICA��O DE DUPLICATA: Antes de salvar, verificar se a mensagem j� existe no banco
+  // ?? VERIFICA??O DE DUPLICATA: Antes de salvar, verificar se a mensagem j? existe no banco
   // Isso resolve race conditions onde o agente pode salvar antes ou depois deste handler
   let existingMessage = waMessage.key.id ? await storage.getMessageByMessageId(waMessage.key.id) : null;
   
-  // ?? RACE CONDITION FIX: Se n�o existe, esperar 500ms e verificar novamente
+  // ?? RACE CONDITION FIX: Se n?o existe, esperar 500ms e verificar novamente
   // O agente pode estar salvando a mensagem neste exato momento
   if (!existingMessage) {
     await new Promise(resolve => setTimeout(resolve, 500));
@@ -4843,15 +5106,15 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
   }
   
   if (existingMessage) {
-    console.log(`?? [FROM ME] Mensagem j� existe no banco (messageId: ${waMessage.key.id}), ignorando duplicata`);
+    console.log(`?? [FROM ME] Mensagem j? existe no banco (messageId: ${waMessage.key.id}), ignorando duplicata`);
     
-    // Se a mensagem existente � do agente, N�O pausar a IA e sair
+    // Se a mensagem existente ? do agente, N?O pausar a IA e sair
     if (existingMessage.isFromAgent) {
-      console.log(`? [FROM ME] Mensagem � do agente - N�O pausar IA`);
+      console.log(`? [FROM ME] Mensagem ? do agente - N?O pausar IA`);
       return;
     }
     
-    // Se n�o � do agente mas j� existe, apenas atualizar conversa e sair (evita duplicata)
+    // Se n?o ? do agente mas j? existe, apenas atualizar conversa e sair (evita duplicata)
     await storage.updateConversation(conversation.id, {
       lastMessageText: messageText,
       lastMessageTime: new Date(),
@@ -4872,22 +5135,22 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
       timestamp: new Date(Number(waMessage.messageTimestamp) * 1000),
       isFromAgent: false,
       mediaType,
-      mediaUrl,        // 🎵 Incluir URL do áudio para transcrição automática
-      mediaMimeType,   // 🎵 Tipo MIME do áudio
-      // 🔑 Metadados para re-download de mídia do WhatsApp (igual handleIncomingMessage)
+      mediaUrl,        // ?? Incluir URL do �udio para transcri��o autom�tica
+      mediaMimeType,   // ?? Tipo MIME do �udio
+      // ?? Metadados para re-download de m�dia do WhatsApp (igual handleIncomingMessage)
       mediaKey,
       directPath,
       mediaUrlOriginal,
     });
   } catch (createError: any) {
-    // Se erro for de duplicata (constraint unique), verificar se � do agente
+    // Se erro for de duplicata (constraint unique), verificar se ? do agente
     if (createError?.message?.includes('unique') || createError?.code === '23505') {
-      console.log(`?? [FROM ME] Erro de duplicata ao salvar - mensagem j� existe (messageId: ${waMessage.key.id})`);
+      console.log(`?? [FROM ME] Erro de duplicata ao salvar - mensagem j? existe (messageId: ${waMessage.key.id})`);
       
-      // Re-verificar se � do agente
+      // Re-verificar se ? do agente
       const recheck = waMessage.key.id ? await storage.getMessageByMessageId(waMessage.key.id) : null;
       if (recheck?.isFromAgent) {
-        console.log(`? [FROM ME] Confirmado: mensagem � do agente - N�O pausar IA`);
+        console.log(`? [FROM ME] Confirmado: mensagem ? do agente - N?O pausar IA`);
         return;
       }
     } else {
@@ -4900,9 +5163,9 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
   await storage.updateConversation(conversation.id, {
     lastMessageText: messageText,
     lastMessageTime: new Date(),
-    lastMessageFromMe: true, // Mensagem enviada pelo usuário
+    lastMessageFromMe: true, // Mensagem enviada pelo usu�rio
     hasReplied: true, // Marca como respondida
-    unreadCount: 0, // Mensagens do dono não geram unread
+    unreadCount: 0, // Mensagens do dono n�o geram unread
   });
 
   // ?? FOLLOW-UP: Se admin enviou mensagem, agendar follow-up inicial
@@ -4914,20 +5177,20 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
 
   // -----------------------------------------------------------------------
   // ?? AUTO-PAUSE IA: Quando o dono responde manualmente, PAUSA a IA
-  // A IA s� volta a responder quando o usu�rio reativar em /conversas
-  // CONFIGUR�VEL: S� pausa se pauseOnManualReply estiver ativado (padr�o: true)
-  // NOVO: Suporta auto-reativa��o ap�s timer configur�vel
+  // A IA s? volta a responder quando o usu?rio reativar em /conversas
+  // CONFIGUR?VEL: S? pausa se pauseOnManualReply estiver ativado (padr?o: true)
+  // NOVO: Suporta auto-reativa??o ap?s timer configur?vel
   // -----------------------------------------------------------------------
   try {
-    // Verificar configura��o do agente para pauseOnManualReply
+    // Verificar configura??o do agente para pauseOnManualReply
     const agentConfig = await storage.getAgentConfig(session.userId);
-    const shouldPauseOnManualReply = agentConfig?.pauseOnManualReply !== false; // Padr�o: true
+    const shouldPauseOnManualReply = agentConfig?.pauseOnManualReply !== false; // Padr?o: true
     const autoReactivateMinutes = (agentConfig as any)?.autoReactivateMinutes ?? null; // NULL = nunca
     
     if (shouldPauseOnManualReply) {
       const isAlreadyDisabled = await storage.isAgentDisabledForConversation(conversation.id);
       if (!isAlreadyDisabled) {
-        // Pausar com timer de auto-reativa��o (se configurado)
+        // Pausar com timer de auto-reativa??o (se configurado)
         await storage.disableAgentForConversation(conversation.id, autoReactivateMinutes);
         console.log(`?? [AUTO-PAUSE] IA pausada automaticamente para conversa ${conversation.id} - dono respondeu manualmente` + 
           (autoReactivateMinutes ? ` (reativa em ${autoReactivateMinutes}min)` : ' (manual only)'));
@@ -4948,14 +5211,14 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
           autoReactivateMinutes,
         });
       } else {
-        // J� estava pausada, apenas atualizar timestamp do dono (reset timer)
+        // J? estava pausada, apenas atualizar timestamp do dono (reset timer)
         await storage.updateDisabledConversationOwnerReply(conversation.id);
         console.log(`?? [AUTO-PAUSE] Timer resetado para conversa ${conversation.id} - dono respondeu novamente`);
       }
     } else {
-      console.log(`? [AUTO-PAUSE DESATIVADO] Dono respondeu manualmente mas pauseOnManualReply est� desativado - IA continua ativa`);
+      console.log(`? [AUTO-PAUSE DESATIVADO] Dono respondeu manualmente mas pauseOnManualReply est? desativado - IA continua ativa`);
       
-      // Ainda cancelar resposta pendente para evitar duplica��o
+      // Ainda cancelar resposta pendente para evitar duplica??o
       const pendingResponse = pendingResponses.get(conversation.id);
       if (pendingResponse) {
         clearTimeout(pendingResponse.timeout);
@@ -4973,7 +5236,7 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
     conversationId: conversation.id,
     message: messageText,
     mediaType,
-    // ⚡ REAL-TIME: Enviar mensagem completa para append inline
+    // ? REAL-TIME: Enviar mensagem completa para append inline
     messageData: savedOutgoingMsg ? {
       id: savedOutgoingMsg.id,
       conversationId: conversation.id,
@@ -5022,10 +5285,10 @@ async function handleIncomingMessage(
   const allowAutoReplyRequested = opts?.allowAutoReply ?? (source === "notify");
   const eventTs = opts?.eventTs ?? getWAMessageTimestamp(waMessage);
 
-  // ┌───────────────────────────────────────────────────────────────────────┐
-  // │  🛡️ ANTI-REENVIO: VERIFICAÇÃO DE DEDUPLICAÇÃO DE MENSAGENS          │
-  // │  Protege contra reprocessamento após instabilidade/restart           │
-  // └───────────────────────────────────────────────────────────────────────┘
+  // +-----------------------------------------------------------------------+
+  // �  ??? ANTI-REENVIO: VERIFICA��O DE DEDUPLICA��O DE MENSAGENS          �
+  // �  Protege contra reprocessamento ap�s instabilidade/restart           �
+  // +-----------------------------------------------------------------------+
   const whatsappMessageId = waMessage.key.id;
   const incomingDedupeParams = whatsappMessageId
     ? {
@@ -5057,13 +5320,13 @@ async function handleIncomingMessage(
   }
 
   // Filtrar grupos e status - aceitar apenas conversas individuais
-  // @g.us = grupos, @broadcast = status/listas de transmiss�o
+  // @g.us = grupos, @broadcast = status/listas de transmiss?o
   if (remoteJid.includes("@g.us") || remoteJid.includes("@broadcast")) {
     console.log(`Ignoring group/status message from: ${remoteJid}`);
     return;
   }
 
-  // Aceitar apenas mensagens de n�meros individuais (@s.whatsapp.net ou @lid)
+  // Aceitar apenas mensagens de n?meros individuais (@s.whatsapp.net ou @lid)
   const isIndividualJid =
     remoteJid.includes("@s.whatsapp.net") || remoteJid.includes("@lid");
 
@@ -5073,30 +5336,30 @@ async function handleIncomingMessage(
   }
 
   // +-----------------------------------------------------------------------+
-  // �  ?? ATEN��O: C�DIGO CR�TICO - N�O ALTERAR SEM APROVA��O! ??          �
-  // �-----------------------------------------------------------------------�
-  // �  FIX LID 2025 - RESOLU��O DE CONTATOS INSTAGRAM/FACEBOOK             �
-  // �                                                                       �
-  // �  PROBLEMA RESOLVIDO:                                                  �
-  // �  � Contatos do Instagram/Facebook v�m com @lid ao inv�s de n�mero    �
-  // �  � Exemplo: "254635809968349@lid" (ID interno do Meta)               �
-  // �                                                                       �
-  // �  SOLU��O IMPLEMENTADA (TESTADA E FUNCIONANDO):                        �
-  // �  � message.key.remoteJidAlt cont�m o n�mero REAL do WhatsApp         �
-  // �  � Exemplo: "5517991956944@s.whatsapp.net"                           �
-  // �                                                                       �
-  // �  FLUXO CORRETO (MANTER SEMPRE ASSIM):                                 �
-  // �  1. Extrair n�mero real de remoteJidAlt                              �
-  // �  2. Usar n�mero real em contactNumber (exibi��o no CRM)              �
-  // �  3. Usar n�mero real em normalizedJid (envio de mensagens)           �
-  // �  4. Salvar mapeamento LID ? n�mero no whatsapp_contacts              �
-  // �                                                                       �
-  // �  ??  NUNCA MAIS USAR remoteJid DIRETAMENTE PARA @lid!                �
-  // �  ??  SEMPRE USAR remoteJidAlt COMO FONTE DA VERDADE!                 �
-  // �                                                                       �
-  // �  Data: 2025-11-22                                                     �
-  // �  Testado: ? Produ��o Railway                                         �
-  // �  Status: ? 100% FUNCIONAL                                            �
+  // ?  ?? ATEN??O: C?DIGO CR?TICO - N?O ALTERAR SEM APROVA??O! ??          ?
+  // ?-----------------------------------------------------------------------?
+  // ?  FIX LID 2025 - RESOLU??O DE CONTATOS INSTAGRAM/FACEBOOK             ?
+  // ?                                                                       ?
+  // ?  PROBLEMA RESOLVIDO:                                                  ?
+  // ?  ? Contatos do Instagram/Facebook v?m com @lid ao inv?s de n?mero    ?
+  // ?  ? Exemplo: "254635809968349@lid" (ID interno do Meta)               ?
+  // ?                                                                       ?
+  // ?  SOLU??O IMPLEMENTADA (TESTADA E FUNCIONANDO):                        ?
+  // ?  ? message.key.remoteJidAlt cont?m o n?mero REAL do WhatsApp         ?
+  // ?  ? Exemplo: "5517991956944@s.whatsapp.net"                           ?
+  // ?                                                                       ?
+  // ?  FLUXO CORRETO (MANTER SEMPRE ASSIM):                                 ?
+  // ?  1. Extrair n?mero real de remoteJidAlt                              ?
+  // ?  2. Usar n?mero real em contactNumber (exibi??o no CRM)              ?
+  // ?  3. Usar n?mero real em normalizedJid (envio de mensagens)           ?
+  // ?  4. Salvar mapeamento LID ? n?mero no whatsapp_contacts              ?
+  // ?                                                                       ?
+  // ?  ??  NUNCA MAIS USAR remoteJid DIRETAMENTE PARA @lid!                ?
+  // ?  ??  SEMPRE USAR remoteJidAlt COMO FONTE DA VERDADE!                 ?
+  // ?                                                                       ?
+  // ?  Data: 2025-11-22                                                     ?
+  // ?  Testado: ? Produ??o Railway                                         ?
+  // ?  Status: ? 100% FUNCIONAL                                            ?
   // +-----------------------------------------------------------------------+
   
   console.log(`\n?? [MESSAGE KEY DEBUG]`);
@@ -5110,33 +5373,33 @@ async function handleIncomingMessage(
   let normalizedJid: string;
   
   // -----------------------------------------------------------------------
-  // ?? SOLU��O DEFINITIVA: Usar remoteJidAlt (n�mero real para @lid)
+  // ?? SOLU??O DEFINITIVA: Usar remoteJidAlt (n?mero real para @lid)
   // -----------------------------------------------------------------------
   if (remoteJid.includes("@lid") && (waMessage.key as any).remoteJidAlt) {
     const realJid = (waMessage.key as any).remoteJidAlt;
     const realNumber = cleanContactNumber(realJid);
     
-    console.log(`\n? [LID RESOLVIDO] N�mero real encontrado via remoteJidAlt!`);
+    console.log(`\n? [LID RESOLVIDO] N?mero real encontrado via remoteJidAlt!`);
     console.log(`   LID: ${remoteJid}`);
     console.log(`   JID WhatsApp REAL: ${realJid}`);
-    console.log(`   N�mero limpo: ${realNumber}`);
+    console.log(`   N?mero limpo: ${realNumber}`);
     console.log(`   Nome: ${waMessage.pushName || "N/A"}\n`);
     
-    // ??  CR�TICO: Usar n�mero REAL em todos os lugares, NUNCA o LID!
-    contactNumber = realNumber;              // ? Para exibi��o (5517991956944)
+    // ??  CR?TICO: Usar n?mero REAL em todos os lugares, NUNCA o LID!
+    contactNumber = realNumber;              // ? Para exibi??o (5517991956944)
     jidSuffix = "s.whatsapp.net";           // ? Suffix WhatsApp normal
     normalizedJid = realJid;                // ? Para enviar mensagens
     
-    // ?? SALVAR NO CACHE EM MEM�RIA: Mapeamento LID ? n�mero
-    // N�O salva mais no banco para economizar Egress/Disk IO
-    // O cache de sess�o � suficiente para resolver @lid durante a sess�o
+    // ?? SALVAR NO CACHE EM MEM?RIA: Mapeamento LID ? n?mero
+    // N?O salva mais no banco para economizar Egress/Disk IO
+    // O cache de sess?o ? suficiente para resolver @lid durante a sess?o
     session.contactsCache.set(remoteJid, {
       id: remoteJid,
       lid: remoteJid,
       phoneNumber: realJid,
       name: waMessage.pushName || undefined,
     });
-    console.log(`?? [CACHE] Mapeamento LID ? phoneNumber salvo em mem�ria: ${remoteJid} ? ${realJid}`);
+    console.log(`?? [CACHE] Mapeamento LID ? phoneNumber salvo em mem?ria: ${remoteJid} ? ${realJid}`);
   } else {
     // Fallback: Contatos normais do WhatsApp (@s.whatsapp.net)
     const parsed = await parseRemoteJid(remoteJid, session.contactsCache, session.connectionId);
@@ -5156,7 +5419,7 @@ async function handleIncomingMessage(
   console.log(`[WhatsApp] Normalized JID: ${normalizedJid}`);
   console.log(`[WhatsApp] Clean number: ${contactNumber}`);
   
-  // Ignorar mensagens do pr�prio n�mero conectado
+  // Ignorar mensagens do pr?prio n?mero conectado
   if (session.phoneNumber && contactNumber === session.phoneNumber) {
     console.log(`Ignoring message from own number: ${contactNumber}`);
     return;
@@ -5172,8 +5435,8 @@ async function handleIncomingMessage(
   let mediaDuration: number | null = null;
   let mediaCaption: string | null = null;
   
-  // ?? METADADOS PARA RE-DOWNLOAD DE M�DIA
-  // Esses campos permitem baixar a m�dia novamente do WhatsApp enquanto ainda estiver dispon�vel
+  // ?? METADADOS PARA RE-DOWNLOAD DE M?DIA
+  // Esses campos permitem baixar a m?dia novamente do WhatsApp enquanto ainda estiver dispon?vel
   let mediaKey: string | null = null;      // Chave de descriptografia (base64)
   let directPath: string | null = null;    // Caminho no servidor WhatsApp
   let mediaUrlOriginal: string | null = null; // URL original do WhatsApp
@@ -5196,9 +5459,9 @@ async function handleIncomingMessage(
     mediaType = "image";
     mediaMimeType = msg.imageMessage.mimetype || "image/jpeg";
     mediaCaption = msg.imageMessage.caption || null;
-    messageText = mediaCaption || "📷 Imagem";
+    messageText = mediaCaption || "?? Imagem";
     
-    // 🔑 Extrair metadados para re-download posterior
+    // ?? Extrair metadados para re-download posterior
     if (msg.imageMessage.mediaKey) {
       mediaKey = Buffer.from(msg.imageMessage.mediaKey).toString("base64");
     }
@@ -5206,16 +5469,16 @@ async function handleIncomingMessage(
     mediaUrlOriginal = msg.imageMessage.url || null;
     
     try {
-      console.log(`📷 [CLIENT] Baixando imagem...`);
+      console.log(`?? [CLIENT] Baixando imagem...`);
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
-      console.log(`📷 [CLIENT] Imagem baixada: ${buffer.length} bytes`);
+      console.log(`?? [CLIENT] Imagem baixada: ${buffer.length} bytes`);
       // Upload para Supabase Storage (SEM fallback base64 para evitar egress!)
       mediaUrl = await uploadMediaSimple(buffer, mediaMimeType, "imagem");
       if (!mediaUrl) {
-        console.warn(`⚠️ [CLIENT] Falha no upload de imagem, não será salva`);
+        console.warn(`?? [CLIENT] Falha no upload de imagem, n�o ser� salva`);
       }
     } catch (error) {
-      console.error("❌ [CLIENT] Erro ao baixar imagem:", error);
+      console.error("? [CLIENT] Erro ao baixar imagem:", error);
       mediaUrl = null;
     }
   }
@@ -5224,9 +5487,9 @@ async function handleIncomingMessage(
     mediaType = "audio";
     mediaMimeType = msg.audioMessage.mimetype || "audio/ogg; codecs=opus";
     mediaDuration = msg.audioMessage.seconds || null;
-    messageText = "🎵 Áudio";
+    messageText = "?? �udio";
     
-    // 🔑 Extrair metadados para re-download posterior
+    // ?? Extrair metadados para re-download posterior
     if (msg.audioMessage.mediaKey) {
       mediaKey = Buffer.from(msg.audioMessage.mediaKey).toString("base64");
     }
@@ -5234,16 +5497,16 @@ async function handleIncomingMessage(
     mediaUrlOriginal = msg.audioMessage.url || null;
     
     try {
-      console.log(`🎙️ [CLIENT] Baixando áudio...`);
+      console.log(`??? [CLIENT] Baixando �udio...`);
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
-      console.log(`🎙️ [CLIENT] Áudio baixado: ${buffer.length} bytes`);
+      console.log(`??? [CLIENT] �udio baixado: ${buffer.length} bytes`);
       // Upload para Supabase Storage (SEM fallback base64 para evitar egress!)
       mediaUrl = await uploadMediaSimple(buffer, mediaMimeType, "audio");
       if (!mediaUrl) {
-        console.warn(`⚠️ [CLIENT] Falha no upload de áudio, não será salvo`);
+        console.warn(`?? [CLIENT] Falha no upload de �udio, n�o ser� salvo`);
       }
     } catch (error) {
-      console.error("❌ [CLIENT] Erro ao baixar áudio:", error);
+      console.error("? [CLIENT] Erro ao baixar �udio:", error);
       mediaUrl = null;
     }
   }
@@ -5253,9 +5516,9 @@ async function handleIncomingMessage(
     mediaMimeType = msg.videoMessage.mimetype || "video/mp4";
     mediaCaption = msg.videoMessage.caption || null;
     mediaDuration = msg.videoMessage.seconds || null;
-    messageText = mediaCaption || "🎥 Vídeo";
+    messageText = mediaCaption || "?? V�deo";
     
-    // 🔑 Extrair metadados para re-download posterior
+    // ?? Extrair metadados para re-download posterior
     if (msg.videoMessage.mediaKey) {
       mediaKey = Buffer.from(msg.videoMessage.mediaKey).toString("base64");
     }
@@ -5263,13 +5526,13 @@ async function handleIncomingMessage(
     mediaUrlOriginal = msg.videoMessage.url || null;
     
     try {
-      console.log(`?? [CLIENT] Baixando v�deo...`);
+      console.log(`?? [CLIENT] Baixando v?deo...`);
       const buffer = await downloadMediaMessage(waMessage, "buffer", {});
-      console.log(`?? [CLIENT] V�deo baixado: ${buffer.length} bytes`);
-      // Upload para Supabase Storage (v�deos s�o sempre grandes)
+      console.log(`?? [CLIENT] V?deo baixado: ${buffer.length} bytes`);
+      // Upload para Supabase Storage (v?deos s?o sempre grandes)
       mediaUrl = await uploadMediaSimple(buffer, mediaMimeType, "video");
     } catch (error) {
-      console.error("? [CLIENT] Erro ao baixar v�deo:", error);
+      console.error("? [CLIENT] Erro ao baixar v?deo:", error);
       mediaUrl = null;
     }
   }
@@ -5283,16 +5546,16 @@ async function handleIncomingMessage(
     mediaMimeType = docMsg.mimetype || "application/octet-stream";
     mediaCaption = docMsg.caption || null;
     const fileName = docMsg.fileName || "Documento";
-    messageText = mediaCaption || `📄 ${fileName}`;
+    messageText = mediaCaption || `?? ${fileName}`;
     
-    // 🔑 Extrair metadados para re-download posterior
+    // ?? Extrair metadados para re-download posterior
     if (docMsg.mediaKey) {
       mediaKey = Buffer.from(docMsg.mediaKey).toString("base64");
     }
     directPath = docMsg.directPath || null;
     mediaUrlOriginal = docMsg.url || null;
     
-    // 📄 DOCUMENTO DO CLIENTE (COM CAPTION): Baixar e upload para Supabase Storage
+    // ?? DOCUMENTO DO CLIENTE (COM CAPTION): Baixar e upload para Supabase Storage
     try {
       console.log(`?? [CLIENT] Baixando documento (com caption): ${fileName}...`);
       console.log(`?? [CLIENT] mediaKey presente:`, !!docMsg.mediaKey);
@@ -5315,16 +5578,16 @@ async function handleIncomingMessage(
     mediaMimeType = msg.documentMessage.mimetype || "application/octet-stream";
     mediaCaption = msg.documentMessage.caption || null;
     const fileName = msg.documentMessage.fileName || "Documento";
-    messageText = mediaCaption || `📄 ${fileName}`;
+    messageText = mediaCaption || `?? ${fileName}`;
     
-    // 🔑 Extrair metadados para re-download posterior
+    // ?? Extrair metadados para re-download posterior
     if (msg.documentMessage.mediaKey) {
       mediaKey = Buffer.from(msg.documentMessage.mediaKey).toString("base64");
     }
     directPath = msg.documentMessage.directPath || null;
     mediaUrlOriginal = msg.documentMessage.url || null;
     
-    // 📄 DOCUMENTO DO CLIENTE: Baixar e upload para Supabase Storage
+    // ?? DOCUMENTO DO CLIENTE: Baixar e upload para Supabase Storage
     try {
       console.log(`?? [CLIENT] Baixando documento: ${fileName}...`);
       console.log(`?? [CLIENT] mediaKey presente:`, !!msg.documentMessage.mediaKey);
@@ -5339,7 +5602,7 @@ async function handleIncomingMessage(
       mediaUrl = null;
     }
   }
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ---------------------------------------------------------------------------
   // -----------------------------------------------------------------------
   // Contato compartilhado (vCard)
   // -----------------------------------------------------------------------
@@ -5360,70 +5623,70 @@ async function handleIncomingMessage(
     messageKind = "protocol";
   }
 
-  // 🔘 RESPOSTA DE BOTÃO INTERATIVO (interactiveResponseMessage)
-  // Quando usuário clica em botão nativo (nativeFlowMessage quick_reply)
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ?? RESPOSTA DE BOT�O INTERATIVO (interactiveResponseMessage)
+  // Quando usu�rio clica em bot�o nativo (nativeFlowMessage quick_reply)
+  // ---------------------------------------------------------------------------
   else if (msg?.interactiveResponseMessage) {
     try {
       const interactiveResponse = msg.interactiveResponseMessage;
       const nativeFlowResponse = interactiveResponse?.nativeFlowResponseMessage;
       
       if (nativeFlowResponse?.paramsJson) {
-        // Extrair ID e texto do botão clicado
+        // Extrair ID e texto do bot�o clicado
         const params = JSON.parse(nativeFlowResponse.paramsJson);
-        messageText = params.id || params.display_text || 'Opção selecionada';
-        console.log(`🔘 [INTERACTIVE] Resposta de botão nativo recebida: "${messageText}"`);
-        console.log(`   📋 Params: ${JSON.stringify(params)}`);
+        messageText = params.id || params.display_text || 'Op��o selecionada';
+        console.log(`?? [INTERACTIVE] Resposta de bot�o nativo recebida: "${messageText}"`);
+        console.log(`   ?? Params: ${JSON.stringify(params)}`);
       } else if (interactiveResponse?.body?.text) {
         // Fallback: usar texto do body
         messageText = interactiveResponse.body.text;
-        console.log(`🔘 [INTERACTIVE] Resposta interativa (body): "${messageText}"`);
+        console.log(`?? [INTERACTIVE] Resposta interativa (body): "${messageText}"`);
       } else {
-        messageText = 'Opção selecionada';
-        console.log(`🔘 [INTERACTIVE] Resposta interativa sem texto, usando fallback`);
+        messageText = 'Op��o selecionada';
+        console.log(`?? [INTERACTIVE] Resposta interativa sem texto, usando fallback`);
       }
     } catch (parseError) {
-      console.error(`⚠️ [INTERACTIVE] Erro ao parsear resposta:`, parseError);
-      messageText = 'Opção selecionada';
+      console.error(`?? [INTERACTIVE] Erro ao parsear resposta:`, parseError);
+      messageText = 'Op��o selecionada';
     }
   }
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 📋 RESPOSTA DE LISTA INTERATIVA (listResponseMessage)  
-  // Quando usuário seleciona item de lista nativa (single_select)
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ---------------------------------------------------------------------------
+  // ?? RESPOSTA DE LISTA INTERATIVA (listResponseMessage)  
+  // Quando usu�rio seleciona item de lista nativa (single_select)
+  // ---------------------------------------------------------------------------
   else if (msg?.listResponseMessage) {
     try {
       const listResponse = msg.listResponseMessage;
       const selectedRowId = listResponse?.singleSelectReply?.selectedRowId;
       const title = listResponse?.title;
       
-      // Usar o ID do item selecionado (que foi definido no nó)
-      messageText = selectedRowId || title || 'Opção selecionada';
-      console.log(`📋 [LIST-RESPONSE] Item de lista selecionado: "${messageText}"`);
-      console.log(`   🆔 Row ID: ${selectedRowId || 'N/A'}`);
-      console.log(`   📝 Title: ${title || 'N/A'}`);
+      // Usar o ID do item selecionado (que foi definido no n�)
+      messageText = selectedRowId || title || 'Op��o selecionada';
+      console.log(`?? [LIST-RESPONSE] Item de lista selecionado: "${messageText}"`);
+      console.log(`   ?? Row ID: ${selectedRowId || 'N/A'}`);
+      console.log(`   ?? Title: ${title || 'N/A'}`);
     } catch (parseError) {
-      console.error(`⚠️ [LIST-RESPONSE] Erro ao parsear resposta:`, parseError);
-      messageText = 'Opção selecionada';
+      console.error(`?? [LIST-RESPONSE] Erro ao parsear resposta:`, parseError);
+      messageText = 'Op��o selecionada';
     }
   }
-  // ═══════════════════════════════════════════════════════════════════════════
-  // 🔘 RESPOSTA DE BOTÃO ANTIGO (buttonsResponseMessage)
-  // Compatibilidade com formato antigo de botões
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ---------------------------------------------------------------------------
+  // ?? RESPOSTA DE BOT�O ANTIGO (buttonsResponseMessage)
+  // Compatibilidade com formato antigo de bot�es
+  // ---------------------------------------------------------------------------
   else if (msg?.buttonsResponseMessage) {
     try {
       const buttonsResponse = msg.buttonsResponseMessage;
       messageText = buttonsResponse?.selectedButtonId || 
                     buttonsResponse?.selectedDisplayText || 
-                    'Opção selecionada';
-      console.log(`🔘 [BUTTONS-RESPONSE] Botão antigo selecionado: "${messageText}"`);
+                    'Op��o selecionada';
+      console.log(`?? [BUTTONS-RESPONSE] Bot�o antigo selecionado: "${messageText}"`);
     } catch (parseError) {
-      console.error(`⚠️ [BUTTONS-RESPONSE] Erro ao parsear resposta:`, parseError);
-      messageText = 'Opção selecionada';
+      console.error(`?? [BUTTONS-RESPONSE] Erro ao parsear resposta:`, parseError);
+      messageText = 'Op��o selecionada';
     }
   }
-    // Ignorar mensagens de tipos não suportados (reações, status, etc)
+    // Ignorar mensagens de tipos n�o suportados (rea��es, status, etc)
   else {
     const msgTypes = Object.keys(msg || {});
     console.log(`Ignoring unsupported message type from ${contactNumber}:`, msgTypes);
@@ -5443,12 +5706,12 @@ async function handleIncomingMessage(
       }
     }
   } catch (error) {
-    // Contato sem foto de perfil (normal, n�o � erro)
+    // Contato sem foto de perfil (normal, n?o ? erro)
     console.log(`?? [AVATAR] Sem foto de perfil para ${contactNumber}`);
   }
 
   // FIX Encerramento: buscar apenas conversa ATIVA (nao fechada) - se fechada, cria nova
-  // FIX 2026-02-21: Usa mutex para prevenir race condition de criação duplicada
+  // FIX 2026-02-21: Usa mutex para prevenir race condition de cria��o duplicada
   const conversationResult = await getOrCreateConversationSafe(
     session.connectionId,
     contactNumber,
@@ -5507,38 +5770,38 @@ async function handleIncomingMessage(
     };
   }
 
-  // ═══════════════════════════════════════════════════════════════════════════
+  // ---------------------------------------------------------------------------
   // FIX 2026: PRESENCE + SUBSCRIBE PARA NOVOS CONTATOS
-  // ═══════════════════════════════════════════════════════════════════════════
-  // Para contatos novos (primeira mensagem), estabelecer a sessão Signal
+  // ---------------------------------------------------------------------------
+  // Para contatos novos (primeira mensagem), estabelecer a sess�o Signal
   // Protocol enviando presence e fazendo presenceSubscribe.
-  // Isso é CRÍTICO para que o retry de mensagens "Aguardando" funcione.
-  // ═══════════════════════════════════════════════════════════════════════════
+  // Isso � CR�TICO para que o retry de mensagens "Aguardando" funcione.
+  // ---------------------------------------------------------------------------
   if (wasNewConversation) {
     try {
       await session.socket.sendPresenceUpdate('available', normalizedJid);
       await session.socket.presenceSubscribe(normalizedJid);
-      console.log(`📱 [NEW-CONTACT-FIX] Presence + Subscribe enviados para novo contato ${contactNumber} (${normalizedJid})`);
+      console.log(`?? [NEW-CONTACT-FIX] Presence + Subscribe enviados para novo contato ${contactNumber} (${normalizedJid})`);
     } catch (presErr) {
-      console.log(`⚠️ [NEW-CONTACT-FIX] Erro ao enviar presence para novo contato:`, presErr);
+      console.log(`?? [NEW-CONTACT-FIX] Erro ao enviar presence para novo contato:`, presErr);
     }
   }
 
-  // ✅ FOLLOW-UP USUÁRIOS: Resetar ciclo quando cliente responde
-  // O sistema de follow-up para usuários usa a tabela "conversations" (não admin_conversations)
+  // ? FOLLOW-UP USU�RIOS: Resetar ciclo quando cliente responde
+  // O sistema de follow-up para usu�rios usa a tabela "conversations" (n�o admin_conversations)
   try {
     await userFollowUpService.resetFollowUpCycle(conversation.id, "Cliente respondeu");
   } catch (error) {
-    console.error("Erro ao resetar follow-up do usu�rio:", error);
+    console.error("Erro ao resetar follow-up do usu?rio:", error);
   }
 
     const inboundMessageId =
       waMessage.key.id || `wa_${eventTs.getTime()}_${Math.random().toString(16).slice(2, 10)}`;
 
-    // ═══════════════════════════════════════════════════════════════════
-    // FIX CTWA-RESOLVED: Quando PDO descriptografa, a mensagem já existe
+    // -------------------------------------------------------------------
+    // FIX CTWA-RESOLVED: Quando PDO descriptografa, a mensagem j� existe
     // como stub no banco. Atualizar em vez de criar duplicata.
-    // ═══════════════════════════════════════════════════════════════════
+    // -------------------------------------------------------------------
     const isCTWAResolved = opts?.isCTWAResolved ?? false;
     let savedMessage: any;
     let ctwaUpdatedExisting = false;
@@ -5547,7 +5810,7 @@ async function handleIncomingMessage(
       try {
         const existingStub = await storage.getMessageByMessageId(waMessage.key.id);
         if (existingStub) {
-          // Atualizar mensagem existente (stub → texto real)
+          // Atualizar mensagem existente (stub ? texto real)
           await storage.updateMessage(existingStub.id, {
             text: messageText,
             mediaType: mediaType || undefined,
@@ -5556,10 +5819,10 @@ async function handleIncomingMessage(
           });
           savedMessage = { ...existingStub, text: messageText };
           ctwaUpdatedExisting = true;
-          console.log(`✅ [CTWA-RESOLVED-PIPELINE] Stub atualizado → "${messageText.substring(0, 80)}" (msg=${existingStub.id})`);
+          console.log(`? [CTWA-RESOLVED-PIPELINE] Stub atualizado ? "${messageText.substring(0, 80)}" (msg=${existingStub.id})`);
         }
       } catch (lookupErr) {
-        console.error(`⚠️ [CTWA-RESOLVED-PIPELINE] Erro ao buscar stub:`, lookupErr);
+        console.error(`?? [CTWA-RESOLVED-PIPELINE] Erro ao buscar stub:`, lookupErr);
       }
     }
 
@@ -5577,7 +5840,7 @@ async function handleIncomingMessage(
           mediaMimeType,
           mediaDuration,
           mediaCaption,
-          // 🔑 Metadados para re-download de mídia do WhatsApp
+          // ?? Metadados para re-download de m�dia do WhatsApp
           mediaKey,
           directPath,
           mediaUrlOriginal,
@@ -5592,7 +5855,7 @@ async function handleIncomingMessage(
         }
 
         console.warn(
-          `⚠️ [INCOMING-DUPLICATE] Colisão de message_id=${inboundMessageId} em conversation=${conversation.id}. Tentando reaproveitar sem abortar pipeline.`,
+          `?? [INCOMING-DUPLICATE] Colis�o de message_id=${inboundMessageId} em conversation=${conversation.id}. Tentando reaproveitar sem abortar pipeline.`,
         );
 
         const existingByMessageId = inboundMessageId
@@ -5624,7 +5887,7 @@ async function handleIncomingMessage(
                 });
               } catch (updateErr) {
                 console.error(
-                  `❌ [INCOMING-DUPLICATE] Falha ao atualizar mensagem existente ${existingByMessageId.id}:`,
+                  `? [INCOMING-DUPLICATE] Falha ao atualizar mensagem existente ${existingByMessageId.id}:`,
                   updateErr,
                 );
                 savedMessage = existingByMessageId;
@@ -5655,10 +5918,10 @@ async function handleIncomingMessage(
               mediaUrlOriginal,
             });
             console.warn(
-              `⚠️ [INCOMING-DUPLICATE] Pipeline preservado com message_id alternativo=${fallbackMessageId}.`,
+              `?? [INCOMING-DUPLICATE] Pipeline preservado com message_id alternativo=${fallbackMessageId}.`,
             );
           } catch (fallbackErr) {
-            console.error(`❌ [INCOMING-DUPLICATE] Falha no fallback de persistência:`, fallbackErr);
+            console.error(`? [INCOMING-DUPLICATE] Falha no fallback de persist�ncia:`, fallbackErr);
             savedMessage = {
               id: fallbackMessageId,
               conversationId: conversation.id,
@@ -5689,27 +5952,27 @@ async function handleIncomingMessage(
     }
     
     // -----------------------------------------------------------------------
-    // 🚨 SISTEMA DE RECUPERAÇÃO: Marcar mensagem como PROCESSADA com sucesso
+    // ?? SISTEMA DE RECUPERA��O: Marcar mensagem como PROCESSADA com sucesso
     // -----------------------------------------------------------------------
-    // Se chegou até aqui, a mensagem foi salva no banco de dados
+    // Se chegou at� aqui, a mensagem foi salva no banco de dados
     // Podemos marcar como processada na tabela pending_incoming_messages
     // -----------------------------------------------------------------------
     if (waMessage.key.id) {
       try {
         await markMessageAsProcessed(waMessage.key.id);
       } catch (markErr) {
-        console.error(`🚨 [RECOVERY] Erro ao marcar como processada:`, markErr);
-        // Não bloqueia - mensagem já foi salva no banco principal
+        console.error(`?? [RECOVERY] Erro ao marcar como processada:`, markErr);
+        // N�o bloqueia - mensagem j� foi salva no banco principal
       }
     }
 
-    // ?? FIX CR�TICO: savedMessage.text pode conter transcri��o de �udio!
-    // createMessage() transcreve automaticamente �udios ANTES de retornar.
-    // Por isso SEMPRE usamos savedMessage.text (e n�o messageText original).
+    // ?? FIX CR?TICO: savedMessage.text pode conter transcri??o de ?udio!
+    // createMessage() transcreve automaticamente ?udios ANTES de retornar.
+    // Por isso SEMPRE usamos savedMessage.text (e n?o messageText original).
     const effectiveText = savedMessage.text || messageText;
 
-    // Se a mensagem de m�dia (ex: �udio) tiver sido transcrita ao salvar,
-    // garantimos que o �ltimo texto da conversa use essa transcri��o.
+    // Se a mensagem de m?dia (ex: ?udio) tiver sido transcrita ao salvar,
+    // garantimos que o ?ltimo texto da conversa use essa transcri??o.
     if (effectiveText !== messageText) {
       await storage.updateConversation(conversation.id, {
         lastMessageText: effectiveText,
@@ -5722,7 +5985,7 @@ async function handleIncomingMessage(
       conversationId: conversation.id,
       message: effectiveText,
       mediaType,
-      // 🔥 FIX 2026: Enviar dados da conversa inline para real-time update sem refetch
+      // ?? FIX 2026: Enviar dados da conversa inline para real-time update sem refetch
       conversationUpdate: {
         id: conversation.id,
         contactNumber,
@@ -5734,7 +5997,7 @@ async function handleIncomingMessage(
         unreadCount: nextUnreadCount,
         isNew: wasNewConversation,
       },
-      // ⚡ REAL-TIME: Enviar mensagem completa para append inline (sem refetch)
+      // ? REAL-TIME: Enviar mensagem completa para append inline (sem refetch)
       messageData: {
         id: savedMessage.id,
         conversationId: conversation.id,
@@ -5751,17 +6014,25 @@ async function handleIncomingMessage(
       },
   });
 
-  // 🤖 AI Agent/Chatbot Auto-Response com SISTEMA DE ACUMULAÇÃO DE MENSAGENS
-  // ⚠️ IMPORTANTE: O check de "isAgentDisabled" se aplica TANTO à IA quanto ao CHATBOT/FLUXO!
-  // Quando o dono responde manualmente, AMBOS os sistemas são pausados.
+  // ?? AI Agent/Chatbot Auto-Response com SISTEMA DE ACUMULA��O DE MENSAGENS
+  // ?? IMPORTANTE: O check de "isAgentDisabled" se aplica TANTO � IA quanto ao CHATBOT/FLUXO!
+  // Quando o dono responde manualmente, AMBOS os sistemas s�o pausados.
   try {
     const appendEligible =
       source === "append" && isAppendRecent;
     const allowAutoReplyCandidate =
       allowAutoReplyRequested && (source === "notify" || appendEligible);
+    const shouldForceStubFallback =
+      messageKind === "stub" && !canAutoReplyThis;
 
-    if (!allowAutoReplyCandidate) {
+    if (!allowAutoReplyCandidate && !shouldForceStubFallback) {
       return;
+    }
+
+    if (!allowAutoReplyCandidate && shouldForceStubFallback) {
+      console.log(
+        `?? [STUB-FALLBACK] For�ando pipeline de stub para mensagem ${waMessage.key.id} (source=${source}, appendRecent=${isAppendRecent})`
+      );
     }
 
     // Multi-connection: Check if aiEnabled is false for this specific connection
@@ -5769,7 +6040,7 @@ async function handleIncomingMessage(
       try {
         const connRecord = await storage.getConnectionById(session.connectionId);
         if (connRecord && connRecord.aiEnabled === false) {
-          console.log(`🚫 [AI AGENT] IA desativada para conexão ${session.connectionId} - não responder automaticamente`);
+          console.log(`?? [AI AGENT] IA desativada para conex�o ${session.connectionId} - n�o responder automaticamente`);
           return;
         }
       } catch (e) {
@@ -5784,55 +6055,55 @@ async function handleIncomingMessage(
 
     const isAgentDisabled = await storage.isAgentDisabledForConversation(conversation.id);
     
-    // 🚫 LISTA DE EXCLUSÃO: Verificar se o número está na lista de exclusão
+    // ?? LISTA DE EXCLUS�O: Verificar se o n�mero est� na lista de exclus�o
     const isExcluded = await storage.isNumberExcluded(session.userId, contactNumber);
     if (isExcluded) {
-      console.log(`🚫 [AI AGENT] Número ${contactNumber} está na LISTA DE EXCLUSÃO - não responder automaticamente`);
+      console.log(`?? [AI AGENT] N�mero ${contactNumber} est� na LISTA DE EXCLUS�O - n�o responder automaticamente`);
       return;
     }
     
-    // ┌─────────────────────────────────────────────────────────────────────────┐
-    // │ 🔴 FIX CRÍTICO: Verificar se AMBOS (IA E CHATBOT) estão pausados       │
-    // │ Quando dono responde manualmente, o sistema inteiro pausa, não só IA!  │
-    // │ Data: 2025-01-XX - Sincronização Flow Builder + IA Agent               │
-    // └─────────────────────────────────────────────────────────────────────────┘
+    // +-------------------------------------------------------------------------+
+    // � ?? FIX CR�TICO: Verificar se AMBOS (IA E CHATBOT) est�o pausados       �
+    // � Quando dono responde manualmente, o sistema inteiro pausa, n�o s� IA!  �
+    // � Data: 2025-01-XX - Sincroniza��o Flow Builder + IA Agent               �
+    // +-------------------------------------------------------------------------+
     if (isAgentDisabled) {
-      console.log(`⏸️ [AUTO-PAUSE ATIVO] IA/Chatbot pausados para conversa ${conversation.id}`);
-      console.log(`   📱 Contato: ${contactNumber} | Motivo: dono respondeu manualmente ou transferência`);
+      console.log(`?? [AUTO-PAUSE ATIVO] IA/Chatbot pausados para conversa ${conversation.id}`);
+      console.log(`   ?? Contato: ${contactNumber} | Motivo: dono respondeu manualmente ou transfer�ncia`);
       
-      // Marcar que cliente tem mensagem pendente (para auto-reativação responder depois)
+      // Marcar que cliente tem mensagem pendente (para auto-reativa��o responder depois)
       try {
         await storage.markClientPendingMessage(conversation.id);
-        console.log(`📌 [AUTO-REATIVATE] Cliente enviou mensagem enquanto pausado - marcado como pendente`);
+        console.log(`?? [AUTO-REATIVATE] Cliente enviou mensagem enquanto pausado - marcado como pendente`);
       } catch (err) {
         console.error("Erro ao marcar mensagem pendente:", err);
       }
       
-      // ⚠️ NÃO processar nem pelo chatbot nem pela IA enquanto pausado!
+      // ?? N�O processar nem pelo chatbot nem pela IA enquanto pausado!
       return;
     }
     
     if (!canAutoReplyThis) {
       if (messageKind === "stub") {
-        // ═══════════════════════════════════════════════════════════════════
+        // -------------------------------------------------------------------
         // FIX 2026-02-24: PDO RETRY CURTO + FALLBACK "OI"
-        // ═══════════════════════════════════════════════════════════════════
-        // Mensagens CTWA (Click-to-WhatsApp de anúncios Meta/Instagram)
-        // chegam SEM encriptação (sem nó 'enc') → Baileys gera stub CIPHERTEXT.
+        // -------------------------------------------------------------------
+        // Mensagens CTWA (Click-to-WhatsApp de an�ncios Meta/Instagram)
+        // chegam SEM encripta��o (sem n� 'enc') ? Baileys gera stub CIPHERTEXT.
         //
         // O Baileys PR #2334 internamente chama requestPlaceholderResend()
-        // para pedir ao CELULAR que reenvie o conteúdo real via PDO.
-        // Porém o celular tem apenas 8s para responder → frequentemente falha
+        // para pedir ao CELULAR que reenvie o conte�do real via PDO.
+        // Por�m o celular tem apenas 8s para responder ? frequentemente falha
         // se o celular estiver dormindo/sem internet/em background.
         //
-        // Estratégia:
+        // Estrat�gia:
         //   - 4 tentativas de PDO, intervalo de 2s
-        //   - fallback "Oi" em ~8s se continuar sem conteúdo útil
-        // Objetivo: destravar IA rápido sem texto hardcoded de resposta.
+        //   - fallback "Oi" em ~8s se continuar sem conte�do �til
+        // Objetivo: destravar IA r�pido sem texto hardcoded de resposta.
         //
         // Ref: https://github.com/WhiskeySockets/Baileys/pull/2334
         // Ref: https://github.com/WhiskeySockets/Baileys/issues/1767
-        // ═══════════════════════════════════════════════════════════════════
+        // -------------------------------------------------------------------
         const stubMsgId = waMessage.key.id;
         const stubConversationId = conversation.id;
         const stubUserId = session.userId;
@@ -5846,20 +6117,20 @@ async function handleIncomingMessage(
         const PDO_RETRY_INTERVAL_MS = 2000;
         const FINAL_FALLBACK_MS = MAX_PDO_RETRIES * PDO_RETRY_INTERVAL_MS;
 
-        console.log(`⏳ [STUB-PDO-RETRY] Mensagem stub de ${stubContactNumber} (id=${stubMsgId}) - iniciando ${MAX_PDO_RETRIES} tentativas PDO (intervalo=${PDO_RETRY_INTERVAL_MS / 1000}s)`);
-        console.log(`   📋 Plano: #1 (0s) → #2 (2s) → #3 (4s) → #4 (6s) → fallback (${FINAL_FALLBACK_MS / 1000}s)`);
+        console.log(`? [STUB-PDO-RETRY] Mensagem stub de ${stubContactNumber} (id=${stubMsgId}) - iniciando ${MAX_PDO_RETRIES} tentativas PDO (intervalo=${PDO_RETRY_INTERVAL_MS / 1000}s)`);
+        console.log(`   ?? Plano: #1 (0s) ? #2 (2s) ? #3 (4s) ? #4 (6s) ? fallback (${FINAL_FALLBACK_MS / 1000}s)`);
 
-        // ── RETRY BOOST: Sinais agressivos para ajudar na descriptografia ──
+        // -- RETRY BOOST: Sinais agressivos para ajudar na descriptografia --
         try {
           await session.socket.sendPresenceUpdate('available', normalizedJid);
-        } catch (_presErr) { /* não-crítico */ }
+        } catch (_presErr) { /* n�o-cr�tico */ }
 
         try {
           await session.socket.readMessages([waMessage.key]);
-          console.log(`📖 [STUB-PDO-RETRY] Read receipt enviado para ${stubMsgId}`);
-        } catch (_readErr) { /* não-crítico */ }
+          console.log(`?? [STUB-PDO-RETRY] Read receipt enviado para ${stubMsgId}`);
+        } catch (_readErr) { /* n�o-cr�tico */ }
 
-        // Presença extra após 3s e 5s (whatsmeow envia IMEDIATAMENTE para CTWA)
+        // Presen�a extra ap�s 3s e 5s (whatsmeow envia IMEDIATAMENTE para CTWA)
         setTimeout(async () => {
           try { await session.socket.sendPresenceUpdate('available', normalizedJid); } catch (_e) { /* */ }
           try { await session.socket.readMessages([waMessage.key]); } catch (_e) { /* */ }
@@ -5868,7 +6139,7 @@ async function handleIncomingMessage(
           try { await session.socket.sendPresenceUpdate('available', normalizedJid); } catch (_e) { /* */ }
         }, 5000);
 
-        // Capturar params de dedupe para verificar após timeouts
+        // Capturar params de dedupe para verificar ap�s timeouts
         const stubDedupeParams = incomingDedupeParams ? { ...incomingDedupeParams } : null;
 
         // Dados do PDO: chave da mensagem + metadados para preservar
@@ -5886,7 +6157,7 @@ async function handleIncomingMessage(
           verifiedBizName: (waMessage as any).verifiedBizName,
         };
 
-        // ── Função helper: verificar se stub já foi resolvido ──
+        // -- Fun��o helper: verificar se stub j� foi resolvido --
         const checkIfResolved = async (): Promise<boolean> => {
           if (stubDedupeParams) {
             const wasDecrypted = await isIncomingMessageProcessed(stubDedupeParams);
@@ -5898,7 +6169,7 @@ async function handleIncomingMessage(
                     return true;
                   }
                 } catch (_dbErr) {
-                  // segue para outras validações
+                  // segue para outras valida��es
                 }
               } else {
                 return true;
@@ -5917,81 +6188,81 @@ async function handleIncomingMessage(
             }
           }
 
-          // Só considerar cache quando houver conteúdo realmente útil
+          // S� considerar cache quando houver conte�do realmente �til
           const cached = getCachedMessage(stubUserId, stubMsgId || "");
           if (cached && isMeaningfulIncomingContent(cached)) return true;
 
           if (cached) {
-            console.log(`ℹ️ [STUB-PDO-RETRY] Cache técnico detectado para ${stubMsgId}, mantendo retry/fallback.`);
+            console.log(`?? [STUB-PDO-RETRY] Cache t�cnico detectado para ${stubMsgId}, mantendo retry/fallback.`);
           }
           return false;
         };
 
-        // ── Função helper: tentar PDO via requestPlaceholderResend ──
+        // -- Fun��o helper: tentar PDO via requestPlaceholderResend --
         const attemptPDO = async (attemptNum: number): Promise<void> => {
           try {
             if (await checkIfResolved()) {
-              console.log(`✅ [STUB-PDO-RETRY] Mensagem ${stubMsgId} já resolvida antes da tentativa #${attemptNum}`);
+              console.log(`? [STUB-PDO-RETRY] Mensagem ${stubMsgId} j� resolvida antes da tentativa #${attemptNum}`);
               return;
             }
 
-            console.log(`🔄 [STUB-PDO-RETRY] Tentativa #${attemptNum} de PDO para ${stubMsgId} de ${stubContactNumber}`);
+            console.log(`?? [STUB-PDO-RETRY] Tentativa #${attemptNum} de PDO para ${stubMsgId} de ${stubContactNumber}`);
 
-            // Enviar presença para manter sessão ativa
+            // Enviar presen�a para manter sess�o ativa
             try { await session.socket.sendPresenceUpdate('available', normalizedJid); } catch (_e) { /* */ }
             try { await session.socket.readMessages([waMessage.key]); } catch (_e) { /* */ }
 
             // Chamar requestPlaceholderResend do Baileys
-            // Após o timeout de 8s do Baileys, o placeholderResendCache é limpo
+            // Ap�s o timeout de 8s do Baileys, o placeholderResendCache � limpo
             // para este msgId, permitindo nova tentativa
             const requestId = await (session.socket as any).requestPlaceholderResend(pdoMessageKey, pdoMsgData);
             
             if (requestId === 'RESOLVED') {
-              console.log(`✅ [STUB-PDO-RETRY] Mensagem ${stubMsgId} resolvida durante tentativa #${attemptNum}!`);
+              console.log(`? [STUB-PDO-RETRY] Mensagem ${stubMsgId} resolvida durante tentativa #${attemptNum}!`);
             } else if (requestId) {
-              console.log(`📡 [STUB-PDO-RETRY] PDO #${attemptNum} enviado para ${stubMsgId} (requestId=${requestId})`);
+              console.log(`?? [STUB-PDO-RETRY] PDO #${attemptNum} enviado para ${stubMsgId} (requestId=${requestId})`);
             } else {
-              console.log(`⚠️ [STUB-PDO-RETRY] PDO #${attemptNum} retornou undefined para ${stubMsgId} (já em cache ou resolvido)`);
+              console.log(`?? [STUB-PDO-RETRY] PDO #${attemptNum} retornou undefined para ${stubMsgId} (j� em cache ou resolvido)`);
             }
           } catch (pdoErr) {
-            console.error(`❌ [STUB-PDO-RETRY] Erro na tentativa #${attemptNum} para ${stubMsgId}:`, pdoErr);
+            console.error(`? [STUB-PDO-RETRY] Erro na tentativa #${attemptNum} para ${stubMsgId}:`, pdoErr);
           }
         };
 
-        // ── RETRY PDO: 4 tentativas em janela curta ──
+        // -- RETRY PDO: 4 tentativas em janela curta --
         for (let attemptNum = 1; attemptNum <= MAX_PDO_RETRIES; attemptNum++) {
           setTimeout(() => {
             void attemptPDO(attemptNum);
           }, (attemptNum - 1) * PDO_RETRY_INTERVAL_MS);
         }
 
-        // ── FALLBACK FINAL (t=8s): Se nenhuma PDO funcionou → "Oi" ──
+        // -- FALLBACK FINAL (t=8s): Se nenhuma PDO funcionou ? "Oi" --
         setTimeout(async () => {
           try {
-            // Verificar uma última vez se foi resolvido
+            // Verificar uma �ltima vez se foi resolvido
             if (await checkIfResolved()) {
-              console.log(`✅ [STUB-PDO-RETRY] Mensagem ${stubMsgId} resolvida após ${FINAL_FALLBACK_MS/1000}s! Nenhum fallback necessário.`);
+              console.log(`? [STUB-PDO-RETRY] Mensagem ${stubMsgId} resolvida ap�s ${FINAL_FALLBACK_MS/1000}s! Nenhum fallback necess�rio.`);
               return;
             }
 
-            // ── FALLBACK: Usar "Oi" como texto para IA responder ──
+            // -- FALLBACK: Usar "Oi" como texto para IA responder --
             const fallbackText = "Oi";
-            console.log(`⚠️ [STUB-FALLBACK] Mensagem ${stubMsgId} ainda incompleta após ${MAX_PDO_RETRIES} tentativas PDO (${FINAL_FALLBACK_MS/1000}s) - usando fallback "${fallbackText}"`);
-            console.log(`📌 [STUB-FALLBACK] decrypt_fallback_oi_triggered conversation=${stubConversationId} message=${stubMsgId} user=${stubUserId} connection=${stubConnectionId || "none"}`);
+            console.log(`?? [STUB-FALLBACK] Mensagem ${stubMsgId} ainda incompleta ap�s ${MAX_PDO_RETRIES} tentativas PDO (${FINAL_FALLBACK_MS/1000}s) - usando fallback "${fallbackText}"`);
+            console.log(`?? [STUB-FALLBACK] decrypt_fallback_oi_triggered conversation=${stubConversationId} message=${stubMsgId} user=${stubUserId} connection=${stubConnectionId || "none"}`);
 
             // Atualizar texto da mensagem salva
             try {
               await storage.updateMessage(stubSavedMessageId, { text: fallbackText });
-              console.log(`📝 [STUB-FALLBACK] Mensagem ${stubSavedMessageId} atualizada para "${fallbackText}"`);
+              console.log(`?? [STUB-FALLBACK] Mensagem ${stubSavedMessageId} atualizada para "${fallbackText}"`);
             } catch (updateErr) {
-              console.error(`❌ [STUB-FALLBACK] Erro ao atualizar mensagem:`, updateErr);
+              console.error(`? [STUB-FALLBACK] Erro ao atualizar mensagem:`, updateErr);
             }
 
             // Atualizar lastMessageText da conversa
             try {
               await storage.updateConversation(stubConversationId, { lastMessageText: fallbackText });
             } catch (convErr) {
-              console.error(`❌ [STUB-FALLBACK] Erro ao atualizar conversa:`, convErr);
+              console.error(`? [STUB-FALLBACK] Erro ao atualizar conversa:`, convErr);
             }
 
             // Marcar como processada no anti-reenvio
@@ -6012,8 +6283,8 @@ async function handleIncomingMessage(
             // Verificar se agente pode responder
             const isAgentDisabled = await storage.isAgentDisabledForConversation(stubConversationId);
             if (isAgentDisabled) {
-              console.log(`⏸️ [STUB-FALLBACK] Agente pausado para conversa ${stubConversationId}`);
-              console.log(`📌 [STUB-FALLBACK] decrypt_fallback_blocked_by_rules:agent_paused conversation=${stubConversationId}`);
+              console.log(`?? [STUB-FALLBACK] Agente pausado para conversa ${stubConversationId}`);
+              console.log(`?? [STUB-FALLBACK] decrypt_fallback_blocked_by_rules:agent_paused conversation=${stubConversationId}`);
               return;
             }
 
@@ -6021,8 +6292,8 @@ async function handleIncomingMessage(
               try {
                 const connRecord = await storage.getConnectionById(stubConnectionId);
                 if (connRecord && connRecord.aiEnabled === false) {
-                  console.log(`🚫 [STUB-FALLBACK] IA desativada para conexão ${stubConnectionId}`);
-                  console.log(`📌 [STUB-FALLBACK] decrypt_fallback_blocked_by_rules:ai_disabled connection=${stubConnectionId}`);
+                  console.log(`?? [STUB-FALLBACK] IA desativada para conex�o ${stubConnectionId}`);
+                  console.log(`?? [STUB-FALLBACK] decrypt_fallback_blocked_by_rules:ai_disabled connection=${stubConnectionId}`);
                   return;
                 }
               } catch (_e) { /* prosseguir */ }
@@ -6030,8 +6301,8 @@ async function handleIncomingMessage(
 
             const isExcluded = await storage.isNumberExcluded(stubUserId, stubContactNumber);
             if (isExcluded) {
-              console.log(`🚫 [STUB-FALLBACK] Número ${stubContactNumber} na lista de exclusão`);
-              console.log(`📌 [STUB-FALLBACK] decrypt_fallback_blocked_by_rules:number_excluded contact=${stubContactNumber}`);
+              console.log(`?? [STUB-FALLBACK] N�mero ${stubContactNumber} na lista de exclus�o`);
+              console.log(`?? [STUB-FALLBACK] decrypt_fallback_blocked_by_rules:number_excluded contact=${stubContactNumber}`);
               return;
             }
 
@@ -6048,14 +6319,14 @@ async function handleIncomingMessage(
               );
 
               if (chatbotResult.handled) {
-                console.log(`🤖 [STUB-FALLBACK] Mensagem processada pelo chatbot de fluxo`);
+                console.log(`?? [STUB-FALLBACK] Mensagem processada pelo chatbot de fluxo`);
                 return;
               }
             } catch (chatbotErr) {
-              console.error(`⚠️ [STUB-FALLBACK] Erro no chatbot (tentando IA):`, chatbotErr);
+              console.error(`?? [STUB-FALLBACK] Erro no chatbot (tentando IA):`, chatbotErr);
             }
 
-            // Processar via IA (sistema de acumulação)
+            // Processar via IA (sistema de acumula��o)
             try {
               const agentConfig = await storage.getAgentConfig(stubUserId);
               const responseDelaySeconds = agentConfig?.responseDelaySeconds ?? 30;
@@ -6066,12 +6337,12 @@ async function handleIncomingMessage(
               if (existingPending) {
                 clearTimeout(existingPending.timeout);
                 existingPending.messages.push(fallbackText);
-                existingPending.isCTWAFallback = true; // 📢 Marcar como CTWA fallback
+                existingPending.isCTWAFallback = true; // ?? Marcar como CTWA fallback
                 const executeAt = new Date(Date.now() + responseDelayMs);
                 existingPending.timeout = setTimeout(async () => {
                   await processAccumulatedMessages(existingPending);
                 }, responseDelayMs);
-                console.log(`📨 [STUB-FALLBACK] Mensagem acumulada (${existingPending.messages.length} msgs) para ${stubContactNumber}`);
+                console.log(`?? [STUB-FALLBACK] Mensagem acumulada (${existingPending.messages.length} msgs) para ${stubContactNumber}`);
                 try {
                   await storage.updatePendingAIResponseMessages(stubConversationId, existingPending.messages, executeAt);
                 } catch (_dbErr) { /* */ }
@@ -6082,16 +6353,17 @@ async function handleIncomingMessage(
                   messages: [fallbackText],
                   conversationId: stubConversationId,
                   userId: stubUserId,
+                  connectionId: stubConnectionId,
                   contactNumber: stubContactNumber,
                   jidSuffix: stubJidSuffix,
                   startTime: Date.now(),
-                  isCTWAFallback: true, // 📢 Marcar como CTWA fallback
+                  isCTWAFallback: true, // ?? Marcar como CTWA fallback
                 };
                 pending.timeout = setTimeout(async () => {
                   await processAccumulatedMessages(pending);
                 }, responseDelayMs);
                 pendingResponses.set(stubConversationId, pending);
-                console.log(`🕐 [STUB-FALLBACK] Timer IA de ${responseDelaySeconds}s iniciado para ${stubContactNumber}`);
+                console.log(`?? [STUB-FALLBACK] Timer IA de ${responseDelaySeconds}s iniciado para ${stubContactNumber}`);
                 try {
                   await storage.savePendingAIResponse({
                     conversationId: stubConversationId,
@@ -6104,25 +6376,25 @@ async function handleIncomingMessage(
                 } catch (_dbErr) { /* */ }
               }
 
-              console.log(`🤖 [STUB-FALLBACK] IA ativada para ${stubContactNumber} com texto "${fallbackText}"`);
+              console.log(`?? [STUB-FALLBACK] IA ativada para ${stubContactNumber} com texto "${fallbackText}"`);
             } catch (aiErr) {
-              console.error(`❌ [STUB-FALLBACK] Erro ao iniciar IA:`, aiErr);
-              // NÃO enviar mensagem de erro para o cliente - apenas logar
+              console.error(`? [STUB-FALLBACK] Erro ao iniciar IA:`, aiErr);
+              // N�O enviar mensagem de erro para o cliente - apenas logar
               // A mensagem "reenviar por favor" causava UX ruim
-              console.log(`⚠️ [STUB-FALLBACK] IA falhou para ${stubContactNumber} - aguardando próxima mensagem do cliente`);
+              console.log(`?? [STUB-FALLBACK] IA falhou para ${stubContactNumber} - aguardando pr�xima mensagem do cliente`);
             }
           } catch (err) {
-            console.error(`❌ [STUB-FALLBACK] Erro no timeout final:`, err);
+            console.error(`? [STUB-FALLBACK] Erro no timeout final:`, err);
           }
         }, FINAL_FALLBACK_MS);
       }
       return;
     }
 
-    // ✅ Agente/Chatbot NÃO está pausado - processar normalmente
+    // ? Agente/Chatbot N�O est� pausado - processar normalmente
     
-    // 🤖 CHATBOT DE FLUXO: Verificar se o usuário tem chatbot ativo ANTES da IA
-    // O chatbot tem prioridade sobre a IA quando ambos estão configurados
+    // ?? CHATBOT DE FLUXO: Verificar se o usu�rio tem chatbot ativo ANTES da IA
+    // O chatbot tem prioridade sobre a IA quando ambos est�o configurados
     const { tryProcessChatbotMessage, isNewContact } = await import("./chatbotIntegration");
     const isFirstContact = await isNewContact(conversation.id);
     const chatbotResult = await tryProcessChatbotMessage(
@@ -6134,44 +6406,44 @@ async function handleIncomingMessage(
     );
     
     if (chatbotResult.handled) {
-      console.log(`🤖 [CHATBOT] Mensagem processada pelo chatbot de fluxo`);
+      console.log(`?? [CHATBOT] Mensagem processada pelo chatbot de fluxo`);
       if (chatbotResult.transferToHuman) {
-        console.log(`🤖 [CHATBOT] Conversa transferida para humano - IA/Chatbot desativados para esta conversa`);
+        console.log(`?? [CHATBOT] Conversa transferida para humano - IA/Chatbot desativados para esta conversa`);
       }
-      return; // Chatbot já processou, não precisa da IA
+      return; // Chatbot j� processou, n�o precisa da IA
     }
     
-    // 🔴 CRÍTICO: Verificar se última mensagem foi do cliente (não do agente)
-    // Se última mensagem for do agente, NÃO responder (evita loop)
+    // ?? CR�TICO: Verificar se �ltima mensagem foi do cliente (n�o do agente)
+    // Se �ltima mensagem for do agente, N�O responder (evita loop)
     const recentMessages = await storage.getMessagesByConversationId(conversation.id);
     const lastMessage = recentMessages[recentMessages.length - 1];
     
     if (lastMessage && lastMessage.fromMe) {
-      console.log(`🔴 [AI AGENT] Última mensagem foi do agente, não respondendo (evita loop)`);
+      console.log(`?? [AI AGENT] �ltima mensagem foi do agente, n�o respondendo (evita loop)`);
       return;
     }
     
-    // ✅ IA pode responder (não está pausada e chatbot não processou)
+    // ? IA pode responder (n�o est� pausada e chatbot n�o processou)
     {
       const userId = session.userId;
       const conversationId = conversation.id;
       const targetNumber = contactNumber;
       const finalText = effectiveText;
       
-      // ?? SISTEMA DE ACUMULA��O: Buscar delay configurado
+      // ?? SISTEMA DE ACUMULA??O: Buscar delay configurado
       const agentConfig = await storage.getAgentConfig(userId);
       const responseDelaySeconds = agentConfig?.responseDelaySeconds ?? 30;
       const responseDelayMs = responseDelaySeconds * 1000;
       
-      // Verificar se j� existe um timeout pendente para esta conversa
+      // Verificar se j? existe um timeout pendente para esta conversa
       const existingPending = pendingResponses.get(conversationId);
       
       if (existingPending) {
-        // ✅ ACUMULAÇÃO: Nova mensagem chegou - cancelar timeout anterior e acumular
+        // ? ACUMULA��O: Nova mensagem chegou - cancelar timeout anterior e acumular
         clearTimeout(existingPending.timeout);
         existingPending.messages.push(finalText);
-        console.log(`📨 [AI AGENT] Mensagem acumulada (${existingPending.messages.length} mensagens) para ${targetNumber}`);
-        console.log(`📝 [AI AGENT] Mensagens acumuladas: ${existingPending.messages.map(m => `"${m.substring(0, 30)}..."`).join(' | ')}`);
+        console.log(`?? [AI AGENT] Mensagem acumulada (${existingPending.messages.length} mensagens) para ${targetNumber}`);
+        console.log(`?? [AI AGENT] Mensagens acumuladas: ${existingPending.messages.map(m => `"${m.substring(0, 30)}..."`).join(' | ')}`);
         
         const executeAt = new Date(Date.now() + responseDelayMs);
         
@@ -6180,19 +6452,19 @@ async function handleIncomingMessage(
           await processAccumulatedMessages(existingPending);
         }, responseDelayMs);
         
-        console.log(`🔄 [AI AGENT] Timer reiniciado: ${responseDelaySeconds}s para ${targetNumber}`);
+        console.log(`?? [AI AGENT] Timer reiniciado: ${responseDelaySeconds}s para ${targetNumber}`);
         
-        // 💾 PERSISTENT TIMER: Atualizar no banco
+        // ?? PERSISTENT TIMER: Atualizar no banco
         try {
           await storage.updatePendingAIResponseMessages(conversationId, existingPending.messages, executeAt);
-          console.log(`💾 [AI AGENT] Timer atualizado no banco - ${existingPending.messages.length} msgs - executa às ${executeAt.toISOString()}`);
+          console.log(`?? [AI AGENT] Timer atualizado no banco - ${existingPending.messages.length} msgs - executa �s ${executeAt.toISOString()}`);
         } catch (dbError) {
-          console.error(`⚠️ [AI AGENT] Erro ao atualizar timer no banco (não crítico):`, dbError);
+          console.error(`?? [AI AGENT] Erro ao atualizar timer no banco (n�o cr�tico):`, dbError);
         }
       } else {
-        // Nova conversa - criar entrada de acumulação
-        console.log(`🕐 [AI AGENT] Novo timer de ${responseDelaySeconds}s para ${targetNumber}...`);
-        console.log(`📝 [AI AGENT] Primeira mensagem: "${finalText}"`);
+        // Nova conversa - criar entrada de acumula��o
+        console.log(`?? [AI AGENT] Novo timer de ${responseDelaySeconds}s para ${targetNumber}...`);
+        console.log(`?? [AI AGENT] Primeira mensagem: "${finalText}"`);
         
         const executeAt = new Date(Date.now() + responseDelayMs);
         
@@ -6201,6 +6473,7 @@ async function handleIncomingMessage(
           messages: [finalText],
           conversationId,
           userId,
+          connectionId: session.connectionId,
           contactNumber: targetNumber,
           jidSuffix: jidSuffix || DEFAULT_JID_SUFFIX,
           startTime: Date.now(),
@@ -6212,7 +6485,7 @@ async function handleIncomingMessage(
         
         pendingResponses.set(conversationId, pending);
         
-        // 💾 PERSISTENT TIMER: Salvar no banco para sobreviver a restarts
+        // ?? PERSISTENT TIMER: Salvar no banco para sobreviver a restarts
         try {
           await storage.savePendingAIResponse({
             conversationId,
@@ -6222,9 +6495,9 @@ async function handleIncomingMessage(
             messages: [finalText],
             executeAt,
           });
-          console.log(`💾 [AI AGENT] Timer persistido no banco - executa às ${executeAt.toISOString()}`);
+          console.log(`?? [AI AGENT] Timer persistido no banco - executa �s ${executeAt.toISOString()}`);
         } catch (dbError) {
-          console.error(`⚠️ [AI AGENT] Erro ao persistir timer (não crítico):`, dbError);
+          console.error(`?? [AI AGENT] Erro ao persistir timer (n�o cr�tico):`, dbError);
         }
       }
     }
@@ -6233,31 +6506,32 @@ async function handleIncomingMessage(
   }
 }
 
-// 🔄 FUNÇÃO PARA PROCESSAR MENSAGENS ACUMULADAS
+// ?? FUN��O PARA PROCESSAR MENSAGENS ACUMULADAS
 async function processAccumulatedMessages(pending: PendingResponse): Promise<void> {
   const { conversationId, userId, connectionId, contactNumber, jidSuffix, messages } = pending;
+  let resolvedConnectionIdForRetry: string | undefined = connectionId;
   
-  // 🔒 ANTI-DUPLICAÇÃO: Verificar se já está processando esta conversa
+  // ?? ANTI-DUPLICA��O: Verificar se j� est� processando esta conversa
   if (conversationsBeingProcessed.has(conversationId)) {
-    console.log(`🔒 [AI AGENT] ⚠️ Conversa ${conversationId} já está sendo processada, IGNORANDO duplicata`);
+    console.log(`?? [AI AGENT] ?? Conversa ${conversationId} j� est� sendo processada, IGNORANDO duplicata`);
     return;
   }
   
-  // 🔒 Marcar como em processamento ANTES de qualquer coisa
+  // ?? Marcar como em processamento ANTES de qualquer coisa
   conversationsBeingProcessed.set(conversationId, Date.now());
   
-  // 🚨 CRÍTICO: Verificar se IA foi desativada ANTES de processar timer
+  // ?? CR�TICO: Verificar se IA foi desativada ANTES de processar timer
   // Bug: Timer criado quando IA ativa pode executar depois que IA foi desativada
   const isAgentDisabled = await storage.isAgentDisabledForConversation(conversationId);
   if (isAgentDisabled) {
     console.log(`\n${'!'.repeat(60)}`);
-    console.log(`🚫 [AI AGENT] IA DESATIVADA - Timer cancelado`);
+    console.log(`?? [AI AGENT] IA DESATIVADA - Timer cancelado`);
     console.log(`   conversationId: ${conversationId}`);
     console.log(`   contactNumber: ${contactNumber}`);
-    console.log(`   👉 IA foi desativada entre criação e execução do timer`);
+    console.log(`   ?? IA foi desativada entre cria��o e execu��o do timer`);
     console.log(`${'!'.repeat(60)}\n`);
     
-    // Marcar timer como skipped (não é falha técnica, é regra de negócio)
+    // Marcar timer como skipped (n�o � falha t�cnica, � regra de neg�cio)
     await storage.markPendingAIResponseSkipped(conversationId, 'agent_disabled');
     conversationsBeingProcessed.delete(conversationId);
     pendingResponses.delete(conversationId);
@@ -6268,17 +6542,61 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
   pendingResponses.delete(conversationId);
   
   const totalWaitTime = ((Date.now() - pending.startTime) / 1000).toFixed(1);
-  console.log(`\n🔄 [AI AGENT] =========== PROCESSANDO RESPOSTA ===========`);
-  console.log(`   ⏱️ Aguardou ${totalWaitTime}s | ${messages.length} mensagem(s) acumulada(s)`);
-  console.log(`   📞 Contato: ${contactNumber}`);
+  console.log(`\n?? [AI AGENT] =========== PROCESSANDO RESPOSTA ===========`);
+  console.log(`   ?? Aguardou ${totalWaitTime}s | ${messages.length} mensagem(s) acumulada(s)`);
+  console.log(`   ?? Contato: ${contactNumber}`);
   if (pending.isCTWAFallback) {
-    console.log(`   📢 CTWA FALLBACK: IA vai receber contexto de cliente via Meta Ads`);
+    console.log(`   ?? CTWA FALLBACK: IA vai receber contexto de cliente via Meta Ads`);
   }
   
-  // 🎯 FLAG DE SUCESSO: Só marca completed se a mensagem foi REALMENTE enviada
+  // ?? FLAG DE SUCESSO: S� marca completed se a mensagem foi REALMENTE enviada
   let responseSuccessful = false;
   
   try {
+    const conversationRecord = await storage.getConversation(conversationId);
+    if (!conversationRecord) {
+      console.warn(`?? [AI AGENT] Conversa ${conversationId} n�o encontrada. Marcando timer como skipped.`);
+      await storage.markPendingAIResponseSkipped(conversationId, 'conversation_not_found');
+      return;
+    }
+
+    const effectiveConnectionId = conversationRecord.connectionId || connectionId;
+    if (!effectiveConnectionId) {
+      console.warn(`?? [AI AGENT] Sem connectionId para conversa ${conversationId}. Marcando timer como failed.`);
+      await storage.markPendingAIResponseFailed(
+        conversationId,
+        'missing_connection_id',
+        'Conversation has no connection scope',
+      );
+      return;
+    }
+    resolvedConnectionIdForRetry = effectiveConnectionId;
+
+    if (connectionId && connectionId !== effectiveConnectionId) {
+      console.warn(
+        `?? [AI AGENT] Timer com connectionId divergente (timer=${connectionId}, conv=${effectiveConnectionId}) para conversa ${conversationId}. Usando connection da conversa.`,
+      );
+    }
+
+    const scopedConnection = await storage.getConnectionById(effectiveConnectionId);
+    if (!scopedConnection || scopedConnection.userId !== userId) {
+      console.warn(
+        `?? [AI AGENT] Escopo inv�lido de conex�o para conversa ${conversationId}. connectionId=${effectiveConnectionId}`,
+      );
+      await storage.markPendingAIResponseFailed(
+        conversationId,
+        'connection_scope_invalid',
+        `Connection ${effectiveConnectionId} not owned by user ${userId}`,
+      );
+      return;
+    }
+
+    if (scopedConnection.aiEnabled === false) {
+      console.log(`?? [AI AGENT] IA desativada para conex�o ${effectiveConnectionId} - timer cancelado`);
+      await storage.markPendingAIResponseSkipped(conversationId, 'connection_ai_disabled');
+      return;
+    }
+
     // Idempotency: if the conversation already has a reply (owner or agent) newer than
     // the last customer message, this timer is obsolete and must not re-send.
     try {
@@ -6294,46 +6612,42 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
       console.warn(`?? [AI AGENT] Falha ao checar estado de idempot?ncia (n?o cr?tico):`, stateErr);
     }
 
-    const currentSession = connectionId
-      ? sessions.get(connectionId) || sessions.get(userId)
-      : sessions.get(userId);
+    const currentSession = sessions.get(effectiveConnectionId);
     if (!currentSession?.socket) {
       console.log(`\n${'!'.repeat(60)}`);
-      console.log(`⚠️ [AI Agent] BLOQUEIO: Session/socket não disponível`);
+      console.log(`?? [AI Agent] BLOQUEIO: Session/socket n�o dispon�vel`);
       console.log(`   userId: ${userId}`);
       console.log(`   conversationId: ${conversationId}`);
       console.log(`   contactNumber: ${contactNumber}`);
-      console.log(`   👉 WhatsApp provavelmente desconectado`);
+      console.log(`   ?? WhatsApp provavelmente desconectado`);
       console.log(`${'!'.repeat(60)}\n`);
 
       const pendingAgeMs = Date.now() - pending.startTime;
-      let connectionState = connectionId
-        ? await storage.getConnectionById(connectionId)
-        : undefined;
+      let connectionState = await storage.getConnectionById(effectiveConnectionId);
       if (!connectionState) {
-        connectionState = await storage.getConnectionByUserId(userId);
+        connectionState = await storage.getConnectionByUserId(userId, effectiveConnectionId);
       }
       const isConnectionMarkedConnected = !!connectionState?.isConnected;
-      const recoveryScope = connectionState?.id || connectionId || userId;
+      const recoveryScope = connectionState?.id || effectiveConnectionId;
 
       if (isConnectionMarkedConnected && connectionState?.id) {
         const lastRecoveryAt = sessionRecoveryAttemptAt.get(recoveryScope) || 0;
         const sinceLastRecoveryMs = Date.now() - lastRecoveryAt;
         if (sinceLastRecoveryMs >= SESSION_RECOVERY_ATTEMPT_COOLDOWN_MS) {
           sessionRecoveryAttemptAt.set(recoveryScope, Date.now());
-          console.log(`🔄 [AI AGENT] Sessão ausente mas DB=connected. Forçando reconnect (conn=${connectionState.id.substring(0, 8)}, user=${userId.substring(0, 8)})`);
+          console.log(`?? [AI AGENT] Sess�o ausente mas DB=connected. For�ando reconnect (conn=${connectionState.id.substring(0, 8)}, user=${userId.substring(0, 8)})`);
           void connectWhatsApp(userId, connectionState.id).catch((reconnectErr) => {
-            console.error(`⚠️ [AI AGENT] Falha ao disparar reconnect por sessão indisponível:`, reconnectErr);
+            console.error(`?? [AI AGENT] Falha ao disparar reconnect por sess�o indispon�vel:`, reconnectErr);
           });
         }
       }
 
       if (!isConnectionMarkedConnected && pendingAgeMs >= SESSION_UNAVAILABLE_MAX_AGE_MS) {
-        console.warn(`🚫 [AI AGENT] Timer antigo sem sessão e conexão offline (${Math.round(pendingAgeMs / 60000)}min). Marcando como failed para evitar loop infinito.`);
+        console.warn(`?? [AI AGENT] Timer antigo sem sess�o e conex�o offline (${Math.round(pendingAgeMs / 60000)}min). Marcando como failed para evitar loop infinito.`);
         try {
           await storage.markPendingAIResponseFailed(conversationId, 'session_unavailable_offline', `Session offline for ${Math.round(pendingAgeMs / 60000)}min, connection disconnected in DB`);
         } catch (dbErr) {
-          console.error(`⚠️ [AI AGENT] Erro ao marcar timer como failed:`, dbErr);
+          console.error(`?? [AI AGENT] Erro ao marcar timer como failed:`, dbErr);
         }
         conversationsBeingProcessed.delete(conversationId);
         return;
@@ -6343,14 +6657,14 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         ? SESSION_AVAILABLE_RETRY_MS
         : SESSION_UNAVAILABLE_RETRY_MS;
 
-      console.log(`🔄 [AI AGENT] Reagendando timer para ${contactNumber} em ${Math.round(retryDelayMs / 1000)}s (sessão indisponível, connected=${isConnectionMarkedConnected})...`);
+      console.log(`?? [AI AGENT] Reagendando timer para ${contactNumber} em ${Math.round(retryDelayMs / 1000)}s (sess�o indispon�vel, connected=${isConnectionMarkedConnected})...`);
       
       const retryPending: PendingResponse = {
         timeout: null as any,
         messages,
         conversationId,
         userId,
-        connectionId: connectionState?.id || connectionId,
+        connectionId: connectionState?.id || effectiveConnectionId,
         contactNumber,
         jidSuffix,
         startTime: pending.startTime, // Manter tempo original
@@ -6358,19 +6672,19 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
       };
       
       retryPending.timeout = setTimeout(async () => {
-        console.log(`🔄 [AI AGENT] Retry: Tentando processar ${contactNumber} novamente...`);
+        console.log(`?? [AI AGENT] Retry: Tentando processar ${contactNumber} novamente...`);
         await processAccumulatedMessages(retryPending);
       }, retryDelayMs);
       
       pendingResponses.set(conversationId, retryPending);
       
-      // Atualizar execute_at no banco para refletir o novo horário
+      // Atualizar execute_at no banco para refletir o novo hor�rio
       const newExecuteAt = new Date(Date.now() + retryDelayMs);
       try {
         await storage.updatePendingAIResponseMessages(conversationId, messages, newExecuteAt);
-        console.log(`💾 [AI AGENT] Timer reagendado no banco para ${newExecuteAt.toISOString()}`);
+        console.log(`?? [AI AGENT] Timer reagendado no banco para ${newExecuteAt.toISOString()}`);
       } catch (dbErr) {
-        console.error(`⚠️ [AI AGENT] Erro ao reagendar no banco:`, dbErr);
+        console.error(`?? [AI AGENT] Erro ao reagendar no banco:`, dbErr);
       }
       
       // Remover do processamento para permitir retry
@@ -6378,40 +6692,38 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
       return;
     }
     
-    // ⚡ FIX: Verificar se o socket está REALMENTE pronto para enviar
+    // ? FIX: Verificar se o socket est� REALMENTE pronto para enviar
     // O session pode existir mas o WebSocket interno pode estar fechado/reconectando
-    // Sem essa verificação, gastamos tokens de LLM e depois falhamos no envio
+    // Sem essa verifica��o, gastamos tokens de LLM e depois falhamos no envio
     const socketUser = currentSession.socket?.user;
     const socketWs = (currentSession.socket as any)?.ws;
     const wsReadyState = socketWs?.readyState;
     
-    // WebSocket.OPEN = 1. Se != 1, o socket não está pronto para enviar
+    // WebSocket.OPEN = 1. Se != 1, o socket n�o est� pronto para enviar
     if (!socketUser || (wsReadyState !== undefined && wsReadyState !== 1)) {
       console.log(`\n${'!'.repeat(60)}`);
-      console.log(`⚡ [AI Agent] BLOQUEIO: Socket existe mas WebSocket NÃO está OPEN`);
+      console.log(`? [AI Agent] BLOQUEIO: Socket existe mas WebSocket N�O est� OPEN`);
       console.log(`   userId: ${userId}`);
       console.log(`   conversationId: ${conversationId}`);
       console.log(`   contactNumber: ${contactNumber}`);
-      console.log(`   socketUser: ${socketUser ? 'sim' : 'não'}`);
+      console.log(`   socketUser: ${socketUser ? 'sim' : 'n�o'}`);
       console.log(`   wsReadyState: ${wsReadyState} (OPEN=1)`);
-      console.log(`   👉 Socket reconectando, retry rápido em ${CONNECTION_CLOSED_RETRY_MS/1000}s`);
+      console.log(`   ?? Socket reconectando, retry r�pido em ${CONNECTION_CLOSED_RETRY_MS/1000}s`);
       console.log(`${'!'.repeat(60)}\n`);
 
-      let socketConnectionState = connectionId
-        ? await storage.getConnectionById(connectionId)
-        : undefined;
+      let socketConnectionState = await storage.getConnectionById(effectiveConnectionId);
       if (!socketConnectionState) {
-        socketConnectionState = await storage.getConnectionByUserId(userId);
+        socketConnectionState = await storage.getConnectionByUserId(userId, effectiveConnectionId);
       }
-      const socketRecoveryScope = socketConnectionState?.id || connectionId || userId;
+      const socketRecoveryScope = socketConnectionState?.id || effectiveConnectionId;
       if (socketConnectionState?.isConnected && socketConnectionState.id) {
         const lastSocketRecoveryAt = sessionRecoveryAttemptAt.get(socketRecoveryScope) || 0;
         const sinceLastSocketRecoveryMs = Date.now() - lastSocketRecoveryAt;
         if (sinceLastSocketRecoveryMs >= SESSION_RECOVERY_ATTEMPT_COOLDOWN_MS) {
           sessionRecoveryAttemptAt.set(socketRecoveryScope, Date.now());
-          console.log(`🔄 [AI AGENT] Socket não OPEN mas DB=connected. Forçando reconnect (conn=${socketConnectionState.id.substring(0, 8)}, user=${userId.substring(0, 8)})`);
+          console.log(`?? [AI AGENT] Socket n�o OPEN mas DB=connected. For�ando reconnect (conn=${socketConnectionState.id.substring(0, 8)}, user=${userId.substring(0, 8)})`);
           void connectWhatsApp(userId, socketConnectionState.id).catch((reconnectErr) => {
-            console.error(`⚠️ [AI AGENT] Falha ao disparar reconnect por socket não OPEN:`, reconnectErr);
+            console.error(`?? [AI AGENT] Falha ao disparar reconnect por socket n�o OPEN:`, reconnectErr);
           });
         }
       }
@@ -6421,7 +6733,7 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         messages,
         conversationId,
         userId,
-        connectionId,
+        connectionId: effectiveConnectionId,
         contactNumber,
         jidSuffix,
         startTime: pending.startTime,
@@ -6429,7 +6741,7 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
       };
       
       retryPending.timeout = setTimeout(async () => {
-        console.log(`🔄 [AI AGENT] Retry rápido (socket não pronto): ${contactNumber}`);
+        console.log(`?? [AI AGENT] Retry r�pido (socket n�o pronto): ${contactNumber}`);
         await processAccumulatedMessages(retryPending);
       }, CONNECTION_CLOSED_RETRY_MS);
       
@@ -6439,35 +6751,35 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         const newExecuteAt = new Date(Date.now() + CONNECTION_CLOSED_RETRY_MS);
         await storage.updatePendingAIResponseMessages(conversationId, messages, newExecuteAt);
       } catch (dbErr) {
-        console.error(`⚠️ [AI AGENT] Erro ao reagendar no banco:`, dbErr);
+        console.error(`?? [AI AGENT] Erro ao reagendar no banco:`, dbErr);
       }
       
       conversationsBeingProcessed.delete(conversationId);
       return;
     }
     
-    // 🔒 CHECK DE LIMITE DE MENSAGENS E PLANO VENCIDO
+    // ?? CHECK DE LIMITE DE MENSAGENS E PLANO VENCIDO
     const FREE_TRIAL_LIMIT = 25;
-    const connection = await storage.getConnectionByUserId(userId);
+    const connection = scopedConnection;
     if (connection) {
       const subscription = await storage.getUserSubscription(userId);
       
-      // ✅ CORREÇÃO: Verificar status E se o plano está vencido por data
+      // ? CORRE��O: Verificar status E se o plano est� vencido por data
       let hasActiveSubscription = subscription?.status === 'active';
       let isSubscriptionExpired = false;
       
-      // 🔍 Verificar se o plano está vencido pela data_fim
+      // ?? Verificar se o plano est� vencido pela data_fim
       if (subscription?.dataFim) {
         const endDate = new Date(subscription.dataFim);
         const now = new Date();
         if (now > endDate) {
           isSubscriptionExpired = true;
           hasActiveSubscription = false;
-          console.log(`🚫 [AI AGENT] PLANO VENCIDO! data_fim: ${endDate.toISOString()} < agora: ${now.toISOString()}`);
+          console.log(`?? [AI AGENT] PLANO VENCIDO! data_fim: ${endDate.toISOString()} < agora: ${now.toISOString()}`);
         }
       }
       
-      // 🔍 Verificar também pelo next_payment_date (para assinaturas recorrentes)
+      // ?? Verificar tamb�m pelo next_payment_date (para assinaturas recorrentes)
       if (subscription?.nextPaymentDate && !isSubscriptionExpired) {
         const nextPayment = new Date(subscription.nextPaymentDate);
         const now = new Date();
@@ -6476,30 +6788,30 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         if (daysOverdue > 5) {
           isSubscriptionExpired = true;
           hasActiveSubscription = false;
-          console.log(`🚫 [AI AGENT] PAGAMENTO EM ATRASO! ${daysOverdue} dias - nextPaymentDate: ${nextPayment.toISOString()}`);
+          console.log(`?? [AI AGENT] PAGAMENTO EM ATRASO! ${daysOverdue} dias - nextPaymentDate: ${nextPayment.toISOString()}`);
         }
       }
       
       if (!hasActiveSubscription) {
         const agentMessagesCount = await storage.getAgentMessagesCount(connection.id);
         
-        // 🚫 Se plano venceu, também volta pro limite de 25 mensagens (plano de teste)
+        // ?? Se plano venceu, tamb�m volta pro limite de 25 mensagens (plano de teste)
         if (isSubscriptionExpired) {
-          console.log(`🚫 [AI AGENT] Plano vencido! Cliente volta ao limite de ${FREE_TRIAL_LIMIT} mensagens de teste.`);
-          console.log(`   📊 Mensagens usadas: ${agentMessagesCount}/${FREE_TRIAL_LIMIT}`);
+          console.log(`?? [AI AGENT] Plano vencido! Cliente volta ao limite de ${FREE_TRIAL_LIMIT} mensagens de teste.`);
+          console.log(`   ?? Mensagens usadas: ${agentMessagesCount}/${FREE_TRIAL_LIMIT}`);
           
-          // Se já usou as mensagens de teste, bloqueia completamente
+          // Se j� usou as mensagens de teste, bloqueia completamente
           if (agentMessagesCount >= FREE_TRIAL_LIMIT) {
             console.log(`\n${'!'.repeat(60)}`);
-            console.log(`🚫 [AI AGENT] BLOQUEIO: Plano vencido E limite de teste atingido`);
+            console.log(`?? [AI AGENT] BLOQUEIO: Plano vencido E limite de teste atingido`);
             console.log(`   userId: ${userId}`);
             console.log(`   contactNumber: ${contactNumber}`);
             console.log(`   Mensagens usadas: ${agentMessagesCount}/${FREE_TRIAL_LIMIT}`);
-            console.log(`   👉 IA PAUSADA para este cliente - precisa renovar assinatura`);
-            console.log(`   🛑 Timer marcado como COMPLETED (sem retry - bloqueio permanente)`);
+            console.log(`   ?? IA PAUSADA para este cliente - precisa renovar assinatura`);
+            console.log(`   ?? Timer marcado como COMPLETED (sem retry - bloqueio permanente)`);
             console.log(`${'!'.repeat(60)}\n`);
-            // 🛑 FIX: Marcar como completed para PARAR retry loop infinito
-            // Plano vencido + limite atingido = bloqueio permanente, não adianta retry
+            // ?? FIX: Marcar como completed para PARAR retry loop infinito
+            // Plano vencido + limite atingido = bloqueio permanente, n�o adianta retry
             try {
               await storage.markPendingAIResponseCompleted(conversationId);
             } catch (e) { /* ignora */ }
@@ -6510,15 +6822,15 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         
         if (agentMessagesCount >= FREE_TRIAL_LIMIT) {
           console.log(`\n${'!'.repeat(60)}`);
-          console.log(`🚫 [AI AGENT] BLOQUEIO: Limite de ${FREE_TRIAL_LIMIT} mensagens atingido`);
+          console.log(`?? [AI AGENT] BLOQUEIO: Limite de ${FREE_TRIAL_LIMIT} mensagens atingido`);
           console.log(`   userId: ${userId}`);
           console.log(`   contactNumber: ${contactNumber}`);
           console.log(`   Mensagens usadas: ${agentMessagesCount}/${FREE_TRIAL_LIMIT}`);
-          console.log(`   👉 Usuário precisa assinar plano`);
-          console.log(`   🛑 Timer marcado como COMPLETED (sem retry - bloqueio permanente)`);
+          console.log(`   ?? Usu�rio precisa assinar plano`);
+          console.log(`   ?? Timer marcado como COMPLETED (sem retry - bloqueio permanente)`);
           console.log(`${'!'.repeat(60)}\n`);
-          // 🛑 FIX: Marcar como completed para PARAR retry loop infinito
-          // Limite atingido = bloqueio permanente, não adianta retry a cada 30s
+          // ?? FIX: Marcar como completed para PARAR retry loop infinito
+          // Limite atingido = bloqueio permanente, n�o adianta retry a cada 30s
           try {
             await storage.markPendingAIResponseCompleted(conversationId);
           } catch (e) { /* ignora */ }
@@ -6526,9 +6838,9 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
           return;
         }
         
-        console.log(`📊 [AI AGENT] Uso: ${agentMessagesCount + 1}/${FREE_TRIAL_LIMIT} mensagens`);
+        console.log(`?? [AI AGENT] Uso: ${agentMessagesCount + 1}/${FREE_TRIAL_LIMIT} mensagens`);
       } else {
-        console.log(`✅ [AI AGENT] Usuário tem plano pago ativo e válido: ${subscription?.plan?.nome || 'Plano'}`);
+        console.log(`? [AI AGENT] Usu�rio tem plano pago ativo e v�lido: ${subscription?.plan?.nome || 'Plano'}`);
       }
     }
     
@@ -6536,19 +6848,19 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
     const combinedText = messages.join('\n\n');
     console.log(`   ?? Texto combinado: "${combinedText.substring(0, 150)}..."`);
 
-    // ?? BUSCAR HIST�RICO DE CONVERSAS
+    // ?? BUSCAR HIST?RICO DE CONVERSAS
     let conversationHistory = await storage.getMessagesByConversationId(conversationId);
     
     // ?? BUSCAR NOME DO CLIENTE DA CONVERSA
     const conversation = await storage.getConversation(conversationId);
     const contactName = conversation?.contactName || undefined;
-    console.log(`?? [AI AGENT] Nome do cliente: ${contactName || 'N�o identificado'}`);
+    console.log(`?? [AI AGENT] Nome do cliente: ${contactName || 'N?o identificado'}`);
     
-    // ?? BUSCAR M�DIAS J� ENVIADAS NESTA CONVERSA (para evitar repeti��o)
+    // ?? BUSCAR M?DIAS J? ENVIADAS NESTA CONVERSA (para evitar repeti??o)
     const sentMedias: string[] = [];
     for (const msg of conversationHistory) {
       if (msg.fromMe && msg.isFromAgent) {
-        // M�todo 1: Detectar tags de m�dia no texto das mensagens
+        // M?todo 1: Detectar tags de m?dia no texto das mensagens
         if (msg.text) {
           const mediaMatches = msg.text.match(/\[MEDIA:([A-Z0-9_]+)\]/gi);
           if (mediaMatches) {
@@ -6561,7 +6873,7 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
           }
         }
         
-        // M�todo 2: Detectar tags no campo mediaCaption (novo formato)
+        // M?todo 2: Detectar tags no campo mediaCaption (novo formato)
         if (msg.mediaCaption) {
           const captionMatches = msg.mediaCaption.match(/\[MEDIA:([A-Z0-9_]+)\]/gi);
           if (captionMatches) {
@@ -6575,16 +6887,16 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         }
       }
     }
-    console.log(`?? [AI AGENT] M�dias j� enviadas: ${sentMedias.length > 0 ? sentMedias.join(', ') : 'nenhuma'}`);
+    console.log(`?? [AI AGENT] M?dias j? enviadas: ${sentMedias.length > 0 ? sentMedias.join(', ') : 'nenhuma'}`);
     
-    // Verificar se modo hist�rico est� ativo
+    // Verificar se modo hist?rico est? ativo
     const agentConfig = await storage.getAgentConfig(userId);
     
     if (agentConfig?.fetchHistoryOnFirstResponse) {
-      console.log(`?? [AI AGENT] Modo hist�rico ATIVO - ${conversationHistory.length} mensagens dispon�veis para contexto`);
+      console.log(`?? [AI AGENT] Modo hist?rico ATIVO - ${conversationHistory.length} mensagens dispon?veis para contexto`);
       
       if (conversationHistory.length > 40) {
-        console.log(`?? [AI AGENT] Hist�rico grande - ser� usado sistema de resumo inteligente`);
+        console.log(`?? [AI AGENT] Hist?rico grande - ser? usado sistema de resumo inteligente`);
       }
     }
 
@@ -6593,32 +6905,32 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
       conversationHistory,
       combinedText, // ? Todas as mensagens combinadas
       {
-        contactName, // ? Nome do cliente para personaliza��o
+        contactName, // ? Nome do cliente para personaliza??o
         contactPhone: contactNumber, // ? Telefone do cliente para agendamento
-        sentMedias,  // ? M�dias j� enviadas para evitar repeti��o
-        conversationId, // 🍕 ID da conversa para vincular pedidos de delivery
-        isCTWAFallback: pending.isCTWAFallback, // 📢 Flag CTWA: IA deve tratar como saudação de interesse via Meta Ads
+        sentMedias,  // ? M?dias j? enviadas para evitar repeti??o
+        conversationId, // ?? ID da conversa para vincular pedidos de delivery
+        isCTWAFallback: pending.isCTWAFallback, // ?? Flag CTWA: IA deve tratar como sauda��o de interesse via Meta Ads
       }
     );
 
-    // ?? Extrair texto e a��es de m�dia da resposta
+    // ?? Extrair texto e a??es de m?dia da resposta
     const aiResponse = aiResult?.text || null;
     const mediaActions = aiResult?.mediaActions || [];
 
-    // 📢 NOTIFICATION SYSTEM UNIVERSAL (AI + Manual + Resposta do Agente)
+    // ?? NOTIFICATION SYSTEM UNIVERSAL (AI + Manual + Resposta do Agente)
     const businessConfig = await storage.getBusinessAgentConfig(userId);
     
-    // 🔍 DEBUG: Log detalhado do businessConfig para diagnóstico
-    console.log(`🔔 [NOTIFICATION DEBUG] userId: ${userId}`);
-    console.log(`🔔 [NOTIFICATION DEBUG] businessConfig exists: ${!!businessConfig}`);
+    // ?? DEBUG: Log detalhado do businessConfig para diagn�stico
+    console.log(`?? [NOTIFICATION DEBUG] userId: ${userId}`);
+    console.log(`?? [NOTIFICATION DEBUG] businessConfig exists: ${!!businessConfig}`);
     if (businessConfig) {
-      console.log(`🔔 [NOTIFICATION DEBUG] notificationEnabled: ${businessConfig.notificationEnabled}`);
-      console.log(`🔔 [NOTIFICATION DEBUG] notificationMode: ${businessConfig.notificationMode}`);
-      console.log(`🔔 [NOTIFICATION DEBUG] notificationManualKeywords: ${businessConfig.notificationManualKeywords}`);
-      console.log(`🔔 [NOTIFICATION DEBUG] notificationPhoneNumber: ${businessConfig.notificationPhoneNumber}`);
+      console.log(`?? [NOTIFICATION DEBUG] notificationEnabled: ${businessConfig.notificationEnabled}`);
+      console.log(`?? [NOTIFICATION DEBUG] notificationMode: ${businessConfig.notificationMode}`);
+      console.log(`?? [NOTIFICATION DEBUG] notificationManualKeywords: ${businessConfig.notificationManualKeywords}`);
+      console.log(`?? [NOTIFICATION DEBUG] notificationPhoneNumber: ${businessConfig.notificationPhoneNumber}`);
     }
-    console.log(`🔔 [NOTIFICATION DEBUG] clientMessage (combinedText): "${combinedText?.substring(0, 100)}"`);
-    console.log(`🔔 [NOTIFICATION DEBUG] aiResponse: "${aiResponse?.substring(0, 100) || 'null'}"`);
+    console.log(`?? [NOTIFICATION DEBUG] clientMessage (combinedText): "${combinedText?.substring(0, 100)}"`);
+    console.log(`?? [NOTIFICATION DEBUG] aiResponse: "${aiResponse?.substring(0, 100) || 'null'}"`);
     
     let shouldNotify = false;
     let notifyReason = "";
@@ -6629,43 +6941,43 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
       shouldNotify = true;
       notifyReason = aiResult.notification.reason;
       keywordSource = "IA";
-      console.log(`📢 [AI Agent] AI detected notification trigger: ${notifyReason}`);
+      console.log(`?? [AI Agent] AI detected notification trigger: ${notifyReason}`);
     }
     
     // Check Manual keyword notification (if mode is "manual" or "both")
-    // 🔍 DEBUG: Log da condição de verificação
+    // ?? DEBUG: Log da condi��o de verifica��o
     const conditionCheck = {
       notificationEnabled: !!businessConfig?.notificationEnabled,
       notificationManualKeywords: !!businessConfig?.notificationManualKeywords,
       notificationMode: businessConfig?.notificationMode,
       modeMatches: businessConfig?.notificationMode === "manual" || businessConfig?.notificationMode === "both"
     };
-    console.log(`🔔 [NOTIFICATION DEBUG] Keyword check condition: ${JSON.stringify(conditionCheck)}`);
+    console.log(`?? [NOTIFICATION DEBUG] Keyword check condition: ${JSON.stringify(conditionCheck)}`);
     
     if (businessConfig?.notificationEnabled && 
         businessConfig?.notificationManualKeywords &&
         (businessConfig.notificationMode === "manual" || businessConfig.notificationMode === "both")) {
       
-      console.log(`🔔 [NOTIFICATION DEBUG] ✅ Entering keyword check block!`);
+      console.log(`?? [NOTIFICATION DEBUG] ? Entering keyword check block!`);
       
       const keywords = businessConfig.notificationManualKeywords
         .split(',')
         .map(k => k.trim().toLowerCase())
         .filter(k => k.length > 0);
       
-      console.log(`🔔 [NOTIFICATION DEBUG] Keywords to check: ${JSON.stringify(keywords)}`);
+      console.log(`?? [NOTIFICATION DEBUG] Keywords to check: ${JSON.stringify(keywords)}`);
       
-      // 📢 VERIFICAR TANTO NA MENSAGEM DO CLIENTE QUANTO NA RESPOSTA DO AGENTE
+      // ?? VERIFICAR TANTO NA MENSAGEM DO CLIENTE QUANTO NA RESPOSTA DO AGENTE
       const clientMessage = combinedText.toLowerCase();
       const agentMessage = (aiResponse || "").toLowerCase();
       
-      console.log(`🔔 [NOTIFICATION DEBUG] clientMessage: "${clientMessage.substring(0, 100)}"`);
-      console.log(`🔔 [NOTIFICATION DEBUG] agentMessage: "${agentMessage.substring(0, 100)}"`);
+      console.log(`?? [NOTIFICATION DEBUG] clientMessage: "${clientMessage.substring(0, 100)}"`);
+      console.log(`?? [NOTIFICATION DEBUG] agentMessage: "${agentMessage.substring(0, 100)}"`);
       
       for (const keyword of keywords) {
-        console.log(`🔔 [NOTIFICATION DEBUG] Checking keyword: "${keyword}"`);
-        console.log(`🔔 [NOTIFICATION DEBUG] Client includes "${keyword}": ${clientMessage.includes(keyword)}`);
-        console.log(`🔔 [NOTIFICATION DEBUG] Agent includes "${keyword}": ${agentMessage.includes(keyword)}`);
+        console.log(`?? [NOTIFICATION DEBUG] Checking keyword: "${keyword}"`);
+        console.log(`?? [NOTIFICATION DEBUG] Client includes "${keyword}": ${clientMessage.includes(keyword)}`);
+        console.log(`?? [NOTIFICATION DEBUG] Agent includes "${keyword}": ${agentMessage.includes(keyword)}`);
         
         // Verificar na mensagem do cliente
         if (clientMessage.includes(keyword)) {
@@ -6675,11 +6987,11 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
             ? `${notifyReason} + Palavra-chave (${source}): "${keyword}"` 
             : `Palavra-chave detectada (${source}): "${keyword}"`;
           keywordSource = keywordSource ? `${keywordSource} + Manual (cliente)` : "Manual (cliente)";
-          console.log(`📢 [AI Agent] Manual keyword in CLIENT message: "${keyword}"`);
+          console.log(`?? [AI Agent] Manual keyword in CLIENT message: "${keyword}"`);
           break;
         }
         
-        // 📢 Verificar na resposta do agente (NOVO!)
+        // ?? Verificar na resposta do agente (NOVO!)
         if (agentMessage.includes(keyword)) {
           shouldNotify = true;
           const source = "agente";
@@ -6687,17 +6999,17 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
             ? `${notifyReason} + Palavra-chave (${source}): "${keyword}"` 
             : `Palavra-chave detectada (${source}): "${keyword}"`;
           keywordSource = keywordSource ? `${keywordSource} + Manual (agente)` : "Manual (agente)";
-          console.log(`📢 [AI Agent] Manual keyword in AGENT response: "${keyword}"`);
+          console.log(`?? [AI Agent] Manual keyword in AGENT response: "${keyword}"`);
           break;
         }
       }
     } else {
-      console.log(`🔔 [NOTIFICATION DEBUG] ❌ Skipping keyword check - conditions not met`);
+      console.log(`?? [NOTIFICATION DEBUG] ? Skipping keyword check - conditions not met`);
     }
     
-    // Log completo da detecção
+    // Log completo da detec��o
     if (shouldNotify) {
-      console.log(`📢 [AI Agent] NOTIFICATION TRIGGERED via: ${keywordSource}`);
+      console.log(`?? [AI Agent] NOTIFICATION TRIGGERED via: ${keywordSource}`);
     }
     
     // Send notification if triggered
@@ -6705,8 +7017,8 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
       const notifyNumber = businessConfig.notificationPhoneNumber.replace(/\D/g, '');
       const notifyJid = `${notifyNumber}@s.whatsapp.net`;
       
-      // 📢 Mensagem de notificação melhorada com contexto
-      const notifyMessage = `📢 *NOTIFICAÇÃO DO AGENTE*\n\n` +
+      // ?? Mensagem de notifica��o melhorada com contexto
+      const notifyMessage = `?? *NOTIFICA��O DO AGENTE*\n\n` +
         `?? *Motivo:* ${notifyReason}\n` +
         `?? *Fonte:* ${keywordSource}\n\n` +
         `?? *Cliente:* ${contactNumber}\n` +
@@ -6714,8 +7026,8 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         (aiResponse ? `?? *Resposta do agente:* "${aiResponse.substring(0, 200)}${aiResponse.length > 200 ? '...' : ''}"` : '');
       
       try {
-        // ??? ANTI-BLOQUEIO: Usar fila do usu�rio para notifica��o
-        await sendWithQueue(userId, 'notifica��o NOTIFY', async () => {
+        // ??? ANTI-BLOQUEIO: Usar fila do usu?rio para notifica??o
+        await sendWithQueue(userId, 'notifica??o NOTIFY', async () => {
           await currentSession.socket.sendMessage(notifyJid, { text: notifyMessage });
         });
         console.log(`?? [AI Agent] Notification sent to ${notifyNumber}`);
@@ -6726,7 +7038,7 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
 
     console.log(`?? [AI Agent] generateAIResponse retornou: ${aiResponse ? `"${aiResponse.substring(0, 100)}..."` : 'NULL'}`);
     if (mediaActions.length > 0) {
-      console.log(`?? [AI Agent] ${mediaActions.length} a��es de m�dia: ${mediaActions.map(a => a.media_name).join(', ')}`);
+      console.log(`?? [AI Agent] ${mediaActions.length} a??es de m?dia: ${mediaActions.map(a => a.media_name).join(', ')}`);
     }
 
     if (aiResponse) {
@@ -6736,21 +7048,21 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         ? buildSendJid(conversationData)
         : `${contactNumber}@${jidSuffix || DEFAULT_JID_SUFFIX}`;
       
-      // ?? ANTI-DUPLICA��O: Verificar se resposta j� foi enviada recentemente
+      // ?? ANTI-DUPLICA??O: Verificar se resposta j? foi enviada recentemente
       // NOTE: N?o chamar canSendMessage aqui antes do envio. A fila (messageQueueService) j? faz o dedupe
       // e o pre-check registrava a mensagem como enviada, fazendo o envio real ser BLOQUEADO.
 
       if (isRecentDuplicate(conversationId, aiResponse)) {
-        console.log(`?? [AI AGENT] ?? Resposta ID�NTICA j� enviada nos �ltimos 2 minutos, IGNORANDO duplicata`);
+        console.log(`?? [AI AGENT] ?? Resposta ID?NTICA j? enviada nos ?ltimos 2 minutos, IGNORANDO duplicata`);
         console.log(`   ?? Texto: "${aiResponse.substring(0, 100)}..."`);
         responseSuccessful = true;
         return;
       }
       
-      // ?? Registrar resposta no cache anti-duplica��o
+      // ?? Registrar resposta no cache anti-duplica??o
       registerSentMessageCache(conversationId, aiResponse);
       
-      // ?? HUMANIZA��O: Quebrar mensagens longas em m�ltiplas
+      // ?? HUMANIZA??O: Quebrar mensagens longas em m?ltiplas
       const agentConfig = await storage.getAgentConfig(userId);
       const maxChars = agentConfig?.messageSplitChars ?? 400;
       const messageParts = splitMessageHumanLike(aiResponse, maxChars);
@@ -6763,12 +7075,12 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         let savedAgentMsg: any = null;
         
         // ??? ANTI-BLOQUEIO: Usar fila de mensagens para garantir delay entre envios
-        // Cada WhatsApp tem sua pr�pria fila - m�ltiplos usu�rios podem enviar ao mesmo tempo
-        // ? Texto enviado EXATAMENTE como gerado pela IA (varia��o REMOVIDA do sistema)
+        // Cada WhatsApp tem sua pr?pria fila - m?ltiplos usu?rios podem enviar ao mesmo tempo
+        // ? Texto enviado EXATAMENTE como gerado pela IA (varia??o REMOVIDA do sistema)
         const queueResult = await messageQueueService.enqueue(userId, jid, part, {
           isFromAgent: true,
           conversationId,
-          connectionId,
+          connectionId: effectiveConnectionId,
           priority: 'high', // Respostas da IA = prioridade alta
         });
 
@@ -6793,7 +7105,7 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         } else {
           console.log(`??? [AI AGENT] Parte bloqueada por dedupe (j? enviada antes). Pulando persist?ncia no DB.`);
         }
-        // Só atualizar conversa na última parte
+        // S� atualizar conversa na �ltima parte
         if (isLast) {
           try {
             await storage.updateConversation(conversationId, {
@@ -6810,7 +7122,7 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
             type: "agent_response",
             conversationId: conversationId,
             message: aiResponse,
-            // ⚡ REAL-TIME: Enviar mensagem completa para append inline
+            // ? REAL-TIME: Enviar mensagem completa para append inline
             messageData: savedAgentMsg ? {
               id: savedAgentMsg.id,
               conversationId: conversationId,
@@ -6838,7 +7150,7 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
       responseSuccessful = true;
       console.log(`? [AI AGENT] Texto enviado com sucesso (marcando timer como completed ao final)`);
 
-      // 🎤 TTS: Gerar e enviar áudio da resposta (se configurado)
+      // ?? TTS: Gerar e enviar �udio da resposta (se configurado)
       try {
         const audioSent = await processAudioResponseForAgent(
           userId,
@@ -6847,16 +7159,16 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
           currentSession.socket
         );
         if (audioSent) {
-          console.log(`🎤 [AI Agent] Áudio TTS enviado junto com a resposta`);
+          console.log(`?? [AI Agent] �udio TTS enviado junto com a resposta`);
         }
       } catch (audioError) {
-        console.error(`⚠️ [AI Agent] Erro ao processar áudio TTS (não crítico):`, audioError);
-        // Continuar mesmo se falhar - o texto já foi enviado
+        console.error(`?? [AI Agent] Erro ao processar �udio TTS (n�o cr�tico):`, audioError);
+        // Continuar mesmo se falhar - o texto j� foi enviado
       }
       
-      // 🎬 EXECUTAR AÇÕES DE MÍDIA (enviar áudios, imagens, vídeos)
+      // ?? EXECUTAR A��ES DE M�DIA (enviar �udios, imagens, v�deos)
       if (mediaActions.length > 0) {
-        console.log(`🎬 [AI Agent] Executando ${mediaActions.length} ações de mídia...`);
+        console.log(`?? [AI Agent] Executando ${mediaActions.length} a��es de m�dia...`);
         
         const conversationDataForMedia = await storage.getConversation(conversationId);
         const mediaJid = conversationDataForMedia
@@ -6869,7 +7181,7 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
         await executeMediaActions({
           userId,
           jid: mediaJid,
-          conversationId, // Passar conversationId para salvar mensagens de m�dia
+          conversationId, // Passar conversationId para salvar mensagens de m?dia
           actions: mediaActions,
           socket: currentSession.socket,
         });
@@ -6877,66 +7189,66 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
           console.error(`?? [AI Agent] Erro ao executar a??es de m?dia (n?o cr?tico):`, mediaErr);
         }
         
-        console.log(`?? [AI Agent] M�dias enviadas com sucesso!`);
+        console.log(`?? [AI Agent] M?dias enviadas com sucesso!`);
       }
 
-      // 🔄 FOLLOW-UP: Se agente enviou mensagem, agendar follow-up inicial
+      // ?? FOLLOW-UP: Se agente enviou mensagem, agendar follow-up inicial
       try {
         await followUpService.scheduleInitialFollowUp(conversationId);
       } catch (error) {
         console.error("Erro ao agendar follow-up:", error);
       }
       
-      // ✅ MARCAR COMO SUCESSO - A resposta foi enviada
+      // ? MARCAR COMO SUCESSO - A resposta foi enviada
       responseSuccessful = true;
-      console.log(`✅ [AI AGENT] Resposta enviada com sucesso para ${contactNumber}`);
+      console.log(`? [AI AGENT] Resposta enviada com sucesso para ${contactNumber}`);
     } else {
       console.log(`\n${'='.repeat(60)}`);
-      console.log(`⚠️ [AI Agent] RESPOSTA NULL - Nenhuma resposta gerada!`);
+      console.log(`?? [AI Agent] RESPOSTA NULL - Nenhuma resposta gerada!`);
       console.log(`   conversationId: ${conversationId}`);
       console.log(`   contactNumber: ${contactNumber}`);
-      console.log(`   Possíveis causas (verifique logs acima para "RETURN NULL"):`);
-      console.log(`   1. Usuário SUSPENSO`);
+      console.log(`   Poss�veis causas (verifique logs acima para "RETURN NULL"):`);
+      console.log(`   1. Usu�rio SUSPENSO`);
       console.log(`   2. Mensagem de BOT detectada`);
-      console.log(`   3. agentConfig não encontrado ou isActive=false`);
+      console.log(`   3. agentConfig n�o encontrado ou isActive=false`);
       console.log(`   4. Trigger phrases configuradas mas nenhuma encontrada`);
       console.log(`   5. Erro na API de LLM (timeout, rate limit)`);
       console.log(`${'='.repeat(60)}\n`);
       
-      // ❌ NÃO marcar responseSuccessful - timer será mantido como pending para retry
+      // ? N�O marcar responseSuccessful - timer ser� mantido como pending para retry
     }
   } catch (error: any) {
-    console.error("❌ [AI AGENT] RETURN NULL #6: Exceção capturada no catch externo:", error);
-    // ⚡ FIX: Detectar erro de Connection Closed para retry rápido
+    console.error("? [AI AGENT] RETURN NULL #6: Exce��o capturada no catch externo:", error);
+    // ? FIX: Detectar erro de Connection Closed para retry r�pido
     const errorMsg = error?.message || String(error);
     (pending as any)._lastErrorMsg = errorMsg.substring(0, 500);
     if (errorMsg.includes('Connection Closed') || errorMsg.includes('connection closed')) {
       (pending as any)._connectionClosedError = true;
     }
   } finally {
-    // 🔒 ANTI-DUPLICAÇÃO: Remover da lista de conversas em processamento
+    // ?? ANTI-DUPLICA��O: Remover da lista de conversas em processamento
     conversationsBeingProcessed.delete(conversationId);
     
-    // 💾 PERSISTENT TIMER: Marcar como completed APENAS se resposta foi enviada com sucesso
+    // ?? PERSISTENT TIMER: Marcar como completed APENAS se resposta foi enviada com sucesso
     if (responseSuccessful) {
       try {
         await storage.markPendingAIResponseCompleted(conversationId);
-        pendingRetryCounter.delete(conversationId); // 🧹 Limpar contador de retries
-        console.log(`✅ [AI AGENT] Timer marcado como completed - resposta enviada com sucesso!`);
+        pendingRetryCounter.delete(conversationId); // ?? Limpar contador de retries
+        console.log(`? [AI AGENT] Timer marcado como completed - resposta enviada com sucesso!`);
       } catch (dbError) {
-        console.error(`⚠️ [AI AGENT] Erro ao marcar timer como completed (não crítico):`, dbError);
+        console.error(`?? [AI AGENT] Erro ao marcar timer como completed (n�o cr�tico):`, dbError);
       }
     } else {
-      // ⚡ FIX: Se foi erro de Connection Closed, usar retry rápido com backoff
+      // ? FIX: Se foi erro de Connection Closed, usar retry r�pido com backoff
       const isConnectionClosed = (pending as any)._connectionClosedError === true;
       const errorMsg = (pending as any)._lastErrorMsg || 'unknown';
       
-      // 🔧 FIX 2026-02-25: RETRY COUNTER with exponential backoff
+      // ?? FIX 2026-02-25: RETRY COUNTER with exponential backoff
       const currentRetries = (pendingRetryCounter.get(conversationId) || 0) + 1;
       pendingRetryCounter.set(conversationId, currentRetries);
       
       if (currentRetries > MAX_SEND_RETRIES) {
-        // 🛑 MAX RETRIES EXCEEDED - mark as failed with full details
+        // ?? MAX RETRIES EXCEEDED - mark as failed with full details
         try {
           const reason = isConnectionClosed 
             ? `connection_closed_max_retries_${currentRetries}` 
@@ -6944,27 +7256,24 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
           await storage.markPendingAIResponseFailed(conversationId, reason, errorMsg);
           pendingRetryCounter.delete(conversationId);
           waObservability.pendingAI_maxRetriesExhausted++;
-          console.error(`🛑 [AI AGENT] Timer ABANDONADO após ${currentRetries} tentativas (${reason}) - conversationId: ${conversationId}`);
+          console.error(`?? [AI AGENT] Timer ABANDONADO ap�s ${currentRetries} tentativas (${reason}) - conversationId: ${conversationId}`);
         } catch (dbError) {
-          console.error(`⚠️ [AI AGENT] Erro ao marcar timer como failed:`, dbError);
+          console.error(`?? [AI AGENT] Erro ao marcar timer como failed:`, dbError);
         }
       } else if (isConnectionClosed) {
         try {
-          let reconnectConnection = connectionId
-            ? await storage.getConnectionById(connectionId)
+          const reconnectConnection = resolvedConnectionIdForRetry
+            ? await storage.getConnectionById(resolvedConnectionIdForRetry)
             : undefined;
-          if (!reconnectConnection) {
-            reconnectConnection = await storage.getConnectionByUserId(userId);
-          }
 
-          const reconnectScope = reconnectConnection?.id || connectionId || userId;
+          const reconnectScope = reconnectConnection?.id || resolvedConnectionIdForRetry || userId;
           const lastReconnectAt = sessionRecoveryAttemptAt.get(reconnectScope) || 0;
           const reconnectAgeMs = Date.now() - lastReconnectAt;
           if (reconnectConnection?.id && reconnectAgeMs >= SESSION_RECOVERY_ATTEMPT_COOLDOWN_MS) {
             sessionRecoveryAttemptAt.set(reconnectScope, Date.now());
-            console.log(`🔄 [AI AGENT] Connection Closed detectado no envio. Disparando reconnect (conn=${reconnectConnection.id.substring(0, 8)}, user=${userId.substring(0, 8)})`);
+            console.log(`?? [AI AGENT] Connection Closed detectado no envio. Disparando reconnect (conn=${reconnectConnection.id.substring(0, 8)}, user=${userId.substring(0, 8)})`);
             void connectWhatsApp(userId, reconnectConnection.id).catch((reconnectErr) => {
-              console.error(`⚠️ [AI AGENT] Falha ao reconnect após Connection Closed:`, reconnectErr);
+              console.error(`?? [AI AGENT] Falha ao reconnect ap�s Connection Closed:`, reconnectErr);
             });
           }
 
@@ -6982,34 +7291,34 @@ async function processAccumulatedMessages(pending: PendingResponse): Promise<voi
             WHERE conversation_id = ${conversationId}
           `);
           waObservability.pendingAI_connectionClosedRetries++;
-          console.warn(`⚡ [AI AGENT] Timer reagendado retry ${currentRetries}/${MAX_SEND_RETRIES} em ${backoffSec}s - Connection Closed (conversationId: ${conversationId})`);
+          console.warn(`? [AI AGENT] Timer reagendado retry ${currentRetries}/${MAX_SEND_RETRIES} em ${backoffSec}s - Connection Closed (conversationId: ${conversationId})`);
         } catch (dbError) {
-          console.error(`⚠️ [AI AGENT] Erro ao reagendar timer para retry rápido:`, dbError);
+          console.error(`?? [AI AGENT] Erro ao reagendar timer para retry r�pido:`, dbError);
         }
       } else {
         // Retry com backoff: 30s, 60s, 120s... (cap at 5 min)
         const backoffSec = Math.min(30 * Math.pow(2, currentRetries - 1), 300);
         try {
           await storage.resetPendingAIResponseForRetry(conversationId, backoffSec);
-          console.warn(`🔄 [AI AGENT] Timer reagendado retry ${currentRetries}/${MAX_SEND_RETRIES} em ${backoffSec}s - resposta falhou (conversationId: ${conversationId})`);
+          console.warn(`?? [AI AGENT] Timer reagendado retry ${currentRetries}/${MAX_SEND_RETRIES} em ${backoffSec}s - resposta falhou (conversationId: ${conversationId})`);
         } catch (dbError) {
-          console.error(`⚠️ [AI AGENT] Erro ao reagendar timer para retry:`, dbError);
+          console.error(`?? [AI AGENT] Erro ao reagendar timer para retry:`, dbError);
         }
       }
     }
     
-    console.log(`🔓 [AI AGENT] Conversa ${conversationId} liberada para próximo processamento`);
+    console.log(`?? [AI AGENT] Conversa ${conversationId} liberada para pr�ximo processamento`);
   }
 }
 
 // ---------------------------------------------------------------------------
 // ?? TRIGGER RESPONSE ON AI RE-ENABLE
 // ---------------------------------------------------------------------------
-// Quando o usu�rio reativa a IA para uma conversa, verificamos se h� mensagens
-// pendentes do cliente que ainda n�o foram respondidas e disparamos a resposta.
+// Quando o usu?rio reativa a IA para uma conversa, verificamos se h? mensagens
+// pendentes do cliente que ainda n?o foram respondidas e disparamos a resposta.
 // 
-// Par�metro forceRespond: Quando true (chamado pelo bot�o "Responder com IA"),
-// ignora a verifica��o de "�ltima mensagem � do dono" e responde mesmo assim.
+// Par?metro forceRespond: Quando true (chamado pelo bot?o "Responder com IA"),
+// ignora a verifica??o de "?ltima mensagem ? do dono" e responde mesmo assim.
 // ---------------------------------------------------------------------------
 export async function triggerAgentResponseForConversation(
   userId: string,
@@ -7017,16 +7326,16 @@ export async function triggerAgentResponseForConversation(
   forceRespond: boolean = false
 ): Promise<{ triggered: boolean; reason: string }> {
   console.log(`\n${'='.repeat(60)}`);
-  console.log(`[TRIGGER] FUNÇÃO INICIADA - ${new Date().toISOString()}`);
+  console.log(`[TRIGGER] FUN��O INICIADA - ${new Date().toISOString()}`);
   console.log(`[TRIGGER] userId: ${userId}`);
   console.log(`[TRIGGER] conversationId: ${conversationId}`);
   console.log(`[TRIGGER] forceRespond: ${forceRespond}`);
   console.log(`${'='.repeat(60)}`);
   
   try {
-    // 1. Buscar a sessão do usuário (preferir via conversation's connectionId)
-    console.log(`[TRIGGER] Verificando sessão no Map sessions...`);
-    console.log(`[TRIGGER] Total de sessões no Map: ${sessions.size}`);
+    // 1. Buscar a sess�o do usu�rio (preferir via conversation's connectionId)
+    console.log(`[TRIGGER] Verificando sess�o no Map sessions...`);
+    console.log(`[TRIGGER] Total de sess�es no Map: ${sessions.size}`);
     
     // Debug: listar todas as chaves do Map
     const sessionKeys = Array.from(sessions.keys());
@@ -7034,54 +7343,56 @@ export async function triggerAgentResponseForConversation(
     
     // Try to get connection via conversation first for multi-connection
     const triggerConversation = await storage.getConversation(conversationId);
-    const session = triggerConversation 
-      ? (sessions.get(triggerConversation.connectionId) || sessions.get(userId))
-      : sessions.get(userId);
-    console.log(`[TRIGGER] Sessão encontrada: ${session ? 'SIM' : 'NÃO'} (connectionId: ${triggerConversation?.connectionId || 'N/A'})`);
+    if (!triggerConversation) {
+      console.log(`[TRIGGER] FALHA: Conversa n�o encontrada para resolver conex�o`);
+      return { triggered: false, reason: "Conversa n�o encontrada." };
+    }
+    const session = sessions.get(triggerConversation.connectionId);
+    console.log(`[TRIGGER] Sess�o encontrada: ${session ? 'SIM' : 'N�O'} (connectionId: ${triggerConversation?.connectionId || 'N/A'})`);
     
     // Check per-connection aiEnabled flag
     if (triggerConversation) {
       const connRecord = await storage.getConnectionById(triggerConversation.connectionId);
       if (connRecord && connRecord.aiEnabled === false) {
-        console.log(`[TRIGGER] FALHA: IA desativada para esta conexão (${triggerConversation.connectionId})`);
-        return { triggered: false, reason: "IA desativada para este número. Ative na tela de Conexões." };
+        console.log(`[TRIGGER] FALHA: IA desativada para esta conex�o (${triggerConversation.connectionId})`);
+        return { triggered: false, reason: "IA desativada para este n�mero. Ative na tela de Conex�es." };
       }
     }
     
     if (!session?.socket) {
       // Verificar se estamos em modo dev sem WhatsApp
       const skipRestore = process.env.SKIP_WHATSAPP_RESTORE === 'true';
-      console.log(`[TRIGGER] FALHA: Sessão WhatsApp não disponível (socket: ${session?.socket ? 'existe' : 'undefined'})`);
+      console.log(`[TRIGGER] FALHA: Sess�o WhatsApp n�o dispon�vel (socket: ${session?.socket ? 'existe' : 'undefined'})`);
       console.log(`[TRIGGER] SKIP_WHATSAPP_RESTORE: ${skipRestore}`);
       
       if (skipRestore) {
-        return { triggered: false, reason: "Modo desenvolvimento: WhatsApp não conectado localmente. Em produção, a sessão será restaurada automaticamente." };
+        return { triggered: false, reason: "Modo desenvolvimento: WhatsApp n�o conectado localmente. Em produ��o, a sess�o ser� restaurada automaticamente." };
       }
-      return { triggered: false, reason: "WhatsApp não conectado. Verifique a conexão em 'Conexão'." };
+      return { triggered: false, reason: "WhatsApp n�o conectado. Verifique a conex�o em 'Conex�o'." };
     }
-    console.log(`[TRIGGER] Sessão WhatsApp OK - socket existe`);
+    console.log(`[TRIGGER] Sess�o WhatsApp OK - socket existe`);
     
-    // 2. Verificar se o agente está ativo globalmente
+    // 2. Verificar se o agente est� ativo globalmente
     console.log(`[TRIGGER] Verificando agentConfig...`);
     const agentConfig = await storage.getAgentConfig(userId);
-    console.log(`[TRIGGER] agentConfig encontrado: ${agentConfig ? 'SIM' : 'NÃO'}`);
+    console.log(`[TRIGGER] agentConfig encontrado: ${agentConfig ? 'SIM' : 'N�O'}`);
     console.log(`[TRIGGER] agentConfig.isActive: ${agentConfig?.isActive}`);
     
     if (!agentConfig?.isActive) {
       console.log(`[TRIGGER] FALHA: Agente globalmente inativo`);
       return { triggered: false, reason: "Ative o agente em 'Meu Agente IA' primeiro." };
     }
-    console.log(`[TRIGGER] Agente está ATIVO`);
+    console.log(`[TRIGGER] Agente est� ATIVO`);
     
-    // 2.5 🐛 FIX: Verificar também businessAgentConfig (toggle "IA ON" em /agent-config)
+    // 2.5 ?? FIX: Verificar tamb�m businessAgentConfig (toggle "IA ON" em /agent-config)
     console.log(`[TRIGGER] Verificando businessAgentConfig...`);
     const businessAgentConfig = await storage.getBusinessAgentConfig(userId);
-    console.log(`[TRIGGER] businessAgentConfig encontrado: ${businessAgentConfig ? 'SIM' : 'NÃO'}`);
+    console.log(`[TRIGGER] businessAgentConfig encontrado: ${businessAgentConfig ? 'SIM' : 'N�O'}`);
     console.log(`[TRIGGER] businessAgentConfig.isActive: ${businessAgentConfig?.isActive}`);
     
     if (!businessAgentConfig?.isActive) {
       console.log(`[TRIGGER] FALHA: IA desativada globalmente em businessAgentConfig`);
-      return { triggered: false, reason: "A IA está desativada globalmente. Ative em 'Configurações' primeiro." };
+      return { triggered: false, reason: "A IA est� desativada globalmente. Ative em 'Configura��es' primeiro." };
     }
     console.log(`[TRIGGER] businessAgentConfig ATIVO`);
     
@@ -7089,8 +7400,8 @@ export async function triggerAgentResponseForConversation(
     console.log(`[TRIGGER] Buscando conversa...`);
     const conversation = await storage.getConversation(conversationId);
     if (!conversation) {
-      console.log(`[TRIGGER] FALHA: Conversa não encontrada`);
-      return { triggered: false, reason: "Conversa não encontrada." };
+      console.log(`[TRIGGER] FALHA: Conversa n�o encontrada`);
+      return { triggered: false, reason: "Conversa n�o encontrada." };
     }
     console.log(`[TRIGGER] Conversa encontrada: ${conversation.contactName || conversation.contactNumber}`);
     
@@ -7101,36 +7412,36 @@ export async function triggerAgentResponseForConversation(
       return { triggered: false, reason: "Nenhuma mensagem na conversa para responder." };
     }
     
-    // 5. Verificar �ltima mensagem
+    // 5. Verificar ?ltima mensagem
     const lastMessage = messages[messages.length - 1];
     
-    // Se �ltima mensagem � do agente/dono, s� responder se forceRespond=true
+    // Se ?ltima mensagem ? do agente/dono, s? responder se forceRespond=true
     if (lastMessage.fromMe && !forceRespond) {
-      console.log(`?? [TRIGGER] �ltima mensagem � do agente/dono - n�o precisa responder`);
-      return { triggered: false, reason: "�ltima mensagem j� foi respondida." };
+      console.log(`?? [TRIGGER] ?ltima mensagem ? do agente/dono - n?o precisa responder`);
+      return { triggered: false, reason: "?ltima mensagem j? foi respondida." };
     }
     
-    // Se forceRespond mas �ltima � do agente, precisamos de contexto anterior
+    // Se forceRespond mas ?ltima ? do agente, precisamos de contexto anterior
     let messagesToProcess: string[] = [];
     
     if (lastMessage.fromMe && forceRespond) {
-      // For�ar resposta: usar �ltimas mensagens do cliente como contexto
-      console.log(`?? [TRIGGER] For�ando resposta - buscando contexto anterior...`);
+      // For?ar resposta: usar ?ltimas mensagens do cliente como contexto
+      console.log(`?? [TRIGGER] For?ando resposta - buscando contexto anterior...`);
       
-      // Buscar �ltimas mensagens do cliente (n�o do agente)
+      // Buscar ?ltimas mensagens do cliente (n?o do agente)
       for (let i = messages.length - 1; i >= 0; i--) {
         const msg = messages[i];
         if (!msg.fromMe && msg.text) {
           messagesToProcess.unshift(msg.text);
-          if (messagesToProcess.length >= 3) break; // �ltimas 3 mensagens do cliente
+          if (messagesToProcess.length >= 3) break; // ?ltimas 3 mensagens do cliente
         }
       }
       
       if (messagesToProcess.length === 0) {
-        return { triggered: false, reason: "N�o h� mensagens do cliente para processar." };
+        return { triggered: false, reason: "N?o h? mensagens do cliente para processar." };
       }
     } else {
-      // Comportamento normal: coletar mensagens n�o respondidas do cliente
+      // Comportamento normal: coletar mensagens n?o respondidas do cliente
       for (let i = messages.length - 1; i >= 0; i--) {
         const msg = messages[i];
         if (msg.fromMe) break; // Parar quando encontrar mensagem do agente/dono
@@ -7144,28 +7455,28 @@ export async function triggerAgentResponseForConversation(
       }
     }
     
-    // 6. Verificar se já tem resposta pendente
+    // 6. Verificar se j� tem resposta pendente
     if (pendingResponses.has(conversationId)) {
-      console.log(`⚠️ [TRIGGER] Já existe resposta pendente para esta conversa`);
-      return { triggered: false, reason: "Resposta já em processamento. Aguarde." };
+      console.log(`?? [TRIGGER] J� existe resposta pendente para esta conversa`);
+      return { triggered: false, reason: "Resposta j� em processamento. Aguarde." };
     }
     
-    console.log(`📋 [TRIGGER] ${messagesToProcess.length} mensagem(s) para processar`);
-    console.log(`   📞 Cliente: ${conversation.contactNumber}`);
+    console.log(`?? [TRIGGER] ${messagesToProcess.length} mensagem(s) para processar`);
+    console.log(`   ?? Cliente: ${conversation.contactNumber}`);
     
-    // ┌─────────────────────────────────────────────────────────────────────────┐
-    // │ 🤖 FIX: Tentar CHATBOT primeiro antes de usar IA                       │
-    // │ Quando auto-reativação ocorre, precisamos respeitar a prioridade:      │
-    // │ 1º CHATBOT/FLOW (se ativo)                                             │
-    // │ 2º IA AGENT (se chatbot não processou)                                 │
-    // │ Data: 2025-01-XX - Sincronização Flow Builder + IA Agent               │
-    // └─────────────────────────────────────────────────────────────────────────┘
+    // +-------------------------------------------------------------------------+
+    // � ?? FIX: Tentar CHATBOT primeiro antes de usar IA                       �
+    // � Quando auto-reativa��o ocorre, precisamos respeitar a prioridade:      �
+    // � 1� CHATBOT/FLOW (se ativo)                                             �
+    // � 2� IA AGENT (se chatbot n�o processou)                                 �
+    // � Data: 2025-01-XX - Sincroniza��o Flow Builder + IA Agent               �
+    // +-------------------------------------------------------------------------+
     try {
       const { tryProcessChatbotMessage, isNewContact } = await import("./chatbotIntegration");
       const isFirstContact = await isNewContact(conversationId);
       const combinedText = messagesToProcess.join('\n\n');
       
-      console.log(`🤖 [TRIGGER] Tentando processar via CHATBOT primeiro...`);
+      console.log(`?? [TRIGGER] Tentando processar via CHATBOT primeiro...`);
       const chatbotResult = await tryProcessChatbotMessage(
         userId,
         conversationId,
@@ -7175,19 +7486,19 @@ export async function triggerAgentResponseForConversation(
       );
       
       if (chatbotResult.handled) {
-        console.log(`✅ [TRIGGER] Mensagem processada pelo CHATBOT de fluxo!`);
+        console.log(`? [TRIGGER] Mensagem processada pelo CHATBOT de fluxo!`);
         if (chatbotResult.transferToHuman) {
-          console.log(`🤖 [TRIGGER] Conversa transferida para humano - IA/Chatbot desativados`);
+          console.log(`?? [TRIGGER] Conversa transferida para humano - IA/Chatbot desativados`);
         }
         return { triggered: true, reason: "Resposta processada pelo chatbot de fluxo!" };
       }
       
-      console.log(`📋 [TRIGGER] Chatbot não processou (inativo ou sem match), delegando para IA...`);
+      console.log(`?? [TRIGGER] Chatbot n�o processou (inativo ou sem match), delegando para IA...`);
     } catch (chatbotError) {
-      console.error(`⚠️ [TRIGGER] Erro ao tentar chatbot (continuando com IA):`, chatbotError);
+      console.error(`?? [TRIGGER] Erro ao tentar chatbot (continuando com IA):`, chatbotError);
     }
     
-    // 7. Criar resposta pendente com delay mínimo (1s quando forçado, senão 3s)
+    // 7. Criar resposta pendente com delay m�nimo (1s quando for�ado, sen�o 3s)
     const responseDelaySeconds = forceRespond ? 1 : Math.max(agentConfig?.responseDelaySeconds ?? 3, 3);
     
     const pending: PendingResponse = {
@@ -7195,6 +7506,7 @@ export async function triggerAgentResponseForConversation(
       messages: messagesToProcess,
       conversationId,
       userId,
+      connectionId: conversation.connectionId,
       contactNumber: conversation.contactNumber,
       jidSuffix: conversation.jidSuffix || DEFAULT_JID_SUFFIX,
       startTime: Date.now(),
@@ -7220,8 +7532,8 @@ export async function triggerAgentResponseForConversation(
 // ---------------------------------------------------------------------------
 // ?? TRIGGER RESPONSE ON ADMIN AI RE-ENABLE
 // ---------------------------------------------------------------------------
-// Para conversas do ADMIN (sistema de vendas AgenteZap) - quando a IA � 
-// reativada, verifica se h� mensagens do cliente sem resposta e dispara.
+// Para conversas do ADMIN (sistema de vendas AgenteZap) - quando a IA ? 
+// reativada, verifica se h? mensagens do cliente sem resposta e dispara.
 // ---------------------------------------------------------------------------
 export async function triggerAdminAgentResponseForConversation(
   conversationId: string
@@ -7232,15 +7544,15 @@ export async function triggerAdminAgentResponseForConversation(
     // 1. Buscar dados da conversa admin
     const conversation = await storage.getAdminConversation(conversationId);
     if (!conversation) {
-      console.log(`?? [ADMIN TRIGGER ON ENABLE] Conversa ${conversationId} n�o encontrada`);
-      return { triggered: false, reason: "Conversa n�o encontrada" };
+      console.log(`?? [ADMIN TRIGGER ON ENABLE] Conversa ${conversationId} n?o encontrada`);
+      return { triggered: false, reason: "Conversa n?o encontrada" };
     }
     
-    // 2. Verificar se h� sess�o admin ativa
+    // 2. Verificar se h? sess?o admin ativa
     const adminSession = adminSessions.values().next().value;
     if (!adminSession?.socket) {
-      console.log(`?? [ADMIN TRIGGER ON ENABLE] Sess�o admin WhatsApp n�o dispon�vel`);
-      return { triggered: false, reason: "WhatsApp admin n�o conectado" };
+      console.log(`?? [ADMIN TRIGGER ON ENABLE] Sess?o admin WhatsApp n?o dispon?vel`);
+      return { triggered: false, reason: "WhatsApp admin n?o conectado" };
     }
     
     // 3. Buscar mensagens da conversa admin
@@ -7250,28 +7562,28 @@ export async function triggerAdminAgentResponseForConversation(
       return { triggered: false, reason: "Nenhuma mensagem na conversa" };
     }
     
-    // 4. Verificar �ltima mensagem
+    // 4. Verificar ?ltima mensagem
     const lastMessage = messages[messages.length - 1];
     
-    // Se �ltima mensagem � do admin/agente (fromMe = true), n�o precisa responder
+    // Se ?ltima mensagem ? do admin/agente (fromMe = true), n?o precisa responder
     if (lastMessage.fromMe) {
-      console.log(`?? [ADMIN TRIGGER ON ENABLE] �ltima mensagem � do agente - n�o precisa responder`);
-      return { triggered: false, reason: "�ltima mensagem j� foi respondida" };
+      console.log(`?? [ADMIN TRIGGER ON ENABLE] ?ltima mensagem ? do agente - n?o precisa responder`);
+      return { triggered: false, reason: "?ltima mensagem j? foi respondida" };
     }
     
-    // 5. Verificar se j� tem resposta pendente
+    // 5. Verificar se j? tem resposta pendente
     const contactNumber = conversation.contactNumber;
     if (pendingAdminResponses.has(contactNumber)) {
-      console.log(`? [ADMIN TRIGGER ON ENABLE] J� existe resposta pendente para este contato`);
-      return { triggered: false, reason: "Resposta j� em processamento" };
+      console.log(`? [ADMIN TRIGGER ON ENABLE] J? existe resposta pendente para este contato`);
+      return { triggered: false, reason: "Resposta j? em processamento" };
     }
     
     console.log(`?? [ADMIN TRIGGER ON ENABLE] Mensagem do cliente sem resposta encontrada!`);
     console.log(`   ?? Cliente: ${contactNumber}`);
-    console.log(`   ?? �ltima mensagem: "${(lastMessage.text || '[m�dia]').substring(0, 50)}..."`);
+    console.log(`   ?? ?ltima mensagem: "${(lastMessage.text || '[m?dia]').substring(0, 50)}..."`);
     console.log(`   ?? Enviada em: ${lastMessage.timestamp}`);
     
-    // 6. Coletar todas as mensagens do cliente desde a �ltima do agente
+    // 6. Coletar todas as mensagens do cliente desde a ?ltima do agente
     const clientMessagesBuffer: string[] = [];
     for (let i = messages.length - 1; i >= 0; i--) {
       const msg = messages[i];
@@ -7287,9 +7599,9 @@ export async function triggerAdminAgentResponseForConversation(
     
     console.log(`?? [ADMIN TRIGGER ON ENABLE] ${clientMessagesBuffer.length} mensagem(s) do cliente para processar`);
     
-    // 7. Agendar resposta usando o sistema de acumula��o existente
+    // 7. Agendar resposta usando o sistema de acumula??o existente
     const config = await getAdminAgentRuntimeConfig();
-    const responseDelayMs = Math.max(config.responseDelayMs, 3000); // M�nimo 3 segundos
+    const responseDelayMs = Math.max(config.responseDelayMs, 3000); // M?nimo 3 segundos
     
     const pending: PendingAdminResponse = {
       timeout: null,
@@ -7329,16 +7641,16 @@ export async function sendMessage(
     throw new Error("Conversation not found");
   }
 
-  // Multi-connection: resolve session by the conversation's connectionId
-  const session = sessions.get(conversation.connectionId) || sessions.get(userId);
-  if (!session?.socket) {
-    throw new Error("WhatsApp not connected");
-  }
-
   // Verify ownership - conversation must belong to a connection of this user
   const connection = await storage.getConnectionById(conversation.connectionId);
   if (!connection || connection.userId !== userId) {
     throw new Error("Unauthorized access to conversation");
+  }
+
+  // Multi-connection strict mode: conversation must send only through its own connection
+  const session = sessions.get(conversation.connectionId);
+  if (!session?.socket) {
+    throw new Error("WhatsApp not connected for this connection");
   }
 
   // ANTI-DUPLICACAO: Verificar se mensagem ja foi enviada recentemente (para follow-up)
@@ -7445,24 +7757,24 @@ export async function sendAdminConversationMessage(adminId: string, conversation
     throw new Error("Conversation not found");
   }
 
-  // Resolver JID para envio (preferir n�mero real)
+  // Resolver JID para envio (preferir n?mero real)
   let jid = conversation.remoteJid;
   
-  // Se for LID, tentar resolver para n�mero real
+  // Se for LID, tentar resolver para n?mero real
   if (jid && jid.includes("@lid")) {
     // 1. Tentar cache
     const cached = session.contactsCache.get(jid);
     if (cached && cached.phoneNumber) {
       jid = cached.phoneNumber;
     } else {
-      // 2. Tentar construir do contactNumber se dispon�vel
+      // 2. Tentar construir do contactNumber se dispon?vel
       if (conversation.contactNumber) {
          jid = `${conversation.contactNumber}@s.whatsapp.net`;
       }
     }
   }
   
-  // Fallback se n�o tiver remoteJid mas tiver contactNumber
+  // Fallback se n?o tiver remoteJid mas tiver contactNumber
   if (!jid && conversation.contactNumber) {
     jid = `${conversation.contactNumber}@s.whatsapp.net`;
   }
@@ -7514,8 +7826,8 @@ export async function sendAdminDirectMessage(adminId: string, phoneNumber: strin
 }
 
 // ==================== ADMIN NOTIFICATION MESSAGE ====================
-// Para envio de notificações automáticas (lembretes de pagamento, check-ins, etc)
-// NÃO é para chatbot - apenas envio de mensagens informativas
+// Para envio de notifica��es autom�ticas (lembretes de pagamento, check-ins, etc)
+// N�O � para chatbot - apenas envio de mensagens informativas
 export async function sendAdminNotification(
   adminId: string, 
   phoneNumber: string, 
@@ -7524,11 +7836,11 @@ export async function sendAdminNotification(
   try {
     const session = adminSessions.get(adminId);
     if (!session?.socket) {
-      console.log(`[sendAdminNotification] ❌ Admin ${adminId} não conectado`);
+      console.log(`[sendAdminNotification] ? Admin ${adminId} n�o conectado`);
       return { success: false, error: "Admin WhatsApp not connected" };
     }
 
-    // Clean phone number - remover tudo exceto números
+    // Clean phone number - remover tudo exceto n�meros
     let cleanPhone = phoneNumber.replace(/\D/g, '');
     
     // Garantir que tem o DDI 55 do Brasil
@@ -7536,33 +7848,33 @@ export async function sendAdminNotification(
       cleanPhone = '55' + cleanPhone;
     }
     
-    // Verificar formato válido: 55 + DDD (2) + número (8-9)
+    // Verificar formato v�lido: 55 + DDD (2) + n�mero (8-9)
     if (cleanPhone.length < 12 || cleanPhone.length > 13) {
-      console.log(`[sendAdminNotification] ❌ Número inválido: ${phoneNumber} -> ${cleanPhone} (length: ${cleanPhone.length})`);
-      return { success: false, error: `Número inválido: ${phoneNumber}` };
+      console.log(`[sendAdminNotification] ? N�mero inv�lido: ${phoneNumber} -> ${cleanPhone} (length: ${cleanPhone.length})`);
+      return { success: false, error: `N�mero inv�lido: ${phoneNumber}` };
     }
     
-    // ✅ CORREÇÃO: Testar múltiplas variações do número
-    // Alguns números podem estar cadastrados com 9 extra ou faltando o 9
+    // ? CORRE��O: Testar m�ltiplas varia��es do n�mero
+    // Alguns n�meros podem estar cadastrados com 9 extra ou faltando o 9
     const phoneVariations: string[] = [cleanPhone];
     
-    // Se tem 13 dígitos (55 + DDD + 9 + 8 dígitos), criar variação sem o 9
+    // Se tem 13 d�gitos (55 + DDD + 9 + 8 d�gitos), criar varia��o sem o 9
     if (cleanPhone.length === 13 && cleanPhone[4] === '9') {
       const withoutNine = cleanPhone.slice(0, 4) + cleanPhone.slice(5);
       phoneVariations.push(withoutNine);
-      console.log(`[sendAdminNotification] 📱 Variação sem 9: ${withoutNine}`);
+      console.log(`[sendAdminNotification] ?? Varia��o sem 9: ${withoutNine}`);
     }
     
-    // Se tem 12 dígitos (55 + DDD + 8 dígitos), criar variação com o 9
+    // Se tem 12 d�gitos (55 + DDD + 8 d�gitos), criar varia��o com o 9
     if (cleanPhone.length === 12) {
       const withNine = cleanPhone.slice(0, 4) + '9' + cleanPhone.slice(4);
       phoneVariations.push(withNine);
-      console.log(`[sendAdminNotification] 📱 Variação com 9: ${withNine}`);
+      console.log(`[sendAdminNotification] ?? Varia��o com 9: ${withNine}`);
     }
     
-    console.log(`[sendAdminNotification] 📤 Verificando variações: ${phoneVariations.join(', ')}`);
+    console.log(`[sendAdminNotification] ?? Verificando varia��es: ${phoneVariations.join(', ')}`);
     
-    // ✅ Verificar qual variação existe no WhatsApp
+    // ? Verificar qual varia��o existe no WhatsApp
     let validPhone: string | null = null;
     
     for (const phone of phoneVariations) {
@@ -7570,24 +7882,24 @@ export async function sendAdminNotification(
         const [result] = await session.socket.onWhatsApp(phone);
         if (result?.exists === true) {
           validPhone = phone;
-          console.log(`[sendAdminNotification] ✅ Número encontrado: ${phone}`);
+          console.log(`[sendAdminNotification] ? N�mero encontrado: ${phone}`);
           break;
         } else {
-          console.log(`[sendAdminNotification] ❌ ${phone} não existe no WhatsApp`);
+          console.log(`[sendAdminNotification] ? ${phone} n�o existe no WhatsApp`);
         }
       } catch (checkError) {
-        console.log(`[sendAdminNotification] ⚠️ Erro ao verificar ${phone}:`, checkError);
+        console.log(`[sendAdminNotification] ?? Erro ao verificar ${phone}:`, checkError);
       }
     }
     
-    // Se nenhuma variação foi encontrada, retornar erro
+    // Se nenhuma varia��o foi encontrada, retornar erro
     if (!validPhone) {
-      console.log(`[sendAdminNotification] ❌ Nenhuma variação do número existe no WhatsApp: ${phoneVariations.join(', ')}`);
-      return { success: false, error: `Número não existe no WhatsApp: ${phoneNumber} (testado: ${phoneVariations.join(', ')})` };
+      console.log(`[sendAdminNotification] ? Nenhuma varia��o do n�mero existe no WhatsApp: ${phoneVariations.join(', ')}`);
+      return { success: false, error: `N�mero n�o existe no WhatsApp: ${phoneNumber} (testado: ${phoneVariations.join(', ')})` };
     }
     
     const jid = `${validPhone}@s.whatsapp.net`;
-    console.log(`[sendAdminNotification] 📤 Enviando para: ${jid}`);
+    console.log(`[sendAdminNotification] ?? Enviando para: ${jid}`);
     
     // Enviar mensagem usando a fila anti-banimento
     let sendSuccess = false;
@@ -7599,14 +7911,14 @@ export async function sendAdminNotification(
         
         if (result?.key?.id) {
           sendSuccess = true;
-          console.log(`[sendAdminNotification] ✅ Mensagem enviada com sucesso para ${validPhone} (msgId: ${result.key.id})`);
+          console.log(`[sendAdminNotification] ? Mensagem enviada com sucesso para ${validPhone} (msgId: ${result.key.id})`);
         } else {
           sendError = 'Nenhum ID de mensagem retornado';
-          console.log(`[sendAdminNotification] ⚠️ Envio sem confirmação para ${validPhone}`);
+          console.log(`[sendAdminNotification] ?? Envio sem confirma��o para ${validPhone}`);
         }
       } catch (sendErr) {
         sendError = sendErr instanceof Error ? sendErr.message : 'Erro desconhecido';
-        console.error(`[sendAdminNotification] ❌ Erro ao enviar para ${validPhone}:`, sendErr);
+        console.error(`[sendAdminNotification] ? Erro ao enviar para ${validPhone}:`, sendErr);
         throw sendErr; // Re-throw para que sendWithQueue capture
       }
     });
@@ -7617,7 +7929,7 @@ export async function sendAdminNotification(
       return { success: false, error: sendError || 'Falha no envio', validatedPhone: validPhone, originalPhone: phoneNumber };
     }
   } catch (error) {
-    console.error('[sendAdminNotification] ❌ Erro geral:', error);
+    console.error('[sendAdminNotification] ? Erro geral:', error);
     return { 
       success: false, 
       error: error instanceof Error ? error.message : 'Unknown error' 
@@ -7674,7 +7986,7 @@ export async function sendAdminMediaMessage(
 
   console.log(`[sendAdminMediaMessage] Sending ${media.type} to: ${jid}`);
 
-  // Converter base64 para buffer se necess�rio
+  // Converter base64 para buffer se necess?rio
   let mediaBuffer: Buffer;
   if (media.data.startsWith('data:')) {
     const base64Data = media.data.split(',')[1];
@@ -7726,7 +8038,7 @@ export async function sendAdminMediaMessage(
   }
 
   // ??? ANTI-BLOQUEIO: Usar fila do admin
-  const sentMessage = await sendWithQueue(`admin_${adminId}`, `admin m�dia ${media.type}`, async () => {
+  const sentMessage = await sendWithQueue(`admin_${adminId}`, `admin m?dia ${media.type}`, async () => {
     return await session.socket.sendMessage(jid, messageContent);
   });
 
@@ -7740,7 +8052,7 @@ export async function sendAdminMediaMessage(
     status: "sent",
     isFromAgent: false,
     mediaType: mediaTypeForStorage,
-    mediaUrl: media.data, // Guardar base64 para exibi��o
+    mediaUrl: media.data, // Guardar base64 para exibi??o
     mediaMimeType: media.mimetype,
     mediaCaption: media.caption,
   });
@@ -7768,14 +8080,20 @@ export async function sendUserMediaMessage(
   conversationId: string, 
   media: UserMediaPayload
 ): Promise<void> {
-  const session = sessions.get(userId);
-  if (!session?.socket) {
-    throw new Error("WhatsApp not connected");
-  }
-
   const conversation = await storage.getConversation(conversationId);
   if (!conversation) {
     throw new Error("Conversation not found");
+  }
+
+  // Verify ownership by conversation connection (strict multi-connection)
+  const connection = await storage.getConnectionById(conversation.connectionId);
+  if (!connection || connection.userId !== userId) {
+    throw new Error("Unauthorized access to conversation");
+  }
+
+  const session = sessions.get(conversation.connectionId);
+  if (!session?.socket) {
+    throw new Error("WhatsApp not connected for this connection");
   }
 
   // Resolver JID
@@ -7800,7 +8118,7 @@ export async function sendUserMediaMessage(
 
   console.log(`[sendUserMediaMessage] Sending ${media.type} to: ${jid}`);
 
-  // Converter base64 para buffer se necess�rio (ANTES da fila para n�o ocupar tempo na fila)
+  // Converter base64 para buffer se necess?rio (ANTES da fila para n?o ocupar tempo na fila)
   let mediaBuffer: Buffer;
   if (media.data.startsWith('data:')) {
     const base64Data = media.data.split(',')[1];
@@ -7816,7 +8134,7 @@ export async function sendUserMediaMessage(
 
   switch (media.type) {
     case 'audio':
-      // Para �udio PTT (nota de voz), usar o mimetype fornecido
+      // Para ?udio PTT (nota de voz), usar o mimetype fornecido
       messageContent = {
         audio: mediaBuffer,
         mimetype: media.mimetype || 'audio/ogg; codecs=opus',
@@ -7862,8 +8180,8 @@ export async function sendUserMediaMessage(
 
   console.log(`[sendUserMediaMessage] ?? Sending to WhatsApp...`);
   
-  // ??? ANTI-BLOQUEIO: Usar fila do usu�rio
-  const sentMessage = await sendWithQueue(userId, `usu�rio m�dia ${media.type}`, async () => {
+  // ??? ANTI-BLOQUEIO: Usar fila do usu?rio
+  const sentMessage = await sendWithQueue(userId, `usu?rio m?dia ${media.type}`, async () => {
     return await session.socket.sendMessage(jid, messageContent);
   });
   console.log(`[sendUserMediaMessage] ? Message sent! ID: ${sentMessage?.key?.id}`);
@@ -7882,7 +8200,7 @@ export async function sendUserMediaMessage(
     status: "sent",
     isFromAgent: false,
     mediaType: mediaTypeForStorage,
-    mediaUrl: media.data, // Guardar base64 para exibi��o
+    mediaUrl: media.data, // Guardar base64 para exibi??o
     mediaMimeType: media.mimetype,
     mediaCaption: media.caption,
   });
@@ -7895,7 +8213,7 @@ export async function sendUserMediaMessage(
     hasReplied: true,
   });
 
-  // Atualização em tempo real para evitar lista/mensagens desatualizadas após envio de mídia.
+  // Atualiza��o em tempo real para evitar lista/mensagens desatualizadas ap�s envio de m�dia.
   broadcastToUser(userId, {
     type: "message_sent",
     conversationId,
@@ -7927,12 +8245,12 @@ export async function sendUserMediaMessage(
     },
   });
 
-  // ?? AUTO-PAUSE IA: Quando o dono envia m�dia pelo sistema, PAUSA a IA
+  // ?? AUTO-PAUSE IA: Quando o dono envia m?dia pelo sistema, PAUSA a IA
   try {
     const isAlreadyDisabled = await storage.isAgentDisabledForConversation(conversationId);
     if (!isAlreadyDisabled) {
       await storage.disableAgentForConversation(conversationId);
-      console.log(`?? [AUTO-PAUSE] IA pausada automaticamente para conversa ${conversationId} - dono enviou m�dia pelo sistema`);
+      console.log(`?? [AUTO-PAUSE] IA pausada automaticamente para conversa ${conversationId} - dono enviou m?dia pelo sistema`);
     }
   } catch (pauseError) {
     console.error("Erro ao pausar IA automaticamente:", pauseError);
@@ -7947,21 +8265,21 @@ export async function sendBulkMessages(
 ): Promise<{ sent: number; failed: number; errors: string[] }> {
   const session = sessions.get(userId);
   if (!session?.socket) {
-    throw new Error("WhatsApp n�o conectado");
+    throw new Error("WhatsApp n?o conectado");
   }
 
   let sent = 0;
   let failed = 0;
   const errors: string[] = [];
 
-  console.log(`[BULK SEND] ??? Iniciando envio ANTI-BLOQUEIO para ${phones.length} n�meros`);
+  console.log(`[BULK SEND] ??? Iniciando envio ANTI-BLOQUEIO para ${phones.length} n?meros`);
 
   for (const phone of phones) {
     try {
-      // Formatar n�mero para JID
+      // Formatar n?mero para JID
       const cleanPhone = phone.replace(/\D/g, '');
       
-      // Adicionar c�digo do pa�s se necess�rio (Brasil = 55)
+      // Adicionar c?digo do pa?s se necess?rio (Brasil = 55)
       let formattedPhone = cleanPhone;
       if (cleanPhone.length === 10 || cleanPhone.length === 11) {
         formattedPhone = '55' + cleanPhone;
@@ -7971,8 +8289,8 @@ export async function sendBulkMessages(
       
       console.log(`[BULK SEND] Enviando para: ${jid}`);
       
-      // ??? ANTI-BLOQUEIO: Usar fila de mensagens com delay autom�tico de 5-10s
-      // ? Texto enviado EXATAMENTE como recebido (varia��o REMOVIDA do sistema)
+      // ??? ANTI-BLOQUEIO: Usar fila de mensagens com delay autom?tico de 5-10s
+      // ? Texto enviado EXATAMENTE como recebido (varia??o REMOVIDA do sistema)
       const queueResult = await messageQueueService.enqueue(userId, jid, message, {
         isFromAgent: true,
         priority: 'low', // Bulk = prioridade baixa (respostas de IA passam na frente)
@@ -7987,7 +8305,7 @@ export async function sendBulkMessages(
         console.log(`[BULK SEND] ? Falha ao enviar para ${phone}: ${queueResult.error}`);
       }
       
-      // ??? A fila j� controla o delay - n�o precisa de delay extra aqui
+      // ??? A fila j? controla o delay - n?o precisa de delay extra aqui
       
     } catch (error: any) {
       failed++;
@@ -8000,7 +8318,7 @@ export async function sendBulkMessages(
     }
   }
 
-  console.log(`[BULK SEND] Conclu�do: ${sent} enviados, ${failed} falharam`);
+  console.log(`[BULK SEND] Conclu?do: ${sent} enviados, ${failed} falharam`);
   
   return { sent, failed, errors };
 }
@@ -8027,7 +8345,7 @@ export async function sendBulkMessagesAdvanced(
 }> {
   const session = sessions.get(userId);
   if (!session?.socket) {
-    throw new Error("WhatsApp n�o conectado");
+    throw new Error("WhatsApp n?o conectado");
   }
 
   const delayMin = options.delayMin || 5000;
@@ -8046,74 +8364,76 @@ export async function sendBulkMessagesAdvanced(
   console.log(`[BULK SEND ADVANCED] Iniciando envio para ${contacts.length} contatos`);
   console.log(`[BULK SEND ADVANCED] Delay: ${delayMin/1000}-${delayMax/1000}s, IA: ${useAI}`);
 
-  // Fun��o para aplicar template [nome]
+  // Fun??o para aplicar template [nome] - usa sanitização para nomes inválidos
   const applyTemplate = (template: string, name: string): string => {
-    return template.replace(/\[nome\]/gi, name || 'Cliente');
+    const { sanitizeContactName } = require("./textUtils");
+    const safeName = sanitizeContactName(name) || 'Cliente';
+    return template.replace(/\[nome\]/gi, safeName);
   };
 
-  // Fun��o para gerar varia��o com IA (par�frase e sin�nimos)
+  // Fun??o para gerar varia??o com IA (par?frase e sin?nimos)
   const generateVariation = async (message: string, contactIndex: number): Promise<string> => {
     if (!useAI) return message;
     
     try {
-      // Sin�nimos comuns em portugu�s
+      // Sin?nimos comuns em portugu?s
       const synonyms: Record<string, string[]> = {
-        'ol�': ['oi', 'eae', 'e a�', 'hey'],
-        'oi': ['ol�', 'eae', 'e a�', 'hey'],
-        'tudo bem': ['como vai', 'tudo certo', 'tudo ok', 'como voc� est�'],
-        'como vai': ['tudo bem', 'tudo certo', 'como est�', 'tudo ok'],
-        'obrigado': ['valeu', 'grato', 'agrade�o', 'muito obrigado'],
-        'obrigada': ['valeu', 'grata', 'agrade�o', 'muito obrigada'],
-        'por favor': ['poderia', 'seria poss�vel', 'gentilmente', 'se poss�vel'],
+        'ol?': ['oi', 'eae', 'e a?', 'hey'],
+        'oi': ['ol?', 'eae', 'e a?', 'hey'],
+        'tudo bem': ['como vai', 'tudo certo', 'tudo ok', 'como voc? est?'],
+        'como vai': ['tudo bem', 'tudo certo', 'como est?', 'tudo ok'],
+        'obrigado': ['valeu', 'grato', 'agrade?o', 'muito obrigado'],
+        'obrigada': ['valeu', 'grata', 'agrade?o', 'muito obrigada'],
+        'por favor': ['poderia', 'seria poss?vel', 'gentilmente', 'se poss?vel'],
         'aqui': ['por aqui', 'neste momento', 'agora'],
         'agora': ['neste momento', 'atualmente', 'no momento'],
         'hoje': ['neste dia', 'agora', 'no dia de hoje'],
         'gostaria': ['queria', 'preciso', 'necessito', 'adoraria'],
-        'pode': ['consegue', 'seria poss�vel', 'poderia', 'daria para'],
+        'pode': ['consegue', 'seria poss?vel', 'poderia', 'daria para'],
         'grande': ['enorme', 'imenso', 'vasto', 'extenso'],
-        'pequeno': ['menor', 'reduzido', 'compacto', 'm�nimo'],
-        'bom': ['�timo', 'excelente', 'legal', 'incr�vel'],
+        'pequeno': ['menor', 'reduzido', 'compacto', 'm?nimo'],
+        'bom': ['?timo', 'excelente', 'legal', 'incr?vel'],
         'bonito': ['lindo', 'maravilhoso', 'belo', 'encantador'],
-        'r�pido': ['veloz', '�gil', 'ligeiro', 'imediato'],
-        'ajudar': ['auxiliar', 'apoiar', 'assistir', 'dar uma for�a'],
-        'entrar em contato': ['falar com voc�', 'te contatar', 'enviar mensagem', 'me comunicar'],
-        'informa��es': ['detalhes', 'dados', 'informes', 'esclarecimentos'],
+        'r?pido': ['veloz', '?gil', 'ligeiro', 'imediato'],
+        'ajudar': ['auxiliar', 'apoiar', 'assistir', 'dar uma for?a'],
+        'entrar em contato': ['falar com voc?', 'te contatar', 'enviar mensagem', 'me comunicar'],
+        'informa??es': ['detalhes', 'dados', 'informes', 'esclarecimentos'],
         'produto': ['item', 'mercadoria', 'artigo', 'oferta'],
-        'servi�o': ['atendimento', 'solu��o', 'suporte', 'trabalho'],
-        'empresa': ['companhia', 'neg�cio', 'organiza��o', 'firma'],
-        'cliente': ['consumidor', 'comprador', 'parceiro', 'usu�rio'],
-        'qualidade': ['excel�ncia', 'padr�o', 'n�vel', 'categoria'],
-        'pre�o': ['valor', 'custo', 'investimento', 'oferta'],
-        'desconto': ['promo��o', 'oferta especial', 'condi��o especial', 'vantagem'],
+        'servi?o': ['atendimento', 'solu??o', 'suporte', 'trabalho'],
+        'empresa': ['companhia', 'neg?cio', 'organiza??o', 'firma'],
+        'cliente': ['consumidor', 'comprador', 'parceiro', 'usu?rio'],
+        'qualidade': ['excel?ncia', 'padr?o', 'n?vel', 'categoria'],
+        'pre?o': ['valor', 'custo', 'investimento', 'oferta'],
+        'desconto': ['promo??o', 'oferta especial', 'condi??o especial', 'vantagem'],
         'interessado': ['curioso', 'interessando', 'querendo saber', 'buscando'],
       };
       
       // Prefixos variados para humanizar
       const prefixes = ['', '', '', '?? ', '?? ', '?? ', '?? ', 'Hey, ', 'Ei, '];
       // Sufixos variados
-      const suffixes = ['', '', '', ' ??', ' ??', ' ?', '!', '.', ' Abra�os!', ' Att.'];
+      const suffixes = ['', '', '', ' ??', ' ??', ' ?', '!', '.', ' Abra?os!', ' Att.'];
       // Estruturas de abertura alternativas
       const openings: Record<string, string[]> = {
-        'ol� [nome]': ['Oi [nome]', 'E a� [nome]', 'Ei [nome]', '[nome], tudo bem?', 'Fala [nome]'],
-        'oi [nome]': ['Ol� [nome]', 'E a� [nome]', 'Ei [nome]', '[nome], como vai?', 'Fala [nome]'],
-        'bom dia': ['Bom dia!', 'Dia!', 'Bom diaa', '�timo dia'],
-        'boa tarde': ['Boa tarde!', 'Tarde!', 'Boa tardee', '�tima tarde'],
-        'boa noite': ['Boa noite!', 'Noite!', 'Boa noitee', '�tima noite'],
+        'ol? [nome]': ['Oi [nome]', 'E a? [nome]', 'Ei [nome]', '[nome], tudo bem?', 'Fala [nome]'],
+        'oi [nome]': ['Ol? [nome]', 'E a? [nome]', 'Ei [nome]', '[nome], como vai?', 'Fala [nome]'],
+        'bom dia': ['Bom dia!', 'Dia!', 'Bom diaa', '?timo dia'],
+        'boa tarde': ['Boa tarde!', 'Tarde!', 'Boa tardee', '?tima tarde'],
+        'boa noite': ['Boa noite!', 'Noite!', 'Boa noitee', '?tima noite'],
       };
       
       let varied = message;
       
-      // 1. Aplicar substitui��es de abertura
+      // 1. Aplicar substitui??es de abertura
       for (const [pattern, replacements] of Object.entries(openings)) {
         const regex = new RegExp(pattern, 'gi');
         if (regex.test(varied)) {
           const randomReplacement = replacements[Math.floor(Math.random() * replacements.length)];
           varied = varied.replace(regex, randomReplacement);
-          break; // S� substitui uma abertura
+          break; // S? substitui uma abertura
         }
       }
       
-      // 2. Aplicar 1-3 substitui��es de sin�nimos aleatoriamente
+      // 2. Aplicar 1-3 substitui??es de sin?nimos aleatoriamente
       const wordsToReplace = Math.floor(Math.random() * 3) + 1;
       let replacedCount = 0;
       
@@ -8127,18 +8447,18 @@ export async function sendBulkMessagesAdvanced(
         }
       }
       
-      // 3. Adicionar varia��o de pontua��o
+      // 3. Adicionar varia??o de pontua??o
       if (Math.random() > 0.7) {
         varied = varied.replace(/\!$/g, '.');
       } else if (Math.random() > 0.8) {
         varied = varied.replace(/\.$/g, '!');
       }
       
-      // 4. Usar �ndice para variar prefixo/sufixo de forma distribu�da
+      // 4. Usar ?ndice para variar prefixo/sufixo de forma distribu?da
       const prefixIndex = (contactIndex + Math.floor(Math.random() * 3)) % prefixes.length;
       const suffixIndex = (contactIndex + Math.floor(Math.random() * 3)) % suffixes.length;
       
-      // N�o adicionar prefixo/sufixo se j� come�ar com emoji ou terminar com emoji
+      // N?o adicionar prefixo/sufixo se j? come?ar com emoji ou terminar com emoji
       // Usa regex sem flag 'u' para compatibilidade com ES5
       const emojiPattern = /[\uD83C-\uDBFF][\uDC00-\uDFFF]/;
       const startsWithEmoji = emojiPattern.test(varied.slice(0, 2));
@@ -8148,17 +8468,17 @@ export async function sendBulkMessagesAdvanced(
         varied = prefixes[prefixIndex] + varied;
       }
       if (!endsWithEmoji && suffixes[suffixIndex] && !varied.endsWith(suffixes[suffixIndex])) {
-        // Remover pontua��o final antes de adicionar sufixo
+        // Remover pontua??o final antes de adicionar sufixo
         if (suffixes[suffixIndex].match(/^[.!?]/) || suffixes[suffixIndex].match(/^\s*[A-Za-z]/)) {
           varied = varied.replace(/[.!?]+$/, '');
         }
         varied = varied + suffixes[suffixIndex];
       }
       
-      console.log(`[BULK SEND AI] Varia��o #${contactIndex + 1}: "${varied.substring(0, 60)}..."`);
+      console.log(`[BULK SEND AI] Varia??o #${contactIndex + 1}: "${varied.substring(0, 60)}..."`);
       return varied;
     } catch (error) {
-      console.error('[BULK SEND] Erro ao gerar varia��o IA:', error);
+      console.error('[BULK SEND] Erro ao gerar varia??o IA:', error);
       return message;
     }
   };
@@ -8166,10 +8486,10 @@ export async function sendBulkMessagesAdvanced(
   let contactIndex = 0;
   for (const contact of contacts) {
     try {
-      // Formatar n�mero para JID
+      // Formatar n?mero para JID
       const cleanPhone = contact.phone.replace(/\D/g, '');
       
-      // Adicionar c�digo do pa�s se necess�rio (Brasil = 55)
+      // Adicionar c?digo do pa?s se necess?rio (Brasil = 55)
       let formattedPhone = cleanPhone;
       if (cleanPhone.length === 10 || cleanPhone.length === 11) {
         formattedPhone = '55' + cleanPhone;
@@ -8177,7 +8497,7 @@ export async function sendBulkMessagesAdvanced(
       
       const jid = `${formattedPhone}@s.whatsapp.net`;
       
-      // Aplicar template [nome] e varia��o IA
+      // Aplicar template [nome] e varia??o IA
       let finalMessage = applyTemplate(messageTemplate, contact.name);
       if (useAI) {
         finalMessage = await generateVariation(finalMessage, contactIndex);
@@ -8186,10 +8506,10 @@ export async function sendBulkMessagesAdvanced(
       const sendStartTime = Date.now();
       console.log(`[BULK SEND ADVANCED] [${contactIndex + 1}/${contacts.length}] Enviando para: ${contact.name || contact.phone} (${jid})`);
       console.log(`[BULK SEND ADVANCED] Mensagem: ${finalMessage.substring(0, 50)}...`);
-      console.log(`[BULK SEND ADVANCED] Timestamp in�cio: ${new Date(sendStartTime).toISOString()}`);
+      console.log(`[BULK SEND ADVANCED] Timestamp in?cio: ${new Date(sendStartTime).toISOString()}`);
       
-      // ??? ANTI-BLOQUEIO: Usar fila de mensagens com delay autom�tico de 5-10s
-      // ? Texto enviado EXATAMENTE como recebido (varia��o REMOVIDA do sistema)
+      // ??? ANTI-BLOQUEIO: Usar fila de mensagens com delay autom?tico de 5-10s
+      // ? Texto enviado EXATAMENTE como recebido (varia??o REMOVIDA do sistema)
       const queueResult = await messageQueueService.enqueue(userId, jid, finalMessage, {
         isFromAgent: true,
         priority: 'low', // Bulk = prioridade baixa
@@ -8228,7 +8548,7 @@ export async function sendBulkMessagesAdvanced(
         });
         console.log(`[BULK SEND ADVANCED] ? Falha: ${contact.phone}`);
         
-        // ?? Atualizar progresso em tempo real (tamb�m para falhas)
+        // ?? Atualizar progresso em tempo real (tamb?m para falhas)
         if (onProgress) {
           try {
             await onProgress(sent, failed);
@@ -8238,10 +8558,10 @@ export async function sendBulkMessagesAdvanced(
         }
       }
 
-      // ??? DELAY COMPLETO CONFIGURADO PELO USU�RIO
+      // ??? DELAY COMPLETO CONFIGURADO PELO USU?RIO
       // A fila tem delay base de 5-10s, MAS para envio em massa queremos o delay configurado COMPLETO
-      // Para garantir, aplicamos o delay configurado AP�S o enqueue retornar
-      // Isso garante que mesmo com varia��es da fila, teremos pelo menos o delay configurado
+      // Para garantir, aplicamos o delay configurado AP?S o enqueue retornar
+      // Isso garante que mesmo com varia??es da fila, teremos pelo menos o delay configurado
       if (contactIndex < contacts.length - 1) {
         const configuredDelay = delayMin + Math.random() * (delayMax - delayMin);
         console.log(`??? [BULK SEND] Delay configurado: ${(configuredDelay/1000).toFixed(1)}s (perfil: ${delayMin/1000}-${delayMax/1000}s)`);
@@ -8260,7 +8580,7 @@ export async function sendBulkMessagesAdvanced(
       });
       console.log(`[BULK SEND ADVANCED] ? Erro: ${contact.phone} - ${errorMsg}`);
       
-      // ?? Atualizar progresso em tempo real (tamb�m para erros)
+      // ?? Atualizar progresso em tempo real (tamb?m para erros)
       if (onProgress) {
         try {
           await onProgress(sent, failed);
@@ -8275,12 +8595,12 @@ export async function sendBulkMessagesAdvanced(
     contactIndex++;
   }
 
-  console.log(`[BULK SEND ADVANCED] Conclu�do: ${sent} enviados, ${failed} falharam`);
+  console.log(`[BULK SEND ADVANCED] Conclu?do: ${sent} enviados, ${failed} falharam`);
   
   return { sent, failed, errors, details };
 }
 
-// ==================== BULK SEND WITH MEDIA / ENVIO EM MASSA COM M�DIA ====================
+// ==================== BULK SEND WITH MEDIA / ENVIO EM MASSA COM M?DIA ====================
 
 export interface BulkMediaPayload {
   type: 'audio' | 'image' | 'video' | 'document';
@@ -8292,8 +8612,8 @@ export interface BulkMediaPayload {
 }
 
 /**
- * Envia mensagem com m�dia em massa para m�ltiplos contatos
- * Suporta: imagem, v�deo, �udio e documento
+ * Envia mensagem com m?dia em massa para m?ltiplos contatos
+ * Suporta: imagem, v?deo, ?udio e documento
  */
 export async function sendBulkMediaMessages(
   userId: string,
@@ -8316,7 +8636,7 @@ export async function sendBulkMediaMessages(
 }> {
   const session = sessions.get(userId);
   if (!session?.socket) {
-    throw new Error("WhatsApp n�o conectado");
+    throw new Error("WhatsApp n?o conectado");
   }
 
   const delayMin = options.delayMin || 5000;
@@ -8345,10 +8665,10 @@ export async function sendBulkMediaMessages(
     }
     console.log(`[BULK MEDIA SEND] ?? Buffer preparado: ${mediaBuffer.length} bytes`);
   } catch (bufferError: any) {
-    throw new Error(`Erro ao processar m�dia: ${bufferError.message}`);
+    throw new Error(`Erro ao processar m?dia: ${bufferError.message}`);
   }
 
-  // Fun��o para aplicar template [nome]
+  // Fun??o para aplicar template [nome]
   const applyTemplate = (template: string, name: string): string => {
     if (!template) return '';
     return template.replace(/\[nome\]/gi, name || 'Cliente');
@@ -8357,7 +8677,7 @@ export async function sendBulkMediaMessages(
   let contactIndex = 0;
   for (const contact of contacts) {
     try {
-      // Formatar n�mero para JID
+      // Formatar n?mero para JID
       const cleanPhone = contact.phone.replace(/\D/g, '');
       let formattedPhone = cleanPhone;
       if (cleanPhone.length === 10 || cleanPhone.length === 11) {
@@ -8370,7 +8690,7 @@ export async function sendBulkMediaMessages(
 
       console.log(`[BULK MEDIA SEND] [${contactIndex + 1}/${contacts.length}] Enviando ${media.type} para: ${contact.name || contact.phone}`);
 
-      // Preparar conte�do de m�dia
+      // Preparar conte?do de m?dia
       let messageContent: any;
 
       switch (media.type) {
@@ -8408,10 +8728,10 @@ export async function sendBulkMediaMessages(
           break;
 
         default:
-          throw new Error(`Tipo de m�dia n�o suportado: ${media.type}`);
+          throw new Error(`Tipo de m?dia n?o suportado: ${media.type}`);
       }
 
-      // Enviar m�dia via socket (n�o usar fila para m�dia - enviamos diretamente)
+      // Enviar m?dia via socket (n?o usar fila para m?dia - enviamos diretamente)
       const sendStartTime = Date.now();
       const sentMessage = await session.socket.sendMessage(jid, messageContent);
       const sendEndTime = Date.now();
@@ -8434,7 +8754,7 @@ export async function sendBulkMediaMessages(
         }
       }
 
-      // Delay entre envios (mais conservador para m�dia)
+      // Delay entre envios (mais conservador para m?dia)
       if (contactIndex < contacts.length - 1) {
         const configuredDelay = delayMin + Math.random() * (delayMax - delayMin);
         console.log(`??? [BULK MEDIA SEND] Delay: ${(configuredDelay/1000).toFixed(1)}s`);
@@ -8467,7 +8787,7 @@ export async function sendBulkMediaMessages(
     contactIndex++;
   }
 
-  console.log(`[BULK MEDIA SEND] Conclu�do: ${sent} enviados, ${failed} falharam`);
+  console.log(`[BULK MEDIA SEND] Conclu?do: ${sent} enviados, ${failed} falharam`);
   return { sent, failed, errors, details };
 }
 
@@ -8484,17 +8804,17 @@ interface WhatsAppGroup {
 }
 
 /**
- * Busca todos os grupos que o usu�rio participa
+ * Busca todos os grupos que o usu?rio participa
  * Usa groupFetchAllParticipating do Baileys
  */
 export async function fetchUserGroups(userId: string): Promise<WhatsAppGroup[]> {
   const session = sessions.get(userId);
   if (!session?.socket) {
-    throw new Error("WhatsApp n�o conectado");
+    throw new Error("WhatsApp n?o conectado");
   }
 
   try {
-    console.log(`[GROUPS] Buscando grupos para usu�rio ${userId}...`);
+    console.log(`[GROUPS] Buscando grupos para usu?rio ${userId}...`);
     
     // Buscar todos os grupos participantes via Baileys
     const groups = await session.socket.groupFetchAllParticipating();
@@ -8502,7 +8822,7 @@ export async function fetchUserGroups(userId: string): Promise<WhatsAppGroup[]> 
     const groupList: WhatsAppGroup[] = [];
     
     for (const [jid, metadata] of Object.entries(groups)) {
-      // Verificar se o usu�rio � admin do grupo
+      // Verificar se o usu?rio ? admin do grupo
       const meJid = session.socket.user?.id;
       const meParticipant = metadata.participants?.find(p => 
         p.id === meJid || p.id?.includes(session.phoneNumber || '')
@@ -8552,7 +8872,7 @@ export async function sendMessageToGroups(
 }> {
   const session = sessions.get(userId);
   if (!session?.socket) {
-    throw new Error("WhatsApp n�o conectado");
+    throw new Error("WhatsApp n?o conectado");
   }
 
   const delayMin = options.delayMin || 5000;
@@ -8575,14 +8895,14 @@ export async function sendMessageToGroups(
   try {
     groupsMetadata = await session.socket.groupFetchAllParticipating();
   } catch (e) {
-    console.warn('[GROUP SEND] N�o foi poss�vel buscar metadados dos grupos');
+    console.warn('[GROUP SEND] N?o foi poss?vel buscar metadados dos grupos');
   }
 
-  // Fun��o para gerar varia��o b�sica com IA
+  // Fun??o para gerar varia??o b?sica com IA
   const generateGroupVariation = (baseMessage: string, groupIndex: number): string => {
     if (!useAI) return baseMessage;
     
-    // Varia��es simples de prefixo/sufixo
+    // Varia??es simples de prefixo/sufixo
     const prefixes = ['', '', '?? ', '?? ', '?? ', '?? '];
     const suffixes = ['', '', '', ' ??', ' ?', '!'];
     
@@ -8591,7 +8911,7 @@ export async function sendMessageToGroups(
     
     let varied = baseMessage;
     
-    // Adicionar varia��o se n�o come�ar/terminar com emoji
+    // Adicionar varia??o se n?o come?ar/terminar com emoji
     const emojiPattern = /[\uD83C-\uDBFF][\uDC00-\uDFFF]/;
     const startsWithEmoji = emojiPattern.test(varied.slice(0, 2));
     const endsWithEmoji = emojiPattern.test(varied.slice(-2));
@@ -8609,18 +8929,18 @@ export async function sendMessageToGroups(
   let groupIndex = 0;
   for (const groupId of groupIds) {
     try {
-      // Verificar se � um JID de grupo v�lido
+      // Verificar se ? um JID de grupo v?lido
       const jid = groupId.includes('@g.us') ? groupId : `${groupId}@g.us`;
       const groupName = groupsMetadata[jid]?.subject || groupId;
       
-      // Aplicar varia��o se IA estiver ativada
+      // Aplicar varia??o se IA estiver ativada
       const finalMessage = useAI ? generateGroupVariation(message, groupIndex) : message;
       
       console.log(`[GROUP SEND] Enviando para grupo: ${groupName} (${jid})`);
       console.log(`[GROUP SEND] Mensagem: ${finalMessage.substring(0, 50)}...`);
       
-      // ??? ANTI-BLOQUEIO: Usar fila de mensagens com delay autom�tico de 5-10s
-      // ? Texto enviado EXATAMENTE como recebido (varia��o REMOVIDA do sistema)
+      // ??? ANTI-BLOQUEIO: Usar fila de mensagens com delay autom?tico de 5-10s
+      // ? Texto enviado EXATAMENTE como recebido (varia??o REMOVIDA do sistema)
       const queueResult = await messageQueueService.enqueue(userId, jid, finalMessage, {
         isFromAgent: true,
         priority: 'low', // Grupos = prioridade baixa
@@ -8648,7 +8968,7 @@ export async function sendMessageToGroups(
         console.log(`[GROUP SEND] ? Falha: ${groupName}`);
       }
 
-      // ??? A fila j� controla o delay de 5-10s - n�o precisa de delay extra aqui
+      // ??? A fila j? controla o delay de 5-10s - n?o precisa de delay extra aqui
       
     } catch (error: any) {
       const groupName = groupsMetadata[groupId]?.subject || groupId;
@@ -8669,12 +8989,12 @@ export async function sendMessageToGroups(
     groupIndex++;
   }
 
-  console.log(`[GROUP SEND] Conclu�do: ${sent} enviados, ${failed} falharam`);
+  console.log(`[GROUP SEND] Conclu?do: ${sent} enviados, ${failed} falharam`);
   
   return { sent, failed, errors, details };
 }
 
-// Função auxiliar para obter sessões (usado em rotas de debug)
+// Fun��o auxiliar para obter sess�es (usado em rotas de debug)
 export function getSessions(): Map<string, WhatsAppSession> {
   return sessions;
 }
@@ -8738,12 +9058,12 @@ export function getConnectionHealth(userId?: string): {
 }
 
 export async function disconnectWhatsApp(userId: string, connectionId?: string): Promise<void> {
-  // 🛡️ MODO DESENVOLVIMENTO: Bloquear desconexões para evitar conflito com produção
+  // ??? MODO DESENVOLVIMENTO: Bloquear desconex�es para evitar conflito com produ��o
   if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
-    console.log(`\n🛡️ [DEV MODE] disconnectWhatsApp bloqueado para user ${userId}`);
-    console.log(`   💡 SKIP_WHATSAPP_RESTORE=true - Modo desenvolvimento ativo`);
-    console.log(`   ✅ Sessões do WhatsApp em produção não serão afetadas\n`);
-    throw new Error('WhatsApp desabilitado em modo desenvolvimento (SKIP_WHATSAPP_RESTORE=true). Isso protege suas sessões em produção.');
+    console.log(`\n??? [DEV MODE] disconnectWhatsApp bloqueado para user ${userId}`);
+    console.log(`   ?? SKIP_WHATSAPP_RESTORE=true - Modo desenvolvimento ativo`);
+    console.log(`   ? Sess�es do WhatsApp em produ��o n�o ser�o afetadas\n`);
+    throw new Error('WhatsApp desabilitado em modo desenvolvimento (SKIP_WHATSAPP_RESTORE=true). Isso protege suas sess�es em produ��o.');
   }
   
   const lookupKey = connectionId || userId;
@@ -8773,26 +9093,145 @@ export async function disconnectWhatsApp(userId: string, connectionId?: string):
     });
   }
 
-  // Limpar arquivos de autenticação para permitir nova conexão - always use auth_{userId}
+  // Limpar arquivos de autentica��o para permitir nova conex�o - always use auth_{userId}
   const authPath = path.join(SESSIONS_BASE, `auth_${userId}`);
   await clearAuthFiles(authPath);
 
   broadcastToUser(userId, { type: "disconnected", connectionId: lookupKey });
 }
 
-// ?? Map para rastrear conex�es em andamento do ADMIN (evita m�ltiplas tentativas simult�neas)
-const pendingAdminConnections = new Map<string, Promise<void>>();
+// ?? Map para rastrear conex?es em andamento do ADMIN (evita m?ltiplas tentativas simult?neas)
+interface PendingAdminConnectionEntry {
+  promise: Promise<void>;
+  startedAt: number;
+  distributedLock?: DistributedLockHandle;
+  distributedLockRefresh?: NodeJS.Timeout;
+}
+const pendingAdminConnections = new Map<string, PendingAdminConnectionEntry>();
+const ADMIN_PENDING_LOCK_TTL_MS = Math.max(
+  Number(process.env.WA_ADMIN_PENDING_LOCK_TTL_MS || PENDING_LOCK_TTL_MS),
+  30_000,
+);
+const ADMIN_CONNECT_OPEN_TIMEOUT_MS = Math.max(
+  Number(process.env.WA_ADMIN_CONNECT_OPEN_TIMEOUT_MS || CONNECT_OPEN_TIMEOUT_MS),
+  30_000,
+);
+const WA_REDIS_ADMIN_PENDING_LOCK_PREFIX =
+  process.env.WA_REDIS_ADMIN_PENDING_LOCK_PREFIX || "wa:admin:connect:lock:";
 
-// ?? Map para rastrear tentativas de reconex�o do ADMIN (evita loops infinitos)
+function toDistributedAdminPendingLockKey(adminId: string): string {
+  return `${WA_REDIS_ADMIN_PENDING_LOCK_PREFIX}${adminId}`;
+}
+
+function stopAdminDistributedLockRefresh(
+  adminId: string,
+  entry?: PendingAdminConnectionEntry,
+): void {
+  const targetEntry = entry || pendingAdminConnections.get(adminId);
+  if (targetEntry?.distributedLockRefresh) {
+    clearInterval(targetEntry.distributedLockRefresh);
+    targetEntry.distributedLockRefresh = undefined;
+  }
+}
+
+function releaseDistributedAdminPendingLock(
+  adminId: string,
+  reason: string,
+  entry?: PendingAdminConnectionEntry,
+): void {
+  const targetEntry = entry || pendingAdminConnections.get(adminId);
+  if (!targetEntry?.distributedLock) {
+    return;
+  }
+
+  const lock = targetEntry.distributedLock;
+  targetEntry.distributedLock = undefined;
+  stopAdminDistributedLockRefresh(adminId, targetEntry);
+
+  void releaseDistributedLock(lock)
+    .then((released) => {
+      if (released) {
+        console.log(
+          `?? [ADMIN PENDING LOCK][REDIS] Released distributed lock for ${adminId.substring(0, 8)}... (${reason})`,
+        );
+      }
+    })
+    .catch((err) => {
+      console.warn(
+        `?? [ADMIN PENDING LOCK][REDIS] Failed to release distributed lock for ${adminId.substring(0, 8)}... (${reason}):`,
+        err,
+      );
+    });
+}
+
+function registerDistributedAdminPendingLockRefresh(
+  adminId: string,
+  entry: PendingAdminConnectionEntry,
+  ttlMs: number,
+): void {
+  if (!entry.distributedLock) {
+    return;
+  }
+
+  const refreshIntervalMs = Math.max(
+    Math.min(Math.floor(ttlMs / 2), WA_REDIS_PENDING_LOCK_REFRESH_MS),
+    5_000,
+  );
+
+  entry.distributedLockRefresh = setInterval(async () => {
+    if (!entry.distributedLock) {
+      return;
+    }
+    const refreshed = await refreshDistributedLock(entry.distributedLock, ttlMs);
+    if (!refreshed) {
+      console.warn(
+        `?? [ADMIN PENDING LOCK][REDIS] Lock refresh lost for ${adminId.substring(0, 8)}...`,
+      );
+      stopAdminDistributedLockRefresh(adminId, entry);
+    }
+  }, refreshIntervalMs);
+  entry.distributedLockRefresh.unref?.();
+}
+
+function clearPendingAdminConnectionLock(adminId: string, reason: string): void {
+  const entry = pendingAdminConnections.get(adminId);
+  if (entry) {
+    stopAdminDistributedLockRefresh(adminId, entry);
+    pendingAdminConnections.delete(adminId);
+    releaseDistributedAdminPendingLock(adminId, reason, entry);
+    console.log(`?? [ADMIN PENDING LOCK] Cleared lock for ${adminId.substring(0, 8)}... reason: ${reason}`);
+  }
+}
+
+function evictStalePendingAdminLocks(): number {
+  let evicted = 0;
+  const now = Date.now();
+  for (const [adminId, entry] of pendingAdminConnections.entries()) {
+    if (now - entry.startedAt > ADMIN_PENDING_LOCK_TTL_MS) {
+      console.log(
+        `?? [ADMIN PENDING LOCK] STALE_EVICTED: ${adminId.substring(0, 8)}... age=${Math.round(
+          (now - entry.startedAt) / 1000,
+        )}s > TTL=${Math.round(ADMIN_PENDING_LOCK_TTL_MS / 1000)}s`,
+      );
+      stopAdminDistributedLockRefresh(adminId, entry);
+      releaseDistributedAdminPendingLock(adminId, "stale_evicted", entry);
+      pendingAdminConnections.delete(adminId);
+      evicted++;
+    }
+  }
+  return evicted;
+}
+
+// ?? Map para rastrear tentativas de reconex?o do ADMIN (evita loops infinitos)
 interface AdminReconnectAttempt {
   count: number;
   lastAttempt: number;
 }
 const adminReconnectAttempts = new Map<string, AdminReconnectAttempt>();
 const MAX_ADMIN_RECONNECT_ATTEMPTS = 999; // Sessao permanece ativa - reconexao automatica ilimitada
-const ADMIN_RECONNECT_COOLDOWN_MS = 30000; // 30 segundos entre ciclos de reconex�o
+const ADMIN_RECONNECT_COOLDOWN_MS = 30000; // 30 segundos entre ciclos de reconex?o
 
-// ?? Map para rastrear auto-retry ap�s logout do ADMIN
+// ?? Map para rastrear auto-retry ap?s logout do ADMIN
 interface AdminLogoutAutoRetry {
   count: number;
   lastAttempt: number;
@@ -8810,51 +9249,121 @@ export function getAdminSession(adminId: string): AdminWhatsAppSession | undefin
 }
 
 export async function connectAdminWhatsApp(adminId: string): Promise<void> {
-  // 🛡️ MODO DESENVOLVIMENTO: Bloquear conexões para evitar conflito com produção
+  // ??? MODO DESENVOLVIMENTO: Bloquear conex�es para evitar conflito com produ��o
   if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
-    console.log(`\n🛡️ [DEV MODE] Conexão Admin WhatsApp bloqueada para admin ${adminId}`);
-    console.log(`   💡 SKIP_WHATSAPP_RESTORE=true - Modo desenvolvimento ativo`);
-    console.log(`   ✅ Sessões do WhatsApp em produção não serão afetadas\n`);
-    throw new Error('WhatsApp Admin desabilitado em modo desenvolvimento (SKIP_WHATSAPP_RESTORE=true). Isso protege suas sessões em produção.');
+    console.log(`\n??? [DEV MODE] Conex�o Admin WhatsApp bloqueada para admin ${adminId}`);
+    console.log(`   ?? SKIP_WHATSAPP_RESTORE=true - Modo desenvolvimento ativo`);
+    console.log(`   ? Sess�es do WhatsApp em produ��o n�o ser�o afetadas\n`);
+    throw new Error('WhatsApp Admin desabilitado em modo desenvolvimento (SKIP_WHATSAPP_RESTORE=true). Isso protege suas sess�es em produ��o.');
   }
 
-  // 🔒 Verificar se já existe uma conexão em andamento
+  // ? Evict stale locks before checking.
+  evictStalePendingAdminLocks();
+
+  // ?? Verificar se j� existe uma conex�o em andamento
   const existingPendingConnection = pendingAdminConnections.get(adminId);
   if (existingPendingConnection) {
     console.log(`[ADMIN CONNECT] Connection already in progress for admin ${adminId}, waiting...`);
-    return existingPendingConnection;
+    return existingPendingConnection.promise;
   }
 
-  // 🔄 Resetar contador de tentativas quando admin inicia conexão manualmente
+  let distributedLock: DistributedLockHandle | undefined;
+  const distributedLockTtlMs = Math.max(
+    ADMIN_CONNECT_OPEN_TIMEOUT_MS + WA_REDIS_PENDING_LOCK_EXTRA_MS,
+    ADMIN_PENDING_LOCK_TTL_MS,
+  );
+  if (WA_REDIS_CONNECT_LOCK_ENABLED && isRedisAvailable()) {
+    const lockResult = await tryAcquireDistributedLock(
+      toDistributedAdminPendingLockKey(adminId),
+      distributedLockTtlMs,
+    );
+    if (lockResult.status === "acquired") {
+      distributedLock = lockResult.lock;
+      console.log(
+        `?? [ADMIN PENDING LOCK][REDIS] Acquired distributed lock for ${adminId.substring(0, 8)}... ttl=${Math.round(
+          distributedLockTtlMs / 1000,
+        )}s`,
+      );
+    } else if (lockResult.status === "busy") {
+      const remainingSec = Math.max(1, Math.ceil(lockResult.remainingMs / 1000));
+      console.log(
+        `?? [ADMIN PENDING LOCK][REDIS] Lock busy for ${adminId.substring(0, 8)}... (${remainingSec}s remaining). Skipping duplicate connect attempt.`,
+      );
+      return;
+    }
+  }
+
+  // ?? Resetar contador de tentativas quando admin inicia conex�o manualmente
   adminReconnectAttempts.delete(adminId);
 
-  // 🔒 CRÍTICO: Criar e registrar a promise IMEDIATAMENTE para evitar race conditions
-  let resolveConnection: () => void;
-  let rejectConnection: (error: Error) => void;
-  
+  // ?? CR�TICO: Criar e registrar a promise IMEDIATAMENTE para evitar race conditions
+  let resolveConnection!: () => void;
+  let rejectConnection!: (error: Error) => void;
+  let connectionPromiseSettled = false;
+  let connectionOpenTimeout: NodeJS.Timeout | undefined;
+
   const connectionPromise = new Promise<void>((resolve, reject) => {
     resolveConnection = resolve;
     rejectConnection = reject;
   });
-  
-  // Registrar ANTES de qualquer operação async
-  pendingAdminConnections.set(adminId, connectionPromise);
+
+  const settleConnectionPromise = (
+    mode: "resolve" | "reject",
+    reason: string,
+    error?: Error,
+  ): void => {
+    if (connectionPromiseSettled) {
+      return;
+    }
+    connectionPromiseSettled = true;
+    if (connectionOpenTimeout) {
+      clearTimeout(connectionOpenTimeout);
+      connectionOpenTimeout = undefined;
+    }
+    if (mode === "resolve") {
+      console.log(`[ADMIN CONNECT] Connection promise resolved for admin ${adminId.substring(0, 8)}... (${reason})`);
+      resolveConnection();
+      return;
+    }
+    const rejectError = error || new Error(`Admin connection failed before open (${reason})`);
+    console.log(
+      `[ADMIN CONNECT] Connection promise rejected for admin ${adminId.substring(0, 8)}... (${reason}): ${rejectError.message}`,
+    );
+    rejectConnection(rejectError);
+  };
+
+  // Registrar ANTES de qualquer opera��o async
+  const pendingEntry: PendingAdminConnectionEntry = {
+    promise: connectionPromise,
+    startedAt: Date.now(),
+    distributedLock,
+  };
+  pendingAdminConnections.set(adminId, pendingEntry);
+  if (pendingEntry.distributedLock) {
+    registerDistributedAdminPendingLockRefresh(adminId, pendingEntry, distributedLockTtlMs);
+  }
   console.log(`[ADMIN CONNECT] Registered pending connection for admin ${adminId}`);
 
-  // Executar a lógica de conexão
+  // Executar a l�gica de conex�o
   (async () => {
     try {
-      // Verificar se já existe uma sessão ativa
+      // Verificar se j� existe uma sess�o ativa
       const existingSession = adminSessions.get(adminId);
       if (existingSession?.socket) {
-        // Verificar se o socket está realmente conectado
-        const isSocketConnected = existingSession.socket.user !== undefined;
-        if (isSocketConnected) {
+        const wsReadyState = (existingSession.socket as any)?.ws?.readyState;
+        const isSocketOperational =
+          existingSession.socket.user !== undefined &&
+          (wsReadyState === undefined || wsReadyState === 1);
+        if (isSocketOperational) {
           console.log(`[ADMIN CONNECT] Admin ${adminId} already has an active connected session`);
+          clearPendingAdminConnectionLock(adminId, "already_connected");
+          settleConnectionPromise("resolve", "already_connected");
           return;
         } else {
-          // Sessão existe mas não está conectada - limpar e recriar
-          console.log(`[ADMIN CONNECT] Admin ${adminId} has stale session, cleaning up...`);
+          // Sess�o existe mas n�o est� conectada - limpar e recriar
+          console.log(
+            `[ADMIN CONNECT] Admin ${adminId} has stale session (hasUser=${existingSession.socket.user !== undefined}, wsReadyState=${wsReadyState ?? 'unknown'}), cleaning up...`,
+          );
           try {
             existingSession.socket.end(undefined);
           } catch (e) {
@@ -8892,18 +9401,18 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
                     name: conv.contactName || undefined
                 };
                 
-                // Se tivermos o LID salvo em algum lugar (remoteJidAlt?), mapear tamb�m
+                // Se tivermos o LID salvo em algum lugar (remoteJidAlt?), mapear tamb?m
                 // Por enquanto, mapeamos o remoteJid normal
                 contactsCache.set(conv.remoteJid, contact);
-                contactsCache.set(conv.contactNumber, contact); // Mapear pelo n�mero tamb�m
+                contactsCache.set(conv.contactNumber, contact); // Mapear pelo n?mero tamb?m
                 
-                // Tentar inferir LID se poss�vel ou se tivermos salvo
+                // Tentar inferir LID se poss?vel ou se tivermos salvo
                 // (Futuramente salvar o LID na tabela admin_conversations seria ideal)
             }
         }
-        console.log(`[ADMIN CACHE] Pr�-carregados ${conversations.length} contatos do hist�rico`);
+        console.log(`[ADMIN CACHE] Pr?-carregados ${conversations.length} contatos do hist?rico`);
     } catch (err) {
-        console.error("[ADMIN CACHE] Erro ao pr�-carregar contatos:", err);
+        console.error("[ADMIN CACHE] Erro ao pr?-carregar contatos:", err);
     }
 
     const socket = makeWASocket({
@@ -8925,20 +9434,20 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
       // -----------------------------------------------------------------------
       shouldIgnoreJid: (jid: string) => jid === 'status@broadcast',
       // -----------------------------------------------------------------------
-      // 💡 FIX "AGUARDANDO PARA CARREGAR MENSAGEM" (WAITING FOR MESSAGE) - ADMIN
+      // ?? FIX "AGUARDANDO PARA CARREGAR MENSAGEM" (WAITING FOR MESSAGE) - ADMIN
       // -----------------------------------------------------------------------
       getMessage: async (key) => {
         if (!key.id) return undefined;
         
         console.log(`?? [getMessage ADMIN] Baileys solicitou mensagem ${key.id} para retry`);
         
-        // Tentar recuperar do cache em mem�ria
+        // Tentar recuperar do cache em mem?ria
         const cached = getCachedMessage(`admin_${adminId}`, key.id);
         if (cached) {
           return cached;
         }
         
-        console.log(`?? [getMessage ADMIN] Mensagem ${key.id} n�o encontrada no cache`);
+        console.log(`?? [getMessage ADMIN] Mensagem ${key.id} n?o encontrada no cache`);
         return undefined;
       },
     });
@@ -8949,14 +9458,36 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
       contactsCache,
     });
 
-    // Verificar se j� est� conectado ao criar o socket (sess�o restaurada)
+    connectionOpenTimeout = setTimeout(() => {
+      const currentSession = adminSessions.get(adminId);
+      if (currentSession?.socket !== socket || currentSession?.socket?.user) {
+        return;
+      }
+      const timeoutError = new Error(
+        `Admin connection did not reach open within ${ADMIN_CONNECT_OPEN_TIMEOUT_MS}ms`,
+      );
+      console.log(
+        `?? [ADMIN CONNECT] OPEN TIMEOUT for admin ${adminId.substring(0, 8)}... � closing socket`,
+      );
+      clearPendingAdminConnectionLock(adminId, "connect_open_timeout");
+      try {
+        socket.end(timeoutError);
+      } catch (_endErr) {
+        // noop
+      }
+      adminSessions.delete(adminId);
+      settleConnectionPromise("reject", "open_timeout", timeoutError);
+    }, ADMIN_CONNECT_OPEN_TIMEOUT_MS);
+    connectionOpenTimeout.unref?.();
+
+    // Verificar se j? est? conectado ao criar o socket (sess?o restaurada)
     if (socket.user) {
       const phoneNumber = socket.user.id.split(':')[0];
-      console.log(`? [ADMIN] Socket criado j� conectado (sess�o restaurada): ${phoneNumber}`);
+      console.log(`? [ADMIN] Socket criado j? conectado (sess?o restaurada): ${phoneNumber}`);
       
-      // For�ar presen�a dispon�vel para receber updates de outros usu�rios
+      // For?ar presen?a dispon?vel para receber updates de outros usu?rios
       setTimeout(() => {
-        socket.sendPresenceUpdate('available').catch(err => console.error("Erro ao enviar presen�a inicial:", err));
+        socket.sendPresenceUpdate('available').catch(err => console.error("Erro ao enviar presen?a inicial:", err));
       }, 2000);
 
       await storage.updateAdminWhatsappConnection(adminId, {
@@ -8965,6 +9496,8 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
         qrCode: null,
       });
       broadcastToAdmin(adminId, { type: "connected", phoneNumber });
+      clearPendingAdminConnectionLock(adminId, "implicit_open");
+      settleConnectionPromise("resolve", "implicit_open");
     }
 
     // Listener para cachear contatos quando Baileys emitir contacts.upsert
@@ -8991,10 +9524,10 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
     socket.ev.on("creds.update", saveCreds);
 
     // -----------------------------------------------------------------------
-    // 🎤 FUNÇÃO: Processar mensagens enviadas pelo ADMIN no WhatsApp
+    // ?? FUN��O: Processar mensagens enviadas pelo ADMIN no WhatsApp
     // -----------------------------------------------------------------------
     // Quando o admin responde direto no WhatsApp (fromMe: true),
-    // precisamos salvar essa mensagem no sistema E transcrever áudios
+    // precisamos salvar essa mensagem no sistema E transcrever �udios
     // -----------------------------------------------------------------------
     async function handleAdminOutgoingMessage(adminId: string, waMessage: WAMessage) {
       const remoteJid = waMessage.key.remoteJid;
@@ -9002,7 +9535,7 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
       
       // Filtrar grupos e status
       if (remoteJid.includes("@g.us") || remoteJid.includes("@broadcast")) {
-        console.log(`📤 [ADMIN FROM ME] Ignorando mensagem de grupo/status`);
+        console.log(`?? [ADMIN FROM ME] Ignorando mensagem de grupo/status`);
         return;
       }
       
@@ -9014,17 +9547,17 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
         const realJid = (waMessage.key as any).remoteJidAlt;
         contactNumber = cleanContactNumber(realJid);
         realRemoteJid = realJid;
-        console.log(`📤 [ADMIN FROM ME] LID resolvido: ${remoteJid} → ${realJid}`);
+        console.log(`?? [ADMIN FROM ME] LID resolvido: ${remoteJid} ? ${realJid}`);
       } else {
         contactNumber = cleanContactNumber(remoteJid);
       }
       
       if (!contactNumber) {
-        console.log(`⚠️ [ADMIN FROM ME] Não foi possível extrair número de: ${remoteJid}`);
+        console.log(`?? [ADMIN FROM ME] N�o foi poss�vel extrair n�mero de: ${remoteJid}`);
         return;
       }
       
-      // Extrair texto e mídia
+      // Extrair texto e m�dia
       let messageText = "";
       let mediaType: string | undefined;
       let mediaUrl: string | undefined;
@@ -9038,21 +9571,21 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
         messageText = msg.extendedTextMessage.text;
       } else if (msg?.imageMessage) {
         mediaType = "image";
-        messageText = msg.imageMessage.caption || "📷 Imagem";
+        messageText = msg.imageMessage.caption || "?? Imagem";
         try {
           const buffer = await downloadMediaMessage(waMessage, "buffer", {});
           const mimetype = msg.imageMessage.mimetype || "image/jpeg";
           const result = await uploadMediaToStorage(buffer, mimetype, adminId);
           if (result?.url) {
             mediaUrl = result.url;
-            console.log(`✅ [ADMIN FROM ME] Imagem salva: ${result.url}`);
+            console.log(`? [ADMIN FROM ME] Imagem salva: ${result.url}`);
           }
         } catch (err) {
-          console.error("❌ [ADMIN FROM ME] Erro ao baixar imagem:", err);
+          console.error("? [ADMIN FROM ME] Erro ao baixar imagem:", err);
         }
       } else if (msg?.audioMessage) {
         mediaType = "audio";
-        messageText = "🎤 Áudio"; // Será substituído pela transcrição
+        messageText = "?? �udio"; // Ser� substitu�do pela transcri��o
         try {
           const buffer = await downloadMediaMessage(waMessage, "buffer", {});
           const mimeType = msg.audioMessage.mimetype || "audio/ogg; codecs=opus";
@@ -9060,27 +9593,27 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
           if (result?.url) {
             mediaUrl = result.url;
             mediaMimeType = mimeType;
-            console.log(`✅ [ADMIN FROM ME] Áudio salvo: ${buffer.length} bytes (${mimeType})`);
+            console.log(`? [ADMIN FROM ME] �udio salvo: ${buffer.length} bytes (${mimeType})`);
           }
         } catch (err) {
-          console.error("❌ [ADMIN FROM ME] Erro ao baixar áudio:", err);
+          console.error("? [ADMIN FROM ME] Erro ao baixar �udio:", err);
         }
       } else if (msg?.videoMessage) {
         mediaType = "video";
-        messageText = msg.videoMessage.caption || "🎬 Vídeo";
+        messageText = msg.videoMessage.caption || "?? V�deo";
       } else if (msg?.documentMessage) {
         mediaType = "document";
-        messageText = `📄 ${msg.documentMessage.fileName || "Documento"}`;
+        messageText = `?? ${msg.documentMessage.fileName || "Documento"}`;
       } else {
-        // Tipo não suportado
+        // Tipo n�o suportado
         const msgTypes = Object.keys(msg || {});
         if (!msgTypes.includes("protocolMessage")) {
-          console.log(`⚠️ [ADMIN FROM ME] Tipo de mensagem não suportado:`, msgTypes);
+          console.log(`?? [ADMIN FROM ME] Tipo de mensagem n�o suportado:`, msgTypes);
         }
         return;
       }
       
-      console.log(`📤 [ADMIN FROM ME] Salvando mensagem do admin: ${messageText.substring(0, 50)}...`);
+      console.log(`?? [ADMIN FROM ME] Salvando mensagem do admin: ${messageText.substring(0, 50)}...`);
       
       // Buscar/criar conversa
       let conversation;
@@ -9092,7 +9625,7 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
           waMessage.pushName || undefined
         );
         
-        // Salvar mensagem (transcrição de áudio acontece automaticamente em createAdminMessage)
+        // Salvar mensagem (transcri��o de �udio acontece automaticamente em createAdminMessage)
         const savedMessage = await storage.createAdminMessage({
           conversationId: conversation.id,
           messageId: waMessage.key.id || `msg_${Date.now()}`,
@@ -9106,66 +9639,66 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
           mediaMimeType,
         });
         
-        // Se foi áudio e temos transcrição, usar o texto transcrito
+        // Se foi �udio e temos transcri��o, usar o texto transcrito
         if (savedMessage?.text && savedMessage.text !== messageText) {
-          console.log(`🎤 [ADMIN FROM ME] Texto atualizado com transcrição: ${savedMessage.text.substring(0, 100)}...`);
+          console.log(`?? [ADMIN FROM ME] Texto atualizado com transcri��o: ${savedMessage.text.substring(0, 100)}...`);
           messageText = savedMessage.text;
         }
         
-        // Atualizar última mensagem da conversa
+        // Atualizar �ltima mensagem da conversa
         await storage.updateAdminConversation(conversation.id, {
           lastMessageText: messageText.substring(0, 255),
           lastMessageTime: new Date(),
         });
         
-        console.log(`✅ [ADMIN FROM ME] Mensagem salva na conversa ${conversation.id}`);
+        console.log(`? [ADMIN FROM ME] Mensagem salva na conversa ${conversation.id}`);
       } catch (error) {
-        console.error(`❌ [ADMIN FROM ME] Erro ao salvar mensagem:`, error);
+        console.error(`? [ADMIN FROM ME] Erro ao salvar mensagem:`, error);
       }
     }
 
     // -----------------------------------------------------------------------
-    // 👁️ HANDLER DE PRESENÇA (TYPING/PAUSED) - DETECÇÃO DE DIGITAÇÃO
+    // ??? HANDLER DE PRESEN�A (TYPING/PAUSED) - DETEC��O DE DIGITA��O
     // -----------------------------------------------------------------------
     socket.ev.on("presence.update", async (update) => {
       const { id, presences } = update;
       
-      // LOG DE DEBUG PARA DIAGN�STICO (ATIVADO)
+      // LOG DE DEBUG PARA DIAGN?STICO (ATIVADO)
       if (!id.includes("@g.us") && !id.includes("@broadcast")) {
          console.log(`??? [PRESENCE RAW] ID: ${id} | Presences: ${JSON.stringify(presences)}`);
       }
 
-      // Verificar se � um chat individual
+      // Verificar se ? um chat individual
       if (id.includes("@g.us") || id.includes("@broadcast")) return;
 
       // Verificar se temos uma resposta pendente para este chat
       // FIX: O ID que vem no presence.update pode ser um LID (ex: 254635809968349@lid)
-      // Precisamos mapear esse LID para o n�mero de telefone real (contactNumber)
+      // Precisamos mapear esse LID para o n?mero de telefone real (contactNumber)
       // O pendingAdminResponses usa o contactNumber como chave (ex: 5517991956944)
       
       let contactNumber = cleanContactNumber(id);
       
-      // Se for LID, tentar encontrar o n�mero real no cache de contatos
+      // Se for LID, tentar encontrar o n?mero real no cache de contatos
       if (id.includes("@lid")) {
          const contact = contactsCache.get(id);
          if (contact && contact.phoneNumber) {
              contactNumber = cleanContactNumber(contact.phoneNumber);
              console.log(`??? [PRESENCE MAP] Mapeado LID ${id} -> ${contactNumber}`);
          } else {
-             // Se n�o achou no cache, tentar buscar no banco (fallback)
-             // Mas como � async, talvez n�o d� tempo. Vamos tentar varrer o pendingAdminResponses
-             // para ver se algum remoteJid bate com esse LID? N�o, remoteJid geralmente � s.whatsapp.net
+             // Se n?o achou no cache, tentar buscar no banco (fallback)
+             // Mas como ? async, talvez n?o d? tempo. Vamos tentar varrer o pendingAdminResponses
+             // para ver se algum remoteJid bate com esse LID? N?o, remoteJid geralmente ? s.whatsapp.net
              
-             // TENTATIVA DE RECUPERA��O:
-             // Se o ID for LID, e n�o achamos o contactNumber, vamos tentar ver se existe
+             // TENTATIVA DE RECUPERA??O:
+             // Se o ID for LID, e n?o achamos o contactNumber, vamos tentar ver se existe
              // alguma resposta pendente onde o remoteJidAlt seja esse LID
-             // OU se s� existe UMA resposta pendente no sistema, assumimos que � ela (para testes)
+             // OU se s? existe UMA resposta pendente no sistema, assumimos que ? ela (para testes)
              
              if (pendingAdminResponses.size === 1) {
                  contactNumber = pendingAdminResponses.keys().next().value || "";
-                 console.log(`??? [PRESENCE GUESS] LID desconhecido ${id}, mas s� h� 1 pendente: ${contactNumber}. Assumindo match.`);
+                 console.log(`??? [PRESENCE GUESS] LID desconhecido ${id}, mas s? h? 1 pendente: ${contactNumber}. Assumindo match.`);
              } else {
-                 console.log(`?? [PRESENCE FAIL] N�o foi poss�vel mapear LID ${id} para um n�mero de telefone.`);
+                 console.log(`?? [PRESENCE FAIL] N?o foi poss?vel mapear LID ${id} para um n?mero de telefone.`);
              }
          }
       }
@@ -9174,18 +9707,18 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
 
       const pending = pendingAdminResponses.get(contactNumber);
       
-      // Se n�o tiver resposta pendente, n�o precisamos fazer nada (n�o estamos esperando para responder)
+      // Se n?o tiver resposta pendente, n?o precisamos fazer nada (n?o estamos esperando para responder)
       if (!pending) return;
 
       console.log(`??? [PRESENCE MATCH] Update para ${contactNumber} (tem resposta pendente)`);
       console.log(`   Dados: ${JSON.stringify(presences)}`);
 
       // Encontrar o participante correto (o cliente)
-      // Em chats privados, a chave deve conter o n�mero do cliente
+      // Em chats privados, a chave deve conter o n?mero do cliente
       const participantKey = Object.keys(presences).find(key => key.includes(contactNumber));
       
-      // FIX: Se n�o encontrar pelo n�mero, pode ser que a chave seja o JID completo ou diferente
-      // Vamos tentar pegar qualquer chave que N�O seja o nosso pr�prio n�mero
+      // FIX: Se n?o encontrar pelo n?mero, pode ser que a chave seja o JID completo ou diferente
+      // Vamos tentar pegar qualquer chave que N?O seja o nosso pr?prio n?mero
       let finalKey = participantKey;
       
       if (!finalKey) {
@@ -9198,7 +9731,7 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
       }
 
       if (!finalKey) {
-         console.log(`   ?? [PRESENCE] N�o foi poss�vel identificar o participante alvo. Chaves: ${Object.keys(presences)}`);
+         console.log(`   ?? [PRESENCE] N?o foi poss?vel identificar o participante alvo. Chaves: ${Object.keys(presences)}`);
          return;
       }
 
@@ -9206,26 +9739,26 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
       
       if (!presence) return;
 
-      // Atualizar presen�a conhecida
+      // Atualizar presen?a conhecida
       pending.lastKnownPresence = presence;
       pending.lastPresenceUpdate = Date.now();
 
       console.log(`   ??? [PRESENCE DETECTED] Status: ${presence} | User: ${finalKey}`);
 
       if (presence === 'composing') {
-        console.log(`?? [ADMIN AGENT] Usu�rio ${contactNumber} est� digitando... Estendendo espera.`);
+        console.log(`?? [ADMIN AGENT] Usu?rio ${contactNumber} est? digitando... Estendendo espera.`);
         
         // Se estiver digitando, estender o timeout para aguardar
         if (pending.timeout) {
           clearTimeout(pending.timeout);
         }
         
-        // Adicionar 25 segundos de "buffer de digita��o"
-        // Isso evita responder enquanto o usu�rio ainda est� escrevendo
+        // Adicionar 25 segundos de "buffer de digita??o"
+        // Isso evita responder enquanto o usu?rio ainda est? escrevendo
         const typingBuffer = 25000; // 25s
         
         pending.timeout = setTimeout(() => {
-          console.log(`? [ADMIN AGENT] Timeout de digita��o (25s) expirou para ${contactNumber}. Processando...`);
+          console.log(`? [ADMIN AGENT] Timeout de digita??o (25s) expirou para ${contactNumber}. Processando...`);
           void processAdminAccumulatedMessages({ 
             socket, 
             key: contactNumber, 
@@ -9234,18 +9767,18 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
         }, typingBuffer);
         
       } else if (presence === 'paused') {
-        console.log(`? [ADMIN AGENT] Usu�rio ${contactNumber} parou de digitar. Retomando espera padr�o (6s).`);
+        console.log(`? [ADMIN AGENT] Usu?rio ${contactNumber} parou de digitar. Retomando espera padr?o (6s).`);
         
         if (pending.timeout) {
           clearTimeout(pending.timeout);
         }
         
-        // Voltar para o delay padr�o de 6s
-        // Importante: Dar um pequeno delay extra (ex: 6s) para garantir que n�o � apenas uma pausa breve
+        // Voltar para o delay padr?o de 6s
+        // Importante: Dar um pequeno delay extra (ex: 6s) para garantir que n?o ? apenas uma pausa breve
         const standardDelay = 6000; 
         
         pending.timeout = setTimeout(() => {
-          console.log(`? [ADMIN AGENT] Timeout padr�o (6s) expirou para ${contactNumber} (ap�s pausa). Processando...`);
+          console.log(`? [ADMIN AGENT] Timeout padr?o (6s) expirou para ${contactNumber} (ap?s pausa). Processando...`);
           void processAdminAccumulatedMessages({ 
             socket, 
             key: contactNumber, 
@@ -9253,8 +9786,8 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
           });
         }, standardDelay);
       } else {
-        // Logar outros estados de presen�a para debug (ex: available, unavailable)
-        console.log(`?? [ADMIN AGENT] Presen�a atualizada para ${contactNumber}: ${presence}`);
+        // Logar outros estados de presen?a para debug (ex: available, unavailable)
+        console.log(`?? [ADMIN AGENT] Presen?a atualizada para ${contactNumber}: ${presence}`);
       }
     });
 
@@ -9273,16 +9806,16 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
         cacheMessage(`admin_${adminId}`, message.key.id, message.message);
       }
       
-      // 🎤 FIX TRANSCRIÇÃO: Capturar mensagens enviadas pelo próprio admin (fromMe: true)
-      // para salvar no banco e transcrever áudios
+      // ?? FIX TRANSCRI��O: Capturar mensagens enviadas pelo pr�prio admin (fromMe: true)
+      // para salvar no banco e transcrever �udios
       if (message.key.fromMe) {
-        console.log(`📤 [ADMIN] Mensagem enviada pelo admin detectada`);
+        console.log(`?? [ADMIN] Mensagem enviada pelo admin detectada`);
         try {
           await handleAdminOutgoingMessage(adminId, message);
         } catch (err) {
-          console.error("❌ [ADMIN] Erro ao processar mensagem do admin:", err);
+          console.error("? [ADMIN] Erro ao processar mensagem do admin:", err);
         }
-        return; // Não processar como mensagem recebida
+        return; // N�o processar como mensagem recebida
       }
       
       const remoteJid = message.key.remoteJid;
@@ -9299,7 +9832,7 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
         const { processAdminMessage, getOwnerNotificationNumber } = await import("./adminAgentService");
         
         // -----------------------------------------------------------------------
-        // ?? FIX LID 2025: Resolver @lid para n�mero real usando remoteJidAlt
+        // ?? FIX LID 2025: Resolver @lid para n?mero real usando remoteJidAlt
         // -----------------------------------------------------------------------
         let contactNumber: string;
         let realRemoteJid = remoteJid;  // JID real para envio de mensagens
@@ -9309,12 +9842,12 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
           contactNumber = cleanContactNumber(realJid);
           realRemoteJid = realJid;
           
-          console.log(`\n? [ADMIN LID RESOLVIDO] N�mero real encontrado via remoteJidAlt!`);
+          console.log(`\n? [ADMIN LID RESOLVIDO] N?mero real encontrado via remoteJidAlt!`);
           console.log(`   LID: ${remoteJid}`);
           console.log(`   JID WhatsApp REAL: ${realJid}`);
-          console.log(`   N�mero limpo: ${contactNumber}\n`);
+          console.log(`   N?mero limpo: ${contactNumber}\n`);
           
-          // Salvar mapeamento LID ? n�mero no cache do admin
+          // Salvar mapeamento LID ? n?mero no cache do admin
           contactsCache.set(remoteJid, {
             id: remoteJid,
             name: message.pushName || undefined,
@@ -9325,11 +9858,11 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
         }
         
         if (!contactNumber) {
-          console.log(`?? [ADMIN] N�o foi poss�vel extrair n�mero de: ${remoteJid}`);
+          console.log(`?? [ADMIN] N?o foi poss?vel extrair n?mero de: ${remoteJid}`);
           return;
         }
         
-        // Extrair texto e m�dia da mensagem
+        // Extrair texto e m?dia da mensagem
         let messageText = "";
         let mediaType: string | undefined;
         let mediaUrl: string | undefined;
@@ -9342,42 +9875,42 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
           messageText = msg.extendedTextMessage.text;
         } else if (msg?.imageMessage) {
           mediaType = "image";
-          messageText = msg.imageMessage.caption || "📷 Imagem";
+          messageText = msg.imageMessage.caption || "?? Imagem";
           try {
             const buffer = await downloadMediaMessage(message, "buffer", {});
             const mimetype = msg.imageMessage.mimetype || "image/jpeg";
-            // 🚀 Usar Storage em vez de base64 para reduzir egress
+            // ?? Usar Storage em vez de base64 para reduzir egress
             const result = await uploadMediaToStorage(buffer, mimetype, adminId);
             if (result?.url) {
               mediaUrl = result.url;
-              console.log(`✅ [ADMIN] Imagem salva no Storage: ${result.url}`);
+              console.log(`? [ADMIN] Imagem salva no Storage: ${result.url}`);
             } else {
-              console.warn(`⚠️ [ADMIN] Falha no upload, imagem não salva`);
+              console.warn(`?? [ADMIN] Falha no upload, imagem n�o salva`);
             }
           } catch (err) {
             console.error("[ADMIN] Erro ao baixar imagem:", err);
           }
         } else if (msg?.audioMessage) {
           mediaType = "audio";
-          messageText = "🎤 Áudio"; // Texto inicial, será substituído pela transcrição
-          // 🎙️ Baixar áudio para transcrição (será transcrito em createAdminMessage)
+          messageText = "?? �udio"; // Texto inicial, ser� substitu�do pela transcri��o
+          // ??? Baixar �udio para transcri��o (ser� transcrito em createAdminMessage)
           try {
             const buffer = await downloadMediaMessage(message, "buffer", {});
             const mimeType = msg.audioMessage.mimetype || "audio/ogg; codecs=opus";
-            // 🚀 Usar Storage em vez de base64 para reduzir egress
+            // ?? Usar Storage em vez de base64 para reduzir egress
             const result = await uploadMediaToStorage(buffer, mimeType, adminId);
             if (result?.url) {
               mediaUrl = result.url;
-              console.log(`✅ [ADMIN] Áudio salvo no Storage: ${buffer.length} bytes (${mimeType})`);
+              console.log(`? [ADMIN] �udio salvo no Storage: ${buffer.length} bytes (${mimeType})`);
             } else {
-              console.warn(`⚠️ [ADMIN] Falha no upload de áudio`);
+              console.warn(`?? [ADMIN] Falha no upload de �udio`);
             }
           } catch (err) {
-            console.error("[ADMIN] Erro ao baixar áudio:", err);
+            console.error("[ADMIN] Erro ao baixar �udio:", err);
           }
         } else if (msg?.videoMessage) {
           mediaType = "video";
-          messageText = msg.videoMessage.caption || "?? V�deo";
+          messageText = msg.videoMessage.caption || "?? V?deo";
         } else if (msg?.documentMessage) {
           mediaType = "document";
           messageText = `?? ${msg.documentMessage.fileName || "Documento"}`;
@@ -9385,7 +9918,7 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
           // Suprimir logs de protocolMessage (system messages) para evitar spam
           const msgTypes = Object.keys(msg || {});
           if (!msgTypes.includes("protocolMessage")) {
-            console.log(`?? [ADMIN] Tipo de mensagem n�o suportado:`, msgTypes);
+            console.log(`?? [ADMIN] Tipo de mensagem n?o suportado:`, msgTypes);
           }
           return;
         }
@@ -9393,7 +9926,7 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
         console.log(`\n?? [ADMIN AGENT] ========================================`);
         console.log(`   ?? De: ${contactNumber}`);
         console.log(`   ?? Mensagem: ${messageText.substring(0, 100)}...`);
-        console.log(`   ??? M�dia: ${mediaType || "nenhuma"}`);
+        console.log(`   ??? M?dia: ${mediaType || "nenhuma"}`);
         console.log(`   ========================================\n`);
         
         // -----------------------------------------------------------------------
@@ -9402,7 +9935,7 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
         let conversation;
         let savedMessage: any = null;
         try {
-          // IMPORTANTE: Usar realRemoteJid (n�mero real) para envio de respostas
+          // IMPORTANTE: Usar realRemoteJid (n?mero real) para envio de respostas
           conversation = await storage.getOrCreateAdminConversation(
             adminId, 
             contactNumber, 
@@ -9410,7 +9943,7 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
             message.pushName || undefined
           );
 
-          // ?? Tentar buscar foto de perfil se n�o tiver (ass�ncrono para n�o bloquear)
+          // ?? Tentar buscar foto de perfil se n?o tiver (ass?ncrono para n?o bloquear)
           if (!conversation.contactAvatar) {
              socket.profilePictureUrl(realRemoteJid, 'image')
                .then(url => {
@@ -9422,7 +9955,7 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
                .catch(() => {}); // Ignorar erro (sem foto/privado)
           }
           
-          // Salvar a mensagem recebida (transcri��o de �udio acontece dentro)
+          // Salvar a mensagem recebida (transcri??o de ?udio acontece dentro)
           savedMessage = await storage.createAdminMessage({
             conversationId: conversation.id,
             messageId: message.key.id || `msg_${Date.now()}`,
@@ -9435,13 +9968,13 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
             mediaUrl,
           });
           
-          // ?? Se foi �udio e temos transcri��o, usar o texto transcrito
+          // ?? Se foi ?udio e temos transcri??o, usar o texto transcrito
           if (savedMessage?.text && savedMessage.text !== messageText) {
-            console.log(`[ADMIN] ?? Texto atualizado com transcri��o: ${savedMessage.text.substring(0, 100)}...`);
+            console.log(`[ADMIN] ?? Texto atualizado com transcri??o: ${savedMessage.text.substring(0, 100)}...`);
             messageText = savedMessage.text;
           }
           
-          // Atualizar �ltima mensagem da conversa
+          // Atualizar ?ltima mensagem da conversa
           await storage.updateAdminConversation(conversation.id, {
             lastMessageText: messageText.substring(0, 255),
             lastMessageTime: new Date(),
@@ -9454,7 +9987,7 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
         }
         
         // -----------------------------------------------------------------------
-        // ?? VERIFICAR SE AGENTE EST� HABILITADO PARA ESTA CONVERSA
+        // ?? VERIFICAR SE AGENTE EST? HABILITADO PARA ESTA CONVERSA
         // -----------------------------------------------------------------------
         if (conversation) {
           const isAgentEnabled = await storage.isAdminAgentEnabledForConversation(conversation.id);
@@ -9465,40 +9998,40 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
             return;
           }
         } else {
-          console.warn(`?? [ADMIN] Objeto 'conversation' indefinido para ${contactNumber}. Verifica��o de status ignorada (Risco de resposta indesejada).`);
+          console.warn(`?? [ADMIN] Objeto 'conversation' indefinido para ${contactNumber}. Verifica??o de status ignorada (Risco de resposta indesejada).`);
         }
         
-        // Verificar se � mensagem para atendimento automatizado
+        // Verificar se ? mensagem para atendimento automatizado
         const adminAgentEnabled = await storage.getSystemConfig("admin_agent_enabled");
         
         if (adminAgentEnabled?.valor !== "true") {
-          console.log(`?? [ADMIN] Agente admin desativado, n�o processando`);
+          console.log(`?? [ADMIN] Agente admin desativado, n?o processando`);
           return;
         }
         
-        // Para m�dias (ex: comprovante) processar imediatamente.
-        // Para textos (inclusive v�rias mensagens em linhas separadas), acumular e responder uma vez.
-        // �UDIOS: Tratar como TEXTO pois s�o transcritos - mesmas regras de acumula��o, delay, trigger
+        // Para m?dias (ex: comprovante) processar imediatamente.
+        // Para textos (inclusive v?rias mensagens em linhas separadas), acumular e responder uma vez.
+        // ?UDIOS: Tratar como TEXTO pois s?o transcritos - mesmas regras de acumula??o, delay, trigger
         // IMAGENS: Processar imediatamente pois podem ser comprovantes de pagamento
         const shouldAccumulate = !mediaType || mediaType === 'audio';
         
         if (shouldAccumulate) {
-          // �udios e textos usam o sistema de acumula��o
-          // Isso garante: tempo de resposta, delay humanizado, verifica��o de trigger
+          // ?udios e textos usam o sistema de acumula??o
+          // Isso garante: tempo de resposta, delay humanizado, verifica??o de trigger
           await scheduleAdminAccumulatedResponse({
             socket,
             remoteJid: realRemoteJid,  // IMPORTANTE: Usar JID real para envio
             contactNumber,
-            messageText,  // Para �udios, j� � o texto transcrito
+            messageText,  // Para ?udios, j? ? o texto transcrito
             conversationId: conversation?.id,
           });
           return;
         }
 
         // Para IMAGENS APENAS:
-        // - N�o acumular (processar imediatamente)
-        // - N�o verificar trigger (podem ser comprovantes)
-        console.log(`?? [ADMIN] M�dia ${mediaType} - processamento imediato (poss�vel comprovante)`);
+        // - N?o acumular (processar imediatamente)
+        // - N?o verificar trigger (podem ser comprovantes)
+        console.log(`?? [ADMIN] M?dia ${mediaType} - processamento imediato (poss?vel comprovante)`);
         
         const response = await processAdminMessage(contactNumber, messageText, mediaType, mediaUrl, true);
 
@@ -9514,7 +10047,7 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
               await new Promise(resolve => setTimeout(resolve, interval));
             }
             // ??? ANTI-BLOQUEIO: Usar fila do Admin
-            await sendWithQueue('ADMIN_AGENT', `m�dia resposta parte ${i+1}`, async () => {
+            await sendWithQueue('ADMIN_AGENT', `m?dia resposta parte ${i+1}`, async () => {
               await socket.sendMessage(realRemoteJid, { text: parts[i] });  // IMPORTANTE: Usar JID real
             });
           }
@@ -9538,7 +10071,7 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
                 lastMessageTime: new Date(),
               });
               
-              console.log(`?? [ADMIN AGENT] Resposta (m�dia) salva na conversa ${conversation.id}`);
+              console.log(`?? [ADMIN AGENT] Resposta (m?dia) salva na conversa ${conversation.id}`);
             } catch (dbError) {
               console.error(`? [ADMIN AGENT] Erro ao salvar resposta no banco:`, dbError);
             }
@@ -9549,12 +10082,12 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
           const ownerNumber = await getOwnerNotificationNumber();
           const ownerJid = `${ownerNumber}@s.whatsapp.net`;
 
-          const notificationText = `?? *NOTIFICA��O DE PAGAMENTO*\n\n?? Cliente: ${contactNumber}\n? ${new Date().toLocaleString("pt-BR")}\n\n?? Verificar comprovante e liberar conta`;
+          const notificationText = `?? *NOTIFICA??O DE PAGAMENTO*\n\n?? Cliente: ${contactNumber}\n? ${new Date().toLocaleString("pt-BR")}\n\n?? Verificar comprovante e liberar conta`;
           // ??? ANTI-BLOQUEIO
-          await sendWithQueue('ADMIN_AGENT', 'notifica��o pagamento m�dia', async () => {
+          await sendWithQueue('ADMIN_AGENT', 'notifica??o pagamento m?dia', async () => {
             await socket.sendMessage(ownerJid, { text: notificationText });
           });
-          console.log(`?? [ADMIN AGENT] Notifica��o enviada para ${ownerNumber}`);
+          console.log(`?? [ADMIN AGENT] Notifica??o enviada para ${ownerNumber}`);
 
           if (mediaType === "image" && mediaUrl) {
             try {
@@ -9573,9 +10106,9 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
           }
         }
         
-        // ?? Enviar m�dias se houver (para handler de m�dia)
+        // ?? Enviar m?dias se houver (para handler de m?dia)
         if (response && response.mediaActions && response.mediaActions.length > 0) {
-          console.log(`?? [ADMIN AGENT MEDIA] Enviando ${response.mediaActions.length} m�dia(s)...`);
+          console.log(`?? [ADMIN AGENT MEDIA] Enviando ${response.mediaActions.length} m?dia(s)...`);
           console.log(`?? [ADMIN AGENT MEDIA] JID de destino: ${realRemoteJid}`);
           
           for (const action of response.mediaActions) {
@@ -9583,7 +10116,7 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
               try {
                 const media = action.mediaData;
                 console.log(`?? [ADMIN AGENT MEDIA] ========================================`);
-                console.log(`?? [ADMIN AGENT MEDIA] Preparando envio de m�dia:`);
+                console.log(`?? [ADMIN AGENT MEDIA] Preparando envio de m?dia:`);
                 console.log(`   - Nome: ${media.name}`);
                 console.log(`   - Tipo: ${media.mediaType}`);
                 console.log(`   - MimeType: ${media.mimeType}`);
@@ -9600,7 +10133,7 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
                     case 'image':
                       console.log(`?? [ADMIN AGENT MEDIA] Enviando como IMAGEM...`);
                       // ??? ANTI-BLOQUEIO
-                      sendResult = await sendWithQueue('ADMIN_AGENT', 'm�dia handler imagem', async () => {
+                      sendResult = await sendWithQueue('ADMIN_AGENT', 'm?dia handler imagem', async () => {
                         return await socket.sendMessage(realRemoteJid, {
                           image: mediaBuffer,
                           caption: media.caption || undefined,
@@ -9608,10 +10141,10 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
                       });
                       break;
                     case 'audio':
-                      console.log(`?? [ADMIN AGENT MEDIA] Enviando como �UDIO PTT...`);
+                      console.log(`?? [ADMIN AGENT MEDIA] Enviando como ?UDIO PTT...`);
                       // ??? ANTI-BLOQUEIO
                       try {
-                        sendResult = await sendWithQueue('ADMIN_AGENT', 'm�dia handler �udio', async () => {
+                        sendResult = await sendWithQueue('ADMIN_AGENT', 'm?dia handler ?udio', async () => {
                           return await socket.sendMessage(realRemoteJid, {
                             audio: mediaBuffer,
                             mimetype: media.mimeType || 'audio/ogg; codecs=opus',
@@ -9622,7 +10155,7 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
                         console.log(`?? [ADMIN AGENT MEDIA] Erro ao enviar como PTT, tentando como audio normal...`);
                         console.log(`   Erro: ${audioErr.message}`);
                         // ??? ANTI-BLOQUEIO
-                        sendResult = await sendWithQueue('ADMIN_AGENT', 'm�dia handler �udio fallback', async () => {
+                        sendResult = await sendWithQueue('ADMIN_AGENT', 'm?dia handler ?udio fallback', async () => {
                           return await socket.sendMessage(realRemoteJid, {
                             audio: mediaBuffer,
                             mimetype: 'audio/mpeg',
@@ -9631,9 +10164,9 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
                       }
                       break;
                     case 'video':
-                      console.log(`?? [ADMIN AGENT MEDIA] Enviando como V�DEO...`);
+                      console.log(`?? [ADMIN AGENT MEDIA] Enviando como V?DEO...`);
                       // ??? ANTI-BLOQUEIO
-                      sendResult = await sendWithQueue('ADMIN_AGENT', 'm�dia handler v�deo', async () => {
+                      sendResult = await sendWithQueue('ADMIN_AGENT', 'm?dia handler v?deo', async () => {
                         return await socket.sendMessage(realRemoteJid, {
                           video: mediaBuffer,
                           caption: media.caption || undefined,
@@ -9643,7 +10176,7 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
                     case 'document':
                       console.log(`?? [ADMIN AGENT MEDIA] Enviando como DOCUMENTO...`);
                       // ??? ANTI-BLOQUEIO
-                      sendResult = await sendWithQueue('ADMIN_AGENT', 'm�dia handler documento', async () => {
+                      sendResult = await sendWithQueue('ADMIN_AGENT', 'm?dia handler documento', async () => {
                         return await socket.sendMessage(realRemoteJid, {
                           document: mediaBuffer,
                           fileName: media.fileName || media.name || 'document',
@@ -9652,49 +10185,49 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
                       });
                       break;
                     default:
-                      console.log(`?? [ADMIN AGENT MEDIA] Tipo de m�dia n�o suportado: ${media.mediaType}`);
+                      console.log(`?? [ADMIN AGENT MEDIA] Tipo de m?dia n?o suportado: ${media.mediaType}`);
                   }
                   
                   if (sendResult) {
-                    console.log(`? [ADMIN AGENT MEDIA] M�dia ${media.name} enviada com sucesso!`);
+                    console.log(`? [ADMIN AGENT MEDIA] M?dia ${media.name} enviada com sucesso!`);
                     console.log(`   - Message ID: ${sendResult.key?.id || 'N/A'}`);
                     console.log(`   - Status: ${sendResult.status || 'N/A'}`);
                   } else {
                     console.log(`?? [ADMIN AGENT MEDIA] sendMessage retornou null/undefined para ${media.name}`);
                   }
                 } else {
-                  console.log(`? [ADMIN AGENT MEDIA] Falha ao baixar m�dia: buffer vazio`);
+                  console.log(`? [ADMIN AGENT MEDIA] Falha ao baixar m?dia: buffer vazio`);
                 }
               } catch (mediaError: any) {
-                console.error(`? [ADMIN AGENT MEDIA] Erro ao enviar m�dia ${action.media_name}:`);
+                console.error(`? [ADMIN AGENT MEDIA] Erro ao enviar m?dia ${action.media_name}:`);
                 console.error(`   - Mensagem: ${mediaError.message}`);
                 console.error(`   - Stack: ${mediaError.stack?.substring(0, 300)}`);
               }
               await new Promise(r => setTimeout(r, 500));
             } else {
-              console.log(`?? [ADMIN AGENT MEDIA] action.mediaData � null para ${action.media_name}`);
+              console.log(`?? [ADMIN AGENT MEDIA] action.mediaData ? null para ${action.media_name}`);
             }
           }
           console.log(`?? [ADMIN AGENT MEDIA] ========================================`);
         }
 
-        // ?? Desconectar WhatsApp se solicitado (para handler de m�dia)
+        // ?? Desconectar WhatsApp se solicitado (para handler de m?dia)
         if (response && response.actions?.disconnectWhatsApp) {
           try {
             const { getClientSession } = await import("./adminAgentService");
             const clientSession = getClientSession(contactNumber);
             
             if (clientSession?.userId) {
-              console.log(`?? [ADMIN AGENT MEDIA] Desconectando WhatsApp do usu�rio ${clientSession.userId}...`);
+              console.log(`?? [ADMIN AGENT MEDIA] Desconectando WhatsApp do usu?rio ${clientSession.userId}...`);
               await disconnectWhatsApp(clientSession.userId);
               // ??? ANTI-BLOQUEIO
-              await sendWithQueue('ADMIN_AGENT', 'desconex�o m�dia', async () => {
-                await socket.sendMessage(realRemoteJid, { text: "Pronto! ?? Seu WhatsApp foi desconectado. Quando quiser reconectar, � s� me avisar!" });
+              await sendWithQueue('ADMIN_AGENT', 'desconex?o m?dia', async () => {
+                await socket.sendMessage(realRemoteJid, { text: "Pronto! ?? Seu WhatsApp foi desconectado. Quando quiser reconectar, ? s? me avisar!" });
               });
             } else {
               // ??? ANTI-BLOQUEIO
-              await sendWithQueue('ADMIN_AGENT', 'desconex�o n�o encontrada m�dia', async () => {
-                await socket.sendMessage(realRemoteJid, { text: "N�o encontrei uma conex�o ativa para desconectar." });
+              await sendWithQueue('ADMIN_AGENT', 'desconex?o n?o encontrada m?dia', async () => {
+                await socket.sendMessage(realRemoteJid, { text: "N?o encontrei uma conex?o ativa para desconectar." });
               });
             }
           } catch (disconnectError) {
@@ -9718,23 +10251,24 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
         broadcastToAdmin(adminId, { type: "qr", qr: qrCodeDataUrl });
       }
 
-      // Estado "connecting" - quando o QR Code foi escaneado e está conectando
+      // Estado "connecting" - quando o QR Code foi escaneado e est� conectando
       if (connStatus === "connecting") {
         console.log(`[ADMIN] Admin ${adminId} is connecting...`);
         broadcastToAdmin(adminId, { type: "connecting" });
       }
 
       if (connStatus === "open") {
-        // ✅ CONSISTÊNCIA: Resetar tentativas quando conecta
+        // ? CONSIST�NCIA: Resetar tentativas quando conecta
         const phoneNumber = socket.user?.id.split(":")[0];
-        console.log(`✅ [ADMIN] WhatsApp conectado: ${phoneNumber}`);
+        console.log(`? [ADMIN] WhatsApp conectado: ${phoneNumber}`);
         
-        // Forçar presença disponível
-        socket.sendPresenceUpdate('available').catch(err => console.error("[ADMIN] Erro ao enviar presença:", err));
+        // For�ar presen�a dispon�vel
+        socket.sendPresenceUpdate('available').catch(err => console.error("[ADMIN] Erro ao enviar presen�a:", err));
         
-        // Resetar tentativas de reconexão e limpar pendentes
+        // Resetar tentativas de reconex�o e limpar pendentes
         adminReconnectAttempts.delete(adminId);
-        pendingAdminConnections.delete(adminId);
+        clearPendingAdminConnectionLock(adminId, "conn_open");
+        settleConnectionPromise("resolve", "conn_open");
         
         await storage.updateAdminWhatsappConnection(adminId, {
           isConnected: true,
@@ -9752,7 +10286,7 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
 
         broadcastToAdmin(adminId, { type: "connected", phoneNumber });
 
-        // 🛡️ SESSION STABILITY - Start heartbeat mechanism
+        // ??? SESSION STABILITY - Start heartbeat mechanism
         startAdminHeartbeat(adminId);
       }
 
@@ -9761,14 +10295,14 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
         const errorMessage = (lastDisconnect?.error as any)?.message;
 
-        // 🛡️ GUARD CONTRA SOCKET STALE
+        // ??? GUARD CONTRA SOCKET STALE
         const currentSession = adminSessions.get(adminId);
         if (currentSession?.socket !== socket) {
-          console.log(`[ADMIN CONNECTION CLOSE] 🛡️ STALE SOCKET IGNORED - Admin ${adminId.substring(0, 8)}...`);
+          console.log(`[ADMIN CONNECTION CLOSE] ??? STALE SOCKET IGNORED - Admin ${adminId.substring(0, 8)}...`);
           return;
         }
 
-        // 🛡️ SESSION STABILITY - Update consecutive disconnects counter
+        // ??? SESSION STABILITY - Update consecutive disconnects counter
         if (currentSession) {
           currentSession.consecutiveDisconnects = (currentSession.consecutiveDisconnects || 0) + 1;
           currentSession.connectionHealth = 'unhealthy';
@@ -9778,9 +10312,18 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
         // Stop heartbeat
         stopAdminHeartbeat(adminId);
 
-        // Sempre deletar a sessão primeiro
+        // Sempre deletar a sess�o primeiro
         adminSessions.delete(adminId);
-        pendingAdminConnections.delete(adminId);
+        clearPendingAdminConnectionLock(adminId, "conn_close");
+        settleConnectionPromise(
+          "reject",
+          "conn_close",
+          new Error(
+            `Admin connection closed (status=${statusCode ?? "unknown"}${
+              errorMessage ? `, message=${errorMessage}` : ""
+            })`,
+          ),
+        );
 
         // Atualizar banco de dados
         await storage.updateAdminWhatsappConnection(adminId, {
@@ -9788,11 +10331,11 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
           qrCode: null,
         });
 
-        // Verificar limite de tentativas de reconexão
+        // Verificar limite de tentativas de reconex�o
         const now = Date.now();
         let attempt = adminReconnectAttempts.get(adminId) || { count: 0, lastAttempt: 0 };
         
-        // Se passou mais de 30 segundos desde o último ciclo, resetar contador
+        // Se passou mais de 30 segundos desde o �ltimo ciclo, resetar contador
         if (now - attempt.lastAttempt > ADMIN_RECONNECT_COOLDOWN_MS) {
           attempt = { count: 0, lastAttempt: now };
         }
@@ -9807,7 +10350,7 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
             if (attempt.count === 1) {
               broadcastToAdmin(adminId, { type: "disconnected" });
             }
-            setTimeout(() => connectAdminWhatsApp(adminId), 5000);
+            setTimeout(() => connectAdminWhatsApp(adminId).catch(console.error), 5000);
           } else {
             console.log(`[ADMIN] Max reconnect attempts reached. Waiting for admin action.`);
             broadcastToAdmin(adminId, { type: "disconnected", reason: "max_attempts" });
@@ -9824,7 +10367,7 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
           broadcastToAdmin(adminId, { type: "disconnected", reason: "logout" });
           adminReconnectAttempts.delete(adminId);
 
-          // 🔄 AUTO-RETRY APÓS LOGOUT
+          // ?? AUTO-RETRY AP�S LOGOUT
           const hasLiveClient = adminWsClients.has(adminId);
           const retryState = adminLogoutAutoRetry.get(adminId) || { count: 0, lastAttempt: 0 };
 
@@ -9848,18 +10391,25 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
     });
   } catch (error) {
     console.error(`Error connecting admin ${adminId} WhatsApp:`, error);
-    throw error;
+    clearPendingAdminConnectionLock(adminId, "connect_error");
+    settleConnectionPromise(
+      "reject",
+      "connect_error",
+      error instanceof Error ? error : new Error(String(error)),
+    );
   }
 })(); // Fechar a IIFE
+
+  return connectionPromise;
 }
 
 export async function disconnectAdminWhatsApp(adminId: string): Promise<void> {
-  // 🛡️ MODO DESENVOLVIMENTO: Bloquear desconexões para evitar conflito com produção
+  // ??? MODO DESENVOLVIMENTO: Bloquear desconex�es para evitar conflito com produ��o
   if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
-    console.log(`\n🛡️ [DEV MODE] disconnectAdminWhatsApp bloqueado para admin ${adminId}`);
-    console.log(`   💡 SKIP_WHATSAPP_RESTORE=true - Modo desenvolvimento ativo`);
-    console.log(`   ✅ Sessões do WhatsApp em produção não serão afetadas\n`);
-    throw new Error('WhatsApp Admin desabilitado em modo desenvolvimento (SKIP_WHATSAPP_RESTORE=true). Isso protege suas sessões em produção.');
+    console.log(`\n??? [DEV MODE] disconnectAdminWhatsApp bloqueado para admin ${adminId}`);
+    console.log(`   ?? SKIP_WHATSAPP_RESTORE=true - Modo desenvolvimento ativo`);
+    console.log(`   ? Sess�es do WhatsApp em produ��o n�o ser�o afetadas\n`);
+    throw new Error('WhatsApp Admin desabilitado em modo desenvolvimento (SKIP_WHATSAPP_RESTORE=true). Isso protege suas sess�es em produ��o.');
   }
   
   const session = adminSessions.get(adminId);
@@ -9874,6 +10424,7 @@ export async function disconnectAdminWhatsApp(adminId: string): Promise<void> {
     }
     adminSessions.delete(adminId);
   }
+  clearPendingAdminConnectionLock(adminId, "manual_disconnect");
 
   const connection = await storage.getAdminWhatsappConnection(adminId);
   if (connection) {
@@ -9883,7 +10434,7 @@ export async function disconnectAdminWhatsApp(adminId: string): Promise<void> {
     });
   }
 
-  // Limpar arquivos de autenticação para permitir nova conexão
+  // Limpar arquivos de autentica��o para permitir nova conex�o
   const adminAuthPath = path.join(SESSIONS_BASE, `auth_admin_${adminId}`);
   await clearAuthFiles(adminAuthPath);
 
@@ -9894,18 +10445,18 @@ export async function sendWelcomeMessage(userPhone: string): Promise<void> {
   try {
     console.log(`[WELCOME] Iniciando envio de mensagem de boas-vindas para ${userPhone}`);
 
-    // Obter admin (assumindo que há apenas um admin owner)
+    // Obter admin (assumindo que h� apenas um admin owner)
     const allAdmins = await storage.getAllAdmins();
     const adminUser = allAdmins.find(a => a.role === 'owner');
 
     if (!adminUser) {
-      console.log('[WELCOME] Admin não encontrado');
+      console.log('[WELCOME] Admin n�o encontrado');
       return;
     }
 
     console.log(`[WELCOME] Admin encontrado: ${adminUser.id}`);
 
-    // ✅ PRIORIDADE: Verificar config do painel de notificações (admin_notification_config)
+    // ? PRIORIDADE: Verificar config do painel de notifica��es (admin_notification_config)
     const notifConfig = await storage.getAdminNotificationConfig?.(adminUser.id);
     
     let messageText = '';
@@ -9913,14 +10464,14 @@ export async function sendWelcomeMessage(userPhone: string): Promise<void> {
     let aiPrompt = '';
     
     if (notifConfig && notifConfig.welcome_message_enabled) {
-      // Usar variações do painel de notificações
+      // Usar varia��es do painel de notifica��es
       const variations = notifConfig.welcome_message_variations;
       if (Array.isArray(variations) && variations.length > 0) {
-        // Escolher variação aleatória
+        // Escolher varia��o aleat�ria
         messageText = variations[Math.floor(Math.random() * variations.length)];
         aiEnabled = notifConfig.welcome_message_ai_enabled ?? false;
         aiPrompt = notifConfig.welcome_message_ai_prompt || '';
-        console.log(`[WELCOME] Usando config do painel de notificações (${variations.length} variações)`);
+        console.log(`[WELCOME] Usando config do painel de notifica��es (${variations.length} varia��es)`);
       }
     }
     
@@ -9935,7 +10486,7 @@ export async function sendWelcomeMessage(userPhone: string): Promise<void> {
       }
       
       if (!messageConfig || !messageConfig.valor) {
-        console.log('[WELCOME] Mensagem de boas-vindas não configurada');
+        console.log('[WELCOME] Mensagem de boas-vindas n�o configurada');
         return;
       }
       
@@ -9943,17 +10494,17 @@ export async function sendWelcomeMessage(userPhone: string): Promise<void> {
       console.log('[WELCOME] Usando config do sistema legado');
     }
 
-    // Substituir variáveis
+    // Substituir vari�veis
     messageText = messageText.replace(/\{\{name\}\}/g, '').replace(/\{nome\}/g, '').trim();
 
-    // Aplicar variação IA se habilitado
+    // Aplicar varia��o IA se habilitado
     if (aiEnabled && aiPrompt) {
       try {
         const { applyAIVariation } = await import('./notificationSchedulerService');
         messageText = await applyAIVariation(messageText, aiPrompt, '');
-        console.log('[WELCOME] Variação IA aplicada');
+        console.log('[WELCOME] Varia��o IA aplicada');
       } catch (aiError) {
-        console.error('[WELCOME] Erro ao aplicar variação IA:', aiError);
+        console.error('[WELCOME] Erro ao aplicar varia��o IA:', aiError);
         // Continua com a mensagem original
       }
     }
@@ -9962,46 +10513,46 @@ export async function sendWelcomeMessage(userPhone: string): Promise<void> {
     const adminConnection = await storage.getAdminWhatsappConnection(adminUser.id);
 
     if (!adminConnection || !adminConnection.isConnected) {
-      console.log('[WELCOME] Admin WhatsApp não conectado');
+      console.log('[WELCOME] Admin WhatsApp n�o conectado');
       return;
     }
 
-    console.log('[WELCOME] Admin WhatsApp conectado, procurando sessão...');
+    console.log('[WELCOME] Admin WhatsApp conectado, procurando sess�o...');
 
     let adminSession = adminSessions.get(adminUser.id);
 
-    // Se a sessão não existe, tentar restaurá-la
+    // Se a sess�o n�o existe, tentar restaur�-la
     if (!adminSession || !adminSession.socket) {
-      console.log('[WELCOME] Admin WhatsApp session não encontrada, tentando restaurar...');
+      console.log('[WELCOME] Admin WhatsApp session n�o encontrada, tentando restaurar...');
       try {
         await connectAdminWhatsApp(adminUser.id);
         adminSession = adminSessions.get(adminUser.id);
 
         if (!adminSession || !adminSession.socket) {
-          console.log('[WELCOME] Falha ao restaurar sessão do admin');
+          console.log('[WELCOME] Falha ao restaurar sess�o do admin');
           return;
         }
 
-        console.log('[WELCOME] Sessão do admin restaurada com sucesso');
+        console.log('[WELCOME] Sess�o do admin restaurada com sucesso');
       } catch (restoreError) {
-        console.error('[WELCOME] Erro ao restaurar sessão do admin:', restoreError);
+        console.error('[WELCOME] Erro ao restaurar sess�o do admin:', restoreError);
         return;
       }
     }
 
-    console.log('[WELCOME] Sessão encontrada, enviando mensagem...');
+    console.log('[WELCOME] Sess�o encontrada, enviando mensagem...');
 
-    // Formatar número para envio (remover + e adicionar @s.whatsapp.net)
+    // Formatar n�mero para envio (remover + e adicionar @s.whatsapp.net)
     const formattedNumber = `${cleanContactNumber(userPhone) || userPhone.replace('+', '')}@${DEFAULT_JID_SUFFIX}`;
 
-    // ✅ ANTI-BLOQUEIO: Enviar via fila
+    // ? ANTI-BLOQUEIO: Enviar via fila
     await sendWithQueue('ADMIN_AGENT', 'credenciais welcome', async () => {
       await adminSession!.socket!.sendMessage(formattedNumber, {
         text: messageText,
       });
     });
 
-    // ✅ Registrar log na tabela de notificações
+    // ? Registrar log na tabela de notifica��es
     try {
       await storage.createAdminNotificationLog?.({
         adminId: adminUser.id,
@@ -10019,15 +10570,15 @@ export async function sendWelcomeMessage(userPhone: string): Promise<void> {
       console.error('[WELCOME] Erro ao registrar log:', logError);
     }
 
-    console.log(`[WELCOME] ✅ Mensagem de boas-vindas enviada com sucesso para ${userPhone}`);
+    console.log(`[WELCOME] ? Mensagem de boas-vindas enviada com sucesso para ${userPhone}`);
   } catch (error) {
-    console.error('[WELCOME] ❌ Erro ao enviar mensagem de boas-vindas:', error);
-    // Não lança erro para não bloquear o cadastro
+    console.error('[WELCOME] ? Erro ao enviar mensagem de boas-vindas:', error);
+    // N�o lan�a erro para n�o bloquear o cadastro
   }
 }
 
 // =========================================================================
-// 🛑 GRACEFUL SHUTDOWN: Close all WhatsApp sockets on SIGTERM (deploy)
+// ?? GRACEFUL SHUTDOWN: Close all WhatsApp sockets on SIGTERM (deploy)
 // This ensures clean disconnects so the next instance restores faster.
 // =========================================================================
 let _isShuttingDown = false;
@@ -10051,10 +10602,10 @@ process.once('SIGTERM', async () => {
 });
 
 export async function restoreExistingSessions(): Promise<void> {
-  // ??? MODO DESENVOLVIMENTO: N�o restaurar sess�es para evitar conflito com produ��o
+  // ??? MODO DESENVOLVIMENTO: N?o restaurar sess?es para evitar conflito com produ??o
   if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
-    console.log("\n?? [DEV MODE] SKIP_WHATSAPP_RESTORE=true - Pulando restaura��o de sess�es WhatsApp");
-    console.log("   ?? Isso evita conflitos com sess�es ativas no Railway/produ��o");
+    console.log("\n?? [DEV MODE] SKIP_WHATSAPP_RESTORE=true - Pulando restaura??o de sess?es WhatsApp");
+    console.log("   ?? Isso evita conflitos com sess?es ativas no Railway/produ??o");
     console.log("   ?? Para conectar WhatsApp em dev, remova SKIP_WHATSAPP_RESTORE do .env\n");
     return;
   }
@@ -10097,20 +10648,20 @@ export async function restoreExistingSessions(): Promise<void> {
           
           // Check if this ID is a userId directly
           if (userConnectionMap.has(id)) {
-            // Direct userId match — use this path (highest priority)
+            // Direct userId match � use this path (highest priority)
             authDirsWithFiles.set(id, dirPath);
             console.log(`[RESTORE] Found auth_${id.substring(0, 8)}... (userId, ${files.length} files)`);
           } else {
             // Check if this ID is a connectionId
             const mappedUserId = connIdToUserId.get(id);
             if (mappedUserId) {
-              // ConnectionId match — store per-connection auth
+              // ConnectionId match � store per-connection auth
               authDirsByConnId.set(id, dirPath);
               // Also set user-level fallback if not already set
               if (!authDirsWithFiles.has(mappedUserId)) {
                 authDirsWithFiles.set(mappedUserId, dirPath);
               }
-              console.log(`[RESTORE] Found auth_${id.substring(0, 8)}... (connectionId → user ${mappedUserId.substring(0, 8)}, ${files.length} files)`);
+              console.log(`[RESTORE] Found auth_${id.substring(0, 8)}... (connectionId ? user ${mappedUserId.substring(0, 8)}, ${files.length} files)`);
             }
           }
         } catch (e) {
@@ -10128,24 +10679,37 @@ export async function restoreExistingSessions(): Promise<void> {
     // ========================================================================
     const restoredConnIds = new Set<string>();
 
-    // Sort connections per user: connected first, primary, oldest
-    for (const [userId, userConns] of userConnectionMap) {
-      userConns.sort((a, b) => {
+    const toMillis = (value: unknown): number => {
+      if (!value) return 0;
+      const parsed = new Date(value as any).getTime();
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+
+    // Global priority:
+    // 1) currently connected in DB
+    // 2) recently updated connections
+    // 3) AI-enabled and primary connections
+    // 4) newer records first
+    const sortedConnections: typeof connections = connections
+      .filter((conn) => !!conn.userId)
+      .sort((a, b) => {
         if (a.isConnected && !b.isConnected) return -1;
         if (!a.isConnected && b.isConnected) return 1;
+
+        const aUpdated = toMillis(a.updatedAt);
+        const bUpdated = toMillis(b.updatedAt);
+        if (aUpdated !== bUpdated) return bUpdated - aUpdated;
+
+        if (a.aiEnabled && !b.aiEnabled) return -1;
+        if (!a.aiEnabled && b.aiEnabled) return 1;
+
         if (a.isPrimary && !b.isPrimary) return -1;
         if (!a.isPrimary && b.isPrimary) return 1;
-        const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        return aTime - bTime;
-      });
-    }
 
-    // Flatten sorted connections
-    const sortedConnections: typeof connections = [];
-    for (const [, userConns] of userConnectionMap) {
-      sortedConnections.push(...userConns);
-    }
+        const aCreated = toMillis(a.createdAt);
+        const bCreated = toMillis(b.createdAt);
+        return bCreated - aCreated;
+      });
 
     // ========================================================================
     // PARALLEL BATCH RESTORE: Connect sessions in batches to minimize downtime
@@ -10155,6 +10719,7 @@ export async function restoreExistingSessions(): Promise<void> {
     let restoredCount = 0;
     let skippedCount = 0;
     let noAuthCount = 0;
+    let dormantSkipped = 0;
     const toRestore: Array<{ userId: string; connectionId: string }> = [];
 
     // ========================================================================
@@ -10176,6 +10741,20 @@ export async function restoreExistingSessions(): Promise<void> {
         continue;
       }
 
+      const updatedAtMs = connection.updatedAt
+        ? new Date(connection.updatedAt as any).getTime()
+        : 0;
+      const isRecentlyUpdated =
+        Number.isFinite(updatedAtMs) &&
+        updatedAtMs > 0 &&
+        Date.now() - updatedAtMs <= RESTORE_RECENT_GRACE_MS;
+
+      // Keep startup restore focused on connections that were active/recent.
+      if (RESTORE_CONNECTED_ONLY && !connection.isConnected && !isRecentlyUpdated) {
+        dormantSkipped++;
+        continue;
+      }
+
       // MULTI-CANAL: Check auth files per connectionId first, then fallback to userId
       const hasOwnAuth = authDirsByConnId.has(connection.id);
       const hasUserAuth = authDirsWithFiles.has(connection.userId);
@@ -10190,7 +10769,7 @@ export async function restoreExistingSessions(): Promise<void> {
         // DEDUP: If another connection already claimed this auth scope, skip
         if (restoredAuthScopes.has(authScope)) {
           waObservability.restoreDedupSkipped++;
-          console.log(`[RESTORE] ⚠️ DEDUP: conn ${connection.id.substring(0, 8)} skipped — auth scope already claimed by another connection (prevents 440 conflict)`);
+          console.log(`[RESTORE] ?? DEDUP: conn ${connection.id.substring(0, 8)} skipped � auth scope already claimed by another connection (prevents 440 conflict)`);
           // Mark as disconnected to avoid stale isConnected=true in DB
           await storage.updateConnection(connection.id, { isConnected: false, qrCode: null });
           skippedCount++;
@@ -10207,7 +10786,9 @@ export async function restoreExistingSessions(): Promise<void> {
       }
     }
 
-    console.log(`[RESTORE] Found ${toRestore.length} sessions with auth files to restore (${skippedCount} secondary skipped, ${noAuthCount} no auth)`);
+    console.log(
+      `[RESTORE] Found ${toRestore.length} sessions with auth files to restore (${skippedCount} secondary skipped, ${noAuthCount} no auth, ${dormantSkipped} dormant skipped, connectedOnly=${RESTORE_CONNECTED_ONLY}, recentGraceMs=${RESTORE_RECENT_GRACE_MS})`
+    );
     console.log(
       `[RESTORE] Runtime restore config: batchSize=${BATCH_SIZE}, batchDelayMs=${BATCH_DELAY_MS}, openTimeoutMs=${RESTORE_CONNECT_OPEN_TIMEOUT_MS} (restore), defaultOpenTimeoutMs=${CONNECT_OPEN_TIMEOUT_MS}`
     );
@@ -10268,20 +10849,20 @@ export async function restoreExistingSessions(): Promise<void> {
         await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
       }
     }
-    console.log(`[RESTORE] ✅ Session restoration complete: ${restoredCount}/${toRestore.length} restored successfully`);
+    console.log(`[RESTORE] ? Session restoration complete: ${restoredCount}/${toRestore.length} restored successfully`);
   } catch (error) {
     console.error("Error restoring sessions:", error);
   } finally {
     _isRestoringInProgress = false;
     _restoreStartedAt = 0;
-    console.log(`[RESTORE] 🔓 Restore guard released — health check can now run`);
+    console.log(`[RESTORE] ?? Restore guard released � health check can now run`);
   }
 }
 
 export async function restoreAdminSessions(): Promise<void> {
-  // ??? MODO DESENVOLVIMENTO: N�o restaurar sess�es para evitar conflito com produ��o
+  // ??? MODO DESENVOLVIMENTO: N?o restaurar sess?es para evitar conflito com produ??o
   if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
-    console.log("?? [DEV MODE] SKIP_WHATSAPP_RESTORE=true - Pulando restaura��o de sess�es Admin WhatsApp");
+    console.log("?? [DEV MODE] SKIP_WHATSAPP_RESTORE=true - Pulando restaura??o de sess?es Admin WhatsApp");
     return;
   }
   
@@ -10307,29 +10888,40 @@ export async function restoreAdminSessions(): Promise<void> {
       const shouldRestore = hasAuthFiles || (adminConnection && adminConnection.isConnected);
 
       if (shouldRestore) {
+        _isAdminRestoringInProgress = true;
         console.log(`Restoring admin WhatsApp session for admin ${admin.id} (authFiles=${hasAuthFiles}, dbConnected=${adminConnection?.isConnected})...`);
         try {
           await connectAdminWhatsApp(admin.id);
-          console.log(`✅ Admin WhatsApp session restored for ${admin.id}`);
-        } catch (error) {
+          console.log(`? Admin WhatsApp session restored for ${admin.id}`);
+        } catch (error: any) {
           console.error(`Failed to restore admin session for ${admin.id}:`, error);
-          await storage.updateAdminWhatsappConnection(admin.id, {
-            isConnected: false,
-            qrCode: null,
-          });
+          const reasonText = `${error?.message || error || ''}`;
+          const isOpenTimeout = /open within|open_timeout|timeout/i.test(reasonText);
+          if (isOpenTimeout && hasAuthFiles) {
+            // Timeout during restore is transient - keep DB state so health check retries
+            console.warn(`[RESTORE ADMIN] Deferred reconnect for admin ${admin.id} after open-timeout; keeping DB state unchanged`);
+          } else {
+            await storage.updateAdminWhatsappConnection(admin.id, {
+              isConnected: false,
+              qrCode: null,
+            });
+          }
         }
       }
     }
     console.log("Admin session restoration complete");
   } catch (error) {
     console.error("Error restoring admin sessions:", error);
+  } finally {
+    _isAdminRestoringInProgress = false;
+    console.log(`[RESTORE ADMIN] ?? Admin restore guard released`);
   }
 }
 
 // -----------------------------------------------------------------------
-// ?? CONEX�O VIA PAIRING CODE (SEM QR CODE)
+// ?? CONEX?O VIA PAIRING CODE (SEM QR CODE)
 // -----------------------------------------------------------------------
-// Baileys suporta conex�o via c�digo de pareamento de 8 d�gitos
+// Baileys suporta conex?o via c?digo de pareamento de 8 d?gitos
 // Isso permite conectar pelo celular sem precisar escanear QR Code
 // -----------------------------------------------------------------------
 
@@ -10340,12 +10932,12 @@ export async function restoreAdminSessions(): Promise<void> {
 async function waitForBaileysWsOpen(sock: any, timeoutMs: number = 15000): Promise<void> {
   const ws = sock?.ws;
   if (!ws) {
-    throw new Error('WebSocket não encontrado no socket Baileys');
+    throw new Error('WebSocket n�o encontrado no socket Baileys');
   }
 
-  // Já está aberto
+  // J� est� aberto
   if (ws.isOpen === true) {
-    console.log(`[WS] WebSocket já está aberto (isOpen=true)`);
+    console.log(`[WS] WebSocket j� est� aberto (isOpen=true)`);
     return;
   }
 
@@ -10354,7 +10946,7 @@ async function waitForBaileysWsOpen(sock: any, timeoutMs: number = 15000): Promi
   return new Promise<void>((resolve, reject) => {
     const timeoutId = setTimeout(() => {
       cleanup();
-      reject(new Error(`Timeout aguardando conexão WebSocket (${timeoutMs}ms). O WebSocket não abriu a tempo.`));
+      reject(new Error(`Timeout aguardando conex�o WebSocket (${timeoutMs}ms). O WebSocket n�o abriu a tempo.`));
     }, timeoutMs);
 
     const onOpen = () => {
@@ -10401,8 +10993,8 @@ async function waitForBaileysWsOpen(sock: any, timeoutMs: number = 15000): Promi
 // -----------------------------------------------------------------------
 // O Baileys requer explicitamente: "WAIT TILL QR EVENT BEFORE REQUESTING
 // THE PAIRING CODE". Se chamarmos requestPairingCode antes do socket estar
-// pronto (evento QR recebido), o código pode até ser gerado mas o pareamento
-// falha com "Não foi possível conectar o dispositivo" no celular.
+// pronto (evento QR recebido), o c�digo pode at� ser gerado mas o pareamento
+// falha com "N�o foi poss�vel conectar o dispositivo" no celular.
 // Ref: https://www.npmjs.com/package/@whiskeysockets/baileys
 // -----------------------------------------------------------------------
 
@@ -10438,20 +11030,20 @@ async function waitForBaileysQrEvent(sock: any, timeoutMs: number = 20000): Prom
     const onConnectionUpdate = (update: any) => {
       const { connection: conn, qr, lastDisconnect } = update;
 
-      // QR recebido = socket está pronto para pairing
+      // QR recebido = socket est� pronto para pairing
       if (qr) {
-        console.log(`[QR EVENT] ✓ QR event recebido! Socket pronto para pairing.`);
+        console.log(`[QR EVENT] ? QR event recebido! Socket pronto para pairing.`);
         cleanup();
         resolve({ success: true });
         return;
       }
 
-      // Conexão fechada antes do QR
+      // Conex�o fechada antes do QR
       if (conn === "close") {
         const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
         const errorMessage = (lastDisconnect?.error as any)?.message || "Connection closed";
 
-        console.log(`[QR EVENT] ✗ Conexão fechada antes do QR - statusCode: ${statusCode}`);
+        console.log(`[QR EVENT] ? Conex�o fechada antes do QR - statusCode: ${statusCode}`);
 
         cleanup();
         resolve({
@@ -10463,11 +11055,11 @@ async function waitForBaileysQrEvent(sock: any, timeoutMs: number = 20000): Prom
         return;
       }
 
-      // Conexão aberta (não deveria acontecer antes do QR/pairing, mas logamos)
+      // Conex�o aberta (n�o deveria acontecer antes do QR/pairing, mas logamos)
       if (conn === "open") {
-        console.log(`[QR EVENT] Conexão aberta inesperadamente antes do pairing`);
+        console.log(`[QR EVENT] Conex�o aberta inesperadamente antes do pairing`);
         cleanup();
-        resolve({ success: true }); // Consideramos sucesso pois já está conectado
+        resolve({ success: true }); // Consideramos sucesso pois j� est� conectado
         return;
       }
     };
@@ -10484,20 +11076,20 @@ async function waitForBaileysQrEvent(sock: any, timeoutMs: number = 20000): Prom
 }
 
 // -----------------------------------------------------------------------
-// ?? FUNÇÃO AUXILIAR: Criar socket de pairing com configuração otimizada
+// ?? FUN��O AUXILIAR: Criar socket de pairing com configura��o otimizada
 // -----------------------------------------------------------------------
-// Cria um socket Baileys com version, browser e configurações recomendadas
-// para pairing code, reduzindo a ocorrência de 515 restartRequired.
+// Cria um socket Baileys com version, browser e configura��es recomendadas
+// para pairing code, reduzindo a ocorr�ncia de 515 restartRequired.
 // -----------------------------------------------------------------------
 async function createPairingSocket(
   userId: string,
   authPath: string,
   connectionId: string
 ): Promise<{ sock: any; state: any; saveCreds: (creds: any) => void }> {
-  // FIX 2026-02-24: Versão fixa em vez de fetchLatestBaileysVersion()
-  // WhatsApp rejeitou Platform.WEB, versão fixa compatível com MACOS
+  // FIX 2026-02-24: Vers�o fixa em vez de fetchLatestBaileysVersion()
+  // WhatsApp rejeitou Platform.WEB, vers�o fixa compat�vel com MACOS
   const version: [number, number, number] = [2, 3000, 1033893291];
-  console.log(`📱 [PAIRING] Baileys version (fixed): ${version}`);
+  console.log(`?? [PAIRING] Baileys version (fixed): ${version}`);
 
   const { state, saveCreds } = await useMultiFileAuthState(authPath);
 
@@ -10510,7 +11102,7 @@ async function createPairingSocket(
     logger: pino({ level: "silent" }),
     // -----------------------------------------------------------------------
     // FIX 2026-02-24: WhatsApp rejeitou Platform.WEB (405 error)
-    // Versão fixa em vez de fetchLatestBaileysVersion()
+    // Vers�o fixa em vez de fetchLatestBaileysVersion()
     // Ref: https://github.com/WhiskeySockets/Baileys/issues/2370
     // -----------------------------------------------------------------------
     version: [2, 3000, 1033893291],
@@ -10518,14 +11110,14 @@ async function createPairingSocket(
     keepAliveIntervalMs: 25_000,
     retryRequestDelayMs: 250,
     // -----------------------------------------------------------------------
-    // ?? BROWSER CONFIG: Ubuntu + Chrome (compatível com WhatsApp Web)
+    // ?? BROWSER CONFIG: Ubuntu + Chrome (compat�vel com WhatsApp Web)
     // -----------------------------------------------------------------------
     browser: Browsers.ubuntu('Chrome'),
     // -----------------------------------------------------------------------
-    // ?? REDUZIR INSTABILIDADE: Configurações recomendadas para pairing
+    // ?? REDUZIR INSTABILIDADE: Configura��es recomendadas para pairing
     // -----------------------------------------------------------------------
     defaultQueryTimeoutMs: undefined,  // Reduz "Connection Closed"
-    syncFullHistory: false,  // Pairing é só autenticar, sync depois
+    syncFullHistory: false,  // Pairing � s� autenticar, sync depois
     // -----------------------------------------------------------------------
     // ?? getMessage handler para retry de mensagens
     // -----------------------------------------------------------------------
@@ -10549,10 +11141,10 @@ async function createPairingSocket(
 }
 
 // -----------------------------------------------------------------------
-// ?? FUNÇÃO AUXILIAR: Handler de conexão para pairing com restart
+// ?? FUN��O AUXILIAR: Handler de conex�o para pairing com restart
 // -----------------------------------------------------------------------
 // Configura os handlers de connection.update para um socket de pairing,
-// tratando automaticamente restartRequired (515) com reconexão.
+// tratando automaticamente restartRequired (515) com reconex�o.
 // -----------------------------------------------------------------------
 function setupPairingConnectionHandler(
   userId: string,
@@ -10591,7 +11183,7 @@ function setupPairingConnectionHandler(
         console.error(`?? [PAIRING] Erro ao promover auth:`, promoteErr);
       }
 
-      // Cancelar timeout de expiração
+      // Cancelar timeout de expira��o
       const pairingRecord = pairingSessions.get(userId);
       if (pairingRecord?.timeoutId) {
         clearTimeout(pairingRecord.timeoutId);
@@ -10673,7 +11265,7 @@ function setupPairingConnectionHandler(
       // -----------------------------------------------------------------------
       // ?? 515 restartRequired / 408 timedOut / 428 connectionClosed
       // -----------------------------------------------------------------------
-      // Estes são "closes transitórios" que devem iniciar reconexão automática
+      // Estes s�o "closes transit�rios" que devem iniciar reconex�o autom�tica
       // -----------------------------------------------------------------------
       if (statusCode === DisconnectReason.restartRequired || statusCode === 515 ||
           statusCode === DisconnectReason.timedOut || statusCode === 408 ||
@@ -10683,7 +11275,7 @@ function setupPairingConnectionHandler(
 
         const state = getPairingState(userId);
         if (!state) {
-          console.log(`?? [PAIRING] Estado de pairing não encontrado, abortando restart`);
+          console.log(`?? [PAIRING] Estado de pairing n�o encontrado, abortando restart`);
           return;
         }
 
@@ -10730,65 +11322,65 @@ function setupPairingConnectionHandler(
           maxRetries: MAX_PAIRING_RETRIES
         });
 
-        // Chamar callback de restart (será tratado fora do handler)
+        // Chamar callback de restart (ser� tratado fora do handler)
         setTimeout(() => onRestartNeeded(), 3000);
         return;
       }
 
       // Outros closes - log e aguardar
-      console.log(`?? [PAIRING] Close não tratado (statusCode: ${statusCode}), aguardando...`);
+      console.log(`?? [PAIRING] Close n�o tratado (statusCode: ${statusCode}), aguardando...`);
     }
   });
 }
 
 export async function requestClientPairingCode(userId: string, phoneNumber: string, targetConnectionId?: string): Promise<string | null> {
-  // 🛡️ MODO DESENVOLVIMENTO: Bloquear pairing para evitar conflito com produção
+  // ??? MODO DESENVOLVIMENTO: Bloquear pairing para evitar conflito com produ��o
   if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
-    console.log(`\n🛡️ [DEV MODE] requestClientPairingCode bloqueado para user ${userId}`);
-    console.log(`   💡 SKIP_WHATSAPP_RESTORE=true - Modo desenvolvimento ativo`);
-    console.log(`   ✅ Sessões do WhatsApp em produção não serão afetadas\n`);
-    throw new Error('WhatsApp desabilitado em modo desenvolvimento (SKIP_WHATSAPP_RESTORE=true). Isso protege suas sessões em produção.');
+    console.log(`\n??? [DEV MODE] requestClientPairingCode bloqueado para user ${userId}`);
+    console.log(`   ?? SKIP_WHATSAPP_RESTORE=true - Modo desenvolvimento ativo`);
+    console.log(`   ? Sess�es do WhatsApp em produ��o n�o ser�o afetadas\n`);
+    throw new Error('WhatsApp desabilitado em modo desenvolvimento (SKIP_WHATSAPP_RESTORE=true). Isso protege suas sess�es em produ��o.');
   }
 
   // Verificar cooldown de rate limit
   const cooldown = pairingRateLimitCooldown.get(userId);
   if (cooldown && cooldown.until > Date.now()) {
     const remainingMinutes = Math.ceil((cooldown.until - Date.now()) / 60000);
-    throw new Error(`WhatsApp limitou as tentativas de conexão. Aguarde ${remainingMinutes} minutos antes de tentar novamente.`);
+    throw new Error(`WhatsApp limitou as tentativas de conex�o. Aguarde ${remainingMinutes} minutos antes de tentar novamente.`);
   }
 
-  // Verificar se já há uma solicitação em andamento para este usuário
+  // Verificar se j� h� uma solicita��o em andamento para este usu�rio
   const existingRequest = pendingPairingRequests.get(userId);
   if (existingRequest) {
-    console.log(`? [PAIRING] J� existe solicita��o em andamento para ${userId}, aguardando...`);
+    console.log(`? [PAIRING] J? existe solicita??o em andamento para ${userId}, aguardando...`);
     return existingRequest;
   }
 
-  // Criar Promise da solicita��o
+  // Criar Promise da solicita??o
   const requestPromise = (async () => {
     // Usar auth_pairing_<userId> para isolar do QR normal
     const pairingAuthPath = path.join(SESSIONS_BASE, `auth_pairing_${userId}`);
-    let sock: any = null;  // Socket atual do pairing (pode ser substituído em restarts)
+    let sock: any = null;  // Socket atual do pairing (pode ser substitu�do em restarts)
     let pairingTimeoutId: NodeJS.Timeout | undefined;
 
     try {
-      console.log(`?? [PAIRING] Solicitando c�digo para ${phoneNumber} (user: ${userId})`);
+      console.log(`?? [PAIRING] Solicitando c?digo para ${phoneNumber} (user: ${userId})`);
 
-      // Limpar sessão anterior se existir
+      // Limpar sess�o anterior se existir
       const lookupKey = targetConnectionId || userId;
       const existingSession = sessions.get(lookupKey);
       if (existingSession?.socket) {
         try {
-          console.log(`[PAIRING] Limpando sessão anterior (encerrando conexão local)...`);
+          console.log(`[PAIRING] Limpando sess�o anterior (encerrando conex�o local)...`);
           await existingSession.socket.end(undefined);
         } catch (e) {
-          console.log(`[PAIRING] Erro ao encerrar sessão anterior (ignorando):`, e);
+          console.log(`[PAIRING] Erro ao encerrar sess�o anterior (ignorando):`, e);
         }
         sessions.delete(lookupKey);
         unregisterWhatsAppSession(lookupKey);
       }
 
-      // Criar/obter conexão
+      // Criar/obter conex�o
       let connection;
       if (targetConnectionId) {
         connection = await storage.getConnectionById(targetConnectionId);
@@ -10807,8 +11399,8 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
       // -----------------------------------------------------------------------
       // ?? ISOLAMENTO DO AUTH DE PAIRING
       // -----------------------------------------------------------------------
-      // Usar auth_pairing_<userId> separado para não interferir no QR normal.
-      // Se o pairing falhar, apenas limpamos essa pasta específica.
+      // Usar auth_pairing_<userId> separado para n�o interferir no QR normal.
+      // Se o pairing falhar, apenas limpamos essa pasta espec�fica.
       // -----------------------------------------------------------------------
 
       // Limpar auth de pairing anterior (se existir)
@@ -10820,7 +11412,7 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
       // -----------------------------------------------------------------------
       // ?? CRIAR SOCKET USANDO fetchLatestBaileysVersion
       // -----------------------------------------------------------------------
-      // A função createPairingSocket já busca a versão mais recente do Baileys
+      // A fun��o createPairingSocket j� busca a vers�o mais recente do Baileys
       // e configura o browser como Ubuntu Chrome para melhor compatibilidade.
       // -----------------------------------------------------------------------
       const { sock: newSock, state, saveCreds } = await createPairingSocket(
@@ -10845,7 +11437,7 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
     
     sock.ev.on("creds.update", saveCreds);
     
-    // Handler de conex�o
+    // Handler de conex?o
     sock.ev.on("connection.update", async (update) => {
       const { connection: conn, lastDisconnect } = update;
 
@@ -10859,13 +11451,13 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
         // -----------------------------------------------------------------------
         // ?? PROMOVER AUTH_PAIRING PARA AUTH PRINCIPAL
         // -----------------------------------------------------------------------
-        // Quando o pairing tem sucesso, o auth_pairing_<userId> contém a
-        // sessão válida. Precisamos promover para auth_<userId> para que
-        // restaurações futuras funcionem normalmente via QR.
+        // Quando o pairing tem sucesso, o auth_pairing_<userId> cont�m a
+        // sess�o v�lida. Precisamos promover para auth_<userId> para que
+        // restaura��es futuras funcionem normalmente via QR.
         // -----------------------------------------------------------------------
         try {
           const mainAuthPath = path.join(SESSIONS_BASE, `auth_${userId}`);
-          // pairingAuthPath já está definido no escopo da função
+          // pairingAuthPath j� est� definido no escopo da fun��o
 
           // Copiar arquivos do pairing para o principal
           await clearAuthFiles(mainAuthPath); // Limpar auth principal antigo
@@ -10881,18 +11473,18 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
 
           console.log(`?? [PAIRING] Auth promovido: auth_pairing_${userId.substring(0, 8)}... -> auth_${userId.substring(0, 8)}...`);
 
-          // Limpar auth_pairing (não é mais necessário)
+          // Limpar auth_pairing (n�o � mais necess�rio)
           await clearAuthFiles(pairingAuthPath);
         } catch (promoteErr) {
-          console.error(`?? [PAIRING] Erro ao promover auth (não crítico, sessão já funciona):`, promoteErr);
+          console.error(`?? [PAIRING] Erro ao promover auth (n�o cr�tico, sess�o j� funciona):`, promoteErr);
         }
 
-        // Cancelar timeout de expiração
+        // Cancelar timeout de expira��o
         const pairingRecord = pairingSessions.get(userId);
         if (pairingRecord?.timeoutId) {
           clearTimeout(pairingRecord.timeoutId);
           pairingSessions.delete(userId);
-          console.log(`?? [PAIRING] Timeout de expiração cancelado, sessão estável`);
+          console.log(`?? [PAIRING] Timeout de expira��o cancelado, sess�o est�vel`);
         }
 
         await storage.updateConnection(session.connectionId, {
@@ -10926,7 +11518,7 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
             await clearAuthFiles(pairingAuthPath);
             await ensureDirExists(pairingAuthPath);
           } catch (e) {
-            console.error(`?? [PAIRING] Erro ao limpar auth após rate limit:`, e);
+            console.error(`?? [PAIRING] Erro ao limpar auth ap�s rate limit:`, e);
           }
 
           // Cancelar timeout
@@ -10945,14 +11537,14 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
         }
 
         // -----------------------------------------------------------------------
-        // ?? TRATAR 515 restartRequired - RECONEXÃO AUTOMÁTICA
+        // ?? TRATAR 515 restartRequired - RECONEX�O AUTOM�TICA
         // -----------------------------------------------------------------------
-        // O statusCode 515 (restartRequired) é comum após requestPairingCode.
-        // O Baileys fecha a conexão mas o auth_pairing ainda é válido.
-        // Precisamos reconectar sem limpar o auth para que o código continue funcionando.
+        // O statusCode 515 (restartRequired) � comum ap�s requestPairingCode.
+        // O Baileys fecha a conex�o mas o auth_pairing ainda � v�lido.
+        // Precisamos reconectar sem limpar o auth para que o c�digo continue funcionando.
         // -----------------------------------------------------------------------
         if (statusCode === DisconnectReason.restartRequired || statusCode === 515) {
-          console.log(`?? [PAIRING RESTART] restartRequired (515) detectado - iniciando reconexão automática...`);
+          console.log(`?? [PAIRING RESTART] restartRequired (515) detectado - iniciando reconex�o autom�tica...`);
 
           // Verificar limite de retries
           const now = Date.now();
@@ -10989,24 +11581,24 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
             return;
           }
 
-          // Incrementar e agendar reconexão
+          // Incrementar e agendar reconex�o
           retryState.count++;
           retryState.lastAttempt = now;
           pairingRetries.set(userId, retryState);
 
           console.log(`?? [PAIRING RESTART] Agendando retry ${retryState.count}/${MAX_PAIRING_RETRIES} em 5s...`);
 
-          // Notificar frontend sobre reconexão
+          // Notificar frontend sobre reconex�o
           broadcastToUser(userId, {
             type: "pairing_restarting",
             retryCount: retryState.count,
             maxRetries: MAX_PAIRING_RETRIES
           });
 
-          // Agendar reconexão após delay
+          // Agendar reconex�o ap�s delay
           setTimeout(async () => {
             try {
-              console.log(`?? [PAIRING RESTART] Executando reconexão ${retryState.count}/${MAX_PAIRING_RETRIES}...`);
+              console.log(`?? [PAIRING RESTART] Executando reconex�o ${retryState.count}/${MAX_PAIRING_RETRIES}...`);
 
               // Criar novo socket com o mesmo auth
               const { state: newState, saveCreds: newSaveCreds } = await useMultiFileAuthState(pairingAuthPath);
@@ -11042,7 +11634,7 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
                 },
               });
 
-              // Atualizar sessão
+              // Atualizar sess�o
               session.socket = newSock;
               sessions.set(userId, session);
 
@@ -11050,7 +11642,7 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
               newSock.ev.on("creds.update", newSaveCreds);
 
               // Re-atribuir handler de connection.update (recursivamente)
-              // Nota: isso é simplificado; em produção idealmente usaríamos uma função reutilizável
+              // Nota: isso � simplificado; em produ��o idealmente usar�amos uma fun��o reutiliz�vel
               newSock.ev.on("connection.update", async (update: any) => {
                 const { connection: newConn, lastDisconnect: newLastDisconnect } = update;
 
@@ -11075,7 +11667,7 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
                       await fs.writeFile(destPath, content);
                     }
 
-                    console.log(`?? [PAIRING RESTART] Auth promovido após restart`);
+                    console.log(`?? [PAIRING RESTART] Auth promovido ap�s restart`);
 
                     await clearAuthFiles(pairingAuthPath);
                   } catch (promoteErr) {
@@ -11096,23 +11688,23 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
                     qrCode: null,
                   });
 
-                  console.log(`? [PAIRING RESTART] WhatsApp conectado após restart: ${phoneNum}`);
+                  console.log(`? [PAIRING RESTART] WhatsApp conectado ap�s restart: ${phoneNum}`);
                   broadcastToUser(userId, { type: "connected", phoneNumber: phoneNum, connectionId: session.connectionId });
                 }
 
                 if (newConn === "close") {
-                  // Recursivamente tratar close (esta mesma lógica)
+                  // Recursivamente tratar close (esta mesma l�gica)
                   const newStatusCode = (newLastDisconnect?.error as any)?.output?.statusCode;
-                  console.log(`?? [PAIRING RESTART] Close após restart - statusCode: ${newStatusCode}`);
-                  // A lógica continuará sendo tratada pelo handler principal
+                  console.log(`?? [PAIRING RESTART] Close ap�s restart - statusCode: ${newStatusCode}`);
+                  // A l�gica continuar� sendo tratada pelo handler principal
                 }
               });
 
-              console.log(`?? [PAIRING RESTART] Novo socket configurado, aguardando conexão...`);
+              console.log(`?? [PAIRING RESTART] Novo socket configurado, aguardando conex�o...`);
 
             } catch (restartErr) {
-              console.error(`?? [PAIRING RESTART] Erro na reconexão:`, restartErr);
-              // Em caso de erro, tentará novamente no próximo ciclo (count aumenta)
+              console.error(`?? [PAIRING RESTART] Erro na reconex�o:`, restartErr);
+              // Em caso de erro, tentar� novamente no pr�ximo ciclo (count aumenta)
             }
           }, 5000);
 
@@ -11122,15 +11714,15 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
         // -----------------------------------------------------------------------
         // ?? LIMPEZA FORTE NO CLOSE DURING PAIRING
         // -----------------------------------------------------------------------
-        // Se a conexão fechar durante o pairing (antes de open), emitir evento
-        // de falha para o frontend e limpar auth_pairing para não "envenenar" o QR.
+        // Se a conex�o fechar durante o pairing (antes de open), emitir evento
+        // de falha para o frontend e limpar auth_pairing para n�o "envenenar" o QR.
         // -----------------------------------------------------------------------
-        console.log(`?? [PAIRING] Conexão fechada durante pairing - statusCode: ${statusCode}`);
+        console.log(`?? [PAIRING] Conex�o fechada durante pairing - statusCode: ${statusCode}`);
 
-        // pairingAuthPath já está definido no escopo da função
+        // pairingAuthPath j� est� definido no escopo da fun��o
 
         if (statusCode === DisconnectReason.loggedOut) {
-          // Logout durante pairing = auth inválido ou erro de formato
+          // Logout durante pairing = auth inv�lido ou erro de formato
           console.log(`?? [PAIRING] Logout durante pairing - limpando auth_pairing e notificando falha`);
 
           try {
@@ -11158,18 +11750,18 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
             console.error(`?? [PAIRING] Erro ao atualizar DB:`, dbErr);
           }
 
-          // Notificar falha específica
+          // Notificar falha espec�fica
           broadcastToUser(userId, {
             type: "disconnected",
             reason: "pairing_failed"
           });
         } else if (statusCode !== undefined) {
-          // Outro erro de conexão (não loggedOut, não restartRequired)
+          // Outro erro de conex�o (n�o loggedOut, n�o restartRequired)
           console.log(`?? [PAIRING] Desconectado temporariamente (statusCode: ${statusCode}), aguardando...`);
-          // Não limpamos auth aqui pois pode ser reconexão temporária
+          // N�o limpamos auth aqui pois pode ser reconex�o tempor�ria
         } else {
           // Close sem statusCode ( WebSocket fechado, timeout, etc)
-          console.log(`?? [PAIRING] Conexão fechada sem statusCode - limpando auth_pairing`);
+          console.log(`?? [PAIRING] Conex�o fechada sem statusCode - limpando auth_pairing`);
           try {
             await clearAuthFiles(pairingAuthPath);
             await ensureDirExists(pairingAuthPath);
@@ -11275,17 +11867,17 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
       }
     });
 
-    // Formatar n�mero para pairing (sem + e sem @)
+    // Formatar n?mero para pairing (sem + e sem @)
     const cleanNumber = phoneNumber.replace(/\D/g, "");
-    console.log(`?? [PAIRING] Número formatado para pareamento: ${cleanNumber}`);
+    console.log(`?? [PAIRING] N�mero formatado para pareamento: ${cleanNumber}`);
 
     // -----------------------------------------------------------------------
-    // ?? FIX: Aguardar QR Event antes de solicitar pairing code (RECOMENDAÇÃO BAILEYS)
+    // ?? FIX: Aguardar QR Event antes de solicitar pairing code (RECOMENDA��O BAILEYS)
     // -----------------------------------------------------------------------
     // O Baileys requer explicitamente: "WAIT TILL QR EVENT BEFORE REQUESTING
     // THE PAIRING CODE". Se chamarmos requestPairingCode antes do socket estar
-    // pronto (evento QR recebido), o código pode até ser gerado mas o pareamento
-    // falha com "Não foi possível conectar o dispositivo" no celular.
+    // pronto (evento QR recebido), o c�digo pode at� ser gerado mas o pareamento
+    // falha com "N�o foi poss�vel conectar o dispositivo" no celular.
     // Ref: https://www.npmjs.com/package/@whiskeysockets/baileys
     // -----------------------------------------------------------------------
     try {
@@ -11314,8 +11906,8 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
             throw new Error('WhatsApp limitou as tentativas. Aguarde 20-40 minutos e tente novamente.');
           }
 
-          // Outro erro de conexão
-          throw new Error(`Conexão fechada antes do QR event: ${qrEventResult.errorMessage || 'statusCode ' + qrEventResult.statusCode}`);
+          // Outro erro de conex�o
+          throw new Error(`Conex�o fechada antes do QR event: ${qrEventResult.errorMessage || 'statusCode ' + qrEventResult.statusCode}`);
         }
 
         // Timeout ou outro erro
@@ -11323,7 +11915,7 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
       }
 
       console.log(`?? [PAIRING] QR Event recebido, aguardando WebSocket abrir...`);
-      // WebSocket geralmente já está aberto depois do QR event, mas vamos garantir
+      // WebSocket geralmente j� est� aberto depois do QR event, mas vamos garantir
       await waitForBaileysWsOpen(sock, 5000);
       console.log(`?? [PAIRING] Socket pronto, solicitando pairing code para ${cleanNumber}`);
     } catch (wsError: any) {
@@ -11331,18 +11923,18 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
       throw wsError; // Propagar para o catch geral fazer limpeza
     }
 
-    // Solicitar c�digo de pareamento
-    // O c�digo ser� enviado via WhatsApp para o n�mero informado
+    // Solicitar c?digo de pareamento
+    // O c?digo ser? enviado via WhatsApp para o n?mero informado
     let code: string | undefined;
     try {
       code = await sock.requestPairingCode(cleanNumber);
 
-      console.log(`? [PAIRING] C�digo gerado com sucesso: ${code}`);
+      console.log(`? [PAIRING] C?digo gerado com sucesso: ${code}`);
 
       // -----------------------------------------------------------------------
-      // ?? RETENÇÃO DE SESSÃO: Manter vivo por 3 minutos
+      // ?? RETEN��O DE SESS�O: Manter vivo por 3 minutos
       // -----------------------------------------------------------------------
-      // Se o usuário não digitar o código, a sessão expira automaticamente
+      // Se o usu�rio n�o digitar o c�digo, a sess�o expira automaticamente
       // -----------------------------------------------------------------------
       const expiresAt = Date.now() + PAIRING_SESSION_TIMEOUT_MS;
 
@@ -11353,11 +11945,11 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
         expiresAt
       });
 
-      console.log(`?? [PAIRING] Sessão registrada, expira em ${PAIRING_SESSION_TIMEOUT_MS / 1000} segundos`);
+      console.log(`?? [PAIRING] Sess�o registrada, expira em ${PAIRING_SESSION_TIMEOUT_MS / 1000} segundos`);
 
-      // Configurar timeout de expiração
+      // Configurar timeout de expira��o
       pairingTimeoutId = setTimeout(async () => {
-        console.log(`?? [PAIRING] Sessão expirou para ${userId.substring(0, 8)}... (usuário não digitou o código)`);
+        console.log(`?? [PAIRING] Sess�o expirou para ${userId.substring(0, 8)}... (usu�rio n�o digitou o c�digo)`);
 
         // Limpar auth de pairing
         try {
@@ -11366,7 +11958,7 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
           console.error(`?? [PAIRING] Erro ao limpar auth expirado:`, e);
         }
 
-        // Remover da memória
+        // Remover da mem�ria
         pairingSessions.delete(userId);
 
         // Notificar frontend (se ainda estiver conectado)
@@ -11382,7 +11974,7 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
         sessionRecord.timeoutId = pairingTimeoutId;
       }
 
-      // Aguardar um pouco para garantir que o c�digo foi processado
+      // Aguardar um pouco para garantir que o c?digo foi processado
       await new Promise(resolve => setTimeout(resolve, 1000));
 
       return code;
@@ -11390,10 +11982,10 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
       console.error(`? [PAIRING] Erro ao chamar requestPairingCode:`, pairingError);
       console.error(`? [PAIRING] Stack trace:`, (pairingError).stack);
 
-      // Verificar se é erro de rate limit
+      // Verificar se � erro de rate limit
       const errorMsg = String(pairingError?.message || pairingError || '');
       if (errorMsg.includes('429') || errorMsg.includes('rate-overlimit') || errorMsg.includes('rate limit')) {
-        console.error(`?? [PAIRING] RATE LIMIT DETECTED (429) ao solicitar código`);
+        console.error(`?? [PAIRING] RATE LIMIT DETECTED (429) ao solicitar c�digo`);
 
         // Aplicar cooldown
         pairingRateLimitCooldown.set(userId, {
@@ -11412,34 +12004,34 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
       throw pairingError;
     }
   } catch (error) {
-    console.error(`?? [PAIRING] Erro geral ao solicitar c�digo:`, error);
+    console.error(`?? [PAIRING] Erro geral ao solicitar c?digo:`, error);
     console.error(`?? [PAIRING] Tipo de erro:`, typeof error);
     console.error(`?? [PAIRING] Mensagem:`, (error as Error).message);
 
     // -----------------------------------------------------------------------
     // ?? LIMPEZA FORTE EM ERRO: Evitar credenciais parciais que "envenenam" o QR
     // -----------------------------------------------------------------------
-    // Se houver erro durante o pairing, é possível que creds.json parcial tenha
-    // sido criado. Se não limparmos, a próxima tentativa de QR vai falhar com
+    // Se houver erro durante o pairing, � poss�vel que creds.json parcial tenha
+    // sido criado. Se n�o limparmos, a pr�xima tentativa de QR vai falhar com
     // loggedOut imediato porque o Baileys tenta usar esse auth parcial.
     // -----------------------------------------------------------------------
 
-    // 1. Limpar sessão da memória
+    // 1. Limpar sess�o da mem�ria
     sessions.delete(userId);
     unregisterWhatsAppSession(userId);
 
-    // Cancelar timeout de expiração se existir
+    // Cancelar timeout de expira��o se existir
     const pairingSession = pairingSessions.get(userId);
     if (pairingSession?.timeoutId) {
       clearTimeout(pairingSession.timeoutId);
     }
     pairingSessions.delete(userId);
 
-    // 2. Limpar arquivos de auth de pairing (NÃO o auth principal!)
+    // 2. Limpar arquivos de auth de pairing (N�O o auth principal!)
     try {
       await clearAuthFiles(pairingAuthPath);
       await ensureDirExists(pairingAuthPath); // Recriar pasta vazia
-      console.log(`?? [PAIRING] Auth pairing limpo após erro: ${pairingAuthPath}`);
+      console.log(`?? [PAIRING] Auth pairing limpo ap�s erro: ${pairingAuthPath}`);
     } catch (cleanupErr) {
       console.error(`?? [PAIRING] Erro ao limpar auth pairing:`, cleanupErr);
     }
@@ -11457,7 +12049,7 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
       console.error(`?? [PAIRING] Erro ao atualizar DB:`, dbErr);
     }
 
-    // 4. Notificar frontend sobre falha específica
+    // 4. Notificar frontend sobre falha espec�fica
     broadcastToUser(userId, {
       type: "disconnected",
       reason: "pairing_failed"
@@ -11470,7 +12062,7 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
   }
   })();
   
-  // Adicionar � fila de pendentes
+  // Adicionar ? fila de pendentes
   pendingPairingRequests.set(userId, requestPromise);
   
   return requestPromise;
@@ -11506,7 +12098,7 @@ function normalizeAutoSendText(text: string): string {
   return (text || '')
     .toLowerCase()
     .replace(/\s+/g, ' ')
-    .replace(/[​-‍﻿]/g, '')
+    .replace(/[?-??]/g, '')
     .trim()
     .slice(0, 400);
 }
@@ -11527,14 +12119,14 @@ export async function sendAdminMessage(
     const adminUser = allAdmins.find(a => a.role === 'owner');
     
     if (!adminUser) {
-      console.error("[ADMIN MSG] Admin n�o encontrado");
+      console.error("[ADMIN MSG] Admin n?o encontrado");
       return false;
     }
     
     const adminSession = adminSessions.get(adminUser.id);
     
     if (!adminSession?.socket) {
-      console.error("[ADMIN MSG] Sess�o do admin n�o encontrada");
+      console.error("[ADMIN MSG] Sess?o do admin n?o encontrada");
       return false;
     }
     
@@ -11565,7 +12157,7 @@ export async function sendAdminMessage(
     const jid = `${cleanNumber}@${DEFAULT_JID_SUFFIX}`;
     
     if (media) {
-      // Enviar m�dia com delay anti-bloqueio
+      // Enviar m?dia com delay anti-bloqueio
       switch (media.type) {
         case "image":
           // ??? ANTI-BLOQUEIO
@@ -11579,17 +12171,17 @@ export async function sendAdminMessage(
           break;
         case "audio":
           // ??? ANTI-BLOQUEIO
-          await sendWithQueue('ADMIN_AGENT', 'admin msg �udio', async () => {
+          await sendWithQueue('ADMIN_AGENT', 'admin msg ?udio', async () => {
             await adminSession.socket!.sendMessage(jid, {
               audio: media.buffer,
               mimetype: media.mimetype,
-              ptt: true, // Enviar como �udio de voz
+              ptt: true, // Enviar como ?udio de voz
             });
           });
           break;
         case "video":
           // ??? ANTI-BLOQUEIO
-          await sendWithQueue('ADMIN_AGENT', 'admin msg v�deo', async () => {
+          await sendWithQueue('ADMIN_AGENT', 'admin msg v?deo', async () => {
             await adminSession.socket!.sendMessage(jid, {
               video: media.buffer,
               caption: media.caption || text,
@@ -11624,7 +12216,7 @@ export async function sendAdminMessage(
 }
 
 // -----------------------------------------------------------------------
-// ?? INTEGRA��O: FOLLOW-UPS / AGENDAMENTOS ? ENVIO PELO WHATSAPP DO ADMIN
+// ?? INTEGRA??O: FOLLOW-UPS / AGENDAMENTOS ? ENVIO PELO WHATSAPP DO ADMIN
 // -----------------------------------------------------------------------
 
 registerFollowUpCallback(async (phoneNumber: string, context: string) => {
@@ -11652,51 +12244,56 @@ registerScheduledContactCallback(async (phoneNumber: string, reason: string) => 
 });
 
 // -------------------------------------------------------------------------------
-// ?? HEALTH CHECK MONITOR - RECONEX�O AUTOM�TICA DE SESS�ES
+// ?? HEALTH CHECK MONITOR - RECONEX?O AUTOM?TICA DE SESS?ES
 // -------------------------------------------------------------------------------
-// Este sistema verifica periodicamente se as conex�es do WhatsApp est�o saud�veis.
-// Se detectar que uma conex�o est� marcada como "conectada" no banco mas n�o tem
-// socket ativo na mem�ria, tenta reconectar automaticamente.
+// Este sistema verifica periodicamente se as conex?es do WhatsApp est?o saud?veis.
+// Se detectar que uma conex?o est? marcada como "conectada" no banco mas n?o tem
+// socket ativo na mem?ria, tenta reconectar automaticamente.
 //
 // Intervalo: A cada 5 minutos (300.000ms)
 // Isso resolve problemas de:
-// - Desconex�es silenciosas por timeout de rede
-// - Perda de conex�o durante restarts do container
-// - Sess�es "zumbis" no banco de dados
+// - Desconex?es silenciosas por timeout de rede
+// - Perda de conex?o durante restarts do container
+// - Sess?es "zumbis" no banco de dados
 // -------------------------------------------------------------------------------
 
 const HEALTH_CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutos
+const HEALTH_CHECK_INITIAL_DELAY_MS = Math.max(
+  Number(process.env.WA_HEALTH_CHECK_INITIAL_DELAY_MS || 60_000),
+  5_000,
+);
 let healthCheckInterval: NodeJS.Timeout | null = null;
 
 async function connectionHealthCheck(): Promise<void> {
-  // ??? MODO DESENVOLVIMENTO: N�o executar health check
+  // ??? MODO DESENVOLVIMENTO: N?o executar health check
   if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
     return;
   }
 
-  // 🔒 RESTORE GUARD: block only for a short window, then let health-check run
+  // ?? RESTORE GUARD: block only for a short window, then let health-check run
   if (_isRestoringInProgress) {
     const restoreAgeMs = _restoreStartedAt > 0 ? Date.now() - _restoreStartedAt : 0;
     if (restoreAgeMs < RESTORE_GUARD_MAX_BLOCK_MS) {
       console.log(
-        `[HEALTH CHECK] ⏳ Skipped — session restore still in progress (${Math.round(restoreAgeMs / 1000)}s/${Math.round(RESTORE_GUARD_MAX_BLOCK_MS / 1000)}s guard)`
+        `[HEALTH CHECK] ? Skipped � session restore still in progress (${Math.round(restoreAgeMs / 1000)}s/${Math.round(RESTORE_GUARD_MAX_BLOCK_MS / 1000)}s guard)`
       );
       return;
     }
     console.log(
-      `[HEALTH CHECK] ⚠️ Restore guard stale (${Math.round(restoreAgeMs / 1000)}s). Running health check anyway.`
+      `[HEALTH CHECK] ?? Restore guard stale (${Math.round(restoreAgeMs / 1000)}s). Running health check anyway.`
     );
   }
   
   console.log(`\n?? [HEALTH CHECK] -------------------------------------------`);
-  console.log(`?? [HEALTH CHECK] Iniciando verifica��o de conex�es...`);
+  console.log(`?? [HEALTH CHECK] Iniciando verifica??o de conex?es...`);
   console.log(`?? [HEALTH CHECK] Timestamp: ${new Date().toISOString()}`);
   
-  // 🔒 Evict stale pending connection locks before any reconnection attempt
+  // ?? Evict stale pending connection locks before any reconnection attempt
   evictStalePendingLocks();
+  evictStalePendingAdminLocks();
   
   try {
-    // 1. Verificar conexões de usuários (Multi-connection: check ALL connections individually)
+    // 1. Verificar conex�es de usu�rios (Multi-connection: check ALL connections individually)
     const connections = await storage.getAllConnections();
     let reconnectedUsers = 0;
     let healedUsers = 0;  // DB=false mas socket ativo (curado)
@@ -11709,11 +12306,11 @@ async function connectionHealthCheck(): Promise<void> {
       const isDbConnected = connection.isConnected;
       // Check session by connectionId (each connection has its own socket)
       const session = sessions.get(connection.id);
-      const hasActiveSocket = session?.socket?.user !== undefined;
+      const hasActiveSocket = hasOperationalSocket(session);
       
       if (isDbConnected && !hasActiveSocket) {
-        // ?? Conex�o "zumbi" detectada - DB diz conectado mas n�o tem socket
-        console.log(`?? [HEALTH CHECK] Conex�o zumbi detectada: ${connection.userId}`);
+        // ?? Conex?o "zumbi" detectada - DB diz conectado mas n?o tem socket
+        console.log(`?? [HEALTH CHECK] Conex?o zumbi detectada: ${connection.userId}`);
         console.log(`   ?? DB: isConnected=${isDbConnected}, Socket: ${hasActiveSocket ? 'ATIVO' : 'INATIVO'}`);
         
         // Check auth files at auth_{userId} OR auth_{connectionId} (dual-path lookup)
@@ -11742,9 +12339,9 @@ async function connectionHealthCheck(): Promise<void> {
         if (hasAuthFiles) {
           console.log(`[HEALTH CHECK] Tentando reconectar connection ${connection.id}...`);
           try {
-            await connectWhatsApp(connection.userId, connection.id);
+            await connectWhatsApp(connection.userId, connection.id, { source: "health_check" });
             
-            // 🔒 SECTION 3: Validate isOpen before declaring success
+            // ?? SECTION 3: Validate isOpen before declaring success
             const reconnectedSession = sessions.get(connection.id);
             let isOpenValidated = reconnectedSession?.isOpen === true;
             if (!isOpenValidated) {
@@ -11763,15 +12360,19 @@ async function connectionHealthCheck(): Promise<void> {
             
             if (isOpenValidated) {
               reconnectedUsers++;
-              console.log(`✅ [HEALTH CHECK] Connection ${connection.id} reconectado e isOpen=true!`);
+              console.log(`? [HEALTH CHECK] Connection ${connection.id} reconectado e isOpen=true!`);
             } else {
-              console.log(`⚠️ [HEALTH CHECK] HEALTH_RECONNECT_NOT_OPEN: Connection ${connection.id} — connectWhatsApp() retornou mas isOpen ainda false após 8s`);
-              // Don't count as reconnected — will retry on next health check
+              console.log(`?? [HEALTH CHECK] HEALTH_RECONNECT_NOT_OPEN: Connection ${connection.id} � connectWhatsApp() retornou mas isOpen ainda false ap�s 8s`);
+              // Don't count as reconnected � will retry on next health check
             }
-          } catch (error) {
-            console.error(`[HEALTH CHECK] Falha ao reconectar connection ${connection.id}:`, error);
+          } catch (error: any) {
+            if (error?.code === "WA_OPEN_TIMEOUT_COOLDOWN") {
+              console.log(`[HEALTH CHECK] Cooldown ativo para connection ${connection.id} - tentativa adiada`);
+            } else {
+              console.error(`[HEALTH CHECK] Falha ao reconectar connection ${connection.id}:`, error);
+            }
             // SAFE: Do NOT mark is_connected=false. Will retry on next health check (5 min).
-            console.log(`[HEALTH CHECK] Será tentado novamente no próximo health check.`);
+            console.log(`[HEALTH CHECK] Ser� tentado novamente no pr�ximo health check.`);
           }
         } else {
           console.log(`?? [HEALTH CHECK] ${connection.userId} sem arquivos de auth - marcando como desconectado`);
@@ -11793,17 +12394,17 @@ async function connectionHealthCheck(): Promise<void> {
           if (promoteSessionOpenState(session, 'health_check_socket_ready')) {
             clearPendingConnectionLock(connection.id, 'health_promote_open');
             clearPendingConnectionLock(connection.userId, 'health_promote_open');
-            console.log(`✅ [HEALTH CHECK] Promoted isOpen=true for ${connection.id.substring(0, 8)} using socket.user/ws readiness`);
+            console.log(`? [HEALTH CHECK] Promoted isOpen=true for ${connection.id.substring(0, 8)} using socket.user/ws readiness`);
             healthyUsers++;
             continue;
           }
 
           const stuckDurationMs = Date.now() - session.createdAt;
-          const STUCK_THRESHOLD_MS = 300_000; // 5 minutes — give Baileys time to negotiate
+          const STUCK_THRESHOLD_MS = 300_000; // 5 minutes � give Baileys time to negotiate
           if (stuckDurationMs > STUCK_THRESHOLD_MS) {
             // Connection has been stuck for 5+ min without reaching "open".
             // End socket so zombie handler can reconnect on next health check cycle.
-            console.log(`⚠️ [HEALTH CHECK] STUCK CONNECTION: user ${connection.userId.substring(0, 8)} conn ${connection.id.substring(0, 8)} — isOpen=false for ${Math.round(stuckDurationMs / 1000)}s. Cleaning socket (zombie handler will reconnect).`);
+            console.log(`?? [HEALTH CHECK] STUCK CONNECTION: user ${connection.userId.substring(0, 8)} conn ${connection.id.substring(0, 8)} � isOpen=false for ${Math.round(stuckDurationMs / 1000)}s. Cleaning socket (zombie handler will reconnect).`);
             try {
               if (session.openTimeout) { clearTimeout(session.openTimeout); session.openTimeout = undefined; }
               session.socket?.ev?.removeAllListeners('connection.update');
@@ -11813,7 +12414,7 @@ async function connectionHealthCheck(): Promise<void> {
             sessions.delete(connection.id);
             clearPendingConnectionLock(connection.id, 'health_stuck_cleanup');
             clearPendingConnectionLock(connection.userId, 'health_stuck_cleanup');
-            // Don't count as disconnected — DB stays is_connected=true
+            // Don't count as disconnected � DB stays is_connected=true
             // Next health check cycle will detect as zombie and reconnect
           } else {
             // Still within grace period, count as healthy
@@ -11828,10 +12429,10 @@ async function connectionHealthCheck(): Promise<void> {
         // -----------------------------------------------------------------------
         // Isso acontece quando:
         // 1. Um follower atualizou DB para false incorretamente
-        // 2. O líder reconectou mas não atualizou o DB ainda
-        // 3. Deploy/reconnect causou discrepância temporária
+        // 2. O l�der reconectou mas n�o atualizou o DB ainda
+        // 3. Deploy/reconnect causou discrep�ncia tempor�ria
         //
-        // Como estamos no líder (health check só roda no líder),
+        // Como estamos no l�der (health check s� roda no l�der),
         // podemos curar o estado global.
         // -----------------------------------------------------------------------
         console.log(`?? [HEALTH CHECK] CURANDO user ${connection.userId.substring(0, 8)}...: DB=false mas socket ATIVO`);
@@ -11851,7 +12452,7 @@ async function connectionHealthCheck(): Promise<void> {
       }
     }
 
-    // 2. Verificar conexões de admin
+    // 2. Verificar conex�es de admin
     const allAdmins = await storage.getAllAdmins();
     let reconnectedAdmins = 0;
     let healedAdmins = 0;
@@ -11863,10 +12464,13 @@ async function connectionHealthCheck(): Promise<void> {
       
       const isDbConnected = adminConnection.isConnected;
       const adminSession = adminSessions.get(admin.id);
-      const hasActiveSocket = adminSession?.socket?.user !== undefined;
+      const adminWsReadyState = (adminSession?.socket as any)?.ws?.readyState;
+      const hasActiveSocket =
+        adminSession?.socket?.user !== undefined &&
+        (adminWsReadyState === undefined || adminWsReadyState === 1);
       
       if (isDbConnected && !hasActiveSocket) {
-        console.log(`?? [HEALTH CHECK] Admin conex�o zumbi: ${admin.id}`);
+        console.log(`?? [HEALTH CHECK] Admin conex?o zumbi: ${admin.id}`);
         
         const adminAuthPath = path.join(SESSIONS_BASE, `auth_admin_${admin.id}`);
         let hasAuthFiles = false;
@@ -11875,7 +12479,7 @@ async function connectionHealthCheck(): Promise<void> {
           const authFiles = await fs.readdir(adminAuthPath);
           hasAuthFiles = authFiles.length > 0;
         } catch (e) {
-          // Diret�rio n�o existe
+          // Diret?rio n?o existe
         }
         
         if (hasAuthFiles) {
@@ -11917,12 +12521,40 @@ async function connectionHealthCheck(): Promise<void> {
         } catch (healErr) {
           console.error(`? [HEALTH CHECK] Erro ao curar admin ${admin.id}:`, healErr);
         }
+      } else if (!isDbConnected && !hasActiveSocket) {
+        // -----------------------------------------------------------------------
+        // ?? 4th branch: DB=false, no socket, but auth files exist on disk
+        // This happens after deploy/restart when restore failed with timeout
+        // and set isConnected=false. Auth files are still valid, so reconnect.
+        // -----------------------------------------------------------------------
+        if (_isAdminRestoringInProgress) {
+          console.log(`?? [HEALTH CHECK] Admin ${admin.id} desconectado - restore still in progress, skipping`);
+          continue;
+        }
+        const adminAuthPath4 = path.join(SESSIONS_BASE, `auth_admin_${admin.id}`);
+        let hasAuthFiles4 = false;
+        try {
+          const authFiles4 = await fs.readdir(adminAuthPath4);
+          hasAuthFiles4 = authFiles4.some(f => f.includes('creds'));
+        } catch (e) {
+          // Directory doesn't exist
+        }
+        if (hasAuthFiles4) {
+          console.log(`?? [HEALTH CHECK] Admin ${admin.id} desconectado mas tem auth files. Tentando reconectar...`);
+          try {
+            await connectAdminWhatsApp(admin.id);
+            reconnectedAdmins++;
+            console.log(`? [HEALTH CHECK] Admin ${admin.id} reconectado a partir de auth files!`);
+          } catch (error) {
+            console.error(`? [HEALTH CHECK] Falha ao reconectar admin ${admin.id} (4th branch):`, error);
+          }
+        }
       }
     }
 
     console.log(`\n?? [HEALTH CHECK] Resumo:`);
-    console.log(`   ?? Usuários: ${healthyUsers} saudáveis, ${healedUsers} curados, ${reconnectedUsers} reconectados, ${disconnectedUsers} desconectados`);
-    console.log(`   ?? Admins: ${healthyAdmins} saudáveis, ${healedAdmins} curados, ${reconnectedAdmins} reconectados`);
+    console.log(`   ?? Usu�rios: ${healthyUsers} saud�veis, ${healedUsers} curados, ${reconnectedUsers} reconectados, ${disconnectedUsers} desconectados`);
+    console.log(`   ?? Admins: ${healthyAdmins} saud�veis, ${healedAdmins} curados, ${reconnectedAdmins} reconectados`);
     console.log(`?? [HEALTH CHECK] -------------------------------------------\n`);
     
   } catch (error) {
@@ -11931,26 +12563,27 @@ async function connectionHealthCheck(): Promise<void> {
 }
 
 export function startConnectionHealthCheck(): void {
-  // ??? MODO DESENVOLVIMENTO: N�o iniciar health check
+  // ??? MODO DESENVOLVIMENTO: N?o iniciar health check
   if (process.env.SKIP_WHATSAPP_RESTORE === 'true') {
     console.log("?? [HEALTH CHECK] Desabilitado em modo desenvolvimento");
     return;
   }
   
   if (healthCheckInterval) {
-    console.log("?? [HEALTH CHECK] J� est� rodando");
+    console.log("?? [HEALTH CHECK] J? est? rodando");
     return;
   }
   
-  console.log(`\n?? [HEALTH CHECK] Iniciando monitor de conex�es...`);
+  console.log(`\n?? [HEALTH CHECK] Iniciando monitor de conex?es...`);
   console.log(`   ?? Intervalo: ${HEALTH_CHECK_INTERVAL_MS / 1000 / 60} minutos`);
+  console.log(`   ?? Primeira execu��o em: ${Math.round(HEALTH_CHECK_INITIAL_DELAY_MS / 1000)}s`);
   
-  // Executar primeiro check ap�s 5 minutos (dar tempo para restaura��es terminarem)
+  // Executar primeiro check cedo; restore guard impede reconex�es agressivas.
   setTimeout(() => {
     connectionHealthCheck();
-  }, 5 * 60 * 1000);
+  }, HEALTH_CHECK_INITIAL_DELAY_MS);
   
-  // Agendar checks peri�dicos
+  // Agendar checks peri?dicos
   healthCheckInterval = setInterval(() => {
     connectionHealthCheck();
   }, HEALTH_CHECK_INTERVAL_MS);
@@ -11962,25 +12595,25 @@ export function stopConnectionHealthCheck(): void {
   if (healthCheckInterval) {
     clearInterval(healthCheckInterval);
     healthCheckInterval = null;
-    console.log("🛑 [HEALTH CHECK] Monitor parado");
+    console.log("?? [HEALTH CHECK] Monitor parado");
   }
 }
 
-// Exportar função para check manual (útil para debug)
+// Exportar fun��o para check manual (�til para debug)
 export { connectionHealthCheck };
 
 // ==================== RESTORE PENDING AI TIMERS ====================
-// 💾 Restaura timers de resposta da IA que estavam pendentes antes do restart
-// Isso garante que mensagens não sejam perdidas em deploys/crashes
+// ?? Restaura timers de resposta da IA que estavam pendentes antes do restart
+// Isso garante que mensagens n�o sejam perdidas em deploys/crashes
 export async function restorePendingAITimers(): Promise<void> {
-  // ?? MODO DEV: Pular restauração de timers se DISABLE_WHATSAPP_PROCESSING=true
+  // ?? MODO DEV: Pular restaura��o de timers se DISABLE_WHATSAPP_PROCESSING=true
   if (process.env.DISABLE_WHATSAPP_PROCESSING === 'true') {
-    console.log(`⏸️ [RESTORE TIMERS] DESABILITADO - DISABLE_WHATSAPP_PROCESSING=true`);
+    console.log(`?? [RESTORE TIMERS] DESABILITADO - DISABLE_WHATSAPP_PROCESSING=true`);
     return;
   }
   
   console.log(`\n${'='.repeat(60)}`);
-  console.log(`💾 [RESTORE TIMERS] Iniciando restauração de timers pendentes...`);
+  console.log(`?? [RESTORE TIMERS] Iniciando restaura��o de timers pendentes...`);
   console.log(`${'='.repeat(60)}`);
   
   try {
@@ -11988,11 +12621,11 @@ export async function restorePendingAITimers(): Promise<void> {
     const pendingTimers = await storage.getPendingAIResponsesForRestore();
     
     if (pendingTimers.length === 0) {
-      console.log(`✅ [RESTORE TIMERS] Nenhum timer pendente para restaurar`);
+      console.log(`? [RESTORE TIMERS] Nenhum timer pendente para restaurar`);
       return;
     }
     
-    console.log(`📋 [RESTORE TIMERS] Encontrados ${pendingTimers.length} timers para restaurar`);
+    console.log(`?? [RESTORE TIMERS] Encontrados ${pendingTimers.length} timers para restaurar`);
     
     let restored = 0;
     let skipped = 0;
@@ -12001,28 +12634,28 @@ export async function restorePendingAITimers(): Promise<void> {
     for (const timer of pendingTimers) {
       const { conversationId, userId, contactNumber, jidSuffix, messages, executeAt } = timer;
       
-      // Verificar se já tem timer em memória
+      // Verificar se j� tem timer em mem�ria
       if (pendingResponses.has(conversationId)) {
-        console.log(`⏭️ [RESTORE TIMERS] ${contactNumber} - Já tem timer em memória, pulando`);
+        console.log(`?? [RESTORE TIMERS] ${contactNumber} - J� tem timer em mem�ria, pulando`);
         skipped++;
         continue;
       }
       
-      // Verificar se já está sendo processada
+      // Verificar se j� est� sendo processada
       if (conversationsBeingProcessed.has(conversationId)) {
-        console.log(`⏭️ [RESTORE TIMERS] ${contactNumber} - Em processamento, pulando`);
+        console.log(`?? [RESTORE TIMERS] ${contactNumber} - Em processamento, pulando`);
         skipped++;
         continue;
       }
       
-      // Calcular tempo restante até execução
+      // Calcular tempo restante at� execu��o
       const now = Date.now();
       const executeTime = executeAt.getTime();
       const remainingMs = executeTime - now;
       
-      // Se o tempo já passou, processar imediatamente (com pequeno delay)
+      // Se o tempo j� passou, processar imediatamente (com pequeno delay)
       if (remainingMs <= 0) {
-        console.log(`🚀 [RESTORE TIMERS] ${contactNumber} - Timer expirado, processando AGORA`);
+        console.log(`?? [RESTORE TIMERS] ${contactNumber} - Timer expirado, processando AGORA`);
         
         const pending: PendingResponse = {
           timeout: null as any,
@@ -12035,33 +12668,34 @@ export async function restorePendingAITimers(): Promise<void> {
           startTime: Date.now() - Math.abs(remainingMs), // Tempo original
         };
         
-        // Processar com delay escalonado para não sobrecarregar
+        // Processar com delay escalonado para n�o sobrecarregar
         const delayMs = processed * 3000; // 3s entre cada
         pending.timeout = setTimeout(async () => {
-          console.log(`🔄 [RESTORE TIMERS] Processando timer restaurado para ${contactNumber}`);
+          console.log(`?? [RESTORE TIMERS] Processando timer restaurado para ${contactNumber}`);
           await processAccumulatedMessages(pending);
-        }, delayMs + 1000); // Mínimo 1s
+        }, delayMs + 1000); // M�nimo 1s
         
         pendingResponses.set(conversationId, pending);
         processed++;
         restored++;
         
       } else {
-        // Timer ainda não expirou, re-agendar normalmente
-        console.log(`⏰ [RESTORE TIMERS] ${contactNumber} - Reagendando em ${Math.round(remainingMs/1000)}s`);
+        // Timer ainda n�o expirou, re-agendar normalmente
+        console.log(`? [RESTORE TIMERS] ${contactNumber} - Reagendando em ${Math.round(remainingMs/1000)}s`);
         
         const pending: PendingResponse = {
           timeout: null as any,
           messages,
           conversationId,
           userId,
+          connectionId: timer.connectionId,
           contactNumber,
           jidSuffix: jidSuffix || DEFAULT_JID_SUFFIX,
           startTime: Date.now() - (executeTime - now), // Calcular tempo original
         };
         
         pending.timeout = setTimeout(async () => {
-          console.log(`🔄 [RESTORE TIMERS] Executando timer restaurado para ${contactNumber}`);
+          console.log(`?? [RESTORE TIMERS] Executando timer restaurado para ${contactNumber}`);
           await processAccumulatedMessages(pending);
         }, remainingMs);
         
@@ -12071,54 +12705,68 @@ export async function restorePendingAITimers(): Promise<void> {
     }
     
     console.log(`\n${'='.repeat(60)}`);
-    console.log(`✅ [RESTORE TIMERS] Restauração concluída!`);
-    console.log(`   📊 Total encontrados: ${pendingTimers.length}`);
-    console.log(`   ✅ Restaurados: ${restored}`);
-    console.log(`   ⏭️ Pulados: ${skipped}`);
-    console.log(`   🚀 Processados imediatamente: ${processed}`);
+    console.log(`? [RESTORE TIMERS] Restaura��o conclu�da!`);
+    console.log(`   ?? Total encontrados: ${pendingTimers.length}`);
+    console.log(`   ? Restaurados: ${restored}`);
+    console.log(`   ?? Pulados: ${skipped}`);
+    console.log(`   ?? Processados imediatamente: ${processed}`);
     console.log(`${'='.repeat(60)}\n`);
     
   } catch (error) {
-    console.error(`❌ [RESTORE TIMERS] Erro na restauração:`, error);
+    console.error(`? [RESTORE TIMERS] Erro na restaura��o:`, error);
   }
 }
 
 // ==================== CRON JOB: RETRY TIMERS PENDENTES ====================
-// Verifica a cada 15 segundos se há timers pendentes "órfãos" e os processa
-// Isso garante que nenhuma mensagem fique sem resposta, mesmo após instabilidades
+// Verifica a cada 15 segundos se h� timers pendentes "�rf�os" e os processa
+// Isso garante que nenhuma mensagem fique sem resposta, mesmo ap�s instabilidades
 let pendingTimersCronInterval: NodeJS.Timeout | null = null;
 
 export function startPendingTimersCron(): void {
   // ?? MODO DEV: Pular cron de timers pendentes se DISABLE_WHATSAPP_PROCESSING=true
   if (process.env.DISABLE_WHATSAPP_PROCESSING === 'true') {
-    console.log(`⏸️ [PENDING CRON] DESABILITADO - DISABLE_WHATSAPP_PROCESSING=true`);
+    console.log(`?? [PENDING CRON] DESABILITADO - DISABLE_WHATSAPP_PROCESSING=true`);
     return;
   }
   
   if (pendingTimersCronInterval) {
-    console.log(`🔄 [PENDING CRON] Cron já está rodando`);
+    console.log(`?? [PENDING CRON] Cron j� est� rodando`);
     return;
   }
   
-  console.log(`🔄 [PENDING CRON] Iniciando cron de retry de timers pendentes (intervalo: 15s, 25/ciclo)`);
+  console.log(`?? [PENDING CRON] Iniciando cron de retry de timers pendentes (intervalo: 15s, 25/ciclo)`);
   
   // Executar a cada 15 segundos para maior responsividade
   pendingTimersCronInterval = setInterval(async () => {
     await processPendingTimersCron();
   }, 15 * 1000); // 15 segundos (era 30)
   
-  // Primeira execução após 10 segundos (dar tempo para sessões conectarem)
+  // Primeira execu��o ap�s 10 segundos (dar tempo para sess�es conectarem)
   setTimeout(async () => {
     await processPendingTimersCron();
   }, 10 * 1000);
 }
 
 async function processPendingTimersCron(): Promise<void> {
+  let distributedCronLock: DistributedLockHandle | null = null;
+
+  if (isRedisAvailable()) {
+    const cronLockResult = await tryAcquireDistributedLock(
+      WA_REDIS_PENDING_CRON_LOCK_KEY,
+      WA_REDIS_PENDING_CRON_LOCK_TTL_MS,
+    );
+    if (cronLockResult.status === "acquired") {
+      distributedCronLock = cronLockResult.lock;
+    } else if (cronLockResult.status === "busy") {
+      return;
+    }
+  }
+
   try {
-    // 🚦 FIX 2026-02-25: READINESS GATE — don't process timers if no sessions are connected yet
+    // ?? FIX 2026-02-25: READINESS GATE � don't process timers if no sessions are connected yet
     // This prevents timers from exhausting retries during boot before WhatsApp reconnects
     if (sessions.size === 0) {
-      console.log(`⏸️ [PENDING CRON] Aguardando sessões conectarem (readiness gate)...`);
+      console.log(`?? [PENDING CRON] Aguardando sess�es conectarem (readiness gate)...`);
       return;
     }
     
@@ -12131,14 +12779,14 @@ async function processPendingTimersCron(): Promise<void> {
     
     // -----------------------------------------------------------------------
     // FIX 2026-02-24: STALE TIMER POLICY
-    // Timers >24h são marcados como failed (o cliente já desistiu)
-    // Timers ≤24h são processados normalmente
+    // Timers >24h s�o marcados como failed (o cliente j� desistiu)
+    // Timers =24h s�o processados normalmente
     // -----------------------------------------------------------------------
     const STALE_24H_MS = 24 * 60 * 60 * 1000;
     const staleTimers = pendingTimers.filter(t => (Date.now() - t.executeAt.getTime()) > STALE_24H_MS);
     
     if (staleTimers.length > 0) {
-      console.log(`🗑️ [PENDING CRON] Marcando ${staleTimers.length} timers >24h como FAILED (stale_over_24h)`);
+      console.log(`??? [PENDING CRON] Marcando ${staleTimers.length} timers >24h como FAILED (stale_over_24h)`);
       for (const stale of staleTimers) {
         try {
           await storage.markPendingAIResponseFailed(stale.conversationId, 'stale_over_24h');
@@ -12149,7 +12797,7 @@ async function processPendingTimersCron(): Promise<void> {
       }
     }
     
-    // Filtrar apenas os que já expiraram e não estão em memória (excluir os >24h já marcados)
+    // Filtrar apenas os que j� expiraram e n�o est�o em mem�ria (excluir os >24h j� marcados)
     const expiredTimers = pendingTimers.filter(timer => {
       const timeSinceExecute = Date.now() - timer.executeAt.getTime();
       const isExpired = timeSinceExecute > 0;
@@ -12157,20 +12805,20 @@ async function processPendingTimersCron(): Promise<void> {
       const isInMemory = pendingResponses.has(timer.conversationId);
       let isBeingProcessed = conversationsBeingProcessed.has(timer.conversationId);
       
-      // 🔒 SECTION 4: TTL check — release stale processing locks
+      // ?? SECTION 4: TTL check � release stale processing locks
       if (isBeingProcessed) {
         const processingStartedAt = conversationsBeingProcessed.get(timer.conversationId)!;
         const processingAge = Date.now() - processingStartedAt;
         if (processingAge > PROCESSING_TTL_MS) {
-          console.log(`⚠️ [PENDING CRON] PROCESSING_STALE_RELEASED: ${timer.contactNumber} (conv ${timer.conversationId.substring(0, 8)}) — preso há ${Math.round(processingAge / 1000)}s, liberando lock`);
+          console.log(`?? [PENDING CRON] PROCESSING_STALE_RELEASED: ${timer.contactNumber} (conv ${timer.conversationId.substring(0, 8)}) � preso h� ${Math.round(processingAge / 1000)}s, liberando lock`);
           conversationsBeingProcessed.delete(timer.conversationId);
           isBeingProcessed = false;
         }
       }
       
-      // 🔍 DEBUG: Logar por que alguns timers são filtrados
+      // ?? DEBUG: Logar por que alguns timers s�o filtrados
       if (isExpired && !isStale24h && (isInMemory || isBeingProcessed)) {
-        console.log(`⏸️ [PENDING CRON] ${timer.contactNumber} - Filtrado: inMemory=${isInMemory}, beingProcessed=${isBeingProcessed}`);
+        console.log(`?? [PENDING CRON] ${timer.contactNumber} - Filtrado: inMemory=${isInMemory}, beingProcessed=${isBeingProcessed}`);
       }
       
       return isExpired && !isStale24h && !isInMemory && !isBeingProcessed;
@@ -12178,14 +12826,14 @@ async function processPendingTimersCron(): Promise<void> {
     
     if (expiredTimers.length === 0) {
       if (pendingTimers.length > staleTimers.length) {
-        console.log(`🔄 [PENDING CRON] Ciclo: ${pendingTimers.length} timers (${staleTimers.length} stale removidos), restantes filtrados (em memória/processando/futuros)`);
+        console.log(`?? [PENDING CRON] Ciclo: ${pendingTimers.length} timers (${staleTimers.length} stale removidos), restantes filtrados (em mem�ria/processando/futuros)`);
       }
       return;
     }
     
-    console.log(`\n🔄 [PENDING CRON] =========================================`);
-    console.log(`🔄 [PENDING CRON] Encontrados ${expiredTimers.length} timers órfãos para processar`);
-    console.log(`🔄 [PENDING CRON] Sessões ativas: ${sessions.size} | Stale removidos: ${staleTimers.length}`);
+    console.log(`\n?? [PENDING CRON] =========================================`);
+    console.log(`?? [PENDING CRON] Encontrados ${expiredTimers.length} timers �rf�os para processar`);
+    console.log(`?? [PENDING CRON] Sess�es ativas: ${sessions.size} | Stale removidos: ${staleTimers.length}`);
     
     let processed = 0;
     let skipped = 0;
@@ -12194,8 +12842,8 @@ async function processPendingTimersCron(): Promise<void> {
     for (const timer of expiredTimers) {
       const { conversationId, userId, contactNumber, jidSuffix, messages } = timer;
       
-      // 🔒 SECTION 5: Resolver sessão por connectionId do timer PRIMEIRO,
-      // fallback para lookup da conversa e por último userId.
+      // ?? SECTION 5: Resolver sess�o por connectionId do timer PRIMEIRO,
+      // fallback para lookup da conversa e por �ltimo userId.
       let session: WhatsAppSession | undefined;
       let resolvedConnectionId: string | undefined = timer.connectionId;
       
@@ -12225,23 +12873,34 @@ async function processPendingTimersCron(): Promise<void> {
             }
           }
         } catch (_convErr) {
-          // Non-critical — fallback to userId
+          // Non-critical � fallback to userId
         }
       }
       
       // Passo 3: Fallback para userId (SessionMap has userId index)
       if (!session) {
-        session = sessions.get(userId);
-        if (session) {
-          promoteSessionOpenState(session, 'pending_cron_user_fallback');
+        const userSessions = sessions.getAllByUserId(userId);
+        const readyUserSessions = userSessions.filter((candidate) => isSessionReadyForMessaging(candidate));
+        if (readyUserSessions.length === 1) {
+          session = readyUserSessions[0];
+          resolvedConnectionId = session.connectionId;
+          promoteSessionOpenState(session, 'pending_cron_user_fallback_single_ready');
+        } else if (readyUserSessions.length > 1) {
+          console.log(`?? [PENDING CRON] ${contactNumber} - M�ltiplas sess�es prontas para user ${userId.substring(0,8)} sem connectionId. Pulando para evitar envio no n�mero errado.`);
+        } else if (userSessions.length === 1) {
+          session = userSessions[0];
+          resolvedConnectionId = session.connectionId;
+          promoteSessionOpenState(session, 'pending_cron_user_fallback_single_session');
+        } else if (userSessions.length > 1) {
+          console.log(`?? [PENDING CRON] ${contactNumber} - M�ltiplas sess�es para user ${userId.substring(0,8)} sem connectionId. Pulando por ambiguidade.`);
         }
       }
       
       if (!isSessionReadyForMessaging(session)) {
         // -----------------------------------------------------------------------
-        // FIX 2026-02-24: Quando sessão indisponível mas DB diz conectado,
-        // tentar reconectar ao invés de simplesmente pular.
-        // Guard: Só tenta reconectar 1x por usuário por ciclo do CRON.
+        // FIX 2026-02-24: Quando sess�o indispon�vel mas DB diz conectado,
+        // tentar reconectar ao inv�s de simplesmente pular.
+        // Guard: S� tenta reconectar 1x por usu�rio por ciclo do CRON.
         // -----------------------------------------------------------------------
         const reconnectScopeKey = resolvedConnectionId || userId;
         if (!reconnectAttemptedScopes.has(reconnectScopeKey)) {
@@ -12249,27 +12908,37 @@ async function processPendingTimersCron(): Promise<void> {
             ? await storage.getConnectionById(resolvedConnectionId)
             : undefined;
           if (!connState) {
-            connState = await storage.getConnectionByUserId(userId);
+            const userConnections = await storage.getConnectionsByUserId(userId);
+            if (userConnections.length === 1) {
+              connState = userConnections[0];
+              resolvedConnectionId = connState.id;
+            } else if (userConnections.length > 1) {
+              console.log(`?? [PENDING CRON] ${contactNumber} - N�o foi poss�vel determinar conex�o �nica para reconnect (user ${userId.substring(0,8)}).`);
+            }
           }
           const connId = connState?.id || resolvedConnectionId;
           if (connState?.isConnected && connId) {
             const existingSession = sessions.get(connId);
             if (!isSessionReadyForMessaging(existingSession)) {
-              console.log(`🔄 [PENDING CRON] ${contactNumber} - Sessão indisponível (conn: ${connId.substring(0,8)}, userId: ${userId.substring(0,8)}) mas DB=connected. Tentando reconectar...`);
+              console.log(`?? [PENDING CRON] ${contactNumber} - Sess�o indispon�vel (conn: ${connId.substring(0,8)}, userId: ${userId.substring(0,8)}) mas DB=connected. Tentando reconectar...`);
               reconnectAttemptedScopes.add(reconnectScopeKey);
               try {
-                await connectWhatsApp(userId, connId);
-              } catch (reconErr) {
-                console.log(`⏭️ [PENDING CRON] ${contactNumber} - Reconexão falhou, pulando`);
+                await connectWhatsApp(userId, connId, { source: "pending_cron" });
+              } catch (reconErr: any) {
+                if (reconErr?.code === "WA_OPEN_TIMEOUT_COOLDOWN") {
+                  console.log(`?? [PENDING CRON] ${contactNumber} - Cooldown ativo ap�s open_timeout, aguardando pr�ximo ciclo`);
+                } else {
+                  console.log(`?? [PENDING CRON] ${contactNumber} - Reconex�o falhou, pulando`);
+                }
               }
             } else {
               if (existingSession) {
                 promoteSessionOpenState(existingSession, 'pending_cron_existing_ready');
               }
-              console.log(`⏭️ [PENDING CRON] ${contactNumber} - Socket já está operacional (isOpen=${existingSession?.isOpen}), aguardando próximo ciclo`);
+              console.log(`?? [PENDING CRON] ${contactNumber} - Socket j� est� operacional (isOpen=${existingSession?.isOpen}), aguardando pr�ximo ciclo`);
             }
           } else {
-            console.log(`⏭️ [PENDING CRON] ${contactNumber} - Sessão indisponível (DB: connected=${connState?.isConnected || false})`);
+            console.log(`?? [PENDING CRON] ${contactNumber} - Sess�o indispon�vel (DB: connected=${connState?.isConnected || false})`);
           }
         }
         skipped++;
@@ -12281,12 +12950,12 @@ async function processPendingTimersCron(): Promise<void> {
       const timeSinceExecute = Date.now() - timer.executeAt.getTime();
       
       if (timeSinceExecute > 2 * 60 * 60 * 1000) {
-        console.log(`⚠️ [PENDING CRON] ${contactNumber} - Timer antigo (${Math.round(timeSinceExecute/60000)}min), processando com prioridade!`);
+        console.log(`?? [PENDING CRON] ${contactNumber} - Timer antigo (${Math.round(timeSinceExecute/60000)}min), processando com prioridade!`);
       } else if (timeSinceExecute > 30 * 60 * 1000) {
-        console.log(`⚠️ [PENDING CRON] ${contactNumber} - Timer atrasado (${Math.round(timeSinceExecute/60000)}min), PROCESSANDO AGORA!`);
+        console.log(`?? [PENDING CRON] ${contactNumber} - Timer atrasado (${Math.round(timeSinceExecute/60000)}min), PROCESSANDO AGORA!`);
       }
       
-      console.log(`🚀 [PENDING CRON] Processando ${contactNumber} (timer órfão há ${Math.round(timeSinceExecute/1000)}s)`);
+      console.log(`?? [PENDING CRON] Processando ${contactNumber} (timer �rf�o h� ${Math.round(timeSinceExecute/1000)}s)`);
       
       // Criar objeto PendingResponse e processar
       const pending: PendingResponse = {
@@ -12311,16 +12980,20 @@ async function processPendingTimersCron(): Promise<void> {
       
       // Limitar a 25 por ciclo
       if (processed >= 25) {
-        console.log(`🔄 [PENDING CRON] Limite de 25 por ciclo atingido, continuará no próximo ciclo`);
+        console.log(`?? [PENDING CRON] Limite de 25 por ciclo atingido, continuar� no pr�ximo ciclo`);
         break;
       }
     }
     
-    console.log(`🔄 [PENDING CRON] Ciclo concluído: ${processed} processados, ${skipped} pulados`);
-    console.log(`🔄 [PENDING CRON] =========================================\n`);
+    console.log(`?? [PENDING CRON] Ciclo conclu�do: ${processed} processados, ${skipped} pulados`);
+    console.log(`?? [PENDING CRON] =========================================\n`);
     
   } catch (error) {
-    console.error(`❌ [PENDING CRON] Erro no cron:`, error);
+    console.error(`? [PENDING CRON] Erro no cron:`, error);
+  } finally {
+    if (distributedCronLock) {
+      await releaseDistributedLock(distributedCronLock);
+    }
   }
 }
 
@@ -12328,35 +13001,35 @@ export function stopPendingTimersCron(): void {
   if (pendingTimersCronInterval) {
     clearInterval(pendingTimersCronInterval);
     pendingTimersCronInterval = null;
-    console.log(`🛑 [PENDING CRON] Cron parado`);
+    console.log(`?? [PENDING CRON] Cron parado`);
   }
 }
 
-// ==================== CRON JOB: AUTO-RECUPERAÇÃO DE RESPOSTAS FALHADAS ====================
-// Verifica a cada 5 minutos se há timers "completed" que na verdade não receberam resposta
-// Isso é um "safety net" para garantir que nenhum cliente fique sem resposta
+// ==================== CRON JOB: AUTO-RECUPERA��O DE RESPOSTAS FALHADAS ====================
+// Verifica a cada 5 minutos se h� timers "completed" que na verdade n�o receberam resposta
+// Isso � um "safety net" para garantir que nenhum cliente fique sem resposta
 let autoRecoveryCronInterval: NodeJS.Timeout | null = null;
 
 export function startAutoRecoveryCron(): void {
   // ?? MODO DEV: Pular cron de auto-recovery se DISABLE_WHATSAPP_PROCESSING=true
   if (process.env.DISABLE_WHATSAPP_PROCESSING === 'true') {
-    console.log(`⏸️ [AUTO-RECOVERY] DESABILITADO - DISABLE_WHATSAPP_PROCESSING=true`);
+    console.log(`?? [AUTO-RECOVERY] DESABILITADO - DISABLE_WHATSAPP_PROCESSING=true`);
     return;
   }
   
   if (autoRecoveryCronInterval) {
-    console.log(`🚨 [AUTO-RECOVERY] Cron já está rodando`);
+    console.log(`?? [AUTO-RECOVERY] Cron j� est� rodando`);
     return;
   }
   
-  console.log(`🚨 [AUTO-RECOVERY] Iniciando cron de auto-recuperação (intervalo: 5min)`);
+  console.log(`?? [AUTO-RECOVERY] Iniciando cron de auto-recupera��o (intervalo: 5min)`);
   
   // Executar a cada 5 minutos
   autoRecoveryCronInterval = setInterval(async () => {
     await processAutoRecovery();
   }, 5 * 60 * 1000); // 5 minutos
   
-  // Primeira execução após 2 minutos
+  // Primeira execu��o ap�s 2 minutos
   setTimeout(async () => {
     await processAutoRecovery();
   }, 2 * 60 * 1000);
@@ -12364,18 +13037,18 @@ export function startAutoRecoveryCron(): void {
 
 async function processAutoRecovery(): Promise<void> {
   try {
-    // Buscar timers "completed" que não têm resposta real
+    // Buscar timers "completed" que n�o t�m resposta real
     const failedTimers = await storage.getCompletedTimersWithoutResponse();
     
-    // 🔄 FIX 2026-02-25: Also recover "failed" timers with transient reasons
+    // ?? FIX 2026-02-25: Also recover "failed" timers with transient reasons
     const transientFailed = await storage.getFailedTransientTimers();
     
     if (failedTimers.length === 0 && transientFailed.length === 0) {
       return; // Nada para recuperar
     }
     
-    console.log(`\n🚨 [AUTO-RECOVERY] =========================================`);
-    console.log(`🚨 [AUTO-RECOVERY] Encontrados ${failedTimers.length} completed sem resposta + ${transientFailed.length} failed transitórios`);
+    console.log(`\n?? [AUTO-RECOVERY] =========================================`);
+    console.log(`?? [AUTO-RECOVERY] Encontrados ${failedTimers.length} completed sem resposta + ${transientFailed.length} failed transit�rios`);
     
     let recovered = 0;
     let skipped = 0;
@@ -12385,81 +13058,113 @@ async function processAutoRecovery(): Promise<void> {
     for (const timer of failedTimers) {
       const { conversationId, userId, contactNumber, jidSuffix, messages } = timer;
       
-      // Verificar se já está em processamento
+      // Verificar se j� est� em processamento
       if (conversationsBeingProcessed.has(conversationId)) {
-        console.log(`⏭️ [AUTO-RECOVERY] ${contactNumber} - Em processamento, pulando`);
+        console.log(`?? [AUTO-RECOVERY] ${contactNumber} - Em processamento, pulando`);
         skipped++;
         continue;
       }
       
-      // Verificar se já tem timer em memória
+      // Verificar se j� tem timer em mem�ria
       if (pendingResponses.has(conversationId)) {
-        console.log(`⏭️ [AUTO-RECOVERY] ${contactNumber} - Já tem timer ativo, pulando`);
+        console.log(`?? [AUTO-RECOVERY] ${contactNumber} - J� tem timer ativo, pulando`);
         skipped++;
         continue;
       }
       
-      // Verificar se a sessão do usuário está disponível
-      const session = sessions.get(userId);
-      if (!session?.socket) {
-        console.log(`⏭️ [AUTO-RECOVERY] ${contactNumber} - Sessão ${userId.substring(0,8)}... indisponível, pulando`);
+      // Resolver conex�o da conversa para evitar enviar pelo n�mero errado em multi-conex�o
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation?.connectionId) {
+        console.log(`?? [AUTO-RECOVERY] ${contactNumber} - Conversa sem connectionId, pulando`);
+        skipped++;
+        continue;
+      }
+      const scopedConnection = await storage.getConnectionById(conversation.connectionId);
+      if (!scopedConnection || scopedConnection.userId !== userId) {
+        console.log(`?? [AUTO-RECOVERY] ${contactNumber} - Escopo inv�lido da conversa (${conversation.connectionId}), pulando`);
+        skipped++;
+        continue;
+      }
+      if (scopedConnection.aiEnabled === false) {
+        console.log(`?? [AUTO-RECOVERY] ${contactNumber} - IA desativada para conex�o ${conversation.connectionId}, pulando`);
+        skipped++;
+        continue;
+      }
+
+      // Verificar se a sess�o da conex�o da conversa est� dispon�vel
+      const session = sessions.get(conversation.connectionId);
+      if (!isSessionReadyForMessaging(session)) {
+        console.log(`?? [AUTO-RECOVERY] ${contactNumber} - Sess�o ${conversation.connectionId.substring(0,8)}... indispon�vel, pulando`);
         skipped++;
         continue;
       }
       
-      console.log(`🔄 [AUTO-RECOVERY] Recuperando resposta para ${contactNumber} (user: ${userId.substring(0,8)}..., ${messages.length} msgs)`);
+      console.log(`?? [AUTO-RECOVERY] Recuperando resposta para ${contactNumber} (conn: ${conversation.connectionId.substring(0,8)}..., ${messages.length} msgs)`);
       
       // Resetar o timer para pending
       await storage.resetPendingAIResponseForRetry(conversationId);
       
       // Criar objeto PendingResponse
-      // NOTA: Cada WhatsApp (userId) tem sua PRÓPRIA fila no messageQueueService
-      // Não precisamos escalonar aqui - a fila anti-ban cuida de tudo
+      // NOTA: Cada WhatsApp (userId) tem sua PR�PRIA fila no messageQueueService
+      // N�o precisamos escalonar aqui - a fila anti-ban cuida de tudo
       const pending: PendingResponse = {
         timeout: null as any,
         messages,
         conversationId,
         userId,
+        connectionId: conversation.connectionId,
         contactNumber,
         jidSuffix: jidSuffix || DEFAULT_JID_SUFFIX,
         startTime: Date.now(),
       };
       
       // Processar imediatamente - a fila do messageQueueService vai organizar
-      // Cada userId tem sua própria fila, então múltiplos WhatsApps podem processar em paralelo
+      // Cada userId tem sua pr�pria fila, ent�o m�ltiplos WhatsApps podem processar em paralelo
       processAccumulatedMessages(pending).catch(err => {
-        console.error(`❌ [AUTO-RECOVERY] Erro ao processar ${contactNumber}:`, err);
+        console.error(`? [AUTO-RECOVERY] Erro ao processar ${contactNumber}:`, err);
       });
       
       recovered++;
       
-      // Limitar quantidade por ciclo para não sobrecarregar o servidor
+      // Limitar quantidade por ciclo para n�o sobrecarregar o servidor
       if (recovered >= 10) {
-        console.log(`🚨 [AUTO-RECOVERY] Limite de 10 por ciclo atingido, continuará no próximo`);
+        console.log(`?? [AUTO-RECOVERY] Limite de 10 por ciclo atingido, continuar� no pr�ximo`);
         break;
       }
     }
     
-    // 🔄 FIX 2026-02-25: Recover failed transient timers
+    // ?? FIX 2026-02-25: Recover failed transient timers
     for (const timer of transientFailed) {
       if (recovered >= 15) break; // Limit total per cycle
       
       const { conversationId, userId, contactNumber, jidSuffix, messages, failureReason, retryCount } = timer;
       
-      // Verificar se já está em processamento
+      // Verificar se j� est� em processamento
       if (conversationsBeingProcessed.has(conversationId) || pendingResponses.has(conversationId)) {
         skipped++;
         continue;
       }
       
-      // Verificar sessão
-      const session = sessions.get(userId);
+      // Resolver conex�o da conversa para evitar enviar pelo n�mero errado em multi-conex�o
+      const conversation = await storage.getConversation(conversationId);
+      if (!conversation?.connectionId) {
+        skipped++;
+        continue;
+      }
+      const scopedConnection = await storage.getConnectionById(conversation.connectionId);
+      if (!scopedConnection || scopedConnection.userId !== userId || scopedConnection.aiEnabled === false) {
+        skipped++;
+        continue;
+      }
+
+      // Verificar sess�o da conex�o da conversa
+      const session = sessions.get(conversation.connectionId);
       if (!isSessionReadyForMessaging(session)) {
         skipped++;
         continue;
       }
       
-      console.log(`🔄 [AUTO-RECOVERY] Recuperando FAILED transitório: ${contactNumber} (reason: ${failureReason}, retries: ${retryCount})`);
+      console.log(`?? [AUTO-RECOVERY] Recuperando FAILED transit�rio: ${contactNumber} (conn: ${conversation.connectionId.substring(0,8)}, reason: ${failureReason}, retries: ${retryCount})`);
       
       // Reset para pending com retry_count preservado
       await storage.resetPendingAIResponseForRetry(conversationId, 5);
@@ -12471,23 +13176,24 @@ async function processAutoRecovery(): Promise<void> {
         messages,
         conversationId,
         userId,
+        connectionId: conversation.connectionId,
         contactNumber,
         jidSuffix: jidSuffix || DEFAULT_JID_SUFFIX,
         startTime: Date.now(),
       };
       
       processAccumulatedMessages(pending).catch(err => {
-        console.error(`❌ [AUTO-RECOVERY] Erro ao processar failed transitório ${contactNumber}:`, err);
+        console.error(`? [AUTO-RECOVERY] Erro ao processar failed transit�rio ${contactNumber}:`, err);
       });
       
       recovered++;
     }
     
-    console.log(`🚨 [AUTO-RECOVERY] Ciclo concluído: ${recovered} enviados para fila, ${skipped} pulados`);
-    console.log(`🚨 [AUTO-RECOVERY] =========================================\n`);
+    console.log(`?? [AUTO-RECOVERY] Ciclo conclu�do: ${recovered} enviados para fila, ${skipped} pulados`);
+    console.log(`?? [AUTO-RECOVERY] =========================================\n`);
     
   } catch (error) {
-    console.error(`❌ [AUTO-RECOVERY] Erro no cron:`, error);
+    console.error(`? [AUTO-RECOVERY] Erro no cron:`, error);
   }
 }
 
@@ -12495,12 +13201,12 @@ export function stopAutoRecoveryCron(): void {
   if (autoRecoveryCronInterval) {
     clearInterval(autoRecoveryCronInterval);
     autoRecoveryCronInterval = null;
-    console.log(`🛑 [AUTO-RECOVERY] Cron parado`);
+    console.log(`?? [AUTO-RECOVERY] Cron parado`);
   }
 }
 
-// ==================== RE-DOWNLOAD DE MÍDIA ====================
-// Função para tentar re-baixar mídia do WhatsApp usando metadados salvos
+// ==================== RE-DOWNLOAD DE M�DIA ====================
+// Fun��o para tentar re-baixar m�dia do WhatsApp usando metadados salvos
 export async function redownloadMedia(
   connectionId: string,
   mediaKeyBase64: string,
@@ -12510,18 +13216,18 @@ export async function redownloadMedia(
   mediaMimeType: string
 ): Promise<{ success: boolean; mediaUrl?: string; error?: string }> {
   try {
-    console.log(`🔄 [REDOWNLOAD] Tentando re-baixar mídia...`);
-    console.log(`🔄 [REDOWNLOAD] connectionId: ${connectionId}`);
-    console.log(`🔄 [REDOWNLOAD] mediaType: ${mediaType}`);
-    console.log(`🔄 [REDOWNLOAD] directPath: ${directPath?.substring(0, 50)}...`);
+    console.log(`?? [REDOWNLOAD] Tentando re-baixar m�dia...`);
+    console.log(`?? [REDOWNLOAD] connectionId: ${connectionId}`);
+    console.log(`?? [REDOWNLOAD] mediaType: ${mediaType}`);
+    console.log(`?? [REDOWNLOAD] directPath: ${directPath?.substring(0, 50)}...`);
 
-    // Encontrar a sessão ativa para esta conexão
+    // Encontrar a sess�o ativa para esta conex�o
     const session = Array.from(sessions.values()).find(s => s.connectionId === connectionId);
     
     if (!session || !session.socket) {
       return { 
         success: false, 
-        error: "WhatsApp não conectado. Conecte-se primeiro para re-baixar mídias." 
+        error: "WhatsApp n�o conectado. Conecte-se primeiro para re-baixar m�dias." 
       };
     }
 
@@ -12531,7 +13237,7 @@ export async function redownloadMedia(
     // Converter mediaKey de base64 para Uint8Array
     const mediaKey = Buffer.from(mediaKeyBase64, "base64");
 
-    // Mapear tipo de mídia para MediaType do Baileys
+    // Mapear tipo de m�dia para MediaType do Baileys
     const mediaTypeMap: { [key: string]: string } = {
       image: "image",
       audio: "audio",
@@ -12542,7 +13248,7 @@ export async function redownloadMedia(
     const baileysMediaType = mediaTypeMap[mediaType] || "document";
 
     // Tentar re-baixar usando downloadContentFromMessage
-    console.log(`🔄 [REDOWNLOAD] Chamando downloadContentFromMessage...`);
+    console.log(`?? [REDOWNLOAD] Chamando downloadContentFromMessage...`);
     
     const stream = await downloadContentFromMessage(
       { 
@@ -12560,69 +13266,69 @@ export async function redownloadMedia(
     }
     const buffer = Buffer.concat(chunks);
 
-    console.log(`✅ [REDOWNLOAD] Mídia re-baixada: ${buffer.length} bytes`);
+    console.log(`? [REDOWNLOAD] M�dia re-baixada: ${buffer.length} bytes`);
 
     if (buffer.length === 0) {
-      return { success: false, error: "Mídia vazia - pode ter expirado no WhatsApp" };
+      return { success: false, error: "M�dia vazia - pode ter expirado no WhatsApp" };
     }
 
-    // Upload para Supabase Storage (função já está definida no topo deste arquivo)
-    // A função uploadMediaSimple recebe: (buffer, mimeType, originalFileName?)
+    // Upload para Supabase Storage (fun��o j� est� definida no topo deste arquivo)
+    // A fun��o uploadMediaSimple recebe: (buffer, mimeType, originalFileName?)
     const filename = `redownloaded_${Date.now()}.${mediaType}`;
     const newMediaUrl = await uploadMediaSimple(buffer, mediaMimeType, filename);
 
     if (!newMediaUrl) {
       // SEM fallback para base64 - evitar egress!
-      console.warn(`⚠️ [REDOWNLOAD] Falha no upload, mídia não será salva`);
-      return { success: false, error: "Erro ao fazer upload da mídia re-baixada" };
+      console.warn(`?? [REDOWNLOAD] Falha no upload, m�dia n�o ser� salva`);
+      return { success: false, error: "Erro ao fazer upload da m�dia re-baixada" };
     }
 
-    console.log(`✅ [REDOWNLOAD] Nova URL gerada com sucesso!`);
+    console.log(`? [REDOWNLOAD] Nova URL gerada com sucesso!`);
     return { success: true, mediaUrl: newMediaUrl };
 
   } catch (error: any) {
-    console.error(`❌ [REDOWNLOAD] Erro ao re-baixar mídia:`, error);
+    console.error(`? [REDOWNLOAD] Erro ao re-baixar m�dia:`, error);
     
     // Erros comuns do WhatsApp
     if (error.message?.includes("gone") || error.message?.includes("404") || error.message?.includes("expired")) {
-      return { success: false, error: "Mídia expirada - não está mais disponível no WhatsApp" };
+      return { success: false, error: "M�dia expirada - n�o est� mais dispon�vel no WhatsApp" };
     }
     if (error.message?.includes("decrypt")) {
       return { success: false, error: "Erro de descriptografia - chave pode estar corrompida" };
     }
     
-    return { success: false, error: error.message || "Erro desconhecido ao re-baixar mídia" };
+    return { success: false, error: error.message || "Erro desconhecido ao re-baixar m�dia" };
   }
 }
 
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// 🚨 SISTEMA DE RECUPERAÇÃO: Registrar processador de mensagens pendentes
-// ═══════════════════════════════════════════════════════════════════════════════
+// -------------------------------------------------------------------------------
+// ?? SISTEMA DE RECUPERA��O: Registrar processador de mensagens pendentes
+// -------------------------------------------------------------------------------
 // Este callback permite que o pendingMessageRecoveryService reprocesse mensagens
 // que chegaram durante instabilidade/deploys do Railway
 // 
-// IMPORTANTE: Este código deve ficar no FINAL do arquivo para garantir que
-// todas as funções necessárias já foram definidas
-// ═══════════════════════════════════════════════════════════════════════════════
+// IMPORTANTE: Este c�digo deve ficar no FINAL do arquivo para garantir que
+// todas as fun��es necess�rias j� foram definidas
+// -------------------------------------------------------------------------------
 
 setTimeout(() => {
   try {
-    registerMessageProcessor(async (userId: string, waMessage: WAMessage) => {
-      // Buscar sessão ativa
-      const session = sessions.get(userId);
+    registerMessageProcessor(async (userId: string, connectionId: string, waMessage: WAMessage) => {
+      // Buscar sess�o ativa
+      const session = sessions.get(connectionId);
       
       if (!session?.socket) {
-        console.log(`🚨 [RECOVERY] Sessão não encontrada para ${userId.substring(0, 8)}... - pulando`);
-        throw new Error('Sessão não disponível');
+        console.log(`?? [RECOVERY] Sess�o n�o encontrada para ${userId.substring(0, 8)}... conn=${connectionId.substring(0, 8)} - pulando`);
+        throw new Error('Sess�o n�o dispon�vel');
       }
       
-      // Usar a função handleIncomingMessage existente
+      // Usar a fun��o handleIncomingMessage existente
       await handleIncomingMessage(session, waMessage);
     });
     
-    console.log(`🚨 [RECOVERY] ✅ Message processor registrado com sucesso!`);
+    console.log(`?? [RECOVERY] ? Message processor registrado com sucesso!`);
   } catch (err) {
-    console.error(`🚨 [RECOVERY] ❌ Erro ao registrar message processor:`, err);
+    console.error(`?? [RECOVERY] ? Erro ao registrar message processor:`, err);
   }
 }, 1000); // Aguardar 1 segundo para garantir que tudo foi inicializado

@@ -1602,6 +1602,8 @@ export interface MediaClassificationInput {
     isActive?: boolean;
   }>;
   sentMedias?: string[];
+  /** Texto da resposta da IA principal (quando ela mencionou enviar mídia mas esqueceu a tag) */
+  aiResponseText?: string;
 }
 
 export interface MediaClassificationResult {
@@ -1624,7 +1626,7 @@ export async function classifyMediaWithLLM(
     console.log(`\n🤖 [MEDIA AI] ════════════════════════════════════════════════`);
     console.log(`🤖 [MEDIA AI] Iniciando classificação de mídia com LLM...`);
     
-    const { clientMessage, conversationHistory, mediaLibrary, sentMedias = [] } = input;
+    const { clientMessage, conversationHistory, mediaLibrary, sentMedias = [], aiResponseText } = input;
     
     // Filtrar mídias já enviadas e inativas
     const availableMedia = mediaLibrary.filter(m => {
@@ -1635,6 +1637,13 @@ export async function classifyMediaWithLLM(
     if (availableMedia.length === 0) {
       console.log(`🤖 [MEDIA AI] ❌ Nenhuma mídia disponível`);
       return { shouldSend: false, mediaName: null, confidence: 0, reason: 'Nenhuma mídia disponível' };
+    }
+    
+    // 🔍 Detectar se a IA principal expressou intenção de enviar mídia
+    const aiIntendedToSendMedia = aiResponseText ? detectMediaSendingIntent(aiResponseText) : false;
+    if (aiIntendedToSendMedia) {
+      console.log(`🤖 [MEDIA AI] 🎯 IA principal EXPRESSOU INTENÇÃO de enviar mídia na resposta!`);
+      console.log(`🤖 [MEDIA AI] 💬 Resposta IA: "${aiResponseText!.substring(0, 150)}..."`);
     }
     
     // Detectar se é primeira mensagem
@@ -1663,14 +1672,21 @@ Sua tarefa é analisar a conversa e decidir SE e QUAL mídia deve ser enviada ao
 4. Leia o campo "QUANDO USAR" de cada mídia para entender quando é apropriado enviar
 5. Se nenhuma mídia for claramente apropriada, responda com NO_MEDIA
 6. Confiança deve ser entre 0-100 (apenas envie se > 60)
-
+${aiIntendedToSendMedia ? `
+## 🚨 CONTEXTO CRÍTICO: A IA PRINCIPAL JÁ DECIDIU ENVIAR MÍDIA!
+A IA que gerou a resposta ao cliente JÁ EXPRESSOU INTENÇÃO de enviar mídia.
+Ela disse algo como "vou te enviar", "segue o vídeo", "aqui está o áudio", etc.
+Portanto, você DEVE encontrar a mídia mais adequada para enviar.
+NÃO responda NO_MEDIA a menos que NENHUMA mídia seja remotamente relevante.
+A confiança mínima DEVE ser 70+ quando a IA já decidiu enviar.
+` : ''}
 ## RESPONDA APENAS EM JSON:
 {"decision": "SEND" ou "NO_MEDIA", "mediaName": "NOME_EXATO_DA_MIDIA" ou null, "confidence": 0-100, "reason": "explicação breve"}`;
 
     const userPrompt = `## CONTEXTO:
 É a primeira mensagem do cliente? ${isFirstMessage ? 'SIM' : 'NÃO'}
 Mensagem atual do cliente: "${clientMessage}"
-
+${aiResponseText ? `\n## RESPOSTA DA IA PRINCIPAL (que será enviada ao cliente):\n"${aiResponseText.substring(0, 500)}"\n` : ''}
 ## HISTÓRICO RECENTE:
 ${recentHistory || '(primeira interação)'}
 
@@ -1737,9 +1753,8 @@ Analise e decida se alguma mídia deve ser enviada. Responda APENAS o JSON.`;
       jsonToParse = jsonToParse.replace(/```json\s*/gi, '').replace(/```\s*/gi, '').trim();
       const parsed = JSON.parse(jsonToParse);
       
-      // 🔧 FIX: Reduzir threshold de confiança de 60% para 40% para não perder mídias
-      // A IA é muito conservadora e precisa de threshold mais baixo
-      const confidenceThreshold = 40;
+      // 🔧 FIX: Threshold dinâmico - se a IA principal já decidiu enviar, aceitar com confiança mais baixa
+      const confidenceThreshold = aiIntendedToSendMedia ? 20 : 40;
       
       const result: MediaClassificationResult = {
         shouldSend: parsed.decision === 'SEND' && parsed.confidence >= confidenceThreshold,
@@ -1774,4 +1789,59 @@ Analise e decida se alguma mídia deve ser enviada. Responda APENAS o JSON.`;
     // Em caso de erro, retorna "não enviar" para não quebrar o fluxo
     return { shouldSend: false, mediaName: null, confidence: 0, reason: `Erro: ${error.message}` };
   }
+}
+
+/**
+ * 🔍 Detecta se o texto da IA expressa intenção de enviar mídia
+ * Usado para saber se o forceMediaDetection deve ser mais agressivo
+ * 
+ * Retorna true se a IA disse algo como "vou te enviar", "segue o vídeo", etc.
+ */
+export function detectMediaSendingIntent(aiResponseText: string): boolean {
+  if (!aiResponseText) return false;
+  
+  const normalized = aiResponseText
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  
+  // Padrões que indicam que a IA quer enviar mídia
+  const mediaIntentPatterns = [
+    // Frases de envio direto
+    /vou\s+te\s+enviar/,
+    /vou\s+enviar/,
+    /ja\s+te\s+envio/,
+    /te\s+envio\s+/,
+    /te\s+mando\s+/,
+    /vou\s+te\s+mandar/,
+    /vou\s+mandar/,
+    /enviando\s+(o|a|um|uma|esse|essa|este|esta|pra|para)/,
+    /segue\s+(o|a|um|uma)\s+(video|audio|imagem|documento|pdf|foto|arquivo|material)/,
+    /aqui\s+esta\s+(o|a|um|uma)\s+(video|audio|imagem|documento|pdf|foto|arquivo|material)/,
+    /confira?\s+(o|a|esse|essa|este|esta)\s+(video|audio|imagem|documento|pdf|foto|arquivo|material)/,
+    /olha?\s+(o|a|esse|essa|este|esta)\s+(video|audio|imagem|documento|pdf|foto|arquivo|material)/,
+    /assista\s+(o|a|esse|essa|este|esta)/,
+    /ouca\s+(o|a|esse|essa|este|esta)/,
+    /veja\s+(o|a|esse|essa|este|esta)\s+(video|audio|imagem|documento|pdf|foto|arquivo|material)/,
+    /da\s+uma\s+olhada\s+n(o|a|esse|essa)/,
+    /deixa\s+eu\s+te\s+(enviar|mandar|mostrar|passar)/,
+    /to\s+te\s+enviando/,
+    /estou\s+te\s+enviando/,
+    /ja\s+estou\s+enviando/,
+    /preparei\s+(um|uma|esse|essa)\s+(video|audio|imagem|documento|material)/,
+    /tenho\s+(um|uma)\s+(video|audio|imagem|material)\s+(pra|para)\s+(voce|vc|ti)/,
+    // Frases indicando conteúdo multimídia  
+    /vai\s+receber\s+(o|a|um|uma)/,
+    /pode\s+assistir/,
+    /pode\s+ouvir/,
+    /pode\s+conferir\s+(o|a|esse|essa|no|na)\s*(video|audio)/,
+  ];
+  
+  for (const pattern of mediaIntentPatterns) {
+    if (pattern.test(normalized)) {
+      return true;
+    }
+  }
+  
+  return false;
 }

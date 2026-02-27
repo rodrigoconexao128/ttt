@@ -1,5 +1,54 @@
 
 /**
+ * 🛡️ Sanitiza e valida nome de contato do WhatsApp (pushName)
+ * 
+ * Nomes inválidos para uso em conversação:
+ * - Só números: "5511999887766"
+ * - Só símbolos/pontuação: "-----", "***", "...", "___"
+ * - Contém "visitante" (fallback genérico do sistema)
+ * - Muito curto para ser nome real (1 char)
+ * - Só emojis
+ * - Caracteres sem sentido (repetição do mesmo char 3+)
+ * 
+ * @param contactName Nome bruto do pushName do WhatsApp
+ * @returns Nome limpo e válido, ou string vazia se inválido
+ */
+export function sanitizeContactName(contactName?: string): string {
+  if (!contactName) return "";
+  
+  const trimmed = contactName.trim();
+  if (!trimmed) return "";
+  
+  // Só dígitos (número de telefone como nome)
+  if (/^\d+$/.test(trimmed)) return "";
+  
+  // "visitante" ou variações
+  if (/visitante|visitor|guest/i.test(trimmed)) return "";
+  
+  // Remover emojis para avaliar o texto real
+  const withoutEmojis = trimmed
+    .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FAFF}\u{200D}\u{200B}-\u{200F}]/gu, '')
+    .trim();
+  
+  // Se só tinha emojis, nome inválido
+  if (!withoutEmojis) return "";
+  
+  // Só símbolos/pontuação (sem letras): "-----", "***", "...", "___", ".·." etc
+  if (!/[a-zA-ZÀ-ÿ]/.test(withoutEmojis)) return "";
+  
+  // Muito curto para ser nome real (1 caractere de letra)
+  const lettersOnly = withoutEmojis.replace(/[^a-zA-ZÀ-ÿ]/g, '');
+  if (lettersOnly.length < 2) return "";
+  
+  // Mesmo caractere repetido 3+ vezes (ex: "aaa", "bbb", "xxx")
+  if (/^(.)\1{2,}$/i.test(lettersOnly)) return "";
+  
+  // Nome válido! Retornar versão limpa (sem emojis excessivos no nome)
+  // Mantemos o nome original trimado, pois pode ter acentos, espaços legítimos, etc.
+  return trimmed;
+}
+
+/**
  * Processa placeholders na resposta da IA e limpa artefatos indesejados.
  * @param text Texto original da resposta
  * @param contactName Nome do contato para substituição de variáveis
@@ -7,9 +56,7 @@
 export function processResponsePlaceholders(text: string, contactName?: string): string {
   if (!text) return text;
   
-  const formattedName = contactName && contactName.trim() && !contactName.match(/^\d+$/) 
-    ? contactName.trim() 
-    : "";
+  const formattedName = sanitizeContactName(contactName);
   
   let processed = text;
   

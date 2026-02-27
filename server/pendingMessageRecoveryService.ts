@@ -124,10 +124,10 @@ const CONFIG = {
 class PendingMessageRecoveryService {
   private supabase: SupabaseClient;
   private initialized = false;
-  private processingUsers = new Set<string>(); // Evita processamento paralelo
+  private processingScopes = new Set<string>(); // Evita processamento paralelo por conexão
   
   // Callback para processar mensagens (será registrado pelo whatsapp.ts)
-  private messageProcessor: ((userId: string, message: WAMessage) => Promise<void>) | null = null;
+  private messageProcessor: ((userId: string, connectionId: string, message: WAMessage) => Promise<void>) | null = null;
   
   // ════════════════════════════════════════════════════════════════════════════
   // CIRCUIT BREAKER STATE (Padrão Microsoft para falhas longas)
@@ -171,7 +171,7 @@ class PendingMessageRecoveryService {
    * Registra o callback que será usado para processar mensagens pendentes
    * Este método deve ser chamado pelo whatsapp.ts na inicialização
    */
-  registerMessageProcessor(processor: (userId: string, message: WAMessage) => Promise<void>): void {
+  registerMessageProcessor(processor: (userId: string, connectionId: string, message: WAMessage) => Promise<void>): void {
     this.messageProcessor = processor;
     console.log('🚨 [RECOVERY] Message processor registrado');
   }
@@ -322,7 +322,8 @@ class PendingMessageRecoveryService {
    */
   async startRecoveryForUser(userId: string, connectionId: string): Promise<void> {
     // Verificar se já está processando
-    if (this.processingUsers.has(userId)) {
+    const scopeKey = `${userId}:${connectionId}`;
+    if (this.processingScopes.has(scopeKey)) {
       console.log(`🚨 [RECOVERY] Usuário ${userId} já em processamento de recovery`);
       return;
     }
@@ -346,6 +347,7 @@ class PendingMessageRecoveryService {
       messagesSkipped: 0,
       errors: [],
     };
+    const scopeKey = `${userId}:${connectionId}`;
     
     if (!this.messageProcessor) {
       console.error('🚨 [RECOVERY] Message processor não registrado!');
@@ -353,7 +355,7 @@ class PendingMessageRecoveryService {
       return result;
     }
     
-    this.processingUsers.add(userId);
+    this.processingScopes.add(scopeKey);
     
     try {
       console.log(`\n🚨 ========================================`);
@@ -365,6 +367,7 @@ class PendingMessageRecoveryService {
         .from('pending_incoming_messages')
         .select('*')
         .eq('user_id', userId)
+        .eq('connection_id', connectionId)
         .eq('status', 'pending')
         .lt('process_attempts', CONFIG.MAX_PROCESS_ATTEMPTS)
         .order('received_at', { ascending: true })
@@ -430,7 +433,7 @@ class PendingMessageRecoveryService {
           console.log(`🚨 [RECOVERY] 🔄 [${i+1}/${pendingMessages.length}] Processando: ${pending.contact_number} - "${(pending.message_content || '').substring(0, 30)}..."`);
           
           // Processar usando o callback registrado
-          await this.messageProcessor(userId, waMessage);
+          await this.messageProcessor(userId, pending.connection_id || connectionId, waMessage);
           
           // Marcar como sucesso
           await this.markAsProcessed(pending.whatsapp_message_id);
@@ -495,7 +498,7 @@ class PendingMessageRecoveryService {
       console.error('🚨 [RECOVERY] Erro geral na recuperação:', err);
       result.errors.push(err instanceof Error ? err.message : 'Erro geral');
     } finally {
-      this.processingUsers.delete(userId);
+      this.processingScopes.delete(scopeKey);
     }
     
     return result;
@@ -527,6 +530,7 @@ class PendingMessageRecoveryService {
       .from('pending_incoming_messages')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', userId)
+      .eq('connection_id', connectionId)
       .eq('status', 'pending');
     
     await this.logConnectionHealth({
@@ -571,7 +575,7 @@ class PendingMessageRecoveryService {
     
     return {
       ...this.stats,
-      usersProcessing: this.processingUsers.size,
+      usersProcessing: this.processingScopes.size,
       lastCleanup: new Date(this.stats.lastCleanup).toISOString(),
       circuitBreakerStatus,
       consecutiveFailures: this.circuitBreaker.consecutiveFailures,
@@ -764,7 +768,7 @@ class PendingMessageRecoveryService {
 export const pendingMessageRecoveryService = new PendingMessageRecoveryService();
 
 // Funções de conveniência
-export function registerMessageProcessor(processor: (userId: string, message: WAMessage) => Promise<void>): void {
+export function registerMessageProcessor(processor: (userId: string, connectionId: string, message: WAMessage) => Promise<void>): void {
   pendingMessageRecoveryService.registerMessageProcessor(processor);
 }
 

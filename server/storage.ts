@@ -454,7 +454,10 @@ export interface IStorage {
   getAdminBroadcast?(adminId: string, id: string): Promise<any | undefined>;
   createAdminBroadcast?(data: any): Promise<string>;
   updateAdminBroadcast?(adminId: string, id: string, data: any): Promise<void>;
+  cancelAdminBroadcast?(adminId: string, id: string): Promise<void>;
   createAdminNotificationLog?(data: any): Promise<string>;
+  createBroadcastMessage?(data: any): Promise<string>;
+  getBroadcastMessages?(broadcastId: string): Promise<any[]>;
   
   // Pending AI Responses (persistent timers)
   savePendingAIResponse(data: {
@@ -505,7 +508,49 @@ const campaignsStore: Map<string, any[]> = new Map();
 const contactListsStore: Map<string, any[]> = new Map();
 const syncedContactsStore: Map<string, any[]> = new Map();
 
+function unwrapDbError(error: any): any {
+  if (!error || typeof error !== "object") return error;
+  return error.cause && typeof error.cause === "object" ? error.cause : error;
+}
+
+function getDbErrorCode(error: any): string | undefined {
+  const directCode = error?.code;
+  if (typeof directCode === "string" && directCode.length > 0) return directCode;
+  const wrappedCode = error?.cause?.code;
+  if (typeof wrappedCode === "string" && wrappedCode.length > 0) return wrappedCode;
+  return undefined;
+}
+
+function getDbConstraintName(error: any): string | undefined {
+  const directConstraint = error?.constraint;
+  if (typeof directConstraint === "string" && directConstraint.length > 0) return directConstraint;
+  const wrappedConstraint = error?.cause?.constraint;
+  if (typeof wrappedConstraint === "string" && wrappedConstraint.length > 0) return wrappedConstraint;
+  return undefined;
+}
+
+function getDbErrorMessage(error: any): string {
+  const raw = error?.message || error?.cause?.message || "";
+  return typeof raw === "string" ? raw : "";
+}
+
+function isPendingAiSkippedConstraintError(error: any): boolean {
+  const normalized = unwrapDbError(error);
+  const code = getDbErrorCode(normalized);
+  const constraint = getDbConstraintName(normalized)?.toLowerCase() || "";
+  const message = getDbErrorMessage(normalized).toLowerCase();
+
+  if (code === "23514") return true;
+  if (constraint.includes("pending_ai_responses_status_check")) return true;
+  return (
+    message.includes("pending_ai_responses_status_check") ||
+    (message.includes("violates check constraint") && message.includes("pending_ai_responses"))
+  );
+}
+
 export class DatabaseStorage implements IStorage {
+  private pendingAiSkippedUnsupported = false;
+
   // User operations
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));
@@ -3158,18 +3203,27 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
     result?: any;
   }> {
     try {
-      console.log(`🔍 [SAFE RESET] Verificando segurança para ${phoneNumber}...`);
+      const normalizePhone = (value?: string | null) => String(value || "").replace(/\D/g, "");
+      const cleanPhone = normalizePhone(phoneNumber);
+
+      console.log(`🔍 [SAFE RESET] Verificando seguranca para ${phoneNumber} -> ${cleanPhone}...`);
 
       // 1. Buscar usuário pelo telefone
-      const [user] = await db
+      let [user] = await db
         .select()
         .from(users)
-        .where(eq(users.phone, phoneNumber));
+        .where(eq(users.phone, cleanPhone));
+
+      // Fallback para telefones salvos com formatacao diferente
+      if (!user) {
+        const allUsers = await db.select().from(users);
+        user = allUsers.find((u) => normalizePhone(u.phone) === cleanPhone);
+      }
 
       if (!user) {
-        console.log(`⚠️ [SAFE RESET] Nenhum usuário encontrado para ${phoneNumber}`);
+        console.log(`⚠️ [SAFE RESET] Nenhum usuario encontrado para ${cleanPhone}`);
         // Se não tem usuário, apenas limpa conversas admin
-        const adminConv = await this.getAdminConversationByPhone(phoneNumber);
+        const adminConv = await this.getAdminConversationByPhone(cleanPhone);
         if (adminConv) {
           await db.delete(adminMessages).where(eq(adminMessages.conversationId, adminConv.id));
           await db.delete(adminConversations).where(eq(adminConversations.id, adminConv.id));
@@ -3182,17 +3236,19 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
 
       // 2. VALIDAÇÕES DE SEGURANÇA
       
-      // Validação 1: Email deve ser @agentezap.temp (conta gerada automaticamente)
-      // RELAXADO: Se o admin pediu reset, vamos permitir deletar mesmo se não for .temp, 
-      // desde que não tenha pagamentos reais (verificado abaixo)
-      /*
-      if (!user.email?.endsWith('@agentezap.temp')) {
+      // Validacao 1: conta precisa ser gerada automaticamente para esse telefone
+      const userEmail = String(user.email || "").toLowerCase().trim();
+      const managedEmails = new Set([
+        `${cleanPhone}@agentezap.com`,
+        `${cleanPhone}@agentezap.temp`,
+      ]);
+
+      if (!managedEmails.has(userEmail)) {
         return {
           success: false,
-          error: `⛔ Não é uma conta de teste! Email: ${user.email || 'não definido'}. Apenas contas @agentezap.temp podem ser deletadas.`
+          error: `⛔ Conta nao elegivel para reset seguro. Email atual: ${user.email || "nao definido"}.`,
         };
       }
-      */
 
       // Validação 2: Verificar conexão WhatsApp
       const [connection] = await db
@@ -3265,9 +3321,9 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
       }
 
       // ✅ TODAS AS VALIDAÇÕES PASSARAM - SAFE TO DELETE
-      console.log(`✅ [SAFE RESET] Validações OK para ${phoneNumber}. Procedendo com reset...`);
+      console.log(`✅ [SAFE RESET] Validacoes OK para ${cleanPhone}. Procedendo com reset...`);
       
-      const result = await this.resetClientByPhone(phoneNumber);
+      const result = await this.resetClientByPhone(cleanPhone);
       
       return {
         success: true,
@@ -5336,39 +5392,54 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
 
   async updateAdminBroadcast(adminId: string, id: string, data: any): Promise<void> {
     try {
-      const updates: string[] = [];
-      const values: any[] = [];
-
-      if (data.status !== undefined) {
-        updates.push('status = ?');
-        values.push(data.status);
-      }
-      if (data.sentCount !== undefined) {
-        updates.push('sent_count = ?');
-        values.push(data.sentCount);
-      }
-      if (data.failedCount !== undefined) {
-        updates.push('failed_count = ?');
-        values.push(data.failedCount);
-      }
-      if (data.startedAt !== undefined) {
-        updates.push('started_at = ?');
-        values.push(data.startedAt);
-      }
-      if (data.completedAt !== undefined) {
-        updates.push('completed_at = ?');
-        values.push(data.completedAt);
-      }
+      // Use simple individual UPDATE statements instead of dynamic sql.join
+      // sql.join was causing "syntax error at or near AND" in PostgreSQL
       
-      if (updates.length > 0) {
-        updates.push('updated_at = now()');
-        values.push(adminId, id);
-        
-        const query = `UPDATE admin_broadcasts SET ${updates.join(', ')} WHERE admin_id = ? AND id = ?`;
-        await db.execute(sql.raw(query, values));
+      if (data.status !== undefined && data.completedAt !== undefined) {
+        // Final completion update (status + counts + completedAt)
+        await db.execute(sql`UPDATE admin_broadcasts SET 
+          status = ${data.status}, 
+          sent_count = ${data.sentCount ?? 0}, 
+          failed_count = ${data.failedCount ?? 0}, 
+          completed_at = ${data.completedAt}, 
+          updated_at = now() 
+          WHERE admin_id = ${adminId} AND id = ${id}`);
+      } else if (data.status !== undefined && data.startedAt !== undefined) {
+        // Start update (status + startedAt)
+        await db.execute(sql`UPDATE admin_broadcasts SET 
+          status = ${data.status}, 
+          started_at = ${data.startedAt}, 
+          updated_at = now() 
+          WHERE admin_id = ${adminId} AND id = ${id}`);
+      } else if (data.status !== undefined) {
+        // Status-only update
+        await db.execute(sql`UPDATE admin_broadcasts SET 
+          status = ${data.status}, 
+          updated_at = now() 
+          WHERE admin_id = ${adminId} AND id = ${id}`);
+      } else if (data.sentCount !== undefined || data.failedCount !== undefined) {
+        // Progress update (counts only)
+        await db.execute(sql`UPDATE admin_broadcasts SET 
+          sent_count = ${data.sentCount ?? 0}, 
+          failed_count = ${data.failedCount ?? 0}, 
+          updated_at = now() 
+          WHERE admin_id = ${adminId} AND id = ${id}`);
       }
     } catch (error) {
       console.error('Error updating admin broadcast:', error);
+      throw error;
+    }
+  }
+
+  async cancelAdminBroadcast(adminId: string, id: string): Promise<void> {
+    try {
+      await db.execute(sql`
+        UPDATE admin_broadcasts 
+        SET status = 'cancelled', updated_at = now()
+        WHERE admin_id = ${adminId} AND id = ${id}
+      `);
+    } catch (error) {
+      console.error('Error cancelling admin broadcast:', error);
       throw error;
     }
   }
@@ -5392,6 +5463,86 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
     } catch (error) {
       console.error('Error creating admin notification log:', error);
       throw error;
+    }
+  }
+
+  // ============================================================
+  // BROADCAST MESSAGE LOGS
+  // ============================================================
+
+  async ensureBroadcastMessagesTable(): Promise<void> {
+    try {
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS admin_broadcast_messages (
+          id TEXT PRIMARY KEY,
+          broadcast_id TEXT NOT NULL,
+          admin_id TEXT NOT NULL,
+          user_id TEXT,
+          recipient_phone TEXT NOT NULL,
+          recipient_name TEXT NOT NULL DEFAULT 'Cliente',
+          message_original TEXT,
+          message_sent TEXT NOT NULL,
+          ai_varied BOOLEAN DEFAULT false,
+          status TEXT DEFAULT 'sent',
+          error_message TEXT,
+          sent_at TIMESTAMP DEFAULT now()
+        )
+      `);
+      await db.execute(sql`
+        CREATE INDEX IF NOT EXISTS idx_broadcast_messages_broadcast_id 
+        ON admin_broadcast_messages(broadcast_id)
+      `);
+      console.log('✅ [DB] Tabela admin_broadcast_messages garantida');
+    } catch (error) {
+      console.error('Error ensuring broadcast_messages table:', error);
+    }
+  }
+
+  async createBroadcastMessage(data: {
+    broadcastId: string;
+    adminId: string;
+    userId?: string;
+    recipientPhone: string;
+    recipientName: string;
+    messageOriginal: string;
+    messageSent: string;
+    aiVaried: boolean;
+    status: 'sent' | 'failed';
+    errorMessage?: string;
+  }): Promise<string> {
+    try {
+      const id = `bm_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      await db.execute(sql`
+        INSERT INTO admin_broadcast_messages (
+          id, broadcast_id, admin_id, user_id,
+          recipient_phone, recipient_name,
+          message_original, message_sent,
+          ai_varied, status, error_message, sent_at
+        ) VALUES (
+          ${id}, ${data.broadcastId}, ${data.adminId}, ${data.userId || null},
+          ${data.recipientPhone}, ${data.recipientName},
+          ${data.messageOriginal}, ${data.messageSent},
+          ${data.aiVaried}, ${data.status}, ${data.errorMessage || null}, now()
+        )
+      `);
+      return id;
+    } catch (error) {
+      console.error('Error creating broadcast message log:', error);
+      return '';
+    }
+  }
+
+  async getBroadcastMessages(broadcastId: string): Promise<any[]> {
+    try {
+      const result = await db.execute(sql`
+        SELECT * FROM admin_broadcast_messages 
+        WHERE broadcast_id = ${broadcastId}
+        ORDER BY sent_at ASC
+      `);
+      return result.rows || [];
+    } catch (error) {
+      console.error('Error getting broadcast messages:', error);
+      return [];
     }
   }
 
@@ -5937,7 +6088,23 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
   }
 
   async markPendingAIResponseSkipped(conversationId: string, reason: string): Promise<void> {
+    const markAsCompletedFallback = async (): Promise<void> => {
+      await db.execute(sql`
+        UPDATE pending_ai_responses
+        SET status = 'completed',
+            failure_reason = ${`skipped:${reason}`},
+            last_attempt_at = NOW(),
+            updated_at = NOW()
+        WHERE conversation_id = ${conversationId}
+      `);
+    };
+
     try {
+      if (this.pendingAiSkippedUnsupported) {
+        await markAsCompletedFallback();
+        return;
+      }
+
       console.log(`⏭️ [DB] Marcando timer como SKIPPED: ${conversationId} - Razão: ${reason}`);
       await db.execute(sql`
         UPDATE pending_ai_responses
@@ -5947,7 +6114,22 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
             updated_at = NOW()
         WHERE conversation_id = ${conversationId}
       `);
-    } catch (error) {
+    } catch (error: any) {
+      // Alguns ambientes ainda têm CHECK sem o status "skipped".
+      // Nesses casos, concluir o timer evita loop infinito de retry.
+      if (isPendingAiSkippedConstraintError(error)) {
+        this.pendingAiSkippedUnsupported = true;
+        const errorCode = getDbErrorCode(error) || "unknown";
+        const constraint = getDbConstraintName(error) || "unknown";
+        console.warn(`⚠️ [DB] status='skipped' não permitido (code=${errorCode}, constraint=${constraint}). Convertendo para completed (conversation=${conversationId}, reason=${reason}).`);
+        try {
+          await markAsCompletedFallback();
+          return;
+        } catch (fallbackError) {
+          console.error('Error marking pending AI response as completed fallback:', fallbackError);
+          return;
+        }
+      }
       console.error('Error marking pending AI response as skipped:', error);
     }
   }

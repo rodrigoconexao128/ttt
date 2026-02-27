@@ -11,7 +11,8 @@ import { db } from "./db";
 import { agentMediaLibrary, messages, type AgentMedia, type InsertAgentMedia, mistralResponseSchema, type MistralResponse } from "@shared/schema";
 import { eq, and, asc, or, sql } from "drizzle-orm";
 import { transcribeAudioWithMistral } from "./mistralClient";
-import { registerAgentMessageId } from "./whatsapp";
+import { registerAgentMessageId, broadcastToUser } from "./whatsapp";
+import { storage } from "./storage";
 import { messageQueueService } from "./messageQueueService";
 import { centralizedMessageSender } from "./centralizedMessageSender";
 import { antiBanProtectionService, simulateTyping, ANTI_BAN_CONFIG } from "./antiBanProtectionService";
@@ -299,11 +300,14 @@ Um áudio/vídeo vale mais que mil palavras de texto.
    → Inclua [MEDIA:NOME] ou [ENVIAR_MIDIA:NOME] na sua resposta
    → Sem a tag = arquivo NÃO é enviado = cliente não recebe nada!
    → Dizer "vou enviar" sem a tag = MENTIRA (nada é enviado)
+   → NUNCA diga "vou te enviar" sem colocar a tag logo em seguida!
+   → Se você mencionou que vai enviar algo, OBRIGATÓRIO colocar a tag
 
 🔴 REGRA #2 - PRIORIZE ENVIAR MÍDIA SOBRE TEXTO:
    → Se o gatilho for detectado, ENVIE A MÍDIA primeiro!
    → Um áudio de 30s explica melhor que 5 parágrafos de texto
    → Cliente prefere receber conteúdo visual/áudio do que ler texto longo
+   → Se o prompt diz para enviar um vídeo/áudio, USE A TAG!
 
 🔴 REGRA #3 - UMA MÍDIA POR VEZ:
    → Envie 1 mídia por resposta (máx 2 se relacionadas)
@@ -323,6 +327,12 @@ Um áudio/vídeo vale mais que mil palavras de texto.
 
 ❌ EXEMPLO DE RESPOSTA ERRADA (NÃO FUNCIONA):
    "Vou te enviar um vídeo mostrando..." (FALTA A TAG! NADA É ENVIADO!)
+   "Segue o áudio explicando..." (FALTA A TAG! NADA É ENVIADO!)
+   "Já te mando o material..." (FALTA A TAG! NADA É ENVIADO!)
+
+✅ CORRETO: Sempre que mencionar envio, INCLUA A TAG:
+   "Vou te enviar! [MEDIA:VIDEO_DEMO]"
+   "Segue o áudio! [MEDIA:AUDIO_EXPLICACAO]"
 
 ╚══════════════════════════════════════════════════════════════════════════════╝
 `;
@@ -429,13 +439,17 @@ export async function forceMediaDetection(
   clientMessage: string,
   conversationHistory: Array<{ text?: string | null; fromMe?: boolean }>,
   mediaLibrary: AgentMedia[],
-  sentMedias: string[] = []
+  sentMedias: string[] = [],
+  aiResponseText?: string
 ): Promise<ForceMediaResult> {
   console.log(`\n🚨 [FORCE MEDIA] ════════════════════════════════════════════════`);
   console.log(`🚨 [FORCE MEDIA] Iniciando classificação com IA...`);
   console.log(`🚨 [FORCE MEDIA] Mensagem: "${clientMessage.substring(0, 100)}..."`);
   console.log(`🚨 [FORCE MEDIA] Mídias disponíveis: ${mediaLibrary.length}`);
   console.log(`🚨 [FORCE MEDIA] Mídias já enviadas: ${sentMedias.join(', ') || 'nenhuma'}`);
+  if (aiResponseText) {
+    console.log(`🚨 [FORCE MEDIA] 🎯 IA principal disse: "${aiResponseText.substring(0, 150)}..."`);
+  }
   
   if (!mediaLibrary || mediaLibrary.length === 0) {
     console.log(`🚨 [FORCE MEDIA] ❌ Nenhuma mídia disponível`);
@@ -464,7 +478,8 @@ export async function forceMediaDetection(
         whenToUse: m.whenToUse,
         isActive: m.isActive
       })),
-      sentMedias
+      sentMedias,
+      aiResponseText
     });
     
     if (aiResult.shouldSend && aiResult.mediaName) {
@@ -1255,6 +1270,108 @@ export async function executeMediaActions(
     return;
   }
 
+  const persistOutgoingAndBroadcast = async (payload: {
+    text: string;
+    messageId?: string;
+    isFromAgent?: boolean;
+    mediaType?: "audio" | "image" | "video" | "document";
+    mediaUrl?: string;
+    mediaMimeType?: string | null;
+    mediaDuration?: number | null;
+    mediaCaption?: string | null;
+  }) => {
+    if (!conversationId) return;
+
+    const sentAt = new Date();
+    const safeMessageId =
+      payload.messageId || `media-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    let savedMessage: any | undefined;
+
+    try {
+      try {
+        const inserted = await db
+          .insert(messages)
+          .values({
+            conversationId,
+            messageId: safeMessageId,
+            fromMe: true,
+            text: payload.text,
+            timestamp: sentAt,
+            status: "sent",
+            isFromAgent: payload.isFromAgent ?? true,
+            mediaType: payload.mediaType,
+            mediaUrl: payload.mediaUrl,
+            mediaMimeType: payload.mediaMimeType || undefined,
+            mediaDuration: payload.mediaDuration || undefined,
+            mediaCaption: payload.mediaCaption || null,
+          })
+          .returning();
+        savedMessage = inserted?.[0];
+      } catch (insertError: any) {
+        if (insertError?.code === "23505") {
+          const existing = await db
+            .select()
+            .from(messages)
+            .where(and(
+              eq(messages.conversationId, conversationId),
+              eq(messages.messageId, safeMessageId),
+            ))
+            .limit(1);
+          savedMessage = existing?.[0];
+          console.warn(`[MediaService] Duplicate messageId detected, reusing existing message: ${safeMessageId}`);
+        } else {
+          throw insertError;
+        }
+      }
+
+      await storage.updateConversation(conversationId, {
+        lastMessageText: payload.text,
+        lastMessageTime: sentAt,
+        lastMessageFromMe: true,
+        hasReplied: true,
+        unreadCount: 0,
+      });
+
+      const conversation = await storage.getConversation(conversationId);
+
+      broadcastToUser(userId, {
+        type: "message_sent",
+        conversationId,
+        message: payload.text,
+        messageData: savedMessage
+          ? {
+              id: savedMessage.id,
+              conversationId,
+              messageId: savedMessage.messageId || safeMessageId,
+              fromMe: true,
+              text: payload.text,
+              timestamp: savedMessage.timestamp || sentAt.toISOString(),
+              isFromAgent: payload.isFromAgent ?? true,
+              status: "sent",
+              mediaType: payload.mediaType || null,
+              mediaUrl: payload.mediaUrl || null,
+              mediaMimeType: payload.mediaMimeType || null,
+              mediaDuration: payload.mediaDuration || null,
+              mediaCaption: payload.mediaCaption || null,
+            }
+          : undefined,
+        conversationUpdate: {
+          id: conversationId,
+          connectionId: conversation?.connectionId,
+          contactNumber: conversation?.contactNumber,
+          contactName: conversation?.contactName,
+          contactAvatar: conversation?.contactAvatar,
+          lastMessageText: payload.text,
+          lastMessageTime: sentAt.toISOString(),
+          lastMessageFromMe: true,
+          unreadCount: 0,
+        },
+      });
+    } catch (error) {
+      console.error("[MediaService] Erro ao salvar/broadcast de mídia:", error);
+    }
+  };
+
   const urlActions = actions.filter(action => action.type === 'send_media_url') as Array<{
     type: 'send_media_url';
     media_url: string;
@@ -1279,8 +1396,9 @@ export async function executeMediaActions(
   // Enviar mídias diretas por URL (sem biblioteca)
   for (const action of urlActions) {
     try {
-      if (action.delay_seconds && action.delay_seconds > 0) {
-        await new Promise(resolve => setTimeout(resolve, action.delay_seconds * 1000));
+      const delaySeconds = action.delay_seconds ?? 0;
+      if (delaySeconds > 0) {
+        await new Promise(resolve => setTimeout(resolve, delaySeconds * 1000));
       }
 
       let sendResult: { success: boolean; messageId?: string; error?: string } = { success: false };
@@ -1327,13 +1445,9 @@ export async function executeMediaActions(
           const messageId = sendResult.messageId || `media-url-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
           const messageText = action.caption || (action.media_type === 'image' ? '*Imagem*' : '*Mídia*');
 
-          await db.insert(messages).values({
-            conversationId,
-            messageId,
-            fromMe: true,
+          await persistOutgoingAndBroadcast({
             text: messageText,
-            timestamp: new Date(),
-            status: 'sent',
+            messageId,
             isFromAgent: true,
             mediaType: action.media_type,
             mediaUrl: action.media_url,
@@ -1426,13 +1540,9 @@ export async function executeMediaActions(
               
               // Salvar no banco
               if (conversationId) {
-                await db.insert(messages).values({
-                  conversationId,
-                  messageId: textMsgId || `flow-text-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-                  fromMe: true,
+                await persistOutgoingAndBroadcast({
                   text: textContent,
-                  timestamp: new Date(),
-                  status: 'sent',
+                  messageId: textMsgId || `flow-text-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
                   isFromAgent: true,
                   mediaCaption: `[FLOW:${media.name}:${idx}]`,
                 });
@@ -1496,13 +1606,9 @@ export async function executeMediaActions(
               
               if (sendResult.success && conversationId) {
                 const msgText = item.caption || `*${itemMediaType.charAt(0).toUpperCase() + itemMediaType.slice(1)}*`;
-                await db.insert(messages).values({
-                  conversationId,
-                  messageId: sendResult.messageId || `flow-media-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-                  fromMe: true,
+                await persistOutgoingAndBroadcast({
                   text: msgText,
-                  timestamp: new Date(),
-                  status: 'sent',
+                  messageId: sendResult.messageId || `flow-media-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
                   isFromAgent: true,
                   mediaType: itemMediaType,
                   mediaUrl: itemUrl,
@@ -1641,15 +1747,11 @@ export async function executeMediaActions(
           // Salvar mensagem no banco
           const messageId = `media-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
           
-          await db.insert(messages).values({
-            conversationId: conversationId,
-            messageId: messageId,
-            fromMe: true,
+          await persistOutgoingAndBroadcast({
             text: messageText,
-            timestamp: new Date(),
-            status: 'sent',
+            messageId,
             isFromAgent: true,
-            mediaType: media.mediaType,
+            mediaType: media.mediaType as "audio" | "image" | "video" | "document",
             mediaUrl: media.storageUrl,
             mediaMimeType: media.mimeType || undefined,
             mediaDuration: media.durationSeconds || undefined,

@@ -1,6 +1,6 @@
 ﻿import { storage } from "./storage";
 import type { Message, MistralResponse } from "@shared/schema";
-import { getLLMClient, getCurrentProvider, getLLMConfig } from "./llm";
+import { getLLMClient, getCurrentProvider, getLLMConfig, detectMediaSendingIntent } from "./llm";
 import { supabase } from "./supabaseAuth";
 // NOTA: generateSystemPrompt, detectJailbreak, detectOffTopic foram removidos
 // pois o sistema ADVANCED foi desativado para garantir determinismo nas respostas
@@ -232,7 +232,7 @@ import {
   forceMediaDetection,
 } from "./mediaService";
 
-import { processResponsePlaceholders } from "./textUtils";
+import { processResponsePlaceholders, sanitizeContactName } from "./textUtils";
 import {
   generateSchedulingPromptBlock,
   processSchedulingTags,
@@ -298,8 +298,7 @@ function buildPriceFlowFallback(
   prompt: string
 ): string {
   const { agentName, companyName } = extractIdentityFromPrompt(prompt);
-  const safeName =
-    contactName && !/visitante/i.test(contactName) ? contactName.trim() : "";
+  const safeName = sanitizeContactName(contactName);
   const namePart = safeName ? `, ${safeName}` : "";
   const agentPart = agentName
     ? `${agentName} da ${companyName || "AgenteZAP"}`
@@ -1585,10 +1584,8 @@ function generateMemoryContextBlock(
 ): string {
   const sections: string[] = [];
 
-  // Nome do cliente - SEMPRE usar se disponível
-  const clientName = contactName && contactName.trim() && !contactName.match(/^\d+$/) 
-    ? contactName.trim() 
-    : null;
+  // Nome do cliente - SEMPRE usar se disponível (sanitizado)
+  const clientName = sanitizeContactName(contactName) || null;
 
   sections.push(`
 ═══════════════════════════════════════════════════════════════════════════════
@@ -1761,9 +1758,7 @@ function generateDynamicContextBlock(contactName?: string, sentMedias?: string[]
   // A informação é contextual (não afeta determinismo da resposta).
   const brazilTime = getBrazilDateTime();
   
-  const formattedName = contactName && contactName.trim() && !contactName.match(/^\d+$/) 
-    ? contactName.trim() 
-    : "";
+  const formattedName = sanitizeContactName(contactName);
   
   const sentMediasList = sentMedias && sentMedias.length > 0 
     ? sentMedias.join(", ") 
@@ -2059,6 +2054,30 @@ export interface AIResponseResult {
 function convertMarkdownToWhatsApp(text: string): string {
   let converted = text;
   
+  // 0. FIX 2026-05-27: Remove separator lines that leak from system prompt
+  // The AI sometimes copies ━━━, ═══, ---, ___  or *** separators into responses
+  converted = converted.replace(/^[\s]*[━═─—\-_*]{3,}[\s]*$/gm, '');
+  
+  // 0b. FIX 2026-02-26: Remove padrões de traços que fazem parecer IA/GPT
+  // 1) Linhas com 2+ traços consecutivos (ex: "--", "---", "-----")
+  converted = converted.replace(/\-{2,}/g, '');
+  // 2) Traços usados como bullet points no início de linhas: "- item" → "• item"
+  converted = converted.replace(/^[\s]*-\s+/gm, '• ');
+  // 3) Em-dashes (—) usados como separadores em frases: " — " → ", "
+  converted = converted.replace(/\s*—\s*/g, ', ');
+  // 4) En-dashes (–) usados como separadores: " – " → ", "
+  converted = converted.replace(/\s*–\s*/g, ', ');
+  // 5) Traço isolado usado como separador entre conceitos: " - " → ", "
+  // CUIDADO: Não remover traços em palavras compostas (segunda-feira) ou negativos (-5)
+  converted = converted.replace(/(?<=[a-záéíóúàâêôãõ\s])\s+-\s+(?=[a-záéíóúàâêôãõA-Z])/g, ', ');
+  
+  // Clean up resulting multiple blank lines
+  converted = converted.replace(/\n{3,}/g, '\n\n');
+  // Clean up multiple commas
+  converted = converted.replace(/,\s*,/g, ',');
+  // Clean up leading comma at start of line
+  converted = converted.replace(/^\s*,\s*/gm, '');
+  
   // 1. Negrito: **texto** → *texto*
   // Regex: Match **...** mas não pegar ***... (que seria bold+italic)
   converted = converted.replace(/\*\*(?!\*)(.+?)\*\*(?!\*)/g, '*$1*');
@@ -2070,7 +2089,7 @@ function convertMarkdownToWhatsApp(text: string): string {
   // Mas preservar blocos de código que já são ```...```
   converted = converted.replace(/(?<!`)\`(?!``)(.+?)\`(?!`)/g, '```$1```');
   
-  return converted;
+  return converted.trim();
 }
 
 // Opções extras para contexto dinâmico
@@ -2880,7 +2899,81 @@ export async function generateAIResponse(
      }
 
      console.log(`📝 [AI Agent] Using LEGACY prompt (${systemPrompt.length} chars) - DETERMINISTIC MODE`);
-     
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // 📌 SAUDAÇÃO/ENDEREÇO FIXO - PREPEND + OVERRIDE ao systemPrompt
+    // PREPEND garante que a IA lê as regras ANTES do prompt principal
+    // OVERRIDE neutraliza saudações conflitantes no prompt principal
+    // Controlado pelos toggles greetingEnabled e addressEnabled da aba Info
+    // ═══════════════════════════════════════════════════════════════════════
+    {
+      const greetingParts: string[] = [];
+      const safeName = sanitizeContactName(contactName);
+
+      // Saudação personalizada - SÓ se greetingEnabled=true
+      const isGreetingEnabled = (agentConfig as any)?.greetingEnabled === true;
+      if (isGreetingEnabled && agentConfig?.customGreeting) {
+        const greeting = agentConfig.customGreeting.replace(/\{nome\}/gi, safeName || 'cliente');
+        if (agentConfig.greetingVariation) {
+          greetingParts.push(`🚨🚨🚨 SAUDAÇÃO PERSONALIZADA DO DONO - REGRA ABSOLUTA E INVIOLÁVEL 🚨🚨🚨
+REGRA PARA SUA PRIMEIRA RESPOSTA (quando não há mensagens anteriores SUAS no histórico):
+Sua resposta INTEIRA deve ser APENAS uma variação natural desta frase: "${greeting}"
+NÃO ADICIONE ABSOLUTAMENTE NADA MAIS à resposta. Nenhuma pergunta, nenhuma qualificação, nenhuma apresentação, nenhum complemento.
+A resposta COMPLETA deve ser SOMENTE a saudação. Exemplo de resposta correta: "${greeting}"
+Exemplo de resposta ERRADA: "${greeting} Me conta: o que você faz hoje?" (NÃO faça isso)
+IGNORE COMPLETAMENTE qualquer "Mensagem de Abertura", "Fluxo 1", "Mensagem inicial" ou qualquer outra instrução de primeira mensagem que exista no prompt abaixo.
+Nas mensagens SEGUINTES (quando já há respostas suas no histórico), NÃO repita a saudação e siga o fluxo normalmente.`);
+        } else {
+          greetingParts.push(`🚨🚨🚨 SAUDAÇÃO PERSONALIZADA DO DONO - REGRA ABSOLUTA E INVIOLÁVEL 🚨🚨🚨
+REGRA PARA SUA PRIMEIRA RESPOSTA (quando não há mensagens anteriores SUAS no histórico):
+Sua resposta INTEIRA deve ser APENAS e EXATAMENTE: "${greeting}"
+NÃO ADICIONE ABSOLUTAMENTE NADA MAIS à resposta. Nenhuma pergunta, nenhuma qualificação, nenhuma apresentação, nenhum complemento.
+A resposta COMPLETA deve ser SOMENTE: "${greeting}"
+Exemplo de resposta ERRADA: "${greeting} Me conta: o que você faz hoje?" (NÃO faça isso)
+IGNORE COMPLETAMENTE qualquer "Mensagem de Abertura", "Fluxo 1", "Mensagem inicial" ou qualquer outra instrução de primeira mensagem que exista no prompt abaixo.
+Nas mensagens SEGUINTES (quando já há respostas suas no histórico), NÃO repita a saudação e siga o fluxo normalmente.`);
+        }
+
+        // 🔧 NEUTRALIZAR saudações conflitantes no prompt principal
+        // Remove/substitui seções de "mensagem inicial" e "mensagem de abertura" do prompt
+        // para que a IA não veja instruções conflitantes
+        systemPrompt = systemPrompt
+          .replace(/##\s*MENSAGEM\s+DE\s+ABERTURA\s+PADR[ÃA]O[^\n]*\n[\s\S]*?(?=\n---|\n##\s)/gi, 
+            `## MENSAGEM DE ABERTURA PADRÃO\n[DESATIVADA - O dono configurou uma saudação personalizada na aba Info que substitui esta seção]\n\n`)
+          .replace(/##\s*\d+\)\s*Mensagem\s+inicial[^\n]*\n[\s\S]*?(?=\n---|\n##\s)/gi,
+            `## Mensagem inicial\n[DESATIVADA - O dono configurou uma saudação personalizada na aba Info que substitui esta seção]\n\n`);
+        console.log(`🔧 [AI Agent] Saudações conflitantes do prompt principal NEUTRALIZADAS`);
+      }
+
+      // Endereço fixo - SÓ se addressEnabled=true
+      const isAddressEnabled = (agentConfig as any)?.addressEnabled === true;
+      if (isAddressEnabled && agentConfig?.customAddress) {
+        greetingParts.push(`⚠️ ENDEREÇO FIXO DO NEGÓCIO (PRIORIDADE MÁXIMA - NUNCA INVENTE OUTRO):
+Quando o cliente perguntar sobre localização, endereço, como chegar, onde fica, etc., SEMPRE responda com este endereço EXATO: "${agentConfig.customAddress}"
+NUNCA invente, modifique ou use outro endereço diferente deste. Este é o endereço OFICIAL do negócio.`);
+      }
+
+      // Nome inválido - instrução especial
+      if (!safeName && contactName) {
+        greetingParts.push(`O nome "${contactName}" não é um nome real. Chame de "caro cliente" ou "você".`);
+      }
+
+      if (greetingParts.length > 0) {
+        const greetingBlock = `████████████████████████████████████████████████████████████████████████
+⚠️⚠️⚠️ INSTRUÇÕES DO DONO DO NEGÓCIO - PRIORIDADE ABSOLUTA ⚠️⚠️⚠️
+As regras abaixo TÊM PRIORIDADE sobre QUALQUER instrução conflitante no prompt principal.
+████████████████████████████████████████████████████████████████████████
+${greetingParts.join('\n\n')}
+████████████████████████████████████████████████████████████████████████
+FIM DAS INSTRUÇÕES PRIORITÁRIAS - O prompt principal começa abaixo:
+████████████████████████████████████████████████████████████████████████
+
+`;
+        systemPrompt = greetingBlock + systemPrompt;
+        console.log(`📌 [AI Agent] Saudação/endereço PREPENDED ao prompt (${greetingParts.length} regras, greeting=${isGreetingEnabled}, address=${isAddressEnabled})`);
+      }
+    }
+
      const messages: Array<{ role: string; content: string }> = [
       {
         role: "system",
@@ -3386,8 +3479,10 @@ Cliente: ${newMessageText.trim()}`;
     // 1 token ≈ 3-4 caracteres em português
     // 2000 tokens ≈ 6000-8000 chars (mensagens bem longas)
     // 🔧 FIX: Se pedir lista, usar 8000 tokens (≈24000-32000 chars) para listas MUITO grandes como 71 categorias
-    // 🔧 FIX: Aumentado mínimo de 600 para 1200 tokens para evitar corte de respostas sobre preços/planos
-    const baseMaxTokens = isAskingForList ? 8000 : (questionLength < 20 ? 1200 : questionLength < 50 ? 1500 : 2000);
+    // 🔧 FIX 2026-02-26: Aumentado mínimos para evitar respostas cortadas pela metade
+    // Antes: 1200/1500/2000 - causava corte de listas numeradas e respostas sobre planos
+    // Agora: 2500/3000/4000 - garante respostas completas, splitMessageHumanLike divide depois
+    const baseMaxTokens = isAskingForList ? 8000 : (questionLength < 20 ? 2500 : questionLength < 50 ? 3000 : 4000);
     
     if (isAskingForList) {
       console.log(`📋 [AI Agent] Detectado pedido de LISTA - usando maxTokens aumentado: ${baseMaxTokens}`);
@@ -3472,6 +3567,41 @@ Cliente: ${newMessageText.trim()}`;
     const content = chatResponse.choices?.[0]?.message?.content;
     let responseText = typeof content === 'string' ? content : null;
     let notification: { shouldNotify: boolean; reason: string; } | undefined;
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // 🔧 FIX 2026-02-26: DETECÇÃO DE RESPOSTA TRUNCADA (cortada pela metade)
+    // Se a LLM parou por max_tokens, a resposta pode estar incompleta.
+    // Detectar e completar se possível.
+    // ═══════════════════════════════════════════════════════════════════════
+    const finishReason = chatResponse.choices?.[0]?.finishReason || chatResponse.choices?.[0]?.finish_reason;
+    if (responseText && finishReason === 'length') {
+      console.log(`⚠️ [AI Agent] Resposta TRUNCADA detectada (finish_reason=length)! maxTokens=${maxTokens}, chars=${responseText.length}`);
+      
+      // Detectar padrões de truncamento: lista numerada cortada, frase sem pontuação final
+      const lastLine = responseText.trim().split('\n').pop() || '';
+      const isMidList = /^\d{1,3}\.?\s*$/.test(lastLine.trim()); // "3." ou "3" sozinho
+      const isMidSentence = !/[.!?:)\]"…]$/.test(responseText.trim()); // Não termina com pontuação
+      
+      if (isMidList || isMidSentence) {
+        console.log(`⚠️ [AI Agent] Resposta cortada no meio de ${isMidList ? 'lista' : 'frase'}. Removendo parte incompleta...`);
+        
+        // Remover a última linha/frase incompleta para não enviar conteúdo cortado
+        const lines = responseText.trim().split('\n');
+        if (isMidList && lines.length > 1) {
+          // Remover última linha da lista que está incompleta (ex: "3." sem conteúdo)
+          lines.pop();
+          responseText = lines.join('\n');
+        } else if (isMidSentence && !isMidList) {
+          // Remover última frase incompleta - encontrar último ponto final válido
+          const lastPunctuation = responseText.search(/[.!?][^.!?]*$/);
+          if (lastPunctuation > responseText.length * 0.5) {
+            // Só cortar se o ponto está na segunda metade (não perder muito conteúdo)
+            responseText = responseText.substring(0, lastPunctuation + 1);
+          }
+        }
+        console.log(`✂️ [AI Agent] Resposta ajustada: ${responseText.length} chars`);
+      }
+    }
     
     // ═══════════════════════════════════════════════════════════════════════
     // 🧠 FILOSOFIA: DEIXAR A IA PROCESSAR NATURALMENTE
@@ -3785,13 +3915,20 @@ Cliente: ${newMessageText.trim()}`;
     // FUNCIONA PARA TODOS OS AGENTES - INDEPENDENTE DO PROMPT!
     // A IA analisa: mensagem, histórico, biblioteca e campo whenToUse.
     if (hasMedia && mediaActions.length === 0) {
-      console.log(`\n🚨 [AI Agent] IA principal não detectou mídia - CONSULTANDO IA DE CLASSIFICAÇÃO...`);
+      const aiHadMediaIntent = responseText ? detectMediaSendingIntent(responseText) : false;
+      if (aiHadMediaIntent) {
+        console.log(`\n🚨 [AI Agent] ⚡ IA disse que vai enviar mídia mas NÃO incluiu tag! RESGATE ATIVADO!`);
+        console.log(`🚨 [AI Agent] 💬 Resposta: "${responseText!.substring(0, 200)}..."`);
+      } else {
+        console.log(`\n🚨 [AI Agent] IA principal não detectou mídia - CONSULTANDO IA DE CLASSIFICAÇÃO...`);
+      }
       
       const forceResult = await forceMediaDetection(
         newMessageText,
         conversationHistory,
         mediaLibrary,
-        sentMedias
+        sentMedias,
+        responseText || undefined // 🎯 Passar resposta da IA para a classificação saber se ela quis enviar mídia
       );
       
       if (forceResult.shouldSendMedia && forceResult.mediaToSend) {
@@ -3996,6 +4133,27 @@ export async function testAgentResponse(
     
     console.log(`🧪 [SIMULADOR] Histórico: ${history.length} mensagens`);
     console.log(`🧪 [SIMULADOR] Mídias já enviadas: ${sentMedias?.length || 0}`);
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // 👋 SAUDAÇÃO PERSONALIZADA - RETORNO DIRETO (SEM LLM)
+    // Se greeting está ativado e é primeira mensagem, retorna a saudação
+    // diretamente SEM chamar a IA. Isso economiza tokens e é 100% confiável.
+    // ═══════════════════════════════════════════════════════════════════════
+    const isGreetingEnabledTest = (agentConfig as any)?.greetingEnabled === true;
+    const customGreetingTest = (agentConfig as any)?.customGreeting;
+    const isFirstMessageTest = !history || history.length === 0;
+    
+    if (isGreetingEnabledTest && customGreetingTest && isFirstMessageTest) {
+      // Substituir {nome} pelo nome do contato
+      let greetingText = customGreetingTest.replace(/\{nome\}/gi, contactName || 'cliente');
+      console.log(`🧪 [SIMULADOR] 👋 SAUDAÇÃO DIRETA (sem LLM): "${greetingText}"`);
+      return {
+        text: greetingText,
+        mediaActions: [],
+        appointmentCreated: undefined,
+        deliveryOrderCreated: undefined
+      };
+    }
     
     // ═══════════════════════════════════════════════════════════════════════
     // 🔀 PARTE 5 - MODO FLUXO: VERIFICAR SE FLUXO ESTÁ ATIVO (PRIORIDADE MÁXIMA)

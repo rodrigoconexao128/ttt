@@ -198,19 +198,33 @@ Fico à disposição! 🙏`,
 
 const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
-export default function AdminNotificationsPanel() {
+interface AdminNotificationsPanelProps {
+  defaultSubTab?: string;
+  onSubTabChange?: (subTab: string) => void;
+}
+
+export default function AdminNotificationsPanel({ defaultSubTab, onSubTabChange }: AdminNotificationsPanelProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
-  // FIXED: Use internal state only — do NOT touch URL hash.
-  // The parent admin.tsx owns the hash (#whatsapp). Changing it to #historico etc.
-  // caused the panel to unmount because admin.tsx has no case for those hashes.
-  const [activeTab, setActiveTab] = useState('pagamentos');
+  // Sub-tab synced with parent URL via props (e.g., /admin#whatsapp/broadcast)
+  // Parent admin.tsx handles the hash format #mainTab/subTab
+  const validSubTabs = ['agenda', 'historico', 'boasvindas', 'pagamentos', 'checkin', 'desconectado', 'broadcast', 'config'];
+  const initialTab = defaultSubTab && validSubTabs.includes(defaultSubTab) ? defaultSubTab : 'pagamentos';
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [config, setConfig] = useState<NotificationConfig>(defaultConfig);
   const [hasChanges, setHasChanges] = useState(false);
   
+  // Sync with parent when defaultSubTab changes (e.g., browser back/forward)
+  useEffect(() => {
+    if (defaultSubTab && validSubTabs.includes(defaultSubTab)) {
+      setActiveTab(defaultSubTab);
+    }
+  }, [defaultSubTab]);
+  
   const handleTabChange = (value: string) => {
     setActiveTab(value);
+    onSubTabChange?.(value); // Notify parent to update URL hash
   };
   
   // Estado do broadcast
@@ -221,6 +235,7 @@ export default function AdminNotificationsPanel() {
     aiVariation: true,
     antibotEnabled: true,
   });
+  const [viewingBroadcastId, setViewingBroadcastId] = useState<string | null>(null);
 
   // Query de configuração
   const { data: savedConfig, isLoading: loadingConfig } = useQuery<NotificationConfig>({
@@ -485,12 +500,37 @@ export default function AdminNotificationsPanel() {
       return response.json();
     },
     onSuccess: () => {
-      toast({ title: "Broadcast criado!", description: "O broadcast foi criado com sucesso." });
+      toast({ title: "Broadcast criado!", description: "O broadcast foi criado como rascunho. Clique em 'Iniciar' para enviar." });
       setNewBroadcast({ name: '', messageTemplate: '', targetType: 'all', aiVariation: true, antibotEnabled: true });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/broadcasts"] });
     },
     onError: (error: Error) => {
       toast({ title: "Erro ao criar", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Mutation para criar E iniciar broadcast de uma vez
+  const createAndStartMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch("/api/admin/broadcasts/create-and-start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(newBroadcast),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({ message: 'Erro desconhecido' }));
+        throw new Error(data.message || "Erro ao criar e iniciar broadcast");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Broadcast enviando!", description: "As mensagens estão sendo enviadas em background com delays anti-bot." });
+      setNewBroadcast({ name: '', messageTemplate: '', targetType: 'all', aiVariation: true, antibotEnabled: true });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/broadcasts"] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Erro ao enviar", description: error.message, variant: "destructive" });
     },
   });
 
@@ -511,6 +551,37 @@ export default function AdminNotificationsPanel() {
     onError: (error: Error) => {
       toast({ title: "Erro ao iniciar", description: error.message, variant: "destructive" });
     },
+  });
+
+  // Mutation para cancelar broadcast
+  const cancelBroadcastMutation = useMutation({
+    mutationFn: async (broadcastId: string) => {
+      const response = await fetch(`/api/admin/broadcasts/${broadcastId}/cancel`, {
+        method: "POST",
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error("Erro ao cancelar broadcast");
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Broadcast cancelado!", description: "O envio foi pausado." });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/broadcasts"] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Erro ao cancelar", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Query para mensagens de um broadcast específico
+  const { data: broadcastMessages, isLoading: loadingMessages } = useQuery<any[]>({
+    queryKey: ["/api/admin/broadcasts/messages", viewingBroadcastId],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/broadcasts/${viewingBroadcastId}/messages`, { credentials: "include" });
+      if (!res.ok) throw new Error("Erro ao carregar mensagens");
+      return res.json();
+    },
+    enabled: !!viewingBroadcastId,
+    refetchInterval: viewingBroadcastId ? 5000 : false,
   });
 
   // Mutation para enviar teste
@@ -1750,7 +1821,7 @@ export default function AdminNotificationsPanel() {
                   <div className="flex gap-2">
                     <Button
                       variant="outline"
-                      className="flex-1"
+                      size="sm"
                       onClick={() => sendTestMutation.mutate({ 
                         type: 'broadcast', 
                         message: newBroadcast.messageTemplate 
@@ -1758,10 +1829,11 @@ export default function AdminNotificationsPanel() {
                       disabled={sendTestMutation.isPending || !newBroadcast.messageTemplate}
                     >
                       <Sparkles className="w-4 h-4 mr-2" />
-                      Preview com IA
+                      Preview IA
                     </Button>
                     <Button
-                      className="flex-1"
+                      variant="outline"
+                      size="sm"
                       onClick={() => createBroadcastMutation.mutate()}
                       disabled={createBroadcastMutation.isPending || !newBroadcast.name || !newBroadcast.messageTemplate}
                     >
@@ -1770,7 +1842,19 @@ export default function AdminNotificationsPanel() {
                       ) : (
                         <Send className="w-4 h-4 mr-2" />
                       )}
-                      Criar Broadcast
+                      Salvar Rascunho
+                    </Button>
+                    <Button
+                      className="flex-1"
+                      onClick={() => createAndStartMutation.mutate()}
+                      disabled={createAndStartMutation.isPending || !newBroadcast.name || !newBroadcast.messageTemplate}
+                    >
+                      {createAndStartMutation.isPending ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Play className="w-4 h-4 mr-2" />
+                      )}
+                      Criar e Enviar Agora
                     </Button>
                   </div>
                 </CardContent>
@@ -1785,35 +1869,120 @@ export default function AdminNotificationsPanel() {
                   <CardContent>
                     <div className="space-y-3">
                       {broadcasts.map(broadcast => (
-                        <div key={broadcast.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                          <div>
-                            <p className="font-medium">{broadcast.name}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {broadcast.sentCount}/{broadcast.totalRecipients} enviadas
-                              {broadcast.failedCount > 0 && (
-                                <span className="text-red-500 ml-2">{broadcast.failedCount} falhas</span>
+                        <div key={broadcast.id} className="border rounded-lg overflow-hidden">
+                          <div className="flex items-center justify-between p-3 bg-muted">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium">{broadcast.name}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {broadcast.sentCount}/{broadcast.totalRecipients} enviadas
+                                {broadcast.failedCount > 0 && (
+                                  <span className="text-red-500 ml-2">{broadcast.failedCount} falhas</span>
+                                )}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <Badge variant={
+                                broadcast.status === 'completed' ? 'default' :
+                                broadcast.status === 'sending' ? 'secondary' :
+                                broadcast.status === 'draft' ? 'outline' : 'destructive'
+                              }>
+                                {broadcast.status === 'completed' ? 'Concluído' :
+                                 broadcast.status === 'sending' ? 'Enviando...' :
+                                 broadcast.status === 'draft' ? 'Rascunho' : 'Cancelado'}
+                              </Badge>
+                              {broadcast.status === 'draft' && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => startBroadcastMutation.mutate(broadcast.id)}
+                                  disabled={startBroadcastMutation.isPending}
+                                >
+                                  <Play className="w-4 h-4 mr-1" />
+                                  Iniciar
+                                </Button>
                               )}
-                            </p>
+                              {broadcast.status === 'sending' && (
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => cancelBroadcastMutation.mutate(broadcast.id)}
+                                  disabled={cancelBroadcastMutation.isPending}
+                                >
+                                  <XCircle className="w-4 h-4 mr-1" />
+                                  Cancelar
+                                </Button>
+                              )}
+                              {(broadcast.status === 'completed' || broadcast.status === 'cancelled' || broadcast.status === 'sending') && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setViewingBroadcastId(
+                                    viewingBroadcastId === broadcast.id ? null : broadcast.id
+                                  )}
+                                >
+                                  <Eye className="w-4 h-4 mr-1" />
+                                  {viewingBroadcastId === broadcast.id ? 'Fechar' : 'Detalhes'}
+                                </Button>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Badge variant={
-                              broadcast.status === 'completed' ? 'default' :
-                              broadcast.status === 'sending' ? 'secondary' :
-                              broadcast.status === 'draft' ? 'outline' : 'destructive'
-                            }>
-                              {broadcast.status}
-                            </Badge>
-                            {broadcast.status === 'draft' && (
-                              <Button
-                                size="sm"
-                                onClick={() => startBroadcastMutation.mutate(broadcast.id)}
-                                disabled={startBroadcastMutation.isPending}
-                              >
-                                <Play className="w-4 h-4 mr-1" />
-                                Iniciar
-                              </Button>
-                            )}
-                          </div>
+
+                          {/* Detalhe expandido: msgs enviadas */}
+                          {viewingBroadcastId === broadcast.id && (
+                            <div className="border-t p-3">
+                              {loadingMessages ? (
+                                <div className="flex items-center justify-center py-4">
+                                  <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                                  Carregando mensagens...
+                                </div>
+                              ) : broadcastMessages && broadcastMessages.length > 0 ? (
+                                <div className="space-y-2 max-h-96 overflow-y-auto">
+                                  <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
+                                    <span>{broadcastMessages.length} mensagens registradas</span>
+                                    <span>
+                                      {broadcastMessages.filter((m: any) => m.aiVaried).length} variadas com IA
+                                    </span>
+                                  </div>
+                                  {broadcastMessages.map((msg: any, idx: number) => (
+                                    <div key={msg.id || idx} className={`p-2 rounded text-sm border-l-2 ${
+                                      msg.status === 'sent' ? 'border-l-green-500 bg-green-50/50' : 'border-l-red-500 bg-red-50/50'
+                                    }`}>
+                                      <div className="flex items-center justify-between mb-1">
+                                        <span className="font-medium text-xs">
+                                          {msg.recipientName} 
+                                          <span className="text-muted-foreground ml-1">({msg.recipientPhone})</span>
+                                        </span>
+                                        <div className="flex items-center gap-1">
+                                          {msg.aiVaried && (
+                                            <Badge variant="outline" className="text-[10px] px-1 py-0">
+                                              <Sparkles className="w-3 h-3 mr-0.5" />IA
+                                            </Badge>
+                                          )}
+                                          <Badge variant={msg.status === 'sent' ? 'default' : 'destructive'} className="text-[10px] px-1 py-0">
+                                            {msg.status === 'sent' ? '✓ Enviada' : '✗ Falha'}
+                                          </Badge>
+                                        </div>
+                                      </div>
+                                      <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                                        {msg.messageSent}
+                                      </p>
+                                      {msg.aiVaried && msg.messageOriginal && msg.messageOriginal !== msg.messageSent && (
+                                        <details className="mt-1">
+                                          <summary className="text-[10px] text-muted-foreground cursor-pointer">Ver original</summary>
+                                          <p className="text-[10px] text-muted-foreground mt-1 pl-2 border-l">
+                                            {msg.messageOriginal}
+                                          </p>
+                                        </details>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-xs text-muted-foreground text-center py-4">
+                                  Nenhuma mensagem registrada para este broadcast
+                                </p>
+                              )}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>

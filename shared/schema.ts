@@ -41,6 +41,8 @@ export const users = pgTable("users", {
   // Documento (CPF/CNPJ) salvo para pagamentos
   documentType: varchar("document_type", { length: 10 }).default("CPF"),
   documentNumber: varchar("document_number", { length: 20 }),
+  // Tipo de negócio do usuário (slug da business_categories table)
+  businessType: varchar("business_type", { length: 100 }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -339,6 +341,20 @@ export const aiAgentConfig = pgTable("ai_agent_config", {
   greetingVariation: boolean("greeting_variation").default(false).notNull(), // Se TRUE, IA varia a saudação naturalmente
   greetingEnabled: boolean("greeting_enabled").default(false).notNull(), // Se TRUE, saudação personalizada está ATIVA
   addressEnabled: boolean("address_enabled").default(false).notNull(), // Se TRUE, endereço fixo está ATIVO
+  // PARTE 7 - Horário de funcionamento
+  businessHoursEnabled: boolean("business_hours_enabled").default(false).notNull(), // Se TRUE, horário de funcionamento está ATIVO
+  businessHours: jsonb("business_hours").$type<Record<string, { enabled: boolean; open: string; close: string }>>().default({
+    seg: { enabled: true, open: "09:00", close: "18:00" },
+    ter: { enabled: true, open: "09:00", close: "18:00" },
+    qua: { enabled: true, open: "09:00", close: "18:00" },
+    qui: { enabled: true, open: "09:00", close: "18:00" },
+    sex: { enabled: true, open: "09:00", close: "18:00" },
+    sab: { enabled: false, open: "", close: "" },
+    dom: { enabled: false, open: "", close: "" },
+  }),
+  // PARTE 8 - Mensagem fora do horário
+  offHoursMessageEnabled: boolean("off_hours_message_enabled").default(false).notNull(),
+  offHoursMessage: text("off_hours_message").default("Olá! No momento estamos fora do horário de atendimento. Retornaremos em breve!"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -3797,3 +3813,34 @@ export type UpdateSmartQrcodeInput = z.infer<typeof updateSmartQrcodeSchema>;
 
 export type QrcodeScanLog = typeof qrcodeScanLogs.$inferSelect;
 export type InsertQrcodeScanLog = typeof qrcodeScanLogs.$inferInsert;
+
+// =============================================================================
+// BUSINESS CATEGORIES — Mapeamento segmento → macrocategoria → ferramenta
+// Step 1 / ETAPA 3: Categorias de negócio identificadas na análise do banco
+// Fonte: RELATORIO_TIPOS_NEGOCIO_CLIENTES.md (26/02/2026) — 316 usuários
+// =============================================================================
+
+export const businessCategories = pgTable("business_categories", {
+  id:            varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  slug:          varchar("slug", { length: 100 }).notNull().unique(),
+  name:          varchar("name", { length: 200 }).notNull(),
+  categoryGroup: varchar("category_group", { length: 50 }).notNull(),
+  groupLabel:    varchar("group_label", { length: 100 }).notNull(),
+  icon:          varchar("icon", { length: 10 }).notNull().default("💬"),
+  description:   text("description"),
+  targetTool:    varchar("target_tool", { length: 50 }).notNull().default("generic"),
+  welcomeMessage: text("welcome_message"),
+  color:         varchar("color", { length: 20 }).notNull().default("#2c3e50"),
+  userCount:     integer("user_count").notNull().default(0),
+  sortOrder:     integer("sort_order").notNull().default(99),
+  isActive:      boolean("is_active").notNull().default(true),
+  createdAt:     timestamp("created_at").defaultNow(),
+  updatedAt:     timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_business_categories_group").on(table.categoryGroup),
+  index("idx_business_categories_tool").on(table.targetTool),
+  index("idx_business_categories_active").on(table.isActive, table.sortOrder),
+]);
+
+export type BusinessCategory = typeof businessCategories.$inferSelect;
+export type InsertBusinessCategory = typeof businessCategories.$inferInsert;

@@ -468,6 +468,18 @@ export class FollowUpService {
    * Inicia o ciclo de follow-up para uma nova conversa (ou reinicia)
    */
   async scheduleInitialFollowUp(conversationId: string) {
+    // 🔧 FIX: NÃO resetar se follow-up já está ativo e agendado!
+    // Antes: cada mensagem manual do admin resetava para estágio 0 + 10min,
+    // destruindo o progresso de follow-up (ex: estágio 5 voltava para 0).
+    const existing = await db.query.adminConversations.findFirst({
+      where: eq(adminConversations.id, conversationId)
+    });
+    
+    if (existing?.followupActive && existing?.nextFollowupAt) {
+      console.log(`ℹ️ [FOLLOW-UP] Follow-up já ativo para ${conversationId} (stage=${existing.followupStage}, next=${new Date(existing.nextFollowupAt).toLocaleString()}). NÃO resetando.`);
+      return;
+    }
+    
     const delayMinutes = FOLLOW_UP_SCHEDULE[0];
     const nextDate = new Date(Date.now() + delayMinutes * 60 * 1000);
 

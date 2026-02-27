@@ -69,6 +69,8 @@ export function ConnectionPanel() {
     refetchOnWindowFocus: false,
   });
 
+  const hasConnectionsInList = allConnections.length > 0;
+
   // Mutation para criar nova conexão
   const createConnectionMutation = useMutation({
     mutationFn: async (payload?: { connectionName?: string; connectionType?: string }) => {
@@ -815,15 +817,17 @@ export function ConnectionPanel() {
   return (
     <div className="h-full overflow-auto">
       <div className="container max-w-2xl mx-auto p-4 md:p-8 space-y-6 md:space-y-8 pb-24 md:pb-8">
+        {!hasConnectionsInList && (
         <div className="space-y-2">
           <h1 className="text-2xl md:text-3xl font-bold">Conecte seu WhatsApp</h1>
           <p className="text-sm md:text-base text-muted-foreground">
             Escolha um método e conecte em menos de 2 minutos para começar a atender.
           </p>
         </div>
+        )}
 
         {/* Card principal de status - só mostra quando já tem conexão */}
-        {connection && (
+        {!hasConnectionsInList && connection && (
         <Card className="p-6 space-y-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -1772,15 +1776,7 @@ export function ConnectionPanel() {
                     </div>
                   )}
 
-                  {/* Sem agentes */}
-                  {!conn.agent && (!conn.assignedAgents || conn.assignedAgents.length === 0) && (
-                    <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
-                      <Bot className="w-4 h-4 text-amber-600" />
-                      <p className="text-sm text-amber-700 dark:text-amber-400">
-                        Nenhum agente atribuído a esta conexão
-                      </p>
-                    </div>
-                  )}
+                  {/* Sem agentes - não mostrar aviso pois o toggle IA já indica o status */}
 
                   {/* Botão deletar (somente conexões não-primárias) */}
                   {!(conn as any).isPrimary && (
