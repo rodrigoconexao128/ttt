@@ -1,0 +1,236 @@
+﻿import "dotenv/config";
+import fs from "node:fs";
+import path from "node:path";
+import { clearClientSession, processAdminMessage } from "../server/adminAgentService";
+import { chatComplete } from "../server/llm";
+
+type Scenario = {
+  id: string;
+  contactName: string;
+  objective: string;
+  requireDemoAssets?: boolean;
+};
+
+type TurnLog = {
+  turn: number;
+  client: string;
+  agent: string;
+  hasCredentials: boolean;
+  hasDemoScreenshot: boolean;
+  hasDemoVideo: boolean;
+};
+
+type ScenarioResult = {
+  scenarioId: string;
+  phone: string;
+  success: boolean;
+  hasCredentials: boolean;
+  hasDemoScreenshot: boolean;
+  hasDemoVideo: boolean;
+  turns: TurnLog[];
+  error?: string;
+};
+
+const scenarios: Scenario[] = [
+  {
+    id: "ia-vs-ia-lead-leigo",
+    contactName: "Cliente Leigo",
+    objective:
+      "Voce e um cliente leigo e curioso. Quer atendimento automatico no WhatsApp, tem duvidas sobre configuracao e quer que montem tudo para voce.",
+  },
+  {
+    id: "ia-vs-ia-delivery",
+    contactName: "Cliente Delivery",
+    objective:
+      "Voce tem delivery com cardapio e quer automatizar pedidos e upsell. Questione se da para ajustar produtos e horarios depois.",
+  },
+  {
+    id: "ia-vs-ia-demo-midia",
+    contactName: "Cliente Demonstracao",
+    objective:
+      "Voce quer prova visual antes de pagar. Durante a conversa, peca print e video da demonstracao funcionando.",
+    requireDemoAssets: true,
+  },
+];
+
+function generatePhone(seed: number): string {
+  const now = String(Date.now()).slice(-8);
+  return `5511${now}${String(seed).padStart(2, "0")}`.slice(0, 13);
+}
+
+function hasDemoScreenshot(text: string, actionDemoScreenshot?: string | null): boolean {
+  const normalized = text.toLowerCase();
+  return Boolean(actionDemoScreenshot) || normalized.includes("print da demonstracao") || normalized.includes("screenshot");
+}
+
+function hasDemoVideo(text: string, actionDemoVideo?: string | null): boolean {
+  const normalized = text.toLowerCase();
+  return Boolean(actionDemoVideo) || normalized.includes("video da demonstracao") || normalized.includes("demo em video");
+}
+
+async function generateInitialClientMessage(objective: string): Promise<string> {
+  const response = await chatComplete({
+    messages: [
+      {
+        role: "system",
+        content:
+          "Voce simula um cliente real em conversa de WhatsApp. Responda sempre em portugues do Brasil, com 1 frase curta.",
+      },
+      {
+        role: "user",
+        content: `${objective}\n\nEnvie a PRIMEIRA mensagem agora, curta e natural.`,
+      },
+    ],
+    maxTokens: 120,
+    temperature: 0.8,
+  });
+
+  const text = String(response.choices?.[0]?.message?.content || "").trim();
+  return text || "Oi, queria entender como funciona.";
+}
+
+async function generateNextClientMessage(
+  objective: string,
+  transcript: Array<{ role: "user" | "assistant"; content: string }>,
+): Promise<string> {
+  const compactHistory = transcript.slice(-10);
+
+  const response = await chatComplete({
+    messages: [
+      {
+        role: "system",
+        content:
+          "Voce simula um cliente real no WhatsApp. Fale curto, natural e sem repetir frases. Nao use listas. Sempre faca uma pergunta ou avancar a conversa.",
+      },
+      {
+        role: "user",
+        content:
+          `${objective}\n\nContexto recente:\n${compactHistory
+            .map((m) => `${m.role === "user" ? "Cliente" : "Atendente"}: ${m.content}`)
+            .join("\n")}\n\nEscreva a proxima mensagem do cliente em ate 2 frases.`,
+      },
+    ],
+    maxTokens: 140,
+    temperature: 0.9,
+  });
+
+  const text = String(response.choices?.[0]?.message?.content || "").trim();
+  return text || "Consegue me mandar o link para eu testar agora?";
+}
+
+async function runScenario(scenario: Scenario, index: number): Promise<ScenarioResult> {
+  const phone = generatePhone(index + 1);
+  clearClientSession(phone);
+
+  const turns: TurnLog[] = [];
+  const transcript: Array<{ role: "user" | "assistant"; content: string }> = [];
+
+  let hasCredentials = false;
+  let demoScreenshot = false;
+  let demoVideo = false;
+
+  try {
+    let clientMessage = await generateInitialClientMessage(scenario.objective);
+
+    for (let turn = 1; turn <= 6; turn += 1) {
+      const response = await processAdminMessage(phone, clientMessage, undefined, undefined, true, scenario.contactName);
+      if (!response) {
+        turns.push({
+          turn,
+          client: clientMessage,
+          agent: "[sem resposta - trigger]",
+          hasCredentials,
+          hasDemoScreenshot: demoScreenshot,
+          hasDemoVideo: demoVideo,
+        });
+
+        clientMessage = await generateNextClientMessage(scenario.objective, transcript);
+        continue;
+      }
+
+      const agentText = response.text || "";
+      const credentials = response.actions?.testAccountCredentials;
+      const demoAssets = response.actions?.demoAssets;
+
+      hasCredentials = hasCredentials || Boolean(credentials?.email);
+      demoScreenshot = demoScreenshot || hasDemoScreenshot(agentText, demoAssets?.screenshotUrl || null);
+      demoVideo = demoVideo || hasDemoVideo(agentText, demoAssets?.videoUrl || null);
+
+      turns.push({
+        turn,
+        client: clientMessage,
+        agent: agentText,
+        hasCredentials,
+        hasDemoScreenshot: demoScreenshot,
+        hasDemoVideo: demoVideo,
+      });
+
+      transcript.push({ role: "user", content: clientMessage });
+      transcript.push({ role: "assistant", content: agentText });
+
+      const doneByCredentials = hasCredentials && !scenario.requireDemoAssets;
+      const doneByDemo = hasCredentials && scenario.requireDemoAssets && (demoScreenshot || demoVideo);
+      if (doneByCredentials || doneByDemo) {
+        break;
+      }
+
+      clientMessage = await generateNextClientMessage(scenario.objective, transcript);
+    }
+
+    const success = scenario.requireDemoAssets
+      ? hasCredentials && (demoScreenshot || demoVideo)
+      : hasCredentials;
+
+    return {
+      scenarioId: scenario.id,
+      phone,
+      success,
+      hasCredentials,
+      hasDemoScreenshot: demoScreenshot,
+      hasDemoVideo: demoVideo,
+      turns,
+    };
+  } catch (error) {
+    return {
+      scenarioId: scenario.id,
+      phone,
+      success: false,
+      hasCredentials,
+      hasDemoScreenshot: demoScreenshot,
+      hasDemoVideo: demoVideo,
+      turns,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+async function main() {
+  const results: ScenarioResult[] = [];
+
+  for (let i = 0; i < scenarios.length; i += 1) {
+    const scenario = scenarios[i];
+    console.log(`\n--- IA vs IA: ${scenario.id} ---`);
+    const result = await runScenario(scenario, i);
+    results.push(result);
+
+    console.log(
+      `Resultado ${scenario.id}: ${result.success ? "OK" : "FALHOU"} | credenciais=${result.hasCredentials} | print=${result.hasDemoScreenshot} | video=${result.hasDemoVideo}`,
+    );
+  }
+
+  const outDir = path.resolve("test-results");
+  fs.mkdirSync(outDir, { recursive: true });
+  const outFile = path.join(outDir, `admin-agent-ia-vs-ia-${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
+  fs.writeFileSync(outFile, JSON.stringify(results, null, 2), "utf-8");
+
+  const successCount = results.filter((r) => r.success).length;
+  console.log(`\nResumo IA vs IA: ${successCount}/${results.length} cenarios aprovados.`);
+  console.log(`Arquivo: ${outFile}`);
+
+  process.exit(successCount < results.length ? 2 : 0);
+}
+
+main().catch((error) => {
+  console.error("Falha geral IA vs IA:", error);
+  process.exit(1);
+});
