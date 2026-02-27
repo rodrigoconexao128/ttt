@@ -96,3 +96,10 @@ temp_audio/
 # App code (do not ignore)
 !client/src/lib/queryClient.ts
 
+# Railway log files (temp polling artifacts)
+railway_*.json
+railway_*.jsonl
+supabase_*.json
+dist_test/
+uploads/
+
