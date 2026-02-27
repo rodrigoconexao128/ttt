@@ -36,7 +36,7 @@ import adminStatusRoutes from "./routes/admin-status.routes";
 
 import { setupAuth, isAuthenticated, getSession, supabase } from "./supabaseAuth";
 
-import { withRetry, db } from "./db";
+import { withRetry, db, pool } from "./db";
 
 import { eq, and, gte, desc, inArray, sql } from "drizzle-orm";
 
@@ -3362,6 +3362,79 @@ Responda apenas com o nÃºmero do Ã­ndice (0 a ${optionsList.length - 1}) ou 
 
     }
 
+  });
+
+  // ── BUSINESS CATEGORIES API ──────────────────────────────────────────────────
+  // GET /api/business-categories/groups - returns all categories grouped by category_group
+  app.get("/api/business-categories/groups", async (_req: any, res) => {
+    try {
+      const result = await pool.query(`
+        SELECT id, slug, name, category_group, group_label, icon, description,
+               target_tool, welcome_message, color, user_count, sort_order, is_active
+        FROM business_categories
+        WHERE is_active = TRUE
+        ORDER BY sort_order, name
+      `);
+      const rows = result.rows as Array<{
+        id: string; slug: string; name: string; category_group: string;
+        group_label: string; icon: string; description: string | null;
+        target_tool: string; welcome_message: string | null;
+        color: string; user_count: number; sort_order: number; is_active: boolean;
+      }>;
+
+      // Group by category_group preserving sort_order within group
+      const groupMap = new Map<string, { group: string; groupLabel: string; totalUsers: number; categories: any[] }>();
+      for (const row of rows) {
+        if (!groupMap.has(row.category_group)) {
+          groupMap.set(row.category_group, { group: row.category_group, groupLabel: row.group_label, totalUsers: 0, categories: [] });
+        }
+        const g = groupMap.get(row.category_group)!;
+        g.totalUsers += row.user_count || 0;
+        g.categories.push({
+          id: row.id, slug: row.slug, name: row.name,
+          categoryGroup: row.category_group, groupLabel: row.group_label,
+          icon: row.icon, description: row.description, targetTool: row.target_tool,
+          welcomeMessage: row.welcome_message, color: row.color,
+          userCount: row.user_count, sortOrder: row.sort_order, isActive: row.is_active,
+        });
+      }
+
+      // Sort groups by total user count descending
+      const groups = Array.from(groupMap.values()).sort((a, b) => b.totalUsers - a.totalUsers);
+      res.json({ groups });
+    } catch (error) {
+      console.error("Error fetching business-categories groups:", error);
+      res.status(500).json({ message: "Erro ao carregar categorias" });
+    }
+  });
+
+  // GET /api/business-categories/:slug - returns a single category by slug
+  app.get("/api/business-categories/:slug", async (req: any, res) => {
+    try {
+      const { slug } = req.params;
+      if (!slug) return res.status(400).json({ message: "slug is required" });
+      const result = await pool.query(
+        `SELECT id, slug, name, category_group, group_label, icon, description,
+                target_tool, welcome_message, color, user_count, sort_order, is_active
+         FROM business_categories
+         WHERE slug = $1 AND is_active = TRUE
+         LIMIT 1`,
+        [slug]
+      );
+      if (!result.rows || result.rows.length === 0) return res.status(404).json({ message: "Categoria não encontrada" });
+      const row = result.rows[0];
+      const category = {
+        id: row.id, slug: row.slug, name: row.name,
+        categoryGroup: row.category_group, groupLabel: row.group_label,
+        icon: row.icon, description: row.description, targetTool: row.target_tool,
+        welcomeMessage: row.welcome_message, color: row.color,
+        userCount: row.user_count, sortOrder: row.sort_order, isActive: row.is_active,
+      };
+      res.json({ category });
+    } catch (error) {
+      console.error("Error fetching business-category by slug:", error);
+      res.status(500).json({ message: "Erro ao carregar categoria" });
+    }
   });
 
   // GET user business type
