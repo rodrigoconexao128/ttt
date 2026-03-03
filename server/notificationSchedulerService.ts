@@ -84,6 +84,23 @@ interface NotificationJob {
   data: any;
 }
 
+function isModuleEnabledForNotificationType(notificationType: string, config: any): boolean {
+  switch (notificationType) {
+    case 'payment_reminder':
+      return config?.payment_reminder_enabled !== false;
+    case 'overdue_reminder':
+      return config?.overdue_reminder_enabled !== false;
+    case 'checkin':
+    case 'periodic_checkin':
+      return config?.periodic_checkin_enabled !== false;
+    case 'disconnected':
+    case 'disconnected_alert':
+      return config?.disconnected_alert_enabled !== false;
+    default:
+      return true;
+  }
+}
+
 // Executar a cada 5 minutos para processar notificações agendadas mais rapidamente
 const CHECK_INTERVAL_MS = 5 * 60 * 1000;
 
@@ -296,12 +313,16 @@ async function autoReorganizeForAdmin(adminId: string): Promise<void> {
   const excludedDays = [0, 1, 2, 3, 4, 5, 6].filter(d => !businessDays.includes(d));
   // Se todos os dias estão habilitados, não precisamos pular fins de semana
   const hasExcludedDays = excludedDays.length > 0;
+  // Build excluded days as SQL literal to avoid "cannot cast type record to integer[]" error
+  // When passing a JS array via drizzle sql template, Postgres receives it as a record type
+  // which cannot be cast to integer[]. Use sql.raw() to inline the values directly.
+  const excludedDaysLiteral = excludedDays.length > 0 ? excludedDays.join(',') : '-1';
   try {
     const staleResult = await db.execute(sql`
       UPDATE scheduled_notifications
       SET scheduled_for = (
         CASE 
-          WHEN ${hasExcludedDays} AND EXTRACT(DOW FROM NOW() AT TIME ZONE 'America/Sao_Paulo') = ANY(${excludedDays}::int[])
+          WHEN ${hasExcludedDays} AND EXTRACT(DOW FROM NOW() AT TIME ZONE 'America/Sao_Paulo') = ANY(ARRAY[${sql.raw(excludedDaysLiteral)}]::int[])
             THEN (DATE_TRUNC('day', NOW() AT TIME ZONE 'America/Sao_Paulo') + INTERVAL '1 day' * 
                   CASE WHEN EXTRACT(DOW FROM NOW() AT TIME ZONE 'America/Sao_Paulo') = 6 THEN 2 ELSE 1 END
                  ) + (${config.businessHoursStart || '09:00'})::time + (floor(random() * 120) || ' minutes')::interval
@@ -724,6 +745,23 @@ async function processAdminScheduledQueue(adminId: string, notifications: any[])
     
     for (let i = 0; i < notifications.length; i++) {
       const notification = notifications[i];
+
+      // Regra de segurança: se o módulo estiver desativado, cancelar qualquer pendente.
+      if (!isModuleEnabledForNotificationType(notification.notification_type, config)) {
+        console.log(`📋 [QUEUE] 🚫 Cancelando ${notification.notification_type} para ${notification.recipient_name} - módulo desativado`);
+        skipped++;
+
+        await db.execute(sql`
+          UPDATE scheduled_notifications
+          SET
+            status = 'cancelled',
+            updated_at = NOW(),
+            error_message = COALESCE(NULLIF(error_message, ''), 'Cancelado automaticamente: módulo desativado')
+          WHERE id = ${notification.id}
+            AND status IN ('pending', 'processing')
+        `);
+        continue;
+      }
       
       // Verificar limite diário
       if (!canSendNotification(adminId)) {
