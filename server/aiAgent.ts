@@ -4382,13 +4382,19 @@ export async function testAgentResponse(
     // - customPrompt foi fornecido (teste de prompt não salvo)
     // - FlowEngine não conseguiu processar a mensagem
     
+    // Use a shorter phone to avoid VARCHAR(50) limit in appointments.client_phone
+    // Format: "sim-{first8}-{timestamp}" = ~26 chars (well within 50 char limit)
+    const simulatorContactPhone = `sim-${userId.split('-')[0]}-${Date.now()}`;
+
     const result = await generateAIResponse(
       userId,
       history,
       testMessage,
       {
         contactName,
-        contactPhone: "5511999999999",
+        // Use an isolated synthetic contact id in simulator mode to avoid
+        // anti-loop collisions between independent test sessions.
+        contactPhone: simulatorContactPhone,
         sentMedias: sentMedias || [],
       },
       customPrompt ? {
