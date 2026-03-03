@@ -1,0 +1,362 @@
+[
+  {
+    "id": 1,
+    "perfil": "Cliente Direto R$49",
+    "pergunta": "Vi o anúncio de 49 reais",
+    "resposta": "ERRO: 404 no Route matched with those values",
+    "aprovado": false,
+    "erros": [
+      "Faltou: \"https://agentezap.online/p/plano-promo-ilimitado-mensal-e805ee4e\"",
+      "Faltou: \"máximo 2 linhas\"",
+      "Faltou: \"sem mencionar cupom\""
+    ],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown"
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 2,
+    "perfil": "Cliente Curioso",
+    "pergunta": "Como funciona essa IA?",
+    "resposta": "ERRO: 404 no Route matched with those values",
+    "aprovado": false,
+    "erros": [
+      "Faltou: \"sem textão\"",
+      "Faltou: \"sem lista numerada\"",
+      "Faltou: \"link https://agentezap.online/\""
+    ],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown"
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 3,
+    "perfil": "Cliente Queimado",
+    "pergunta": "Já usei bot antes e fui enganado, prometeram ilimitado mas tinha limite escondido",
+    "resposta": "ERRO: 404 no Route matched with those values",
+    "aprovado": false,
+    "erros": [
+      "Faltou: \"teste tem limite\"",
+      "Faltou: \"plano é ilimitado REAL\"",
+      "Faltou: \"transparência\""
+    ],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown"
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 4,
+    "perfil": "Cliente Técnico - Mídias Sequenciais",
+    "pergunta": "Consigo enviar uma sequência tipo: imagem do produto, depois PDF com info, depois áudio explicativo e por último um vídeo?",
+    "resposta": "ERRO: 404 no Route matched with those values",
+    "aprovado": false,
+    "erros": [
+      "Faltou: \"Sim\"",
+      "Faltou: \"ordem exata\"",
+      "Faltou: \"automático\""
+    ],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown"
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 5,
+    "perfil": "Cliente Sem Tempo",
+    "pergunta": "Vocês fazem tudo pra mim? Tô sem tempo",
+    "resposta": "ERRO: 404 no Route matched with those values",
+    "aprovado": false,
+    "erros": [
+      "Faltou: \"R$199\"",
+      "Faltou: \"pagamento único\"",
+      "Faltou: \"equipe configura\""
+    ],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown"
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 6,
+    "perfil": "Cliente Comparador",
+    "pergunta": "Qual a diferença de vocês pro Watidy?",
+    "resposta": "ERRO: 404 no Route matched with those values",
+    "aprovado": false,
+    "erros": [
+      "Faltou: \"100% nuvem\"",
+      "Faltou: \"ilimitado\""
+    ],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown",
+      "Correto: NÃO mencionou \"precisa computador ligado\""
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 7,
+    "perfil": "Cliente Preocupado com Bloqueio",
+    "pergunta": "O WhatsApp não vai bloquear minha conta?",
+    "resposta": "ERRO: 404 no Route matched with those values",
+    "aprovado": false,
+    "erros": [
+      "Faltou: \"proteções\"",
+      "Faltou: \"delays\"",
+      "Faltou: \"bom senso\"",
+      "Faltou: \"WhatsApp é da Meta\""
+    ],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown"
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 8,
+    "perfil": "Assistência Técnica",
+    "pergunta": "Preciso atender clientes de madrugada e fim de semana, a IA funciona 24h?",
+    "resposta": "ERRO: 404 no Route matched with those values",
+    "aprovado": false,
+    "erros": [
+      "Faltou: \"24h\"",
+      "Faltou: \"atende sempre\"",
+      "Faltou: \"dicas\""
+    ],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown"
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 9,
+    "perfil": "Confuso com Créditos",
+    "pergunta": "Tô no teste e diz que tenho só 4 créditos restantes, depois acaba?",
+    "resposta": "ERRO: 404 no Route matched with those values",
+    "aprovado": false,
+    "erros": [
+      "Faltou: \"teste tem limite\"",
+      "Faltou: \"plano ilimitado\"",
+      "Faltou: \"sem créditos no plano pago\""
+    ],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown"
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 10,
+    "perfil": "Pergunta Preço Geral",
+    "pergunta": "Quanto custa?",
+    "resposta": "ERRO: 404 no Route matched with those values",
+    "aprovado": false,
+    "erros": [
+      "Faltou: \"R$99\"",
+      "Faltou: \"ilimitado\""
+    ],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown",
+      "Correto: NÃO mencionou \"r$49\""
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 11,
+    "perfil": "Implementação Mensal?",
+    "pergunta": "Essa implementação de 199 é todo mês?",
+    "resposta": "ERRO: 404 no Route matched with those values",
+    "aprovado": false,
+    "erros": [
+      "Faltou: \"pagamento único\"",
+      "Faltou: \"R$199\""
+    ],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown",
+      "Correto: NÃO mencionou \"é mensal\""
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 12,
+    "perfil": "Vou Pensar",
+    "pergunta": "Vou pensar e te retorno",
+    "resposta": "ERRO: 404 no Route matched with those values",
+    "aprovado": false,
+    "erros": [
+      "Faltou: \"quantos clientes perdeu\"",
+      "Faltou: \"teste grátis\"",
+      "Faltou: \"sem compromisso\""
+    ],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown"
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 13,
+    "perfil": "Acha Caro",
+    "pergunta": "99 reais por mês tá caro",
+    "resposta": "ERRO: 404 no Route matched with those values",
+    "aprovado": false,
+    "erros": [
+      "Faltou: \"funcionário\"",
+      "Faltou: \"R$1.500\"",
+      "Faltou: \"24h\"",
+      "Faltou: \"sem férias\""
+    ],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown"
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 14,
+    "perfil": "Quer Link R$49 Direto",
+    "pergunta": "Me manda o link do plano de 49?",
+    "resposta": "ERRO: 404 no Route matched with those values",
+    "aprovado": false,
+    "erros": [
+      "Faltou: \"https://agentezap.online/p/plano-promo-ilimitado-mensal-e805ee4e\"",
+      "Faltou: \"1 linha apenas\""
+    ],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown"
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 15,
+    "perfil": "Envio em Massa",
+    "pergunta": "Consigo agendar envio em massa pra 500 contatos em horários diferentes?",
+    "resposta": "ERRO: 404 no Route matched with those values",
+    "aprovado": false,
+    "erros": [
+      "Faltou: \"Sim\"",
+      "Faltou: \"agendamento múltiplo\"",
+      "Faltou: \"sistema anti-bloqueio\""
+    ],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown"
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 16,
+    "perfil": "Follow-up",
+    "pergunta": "Se o cliente não responder, a IA insiste?",
+    "resposta": "ERRO: 404 no Route matched with those values",
+    "aprovado": false,
+    "erros": [
+      "Faltou: \"follow-up automático\"",
+      "Faltou: \"10min, 30min, 1 dia\""
+    ],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown"
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 17,
+    "perfil": "Gerar Áudios",
+    "pergunta": "A IA consegue gerar áudios sozinha com voz natural?",
+    "resposta": "ERRO: 404 no Route matched with those values",
+    "aprovado": false,
+    "erros": [
+      "Faltou: \"hoje você grava\"",
+      "Faltou: \"em desenvolvimento\"",
+      "Faltou: \"honesto\""
+    ],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown"
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 18,
+    "perfil": "Calibração Persona",
+    "pergunta": "A IA consegue falar com a cara da minha empresa?",
+    "resposta": "ERRO: 404 no Route matched with those values",
+    "aprovado": false,
+    "erros": [
+      "Faltou: \"treina\"",
+      "Faltou: \"seu jeito\"",
+      "Faltou: \"personalização\""
+    ],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown"
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 19,
+    "perfil": "Diferença Teste vs Plano",
+    "pergunta": "Qual a diferença entre criar conta grátis e assinar o plano?",
+    "resposta": "ERRO: 404 no Route matched with those values",
+    "aprovado": false,
+    "erros": [
+      "Faltou: \"teste limitado\"",
+      "Faltou: \"plano ilimitado\"",
+      "Faltou: \"clareza\""
+    ],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown"
+    ],
+    "tamanhoLinhas": 1
+  },
+  {
+    "id": 20,
+    "perfil": "Notificador",
+    "pergunta": "Como eu sei quando o cliente realmente quer comprar?",
+    "resposta": "ERRO: 404 no Route matched with those values",
+    "aprovado": false,
+    "erros": [
+      "Faltou: \"notificador\"",
+      "Faltou: \"avisa\"",
+      "Faltou: \"intenção de compra\""
+    ],
+    "acertos": [
+      "Tamanho adequado (1 linhas)",
+      "Sem listas numeradas",
+      "Links sem markdown"
+    ],
+    "tamanhoLinhas": 1
+  }
+]

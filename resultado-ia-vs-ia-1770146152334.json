@@ -1,0 +1,355 @@
+{
+  "timestamp": "2026-02-03T19:15:52.337Z",
+  "summary": {
+    "duration": "148.8",
+    "completed": 0,
+    "orders": 0,
+    "issues": 0
+  },
+  "results": [
+    {
+      "id": 1,
+      "name": "João Silva",
+      "description": "Pedido simples de pizza",
+      "completed": false,
+      "orderCreated": false,
+      "messages": 6,
+      "duration": "14.8s",
+      "issues": [],
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oi, quero pedir uma pizza calabresa grande"
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nFico à disposição! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🥟 Esfihas\n• 🍹 Bebidas\n• 🧀 Bordas Recheadas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas."
+        },
+        {
+          "role": "cliente",
+          "content": "João Silva, Rua das Flores 123, PIX"
+        },
+        {
+          "role": "agente",
+          "content": "🚚 Você prefere *🛵 Delivery ou 🏃 Retirada no local*?"
+        },
+        {
+          "role": "cliente",
+          "content": "Confirma sim!"
+        },
+        {
+          "role": "agente",
+          "content": "✅ Ótimo! Para finalizar seu pedido, preciso de algumas informações:\n\n📝 *Seu nome completo*\n\n🚚 *Tipo de entrega:* 🛵 Delivery ou 🏃 Retirada no local\n\n📍 *Endereço* (se for delivery): rua, número, bairro\n\n💳 *Forma de pagamento:* Dinheiro, Cartao, Pix\n\nPode me enviar tudo junto ou separado! 😊"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Maria Santos",
+      "description": "Pergunta preços primeiro",
+      "completed": false,
+      "orderCreated": false,
+      "messages": 8,
+      "duration": "26.0s",
+      "issues": [],
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Boa noite! Quais pizzas vocês tem?"
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nSe precisar de algo, estou por aqui! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🥟 Esfihas\n• 🍹 Bebidas\n• 🧀 Bordas Recheadas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas."
+        },
+        {
+          "role": "cliente",
+          "content": "Quanto custa a pizza portuguesa?"
+        },
+        {
+          "role": "agente",
+          "content": "🍕 *NOVO SABOR PIZZA E ESFIHAS E ACAI*\n━━━━━━━━━━━━━━━━━━━━\n📋 🍕 Pizzas Salgadas, 🍫 Pizzas Doces (17 opções)\n\n📁 *🍕 PIZZAS SALGADAS*\n───────────────\n• Pizza Portuguesa\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho, mussarela, presunto, ovo, cebola, pimentão e orégano_\n• Pizza Marguerita\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho, mussarela, tomate e manjericão triturado_\n• Pizza Frango com Milho\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho, mussarela, frango desfiado, milho e orégano_\n• Pizza Frango Catupiry\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho, mussarela, frango desfiado, catupiry e orégano_\n• Pizza Calabresa\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho de tomate, mussarela, calabresa fatiada, cebola e orégano_\n• Pizza Mussarela\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho de tomate, mussarela, tomate e orégano_\n• Pizza Atum\n Pequena (P): R$ 35,00 | Média (M): R$ 45,00 | Grande (G): R$ 60,00\n _Molho, mussarela, atum, catupiry ou cebola e orégano_\n• Pizza Picante\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho de tomate, mussarela, calabresa e pimenta calabresa_\n• Pizza Costela\n Pequena (P): R$ 36,00 | Média (M): R$ 45,00 | Grande (G): R$ 60,00\n _Molho de tomate, mussarela, costela desfiada e catupiry ou cebola_\n\n📁 *🍕 PIZZAS SALGADAS (cont.)*\n───────────────\n• Pizza 4 Queijos\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho de tomate, mussarela, gorgonzola, catupiry e cheddar_\n• Pizza Milho\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho de tomate, mussarela, milho e orégano_\n• Pizza Dom Camilo\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho de tomate, mussarela, presunto e calabresa_\n\n📁 *🍫 PIZZAS DOCES*\n───────────────\n• Pizza Tentação ⭐\n Pequena (P): R$ 35,00 | Média (M): R$ 50,00 | Grande (G): R$ 60,00\n _Creme de leite, chocolate, morango em rodela, leite condensado e coco ralado_\n• Pizza Romeu e Julieta\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Mussarela, goiabada derretida e orégano_\n• Pizza Brigadeiro\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Creme de leite, mussarela, chocolate e granulado_\n• Pizza MM Disquete\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Creme de leite, mussarela, chocolate e M&M_\n• Pizza Banana\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Creme de leite, mussarela, banana, leite condensado e canela em pó_\n━━━━━━━━━━━━━━━━━━━━\n✅ Qual você quer? É só me dizer! 😊"
+        },
+        {
+          "role": "cliente",
+          "content": "Quero uma portuguesa grande por favor"
+        },
+        {
+          "role": "agente",
+          "content": "✅ Adicionado ao pedido:\n\n• 1x Pizza Portuguesa (Grande (G)) - R$ 55,00\n\n🛒 *SEU PEDIDO*\n───────────────\n1x Pizza Portuguesa (Grande (G)) - R$ 55,00\n _Obs: Tamanho: Grande (G)_\n───────────────\n📦 Subtotal: R$ 55,00\n\nDeseja mais alguma coisa? Posso sugerir *Borda Recheada* ou *Refrigerante*.\n\nPara finalizar, me diga:\n📝 Nome\n🚚 Tipo de entrega: 🛵 Delivery ou 🏪 Retirada\n📍 Endereço (se for entrega)\n💳 Forma de pagamento"
+        },
+        {
+          "role": "cliente",
+          "content": "Maria Santos, Av. Brasil 456, dinheiro"
+        },
+        {
+          "role": "agente",
+          "content": "🚚 Você prefere *🛵 Delivery ou 🏃 Retirada no local*?"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Carlos Oliveira",
+      "description": "Pizza com borda",
+      "completed": false,
+      "orderCreated": false,
+      "messages": 4,
+      "duration": "8.8s",
+      "issues": [],
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oi, quero uma pizza mussarela grande com borda de cheddar"
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nFico à disposição! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas."
+        },
+        {
+          "role": "cliente",
+          "content": "Carlos Oliveira, Rua Amazonas 789, PIX"
+        },
+        {
+          "role": "agente",
+          "content": "🚚 Você prefere *🛵 Delivery ou 🏃 Retirada no local*?"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Ana Costa",
+      "description": "Pedido grande família",
+      "completed": false,
+      "orderCreated": false,
+      "messages": 6,
+      "duration": "14.0s",
+      "issues": [],
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Olá! Quero 2 pizzas grandes de calabresa"
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nFico à disposição! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas."
+        },
+        {
+          "role": "cliente",
+          "content": "E 2 refrigerantes de 1 litro também"
+        },
+        {
+          "role": "agente",
+          "content": "Hmm, não encontrei \"refrigerantes d\" no cardápio 🤔 Quer ver as opções?"
+        },
+        {
+          "role": "cliente",
+          "content": "Ana Costa, Rua São Paulo 321, cartão na entrega"
+        },
+        {
+          "role": "agente",
+          "content": "📋 *RESUMO DO SEU PEDIDO:*\n\n👤 *Nome:* Ana Costa\n📍 *Endereço:* Ana Costa, Rua São Paulo 321, na\n🛵 *Tipo:* Delivery\n💳 *Pagamento:* Cartao\n\n💰 *Subtotal:* R$ 55,00\n🛵 *Taxa de entrega:* R$ 8,00\n\n💵 *TOTAL: R$ 63,00*\n\n⏱️ *Previsão:* 45 minutos\n\n✅ *Confirma o pedido?* (responda \"sim\" para confirmar ou \"não\" para cancelar)"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Pedro Mendes",
+      "description": "Pizza com bebida",
+      "completed": false,
+      "orderCreated": false,
+      "messages": 6,
+      "duration": "12.3s",
+      "issues": [],
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oi, quero uma pizza frango catupiry grande"
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nSe precisar de algo, estou por aqui! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas."
+        },
+        {
+          "role": "cliente",
+          "content": "E uma Coca-Cola 1 litro"
+        },
+        {
+          "role": "agente",
+          "content": "✅ Adicionado ao pedido:\n\n• 1x Refrigerante 1 Litro - R$ 10,00\n• 1x Refrigerante 2 Litros - R$ 15,00\n\n🛒 *SEU PEDIDO*\n───────────────\n1x Pizza Portuguesa (Grande (G)) - R$ 55,00\n _Obs: Tamanho: Grande (G)_\n1x Refrigerante 1 Litro - R$ 10,00\n1x Refrigerante 2 Litros - R$ 15,00\n───────────────\n📦 Subtotal: R$ 80,00\n\nDeseja mais alguma coisa? Posso sugerir *Borda Recheada* ou *Refrigerante*.\n\nPara finalizar, me diga:\n📝 Nome\n🚚 Tipo de entrega: 🛵 Delivery ou 🏪 Retirada\n📍 Endereço (se for entrega)\n💳 Forma de pagamento"
+        },
+        {
+          "role": "cliente",
+          "content": "Pedro Mendes, Av. Central 555, PIX"
+        },
+        {
+          "role": "agente",
+          "content": "🚚 Você prefere *🛵 Delivery ou 🏃 Retirada no local*?"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Luiza Almeida",
+      "description": "Só esfihas",
+      "completed": false,
+      "orderCreated": false,
+      "messages": 6,
+      "duration": "13.4s",
+      "issues": [],
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oi, quero 6 esfihas de carne e 6 de queijo"
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nFico à disposição! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas."
+        },
+        {
+          "role": "cliente",
+          "content": "Luiza Almeida, Rua das Palmeiras 88, dinheiro"
+        },
+        {
+          "role": "agente",
+          "content": "🚚 Você prefere *🛵 Delivery ou 🏃 Retirada no local*?"
+        },
+        {
+          "role": "cliente",
+          "content": "Pode confirmar"
+        },
+        {
+          "role": "agente",
+          "content": "✅ Ótimo! Para finalizar seu pedido, preciso de algumas informações:\n\n📝 *Seu nome completo*\n\n🚚 *Tipo de entrega:* 🛵 Delivery ou 🏃 Retirada no local\n\n📍 *Endereço* (se for delivery): rua, número, bairro\n\n💳 *Forma de pagamento:* Dinheiro, Cartao, Pix\n\nPode me enviar tudo junto ou separado! 😊"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "Ricardo Souza",
+      "description": "Pizza doce",
+      "completed": false,
+      "orderCreated": false,
+      "messages": 4,
+      "duration": "9.9s",
+      "issues": [],
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Boa tarde, quero uma pizza brigadeiro grande"
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nFico à disposição! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas."
+        },
+        {
+          "role": "cliente",
+          "content": "Ricardo Souza, Av. Atlântica 1000, PIX"
+        },
+        {
+          "role": "agente",
+          "content": "🚚 Você prefere *🛵 Delivery ou 🏃 Retirada no local*?"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "name": "Camila Lima",
+      "description": "Mix pizza e esfiha",
+      "completed": false,
+      "orderCreated": false,
+      "messages": 6,
+      "duration": "11.0s",
+      "issues": [],
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oie, quero uma pizza mussarela grande"
+        },
+        {
+          "role": "agente",
+          "content": "✅ Adicionado ao pedido:\n\n• 1x Pizza Mussarela (Grande (G)) - R$ 55,00\n\n🛒 *SEU PEDIDO*\n───────────────\n1x Pizza Portuguesa (Grande (G)) - R$ 55,00\n _Obs: Tamanho: Grande (G)_\n1x Refrigerante 1 Litro - R$ 10,00\n1x Refrigerante 2 Litros - R$ 15,00\n1x Pizza Mussarela (Grande (G)) - R$ 55,00\n _Obs: Tamanho: Grande (G)_\n───────────────\n📦 Subtotal: R$ 135,00\n\nDeseja mais alguma coisa? Posso sugerir *Borda Recheada* ou *Refrigerante*.\n\nPara finalizar, me diga:\n📝 Nome\n🚚 Tipo de entrega: 🛵 Delivery ou 🏪 Retirada\n📍 Endereço (se for entrega)\n💳 Forma de pagamento"
+        },
+        {
+          "role": "cliente",
+          "content": "E também 4 esfihas de carne"
+        },
+        {
+          "role": "agente",
+          "content": "✅ Adicionado ao pedido:\n\n• 4x Esfiha de Carne - R$ 16,00\n\n🛒 *SEU PEDIDO*\n───────────────\n1x Pizza Portuguesa (Grande (G)) - R$ 55,00\n _Obs: Tamanho: Grande (G)_\n1x Refrigerante 1 Litro - R$ 10,00\n1x Refrigerante 2 Litros - R$ 15,00\n1x Pizza Mussarela (Grande (G)) - R$ 55,00\n _Obs: Tamanho: Grande (G)_\n4x Esfiha de Carne - R$ 16,00\n───────────────\n📦 Subtotal: R$ 151,00\n\nDeseja mais alguma coisa? Posso sugerir *Borda Recheada* ou *Refrigerante*.\n\nPara finalizar, me diga:\n📝 Nome\n🚚 Tipo de entrega: 🛵 Delivery ou 🏪 Retirada\n📍 Endereço (se for entrega)\n💳 Forma de pagamento"
+        },
+        {
+          "role": "cliente",
+          "content": "Camila Lima, Rua Alegre 42, cartão"
+        },
+        {
+          "role": "agente",
+          "content": "🚚 Você prefere *🛵 Delivery ou 🏃 Retirada no local*?"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "name": "Roberto Dias",
+      "description": "Objetivo e direto",
+      "completed": false,
+      "orderCreated": false,
+      "messages": 2,
+      "duration": "3.9s",
+      "issues": [],
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Pizza marguerita grande com borda catupiry. Roberto Dias, Rua dos Ipês 200, PIX"
+        },
+        {
+          "role": "agente",
+          "content": "Quase lá! Só preciso de mais algumas informações:\n\n📝 *Seu nome completo*\n\n🚚 *Tipo de entrega:* 🛵 Delivery ou 🏃 Retirada\n\nPode me enviar! 😊"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "name": "Juliana Rocha",
+      "description": "Combo esfihas",
+      "completed": false,
+      "orderCreated": false,
+      "messages": 8,
+      "duration": "16.6s",
+      "issues": [],
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oi, quero 6 esfihas de calabresa"
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nSe precisar de algo, estou por aqui! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas."
+        },
+        {
+          "role": "cliente",
+          "content": "E um guaraná 1 litro"
+        },
+        {
+          "role": "agente",
+          "content": "✅ Adicionado ao pedido:\n\n• 1x Refrigerante 1 Litro - R$ 10,00\n• 1x Refrigerante 2 Litros - R$ 15,00\n\n🛒 *SEU PEDIDO*\n───────────────\n1x Pizza Portuguesa (Grande (G)) - R$ 55,00\n _Obs: Tamanho: Grande (G)_\n2x Refrigerante 1 Litro - R$ 20,00\n2x Refrigerante 2 Litros - R$ 30,00\n1x Pizza Mussarela (Grande (G)) - R$ 55,00\n _Obs: Tamanho: Grande (G)_\n4x Esfiha de Carne - R$ 16,00\n───────────────\n📦 Subtotal: R$ 176,00\n\nDeseja mais alguma coisa? Posso sugerir *Borda Recheada* ou *Refrigerante*.\n\nPara finalizar, me diga:\n📝 Nome\n🚚 Tipo de entrega: 🛵 Delivery ou 🏪 Retirada\n📍 Endereço (se for entrega)\n💳 Forma de pagamento"
+        },
+        {
+          "role": "cliente",
+          "content": "Juliana Rocha, Rua do Lago 77, dinheiro"
+        },
+        {
+          "role": "agente",
+          "content": "🚚 Você prefere *🛵 Delivery ou 🏃 Retirada no local*?"
+        },
+        {
+          "role": "cliente",
+          "content": "Perfeito, pode fechar!"
+        },
+        {
+          "role": "agente",
+          "content": "✅ Ótimo! Para finalizar seu pedido, preciso de algumas informações:\n\n📝 *Seu nome completo*\n\n🚚 *Tipo de entrega:* 🛵 Delivery ou 🏃 Retirada no local\n\n📍 *Endereço* (se for delivery): rua, número, bairro\n\n💳 *Forma de pagamento:* Dinheiro, Cartao, Pix\n\nPode me enviar tudo junto ou separado! 😊"
+        }
+      ]
+    }
+  ]
+}

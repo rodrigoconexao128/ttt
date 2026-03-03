@@ -1,0 +1,277 @@
+{
+  "timestamp": "2026-02-22T17:15:17.228Z",
+  "promptFile": "C:\\Users\\Windows\\Downloads\\agentezap correto\\vvvv\\prompt-rodrigo-calibrado-v2.txt",
+  "totalScore": "98.0",
+  "greetingObedience": "5/5",
+  "results": [
+    {
+      "persona": "Lead Frio Objetivo",
+      "firstResponseOk": true,
+      "score": 100,
+      "violations": [],
+      "turns": [
+        {
+          "turn": 1,
+          "clientMessage": "Olá! Tenho interesse no AgenteZap por R$49 ilimitado e gostaria de saber mais.",
+          "agentMessage": "Boa tarde, Tudo bem? Rodrigo da AgenteZap aqui. Me conta: o que você faz hoje? Vendas, atendimento ou qualificação?",
+          "evaluation": {
+            "firstResponse": {
+              "hasExact": true,
+              "hasNear": true,
+              "violations": []
+            },
+            "violations": []
+          }
+        },
+        {
+          "turn": 2,
+          "clientMessage": "Quanto custa mesmo?",
+          "agentMessage": "O plano mensal está em *R$49/mês ilimitado* — sem limite de conversas, sem custo extra por mensagem.\n\nTemos também o *plano anual por R$599*, que além de economizar já inclui a configuração completa feita por um especialista da nossa equipe. Você entra com tudo pronto.\n\nQual faz mais sentido pra você?",
+          "evaluation": {
+            "violations": []
+          }
+        },
+        {
+          "turn": 3,
+          "clientMessage": "Tem desconto?",
+          "agentMessage": "\"Sim é R$49! O link que te mando já é o da promo exclusiva:\n\nhttps://agentezap.online/p/plano-promo-ilimitado-mensal-e805ee4e\"",
+          "evaluation": {
+            "violations": []
+          }
+        },
+        {
+          "turn": 4,
+          "clientMessage": "Me manda o link pra assinar.",
+          "agentMessage": "Show! Pra você garantir o *R$49/mês* ilimitado e já começar, é só criar sua conta por aqui:\n\nhttps://agentezap.online/p/plano-promo-ilimitado-mensal-e805ee4e\n\nSe quiser, me manda um **\"pronto\"** quando criar que eu te ajudo a configurar rapidinho. 😊",
+          "evaluation": {
+            "violations": []
+          }
+        },
+        {
+          "turn": 5,
+          "clientMessage": "Quero confirmar: cria conta e já funciona?",
+          "agentMessage": "Cria a conta, vincula seu WhatsApp e já pode começar a configurar a IA!\n\n**Passo a passo rápido:**\n1. Cria a conta no link (2 min)\n2. Conecta seu número de WhatsApp\n3. Configura as respostas da IA (ou pega o modelo pronto que a gente disponibiliza)\n4. Ativa e pronto! Ela já começa a responder automaticamente.\n\nSe quiser, quando criar a conta é só me avisar que te ajudo a deixar tudo redondo em 5 minutos. 😊\n\nO link é este:\nhttps://agentezap.online/p/plano-promo-ilimitado-mensal-e805ee4e",
+          "evaluation": {
+            "violations": []
+          }
+        }
+      ]
+    },
+    {
+      "persona": "Lead Interessado em Vendas",
+      "firstResponseOk": true,
+      "score": 90,
+      "violations": [
+        "preco_inventado:R$500"
+      ],
+      "turns": [
+        {
+          "turn": 1,
+          "clientMessage": "Vi o anúncio do AgenteZap. Me fala mais sobre como funciona pra vendas.",
+          "agentMessage": "Boa tarde, Tudo bem? Rodrigo da AgenteZap aqui. Me conta: o que você faz hoje? Vendas, atendimento ou qualificação?",
+          "evaluation": {
+            "firstResponse": {
+              "hasExact": true,
+              "hasNear": true,
+              "violations": []
+            },
+            "violations": []
+          }
+        },
+        {
+          "turn": 2,
+          "clientMessage": "Trabalho com vendas de imóveis.",
+          "agentMessage": "**Imobiliário!** Entendi sim. Pra quem trabalha com *vendas de imóveis*, o WhatsApp é uma ferramenta poderosa, mas pode virar um caos: clientes pedem informações, somem, voltam dias depois, e quando você vê, perdeu a oportunidade porque não respondeu na hora certa.\n\nO **AgenteZAP** resolve isso com uma **IA real** (não um chatbot) que:\n✅ **Responde 24h** como se fosse você — com tom profissional, informações dos imóveis, tirando dúvidas sobre financiamento, documentação, agendamentos, etc.\n✅ **Follow-up automático**: Se o cliente pede detalhes de um apartamento e some, a IA *retoma a conversa* no momento ideal, sem você precisar lembrar.\n✅ **Notificador inteligente**: Ela te avisa quando o lead está *quente* (ex: \"Quero visitar amanhã!\") para você entrar e fechar.\n✅ **Envia mídias automaticamente**: Você cadastra fotos, vídeos dos imóveis, PDFs de planta/contrato, e a IA envia no momento certo (ex: \"Aqui está o tour virtual desse apartamento que você perguntou\").\n\n**Exemplo prático**:\nUm cliente pergunta: *\"Tem apartamento com 2 quartos na Lapa, até R$500k?\"*\nA IA responde com os imóveis disponíveis, envia fotos/vídeo, pergunta se quer agendar visita e, se ele não responder, *retoma em 12h* com: *\"",
+          "evaluation": {
+            "violations": [
+              "preco_inventado:R$500"
+            ]
+          }
+        },
+        {
+          "turn": 3,
+          "clientMessage": "Mas isso funciona igual a um humano respondendo?",
+          "agentMessage": "**Não é chatbot, é IA treinável!** A diferença é que você *ensina* ela a responder **exatamente como você responderia** — com suas palavras, seu jeito de vender, até gírias ou termos técnicos de imóveis (ex: \"ITBI\", \"lazer completo\", \"planta humanizada\").\n\n**Como fica humanizado?**\n- Você cadastra **respostas-modelo** para perguntas comuns:\n  *\"Qual a metragem?\"* → *\"Esse apart tem 67m² (2 quartos, sacada gourmet). Aqui o vídeo 360°: [link]. Quer agendar visita?\"*\n- Define **tons de voz**: formal para clientes corporativos, descontraído para jovens.\n- Configura **mídias**: Ela envia *fotos reais do imóvel*, PDF da planta, ou até um áudio seu explicando detalhes (ex: *\"Olha, esse prédio tem piscina aquecida, veja no vídeo!\"*).\n- **Aprende com você**: Se um cliente perguntar algo novo, você responde manualmente **uma vez**, e a IA *guarda essa resposta* para usar depois.\n\n**Resultado**: O cliente não percebe que é uma IA — acha que é você, só que *sempre disponível*. E quando a conversa esquenta (ex: *\"Quero fechar!\"*), ela te **notifica na hora** para você assumir.\n\n---\n**Quer ver na prática?** O teste é gratuito (até 25 mensagens) e você configura do seu jeito:\nhttps://agentez",
+          "evaluation": {
+            "violations": []
+          }
+        },
+        {
+          "turn": 4,
+          "clientMessage": "Tem teste grátis?",
+          "agentMessage": "Pode testar gratuitamente! É só criar uma conta:\nhttps://agentezap.online/p/plano-promo-ilimitado-mensal-e805ee4e\n\nNo teste você já consegue experimentar a IA no seu WhatsApp (limite de 25 mensagens no plano gratuito). Se gostar, assina o mensal por **R$49** e fica ilimitado. 😊\n\n**Dica:** No teste, já configura respostas para perguntas como:\n- *\"Tem imóvel na [região]?\"*\n- *\"Qual o valor do condomínio?\"*\n- *\"Aceita FGTS?\"*\n\nAssim você vê como a IA vai te ajudar a não perder nenhum lead!",
+          "evaluation": {
+            "violations": []
+          }
+        },
+        {
+          "turn": 5,
+          "clientMessage": "Qual o preço do plano ilimitado?",
+          "agentMessage": "O plano mensal está em ***R$49/mês ilimitado*** — sem limite de conversas, sem custo extra por mensagem.\n\nTemos também o ***plano anual por R$599***, que além de economizar já inclui a configuração completa feita por um especialista da nossa equipe. Você entra com tudo pronto.\n\nQual faz mais sentido pra você? 😊",
+          "evaluation": {
+            "violations": []
+          }
+        }
+      ]
+    },
+    {
+      "persona": "Lead Hardcoder - Pede Link Logo",
+      "firstResponseOk": true,
+      "score": 100,
+      "violations": [],
+      "turns": [
+        {
+          "turn": 1,
+          "clientMessage": "Oi quero saber mais sobre o AgenteZap",
+          "agentMessage": "Boa tarde, Tudo bem? Rodrigo da AgenteZap aqui. Me conta: o que você faz hoje? Vendas, atendimento ou qualificação?",
+          "evaluation": {
+            "firstResponse": {
+              "hasExact": true,
+              "hasNear": true,
+              "violations": []
+            },
+            "violations": []
+          }
+        },
+        {
+          "turn": 2,
+          "clientMessage": "Me manda o link direto.",
+          "agentMessage": "\"Show! Pra você garantir o *R$49/mês* ilimitado e já começar, é só criar sua conta por aqui:\n\nhttps://agentezap.online/p/plano-promo-ilimitado-mensal-e805ee4e\n\nSe quiser, me manda um 'pronto' quando criar que eu te ajudo a configurar rapidinho. 😊\"",
+          "evaluation": {
+            "violations": []
+          }
+        },
+        {
+          "turn": 3,
+          "clientMessage": "Não precisa de explicação, só quero o link.",
+          "agentMessage": "https://agentezap.online/p/plano-promo-ilimitado-mensal-e805ee4e",
+          "evaluation": {
+            "violations": []
+          }
+        },
+        {
+          "turn": 4,
+          "clientMessage": "Atendimento mesmo.",
+          "agentMessage": "Entendi! Pra quem trabalha com **atendimento**, o AgenteZAP é perfeito pra evitar que clientes fiquem sem resposta ou se percam no meio do caminho.\n\nCom a IA, você configura respostas automáticas *no seu estilo*, mantém o follow-up sem esquecer ninguém e ainda recebe alertas quando um lead está quente pra você entrar e fechar.\n\nO plano é *R$49/mês ilimitado* — sem limite de conversas. Se quiser testar antes, é gratuito (até 25 mensagens):\n\nhttps://agentezap.online/p/plano-promo-ilimitado-mensal-e805ee4e\n\nVamos lá? 😊",
+          "evaluation": {
+            "violations": []
+          }
+        },
+        {
+          "turn": 5,
+          "clientMessage": "Ok me fala o preço",
+          "agentMessage": "O plano mensal está em ***R$49/mês ilimitado*** — sem limite de conversas, sem custo extra.\n\nSe preferir, o **plano anual** sai por **R$599** (já com configuração inclusiva feita pela gente).\n\nQual faz mais sentido pra você? 😊",
+          "evaluation": {
+            "violations": []
+          }
+        }
+      ]
+    },
+    {
+      "persona": "Lead Desconfiado",
+      "firstResponseOk": true,
+      "score": 100,
+      "violations": [],
+      "turns": [
+        {
+          "turn": 1,
+          "clientMessage": "Recebi uma mensagem sobre o AgenteZap por R$99. É confiável?",
+          "agentMessage": "Boa tarde, Tudo bem? Rodrigo da AgenteZap aqui. Me conta: o que você faz hoje? Vendas, atendimento ou qualificação?",
+          "evaluation": {
+            "firstResponse": {
+              "hasExact": true,
+              "hasNear": true,
+              "violations": []
+            },
+            "violations": []
+          }
+        },
+        {
+          "turn": 2,
+          "clientMessage": "E se eu tiver problema, tem suporte real?",
+          "agentMessage": "\"{NOME}, o suporte é 24h por WhatsApp! A equipe responde em média em até 5 minutos — sem robô, sem espera. É só chamar que já te ajudam.\n\nE olha, o plano está por *R$49/mês ilimitado* (não é R$99 não, esse é o link da promo):\nhttps://agentezap.online/p/plano-promo-ilimitado-mensal-e805ee4e\n\nSe quiser, cria a conta e testa grátis (até 25 mensagens). Aí você vê como funciona na prática.\"",
+          "evaluation": {
+            "violations": []
+          }
+        },
+        {
+          "turn": 3,
+          "clientMessage": "Quanto tempo leva pra configurar?",
+          "agentMessage": "\"Depende do seu ritmo, mas a maioria dos clientes configura em *menos de 1 hora* — é bem intuitivo!\n\nTem videoaulas passo a passo dentro da plataforma e a IA já vem com modelos prontos pra você adaptar. Se preferir, a gente faz tudo pra você na *implementação por R$199* (pagamento único).\n\nQuer que eu te mande o link do plano + implementação?\"",
+          "evaluation": {
+            "violations": []
+          }
+        },
+        {
+          "turn": 4,
+          "clientMessage": "Funciona no Instagram também?",
+          "agentMessage": "\"Hoje estamos 100% focados no WhatsApp, que é onde a maioria fecha vendas e atendimento mais rápido. A integração com outras redes está nos planos.\n\nMas me diz: você quer resolver mais a *demora pra responder* ou o *follow-up de quem some* no WhatsApp? O AgenteZAP faz os dois automaticamente.\n\nO plano é *R$49/mês ilimitado* — se quiser testar, é grátis:\nhttps://agentezap.online/p/plano-promo-ilimitado-mensal-e805ee4e\"",
+          "evaluation": {
+            "violations": []
+          }
+        },
+        {
+          "turn": 5,
+          "clientMessage": "E se eu quiser cancelar?",
+          "agentMessage": "\"É pré-pago, sem multa. Você paga, usa os 30 dias. No próximo mês, se não quiser renovar, é só não pagar — sem burocracia, sem fidelidade.\n\nE olha, o teste é grátis (até 25 mensagens). Se gostar, assina o mensal por *R$49 ilimitado*:\nhttps://agentezap.online/p/plano-promo-ilimitado-mensal-e805ee4e\n\nQuer criar a conta agora e experimentar?\"",
+          "evaluation": {
+            "violations": []
+          }
+        }
+      ]
+    },
+    {
+      "persona": "Lead Direto ao R$49",
+      "firstResponseOk": true,
+      "score": 100,
+      "violations": [],
+      "turns": [
+        {
+          "turn": 1,
+          "clientMessage": "Bom dia! Quero contratar o plano de R$49 ilimitado que vi no anúncio.",
+          "agentMessage": "Boa tarde, Tudo bem? Rodrigo da AgenteZap aqui. Me conta: o que você faz hoje? Vendas, atendimento ou qualificação?",
+          "evaluation": {
+            "firstResponse": {
+              "hasExact": true,
+              "hasNear": true,
+              "violations": []
+            },
+            "violations": []
+          }
+        },
+        {
+          "turn": 2,
+          "clientMessage": "Então qual é o preço certo?",
+          "agentMessage": "O plano mensal está em *R$49/mês ilimitado* — sem limite de conversas, sem custo extra por mensagem.\n\nTemos também o *plano anual por R$599*, que além de economizar já inclui a configuração completa feita por um especialista da nossa equipe.\n\nQual faz mais sentido pra você?",
+          "evaluation": {
+            "violations": []
+          }
+        },
+        {
+          "turn": 3,
+          "clientMessage": "Uso pra atendimento ao cliente.",
+          "agentMessage": "**Perfeito!** Pra quem trabalha com *atendimento ao cliente*, o AgenteZAP resolve justamente os maiores problemas:\n\n1. **Respostas instantâneas 24h** — mesmo fora do horário comercial, seus clientes são atendidos na hora, sem espera.\n2. **Follow-up automático** — quando o cliente some no meio da conversa, a IA retoma no momento certo, sem você precisar lembrar.\n3. **Notificações inteligentes** — você só é avisado quando o cliente *realmente* precisa de você (ex: dúvidas complexas ou fechamento).\n\nAlém disso, você pode cadastrar **respostas padrão** (como políticas de trocas, prazos de entrega) e **mídias** (áudios, PDFs de manuais, vídeos tutoriais) para a IA enviar automaticamente.\n\nO plano é *R$49/mês ilimitado* — sem limite de conversas.\nQuer criar sua conta agora e já começar a testar?\n\n**Link direto:**\nhttps://agentezap.online/p/plano-promo-ilimitado-mensal-e805ee4e\n\n*(Se preferir, me manda um \"pronto\" quando criar que eu te ajudo a configurar o primeiro fluxo em 5 minutos!)* 😊",
+          "evaluation": {
+            "violations": []
+          }
+        },
+        {
+          "turn": 4,
+          "clientMessage": "Pode me mandar o link pra contratar?",
+          "agentMessage": "Show! Pra você garantir o *R$49/mês* ilimitado e já começar, é só criar sua conta por aqui:\n\nhttps://agentezap.online/p/plano-promo-ilimitado-mensal-e805ee4e\n\nSe quiser, me manda um **“pronto”** quando criar que eu te ajudo a configurar rapidinho. 😊",
+          "evaluation": {
+            "violations": []
+          }
+        },
+        {
+          "turn": 5,
+          "clientMessage": "Precisa de cartão de crédito?",
+          "agentMessage": "Não necessariamente! Você pode pagar com:\n\n- **Cartão de crédito** (à vista ou parcelado)\n- **Boleto bancário** (pagamento único)\n- **Pix** (pagamento instantâneo)\n\nNo link de contratação, todas essas opções aparecem pra você escolher a mais fácil.\n\nVou deixar o link aqui de novo pra facilitar:\nhttps://agentezap.online/p/plano-promo-ilimitado-mensal-e805ee4e\n\nQualquer dúvida no pagamento, é só me chamar! 😊",
+          "evaluation": {
+            "violations": []
+          }
+        }
+      ]
+    }
+  ]
+}

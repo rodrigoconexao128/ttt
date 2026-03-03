@@ -1,0 +1,746 @@
+{
+  "timestamp": "2026-02-03T18:43:43.628Z",
+  "config": {
+    "apiUrl": "http://localhost:5000",
+    "userId": "811c0403-ee01-4d60-8101-9b9e80684384"
+  },
+  "summary": {
+    "totalDuration": "215.8s",
+    "completed": 0,
+    "ordersCreated": 0,
+    "total": 10,
+    "issuesCount": 5
+  },
+  "results": [
+    {
+      "clientNumber": 1,
+      "clientName": "João - Pedido Simples de Pizza",
+      "completed": false,
+      "orderCreated": false,
+      "messagesExchanged": 10,
+      "duration": "16.6s",
+      "issues": [],
+      "expectedOutcome": "Pedido de pizza calabresa finalizado",
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oi, quero fazer um pedido",
+          "timestamp": 1770144007852
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nQualquer coisa, é só me chamar! 😉\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🥟 Esfihas\n• 🍹 Bebidas\n• 🧀 Bordas Recheadas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770144010654
+        },
+        {
+          "role": "cliente",
+          "content": "Quero uma pizza de calabresa grande",
+          "timestamp": 1770144010964
+        },
+        {
+          "role": "agente",
+          "content": "✅ Adicionado ao pedido:\n\n• 1x Pizza Calabresa (Grande (G)) - R$ 55,00\n\n🛒 *SEU PEDIDO*\n───────────────\n1x Pizza Calabresa (Grande (G)) - R$ 55,00\n _Obs: Tamanho: Grande (G)_\n───────────────\n📦 Subtotal: R$ 55,00\n\nDeseja mais alguma coisa? Posso sugerir *Borda Recheada* ou *Refrigerante*.\n\nPara finalizar, me diga:\n📝 Nome\n🚚 Tipo de entrega: 🛵 Delivery ou 🏪 Retirada\n📍 Endereço (se for entrega)\n💳 Forma de pagamento",
+          "timestamp": 1770144015400
+        },
+        {
+          "role": "cliente",
+          "content": "Sim, pode confirmar",
+          "timestamp": 1770144015718
+        },
+        {
+          "role": "agente",
+          "content": "✅ Ótimo! Para finalizar seu pedido, preciso de algumas informações:\n\n📝 *Seu nome completo*\n\n🚚 *Tipo de entrega:* 🛵 Delivery ou 🏃 Retirada no local\n\n📍 *Endereço* (se for delivery): rua, número, bairro\n\n💳 *Forma de pagamento:* Dinheiro, Cartao, Pix\n\nPode me enviar tudo junto ou separado! 😊",
+          "timestamp": 1770144018340
+        },
+        {
+          "role": "cliente",
+          "content": "Rua das Flores, 123 - Centro",
+          "timestamp": 1770144018643
+        },
+        {
+          "role": "agente",
+          "content": "Quase lá! Só preciso de mais algumas informações:\n\n📝 *Seu nome completo*\n\n💳 *Forma de pagamento:* Dinheiro, Cartao, Pix\n\nPode me enviar! 😊",
+          "timestamp": 1770144020854
+        },
+        {
+          "role": "cliente",
+          "content": "Sim, tá certo. Finaliza aí",
+          "timestamp": 1770144021157
+        },
+        {
+          "role": "agente",
+          "content": "✅ Ótimo! Para finalizar seu pedido, preciso de algumas informações:\n\n📝 *Seu nome completo*\n\n🚚 *Tipo de entrega:* 🛵 Delivery ou 🏃 Retirada no local\n\n📍 *Endereço* (se for delivery): rua, número, bairro\n\n💳 *Forma de pagamento:* Dinheiro, Cartao, Pix\n\nPode me enviar tudo junto ou separado! 😊",
+          "timestamp": 1770144024114
+        }
+      ]
+    },
+    {
+      "clientNumber": 2,
+      "clientName": "Maria - Pergunta Preços",
+      "completed": false,
+      "orderCreated": false,
+      "messagesExchanged": 14,
+      "duration": "21.6s",
+      "issues": [
+        "Código/placeholders aparecendo na resposta"
+      ],
+      "expectedOutcome": "Consulta de preços e pedido finalizado",
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Boa noite!",
+          "timestamp": 1770144024422
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nSe precisar de algo, estou por aqui! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🥟 Esfihas\n• 🍹 Bebidas\n• 🧀 Bordas Recheadas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770144027261
+        },
+        {
+          "role": "cliente",
+          "content": "Quero ver o cardápio",
+          "timestamp": 1770144027565
+        },
+        {
+          "role": "agente",
+          "content": "Claro! Qual categoria você quer ver primeiro?\n\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🥟 Esfihas\n• 🍹 Bebidas\n• 🧀 Bordas Recheadas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770144029663
+        },
+        {
+          "role": "cliente",
+          "content": "Quanto custa a pizza de mussarela?",
+          "timestamp": 1770144029966
+        },
+        {
+          "role": "agente",
+          "content": "🍕 *NOVO SABOR PIZZA E ESFIHAS E ACAI*\n━━━━━━━━━━━━━━━━━━━━\n📋 🍕 Pizzas Salgadas, 🍫 Pizzas Doces (17 opções)\n\n📁 *🍕 PIZZAS SALGADAS*\n───────────────\n• Pizza Frango Catupiry\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho, mussarela, frango desfiado, catupiry e orégano_\n• Pizza Portuguesa\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho, mussarela, presunto, ovo, cebola, pimentão e orégano_\n• Pizza Marguerita\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho, mussarela, tomate e manjericão triturado_\n• Pizza Frango com Milho\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho, mussarela, frango desfiado, milho e orégano_\n• Pizza Calabresa\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho de tomate, mussarela, calabresa fatiada, cebola e orégano_\n• Pizza Mussarela\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho de tomate, mussarela, tomate e orégano_\n• Pizza Atum\n Pequena (P): R$ 35,00 | Média (M): R$ 45,00 | Grande (G): R$ 60,00\n _Molho, mussarela, atum, catupiry ou cebola e orégano_\n• Pizza Picante\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho de tomate, mussarela, calabresa e pimenta calabresa_\n• Pizza Costela\n Pequena (P): R$ 36,00 | Média (M): R$ 45,00 | Grande (G): R$ 60,00\n _Molho de tomate, mussarela, costela desfiada e catupiry ou cebola_\n\n📁 *🍕 PIZZAS SALGADAS (cont.)*\n───────────────\n• Pizza 4 Queijos\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho de tomate, mussarela, gorgonzola, catupiry e cheddar_\n• Pizza Milho\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho de tomate, mussarela, milho e orégano_\n• Pizza Dom Camilo\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho de tomate, mussarela, presunto e calabresa_\n\n📁 *🍫 PIZZAS DOCES*\n───────────────\n• Pizza Tentação ⭐\n Pequena (P): R$ 35,00 | Média (M): R$ 50,00 | Grande (G): R$ 60,00\n _Creme de leite, chocolate, morango em rodela, leite condensado e coco ralado_\n• Pizza Romeu e Julieta\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Mussarela, goiabada derretida e orégano_\n• Pizza Brigadeiro\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Creme de leite, mussarela, chocolate e granulado_\n• Pizza MM Disquete\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Creme de leite, mussarela, chocolate e M&M_\n• Pizza Banana\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Creme de leite, mussarela, banana, leite condensado e canela em pó_\n━━━━━━━━━━━━━━━━━━━━\n✅ Qual você quer? É só me dizer! 😊",
+          "timestamp": 1770144032587
+        },
+        {
+          "role": "cliente",
+          "content": "E a de calabresa?",
+          "timestamp": 1770144032896
+        },
+        {
+          "role": "agente",
+          "content": "Olá! Temos sim a Pizza de Calabresa por R$ 30,00. Gostaria de pedir uma?",
+          "timestamp": 1770144036313
+        },
+        {
+          "role": "cliente",
+          "content": "Vou querer uma calabresa grande",
+          "timestamp": 1770144036627
+        },
+        {
+          "role": "agente",
+          "content": "✅ Adicionado ao pedido:\n\n• 1x Pizza Calabresa (Grande (G)) - R$ 55,00\n\n🛒 *SEU PEDIDO*\n───────────────\n2x Pizza Calabresa (Grande (G)) - R$ 110,00\n _Obs: Tamanho: Grande (G)_\n───────────────\n📦 Subtotal: R$ 110,00\n\nDeseja mais alguma coisa? Posso sugerir *Borda Recheada* ou *Refrigerante*.\n\nPara finalizar, me diga:\n📝 Nome\n🚚 Tipo de entrega: 🛵 Delivery ou 🏪 Retirada\n📍 Endereço (se for entrega)\n💳 Forma de pagamento",
+          "timestamp": 1770144039800
+        },
+        {
+          "role": "cliente",
+          "content": "Av. Brasil, 456 - Jardim América",
+          "timestamp": 1770144040108
+        },
+        {
+          "role": "agente",
+          "content": "Quase lá! Só preciso de mais algumas informações:\n\n📝 *Seu nome completo*\n\n💳 *Forma de pagamento:* Dinheiro, Cartao, Pix\n\nPode me enviar! 😊",
+          "timestamp": 1770144042754
+        },
+        {
+          "role": "cliente",
+          "content": "Isso, pode finalizar",
+          "timestamp": 1770144043055
+        },
+        {
+          "role": "agente",
+          "content": "✅ Ótimo! Para finalizar seu pedido, preciso de algumas informações:\n\n📝 *Seu nome completo*\n\n🚚 *Tipo de entrega:* 🛵 Delivery ou 🏃 Retirada no local\n\n📍 *Endereço* (se for delivery): rua, número, bairro\n\n💳 *Forma de pagamento:* Dinheiro, Cartao, Pix\n\nPode me enviar tudo junto ou separado! 😊",
+          "timestamp": 1770144045673
+        }
+      ]
+    },
+    {
+      "clientNumber": 3,
+      "clientName": "Carlos - Pedido com Borda",
+      "completed": false,
+      "orderCreated": false,
+      "messagesExchanged": 12,
+      "duration": "16.5s",
+      "issues": [],
+      "expectedOutcome": "Pedido com borda recheada",
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oi",
+          "timestamp": 1770144045986
+        },
+        {
+          "role": "agente",
+          "content": "Olá Oi! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nSe precisar de algo, estou por aqui! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770144047852
+        },
+        {
+          "role": "cliente",
+          "content": "Quero uma pizza grande",
+          "timestamp": 1770144048167
+        },
+        {
+          "role": "agente",
+          "content": "Hmm, não encontrei \"pizza grande\" no cardápio 🤔 Quer ver as opções?",
+          "timestamp": 1770144051367
+        },
+        {
+          "role": "cliente",
+          "content": "Pode ser portuguesa",
+          "timestamp": 1770144051681
+        },
+        {
+          "role": "agente",
+          "content": "🍕 Boa escolha! *1x Pizza Portuguesa*!\n\n📐 *Qual tamanho você quer?*\n\n• *Pequena (P)* - R$ 30,00\n• *Média (M)* - R$ 40,00\n• *Grande (G)* - R$ 55,00\n\nMe diz o tamanho! 😊",
+          "timestamp": 1770144053857
+        },
+        {
+          "role": "cliente",
+          "content": "Quero com borda de cheddar",
+          "timestamp": 1770144054162
+        },
+        {
+          "role": "agente",
+          "content": "✅ Adicionado ao pedido:\n\n• 1x Borda de Cheddar - R$ 10,00\n\n🛒 *SEU PEDIDO*\n───────────────\n2x Pizza Calabresa (Grande (G)) - R$ 110,00\n _Obs: Tamanho: Grande (G)_\n1x Borda de Cheddar - R$ 10,00\n───────────────\n📦 Subtotal: R$ 120,00\n\nDeseja mais alguma coisa? Posso sugerir *Borda Recheada* ou *Refrigerante*.\n\nPara finalizar, me diga:\n📝 Nome\n🚚 Tipo de entrega: 🛵 Delivery ou 🏪 Retirada\n📍 Endereço (se for entrega)\n💳 Forma de pagamento",
+          "timestamp": 1770144057117
+        },
+        {
+          "role": "cliente",
+          "content": "Rua Amazonas, 789",
+          "timestamp": 1770144057426
+        },
+        {
+          "role": "agente",
+          "content": "Quase lá! Só preciso de mais algumas informações:\n\n📝 *Seu nome completo*\n\n💳 *Forma de pagamento:* Dinheiro, Cartao, Pix\n\nPode me enviar! 😊",
+          "timestamp": 1770144059721
+        },
+        {
+          "role": "cliente",
+          "content": "Confirma o pedido",
+          "timestamp": 1770144060027
+        },
+        {
+          "role": "agente",
+          "content": "✅ Ótimo! Para finalizar seu pedido, preciso de algumas informações:\n\n📝 *Seu nome completo*\n\n🚚 *Tipo de entrega:* 🛵 Delivery ou 🏃 Retirada no local\n\n📍 *Endereço* (se for delivery): rua, número, bairro\n\n💳 *Forma de pagamento:* Dinheiro, Cartao, Pix\n\nPode me enviar tudo junto ou separado! 😊",
+          "timestamp": 1770144062169
+        }
+      ]
+    },
+    {
+      "clientNumber": 4,
+      "clientName": "Ana - Pedido Grande Família",
+      "completed": false,
+      "orderCreated": false,
+      "messagesExchanged": 10,
+      "duration": "13.3s",
+      "issues": [],
+      "expectedOutcome": "Pedido múltiplo para família",
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Olá! Quero fazer um pedido grande",
+          "timestamp": 1770144062474
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nFico à disposição! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770144064266
+        },
+        {
+          "role": "cliente",
+          "content": "Quero 2 pizzas grandes, uma calabresa e uma mussarela",
+          "timestamp": 1770144064571
+        },
+        {
+          "role": "agente",
+          "content": "🍕 Boa escolha! *1x Pizza Calabresa*!\n\n📐 *Qual tamanho você quer?*\n\n• *Pequena (P)* - R$ 30,00\n• *Média (M)* - R$ 40,00\n• *Grande (G)* - R$ 55,00\n\nMe diz o tamanho! 😊",
+          "timestamp": 1770144067001
+        },
+        {
+          "role": "cliente",
+          "content": "E também 3 refrigerantes de 1 litro",
+          "timestamp": 1770144067303
+        },
+        {
+          "role": "agente",
+          "content": "✅ Perfeito! Adicionado ao pedido:\n\n• 1x Pizza Calabresa (Média (M)) - R$ 40,00\n\n🛒 *SEU PEDIDO*\n───────────────\n2x Pizza Calabresa (Grande (G)) - R$ 110,00\n _Obs: Tamanho: Grande (G)_\n1x Borda de Cheddar - R$ 10,00\n1x Pizza Calabresa (Média (M)) - R$ 40,00\n _Obs: Tamanho: Média (M)_\n───────────────\n📦 Subtotal: R$ 160,00\n\nDeseja mais alguma coisa? Posso sugerir *Borda Recheada* ou *Refrigerante*.\n\nPara finalizar, me diga:\n📝 Nome\n🚚 Tipo de entrega: 🛵 Delivery ou 🏪 Retirada\n📍 Endereço (se for entrega)\n💳 Forma de pagamento",
+          "timestamp": 1770144069133
+        },
+        {
+          "role": "cliente",
+          "content": "Rua São Paulo, 321 - ap 102",
+          "timestamp": 1770144069435
+        },
+        {
+          "role": "agente",
+          "content": "Quase lá! Só preciso de mais algumas informações:\n\n📝 *Seu nome completo*\n\n💳 *Forma de pagamento:* Dinheiro, Cartao, Pix\n\nPode me enviar! 😊",
+          "timestamp": 1770144071690
+        },
+        {
+          "role": "cliente",
+          "content": "Isso mesmo, finaliza",
+          "timestamp": 1770144071998
+        },
+        {
+          "role": "agente",
+          "content": "✅ Ótimo! Para finalizar seu pedido, preciso de algumas informações:\n\n📝 *Seu nome completo*\n\n🚚 *Tipo de entrega:* 🛵 Delivery ou 🏃 Retirada no local\n\n📍 *Endereço* (se for delivery): rua, número, bairro\n\n💳 *Forma de pagamento:* Dinheiro, Cartao, Pix\n\nPode me enviar tudo junto ou separado! 😊",
+          "timestamp": 1770144075465
+        }
+      ]
+    },
+    {
+      "clientNumber": 5,
+      "clientName": "Pedro - Combo Promocional",
+      "completed": false,
+      "orderCreated": false,
+      "messagesExchanged": 16,
+      "duration": "22.8s",
+      "issues": [
+        "Código/placeholders aparecendo na resposta"
+      ],
+      "expectedOutcome": "Pedido de combo promocional",
+      "history": [
+        {
+          "role": "cliente",
+          "content": "E aí, tem algum combo?",
+          "timestamp": 1770144075778
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nQualquer coisa, é só me chamar! 😉\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770144077562
+        },
+        {
+          "role": "cliente",
+          "content": "Me fala mais sobre o combo da pizza com borda",
+          "timestamp": 1770144077875
+        },
+        {
+          "role": "agente",
+          "content": "🍕 *NOVO SABOR PIZZA E ESFIHAS E ACAI*\n━━━━━━━━━━━━━━━━━━━━\n📋 🍕 Pizzas Salgadas, 🍫 Pizzas Doces (17 opções)\n\n📁 *🍕 PIZZAS SALGADAS*\n───────────────\n• Pizza Portuguesa\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho, mussarela, presunto, ovo, cebola, pimentão e orégano_\n• Pizza Marguerita\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho, mussarela, tomate e manjericão triturado_\n• Pizza Frango com Milho\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho, mussarela, frango desfiado, milho e orégano_\n• Pizza Frango Catupiry\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho, mussarela, frango desfiado, catupiry e orégano_\n• Pizza Calabresa\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho de tomate, mussarela, calabresa fatiada, cebola e orégano_\n• Pizza Mussarela\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho de tomate, mussarela, tomate e orégano_\n• Pizza Atum\n Pequena (P): R$ 35,00 | Média (M): R$ 45,00 | Grande (G): R$ 60,00\n _Molho, mussarela, atum, catupiry ou cebola e orégano_\n• Pizza Picante\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho de tomate, mussarela, calabresa e pimenta calabresa_\n• Pizza Costela\n Pequena (P): R$ 36,00 | Média (M): R$ 45,00 | Grande (G): R$ 60,00\n _Molho de tomate, mussarela, costela desfiada e catupiry ou cebola_\n\n📁 *🍕 PIZZAS SALGADAS (cont.)*\n───────────────\n• Pizza 4 Queijos\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho de tomate, mussarela, gorgonzola, catupiry e cheddar_\n• Pizza Milho\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho de tomate, mussarela, milho e orégano_\n• Pizza Dom Camilo\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho de tomate, mussarela, presunto e calabresa_\n\n📁 *🍫 PIZZAS DOCES*\n───────────────\n• Pizza Tentação ⭐\n Pequena (P): R$ 35,00 | Média (M): R$ 50,00 | Grande (G): R$ 60,00\n _Creme de leite, chocolate, morango em rodela, leite condensado e coco ralado_\n• Pizza Romeu e Julieta\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Mussarela, goiabada derretida e orégano_\n• Pizza Brigadeiro\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Creme de leite, mussarela, chocolate e granulado_\n• Pizza MM Disquete\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Creme de leite, mussarela, chocolate e M&M_\n• Pizza Banana\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Creme de leite, mussarela, banana, leite condensado e canela em pó_\n━━━━━━━━━━━━━━━━━━━━\n✅ Qual você quer? É só me dizer! 😊",
+          "timestamp": 1770144080260
+        },
+        {
+          "role": "cliente",
+          "content": "Quero esse combo",
+          "timestamp": 1770144080573
+        },
+        {
+          "role": "agente",
+          "content": "Hmm, não encontrei \"esse combo\" no cardápio 🤔 Quer ver as opções?",
+          "timestamp": 1770144082853
+        },
+        {
+          "role": "cliente",
+          "content": "Pode ser pizza de frango catupiry",
+          "timestamp": 1770144083154
+        },
+        {
+          "role": "agente",
+          "content": "🍕 Boa escolha! *1x Pizza Frango Catupiry*!\n\n📐 *Qual tamanho você quer?*\n\n• *Pequena (P)* - R$ 30,00\n• *Média (M)* - R$ 40,00\n• *Grande (G)* - R$ 55,00\n\nMe diz o tamanho! 😊",
+          "timestamp": 1770144086094
+        },
+        {
+          "role": "cliente",
+          "content": "Borda de catupiry",
+          "timestamp": 1770144086403
+        },
+        {
+          "role": "agente",
+          "content": "✅ Adicionado ao pedido:\n\n• 1x Borda de Catupiry - R$ 10,00\n\n🛒 *SEU PEDIDO*\n───────────────\n2x Pizza Calabresa (Grande (G)) - R$ 110,00\n _Obs: Tamanho: Grande (G)_\n1x Borda de Cheddar - R$ 10,00\n1x Pizza Calabresa (Média (M)) - R$ 40,00\n _Obs: Tamanho: Média (M)_\n1x Borda de Catupiry - R$ 10,00\n───────────────\n📦 Subtotal: R$ 170,00\n\nDeseja mais alguma coisa? Posso sugerir *Borda Recheada* ou *Refrigerante*.\n\nPara finalizar, me diga:\n📝 Nome\n🚚 Tipo de entrega: 🛵 Delivery ou 🏪 Retirada\n📍 Endereço (se for entrega)\n💳 Forma de pagamento",
+          "timestamp": 1770144089775
+        },
+        {
+          "role": "cliente",
+          "content": "Refrigerante Coca-Cola",
+          "timestamp": 1770144090082
+        },
+        {
+          "role": "agente",
+          "content": "✅ Adicionado ao pedido:\n\n• 1x Refrigerante 1 Litro - R$ 10,00\n\n🛒 *SEU PEDIDO*\n───────────────\n2x Pizza Calabresa (Grande (G)) - R$ 110,00\n _Obs: Tamanho: Grande (G)_\n1x Borda de Cheddar - R$ 10,00\n1x Pizza Calabresa (Média (M)) - R$ 40,00\n _Obs: Tamanho: Média (M)_\n1x Borda de Catupiry - R$ 10,00\n1x Refrigerante 1 Litro - R$ 10,00\n───────────────\n📦 Subtotal: R$ 180,00\n\nDeseja mais alguma coisa? Posso sugerir *Borda Recheada* ou *Refrigerante*.\n\nPara finalizar, me diga:\n📝 Nome\n🚚 Tipo de entrega: 🛵 Delivery ou 🏪 Retirada\n📍 Endereço (se for entrega)\n💳 Forma de pagamento",
+          "timestamp": 1770144092739
+        },
+        {
+          "role": "cliente",
+          "content": "Endereço: Av. Central, 555",
+          "timestamp": 1770144093045
+        },
+        {
+          "role": "agente",
+          "content": "Quase lá! Só preciso de mais algumas informações:\n\n📝 *Seu nome completo*\n\n💳 *Forma de pagamento:* Dinheiro, Cartao, Pix\n\nPode me enviar! 😊",
+          "timestamp": 1770144095210
+        },
+        {
+          "role": "cliente",
+          "content": "Confirmo",
+          "timestamp": 1770144095512
+        },
+        {
+          "role": "agente",
+          "content": "✅ Ótimo! Para finalizar seu pedido, preciso de algumas informações:\n\n📝 *Seu nome completo*\n\n🚚 *Tipo de entrega:* 🛵 Delivery ou 🏃 Retirada no local\n\n📍 *Endereço* (se for delivery): rua, número, bairro\n\n💳 *Forma de pagamento:* Dinheiro, Cartao, Pix\n\nPode me enviar tudo junto ou separado! 😊",
+          "timestamp": 1770144098318
+        }
+      ]
+    },
+    {
+      "clientNumber": 6,
+      "clientName": "Luiza - Esfihas",
+      "completed": false,
+      "orderCreated": false,
+      "messagesExchanged": 10,
+      "duration": "21.1s",
+      "issues": [
+        "Código/placeholders aparecendo na resposta"
+      ],
+      "expectedOutcome": "Pedido de esfihas variadas",
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oi, vocês tem esfiha?",
+          "timestamp": 1770144098626
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nFico à disposição! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770144100778
+        },
+        {
+          "role": "cliente",
+          "content": "Quais sabores?",
+          "timestamp": 1770144101090
+        },
+        {
+          "role": "agente",
+          "content": "🍕 *NOVO SABOR PIZZA E ESFIHAS E ACAI*\n━━━━━━━━━━━━━━━━━━━━\n📋 Cardápio completo (44 itens)\n\n🛵 Entrega: R$ 8,00\n⏱️ Tempo: ~45 min\n🏪 Retirada: GRÁTIS\n📦 Pedido mínimo: R$ 20,00\n💳 Pagamento: Dinheiro, Cartao, Pix\n\n📁 *🍕 PIZZAS SALGADAS*\n───────────────\n• Pizza Portuguesa\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho, mussarela, presunto, ovo, cebola, pimentão e orégano_\n• Pizza Marguerita\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho, mussarela, tomate e manjericão triturado_\n• Pizza Frango com Milho\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho, mussarela, frango desfiado, milho e orégano_\n• Pizza Frango Catupiry\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho, mussarela, frango desfiado, catupiry e orégano_\n• Pizza Calabresa\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho de tomate, mussarela, calabresa fatiada, cebola e orégano_\n• Pizza Mussarela\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho de tomate, mussarela, tomate e orégano_\n• Pizza Atum\n Pequena (P): R$ 35,00 | Média (M): R$ 45,00 | Grande (G): R$ 60,00\n _Molho, mussarela, atum, catupiry ou cebola e orégano_\n• Pizza Picante\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho de tomate, mussarela, calabresa e pimenta calabresa_\n• Pizza Costela\n Pequena (P): R$ 36,00 | Média (M): R$ 45,00 | Grande (G): R$ 60,00\n _Molho de tomate, mussarela, costela desfiada e catupiry ou cebola_\n\n📁 *🍕 PIZZAS SALGADAS (cont.)*\n───────────────\n• Pizza 4 Queijos\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho de tomate, mussarela, gorgonzola, catupiry e cheddar_\n• Pizza Milho\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho de tomate, mussarela, milho e orégano_\n• Pizza Dom Camilo\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho de tomate, mussarela, presunto e calabresa_\n\n📁 *🍫 PIZZAS DOCES*\n───────────────\n• Pizza Tentação ⭐\n Pequena (P): R$ 35,00 | Média (M): R$ 50,00 | Grande (G): R$ 60,00\n _Creme de leite, chocolate, morango em rodela, leite condensado e coco ralado_\n• Pizza Romeu e Julieta\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Mussarela, goiabada derretida e orégano_\n• Pizza Brigadeiro\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Creme de leite, mussarela, chocolate e granulado_\n• Pizza MM Disquete\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Creme de leite, mussarela, chocolate e M&M_\n• Pizza Banana\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Creme de leite, mussarela, banana, leite condensado e canela em pó_\n\n📁 *🎁 COMBOS*\n───────────────\n• Combo Pizza G + Borda + Refri 1.5L ⭐ - R$ 60,00\n _Pizza grande + borda recheada + refrigerante 1.5 litro_\n• Combo 6 Esfihas + Refri 1L ⭐ - R$ 38,00\n _6 esfihas de qualquer sabor + refrigerante 1 litro_\n\n📁 *🧀 BORDAS RECHEADAS*\n───────────────\n• Borda de Catupiry - R$ 10,00\n _Adicional de borda recheada com catupiry_\n• Borda de Cheddar - R$ 10,00\n _Adicional de borda recheada com cheddar_\n• Borda de Chocolate - R$ 10,00\n _Adicional de borda recheada com chocolate_\n• Borda de 4 Queijos - R$ 10,00\n _Adicional de borda recheada com 4 queijos_\n\n📁 *🍹 BEBIDAS*\n───────────────\n• Refrigerante Lata 350ml - R$ 7,00\n _Coca-Cola, Guaraná, Fanta e outros_\n• Refrigerante 1 Litro - R$ 10,00\n _Coca-Cola, Guaraná, Fanta e outros_\n• Refrigerante 1.5 Litros - R$ 12,00\n _Coca-Cola, Guaraná, Fanta e outros_\n• Refrigerante 2 Litros - R$ 15,00\n _Coca-Cola, Guaraná, Fanta e outros_\n• Embalagem - R$ 1,90\n _Embalagem para viagem_\n\n📁 *🥟 ESFIHAS*\n───────────────\n• Esfiha de Carne - R$ 4,00\n _Esfiha aberta com carne moída temperada_\n• Esfiha de Queijo - R$ 4,00\n _Esfiha aberta com queijo mussarela_\n• Esfiha de Calabresa - R$ 4,00\n _Esfiha aberta com calabresa_\n• Esfiha de Milho - R$ 4,00\n _Esfiha aberta com milho_\n• Esfiha de Bacon - R$ 5,00\n _Esfiha aberta com bacon_\n• Esfiha de Frango - R$ 5,00\n _Esfiha aberta com frango desfiado_\n• Esfiha de Atum - R$ 6,00\n _Esfiha aberta especial com atum_\n• Esfiha Carne c/ Queijo - R$ 6,00\n _Esfiha aberta com carne e queijo_\n• Esfiha Carne c/ Requeijão - R$ 6,00\n _Esfiha aberta com carne e requeijão_\n• Esfiha Carne c/ Bacon - R$ 7,00\n _Esfiha aberta com carne e bacon_\n• Esfiha Frango c/ Queijo - R$ 7,50\n _Esfiha aberta com frango e queijo_\n• Esfiha Frango c/ Requeijão - R$ 7,50\n _Esfiha aberta com frango e requeijão_\n• Esfiha de Banana - R$ 5,00\n _Esfiha doce com banana_\n• Esfiha de Brigadeiro - R$ 5,00\n _Esfiha doce com brigadeiro_\n• Esfiha Disquete MM - R$ 5,00\n _Esfiha doce com chocolate e M&M_\n• Esfiha Romeu e Julieta - R$ 5,00\n _Esfiha doce com goiabada e queijo_\n━━━━━━━━━━━━━━━━━━━━\n✅ Pronto para pedir? Me avise! 😊",
+          "timestamp": 1770144103648
+        },
+        {
+          "role": "cliente",
+          "content": "Quero 6 esfihas de carne e 4 de queijo",
+          "timestamp": 1770144103954
+        },
+        {
+          "role": "agente",
+          "content": "✅ Adicionado ao pedido:\n\n• 6x Esfiha de Carne - R$ 24,00\n\n🛒 *SEU PEDIDO*\n───────────────\n2x Pizza Calabresa (Grande (G)) - R$ 110,00\n _Obs: Tamanho: Grande (G)_\n1x Borda de Cheddar - R$ 10,00\n1x Pizza Calabresa (Média (M)) - R$ 40,00\n _Obs: Tamanho: Média (M)_\n1x Borda de Catupiry - R$ 10,00\n1x Refrigerante 1 Litro - R$ 10,00\n6x Esfiha de Carne - R$ 24,00\n───────────────\n📦 Subtotal: R$ 204,00\n\nDeseja mais alguma coisa? Posso sugerir *Borda Recheada* ou *Refrigerante*.\n\nPara finalizar, me diga:\n📝 Nome\n🚚 Tipo de entrega: 🛵 Delivery ou 🏪 Retirada\n📍 Endereço (se for entrega)\n💳 Forma de pagamento",
+          "timestamp": 1770144106893
+        },
+        {
+          "role": "cliente",
+          "content": "Rua das Palmeiras, 88",
+          "timestamp": 1770144107201
+        },
+        {
+          "role": "agente",
+          "content": "Quase lá! Só preciso de mais algumas informações:\n\n📝 *Seu nome completo*\n\n💳 *Forma de pagamento:* Dinheiro, Cartao, Pix\n\nPode me enviar! 😊",
+          "timestamp": 1770144109963
+        },
+        {
+          "role": "cliente",
+          "content": "Pode confirmar",
+          "timestamp": 1770144110265
+        },
+        {
+          "role": "agente",
+          "content": "✅ Ótimo! Para finalizar seu pedido, preciso de algumas informações:\n\n📝 *Seu nome completo*\n\n🚚 *Tipo de entrega:* 🛵 Delivery ou 🏃 Retirada no local\n\n📍 *Endereço* (se for delivery): rua, número, bairro\n\n💳 *Forma de pagamento:* Dinheiro, Cartao, Pix\n\nPode me enviar tudo junto ou separado! 😊",
+          "timestamp": 1770144119468
+        }
+      ]
+    },
+    {
+      "clientNumber": 7,
+      "clientName": "Ricardo - Pizza Doce",
+      "completed": false,
+      "orderCreated": false,
+      "messagesExchanged": 12,
+      "duration": "36.3s",
+      "issues": [
+        "Código/placeholders aparecendo na resposta"
+      ],
+      "expectedOutcome": "Pedido de pizza doce",
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Boa tarde",
+          "timestamp": 1770144119774
+        },
+        {
+          "role": "agente",
+          "content": "Olá Boa tarde! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nSe precisar de algo, estou por aqui! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770144126568
+        },
+        {
+          "role": "cliente",
+          "content": "Tem pizza doce?",
+          "timestamp": 1770144126868
+        },
+        {
+          "role": "agente",
+          "content": "🍕 *NOVO SABOR PIZZA E ESFIHAS E ACAI*\n━━━━━━━━━━━━━━━━━━━━\n📋 🍕 Pizzas Salgadas, 🍫 Pizzas Doces (17 opções)\n\n📁 *🍕 PIZZAS SALGADAS*\n───────────────\n• Pizza Portuguesa\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho, mussarela, presunto, ovo, cebola, pimentão e orégano_\n• Pizza Marguerita\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho, mussarela, tomate e manjericão triturado_\n• Pizza Frango com Milho\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho, mussarela, frango desfiado, milho e orégano_\n• Pizza Frango Catupiry\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho, mussarela, frango desfiado, catupiry e orégano_\n• Pizza Calabresa\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho de tomate, mussarela, calabresa fatiada, cebola e orégano_\n• Pizza Mussarela\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho de tomate, mussarela, tomate e orégano_\n• Pizza Atum\n Pequena (P): R$ 35,00 | Média (M): R$ 45,00 | Grande (G): R$ 60,00\n _Molho, mussarela, atum, catupiry ou cebola e orégano_\n• Pizza Picante\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho de tomate, mussarela, calabresa e pimenta calabresa_\n• Pizza Costela\n Pequena (P): R$ 36,00 | Média (M): R$ 45,00 | Grande (G): R$ 60,00\n _Molho de tomate, mussarela, costela desfiada e catupiry ou cebola_\n\n📁 *🍕 PIZZAS SALGADAS (cont.)*\n───────────────\n• Pizza 4 Queijos\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho de tomate, mussarela, gorgonzola, catupiry e cheddar_\n• Pizza Milho\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho de tomate, mussarela, milho e orégano_\n• Pizza Dom Camilo\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho de tomate, mussarela, presunto e calabresa_\n\n📁 *🍫 PIZZAS DOCES*\n───────────────\n• Pizza Tentação ⭐\n Pequena (P): R$ 35,00 | Média (M): R$ 50,00 | Grande (G): R$ 60,00\n _Creme de leite, chocolate, morango em rodela, leite condensado e coco ralado_\n• Pizza Romeu e Julieta\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Mussarela, goiabada derretida e orégano_\n• Pizza Brigadeiro\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Creme de leite, mussarela, chocolate e granulado_\n• Pizza MM Disquete\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Creme de leite, mussarela, chocolate e M&M_\n• Pizza Banana\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Creme de leite, mussarela, banana, leite condensado e canela em pó_\n━━━━━━━━━━━━━━━━━━━━\n✅ Qual você quer? É só me dizer! 😊",
+          "timestamp": 1770144138726
+        },
+        {
+          "role": "cliente",
+          "content": "Quero uma de brigadeiro",
+          "timestamp": 1770144139040
+        },
+        {
+          "role": "agente",
+          "content": "🍕 Boa escolha! *1x Pizza Brigadeiro*!\n\n📐 *Qual tamanho você quer?*\n\n• *Pequena (P)* - R$ 30,00\n• *Média (M)* - R$ 40,00\n• *Grande (G)* - R$ 55,00\n\nMe diz o tamanho! 😊",
+          "timestamp": 1770144147525
+        },
+        {
+          "role": "cliente",
+          "content": "Tamanho grande",
+          "timestamp": 1770144147832
+        },
+        {
+          "role": "agente",
+          "content": "✅ Perfeito! Adicionado ao pedido:\n\n• 1x Pizza Brigadeiro (Grande (G)) - R$ 55,00\n\n🛒 *SEU PEDIDO*\n───────────────\n2x Pizza Calabresa (Grande (G)) - R$ 110,00\n _Obs: Tamanho: Grande (G)_\n1x Borda de Cheddar - R$ 10,00\n1x Pizza Calabresa (Média (M)) - R$ 40,00\n _Obs: Tamanho: Média (M)_\n1x Borda de Catupiry - R$ 10,00\n1x Refrigerante 1 Litro - R$ 10,00\n6x Esfiha de Carne - R$ 24,00\n1x Pizza Brigadeiro (Grande (G)) - R$ 55,00\n _Obs: Tamanho: Grande (G)_\n───────────────\n📦 Subtotal: R$ 259,00\n\nDeseja mais alguma coisa? Posso sugerir *Borda Recheada* ou *Refrigerante*.\n\nPara finalizar, me diga:\n📝 Nome\n🚚 Tipo de entrega: 🛵 Delivery ou 🏪 Retirada\n📍 Endereço (se for entrega)\n💳 Forma de pagamento",
+          "timestamp": 1770144150106
+        },
+        {
+          "role": "cliente",
+          "content": "Av. Atlântica, 1000",
+          "timestamp": 1770144150414
+        },
+        {
+          "role": "agente",
+          "content": "Quase lá! Só preciso de mais algumas informações:\n\n📝 *Seu nome completo*\n\n💳 *Forma de pagamento:* Dinheiro, Cartao, Pix\n\nPode me enviar! 😊",
+          "timestamp": 1770144153044
+        },
+        {
+          "role": "cliente",
+          "content": "Confirma",
+          "timestamp": 1770144153345
+        },
+        {
+          "role": "agente",
+          "content": "✅ Ótimo! Para finalizar seu pedido, preciso de algumas informações:\n\n📝 *Seu nome completo*\n\n🚚 *Tipo de entrega:* 🛵 Delivery ou 🏃 Retirada no local\n\n📍 *Endereço* (se for delivery): rua, número, bairro\n\n💳 *Forma de pagamento:* Dinheiro, Cartao, Pix\n\nPode me enviar tudo junto ou separado! 😊",
+          "timestamp": 1770144155788
+        }
+      ]
+    },
+    {
+      "clientNumber": 8,
+      "clientName": "Camila - Indecisa",
+      "completed": false,
+      "orderCreated": false,
+      "messagesExchanged": 16,
+      "duration": "30.5s",
+      "issues": [
+        "Código/placeholders aparecendo na resposta"
+      ],
+      "expectedOutcome": "Pedido após indecisão",
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oie 😊",
+          "timestamp": 1770144156093
+        },
+        {
+          "role": "agente",
+          "content": "Oi! Bem-vindo à Novo Sabor Pizza e Esfihas e Açaí! Como posso ajudar você hoje?",
+          "timestamp": 1770144158980
+        },
+        {
+          "role": "cliente",
+          "content": "O que vocês tem de bom aí?",
+          "timestamp": 1770144159294
+        },
+        {
+          "role": "agente",
+          "content": "Claro! Qual categoria você quer ver primeiro?\n\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770144164841
+        },
+        {
+          "role": "cliente",
+          "content": "Hmm, e pizza doce tem?",
+          "timestamp": 1770144165151
+        },
+        {
+          "role": "agente",
+          "content": "🍕 *NOVO SABOR PIZZA E ESFIHAS E ACAI*\n━━━━━━━━━━━━━━━━━━━━\n📋 🍕 Pizzas Salgadas, 🍫 Pizzas Doces (17 opções)\n\n📁 *🍕 PIZZAS SALGADAS*\n───────────────\n• Pizza Portuguesa\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho, mussarela, presunto, ovo, cebola, pimentão e orégano_\n• Pizza Marguerita\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho, mussarela, tomate e manjericão triturado_\n• Pizza Frango com Milho\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho, mussarela, frango desfiado, milho e orégano_\n• Pizza Frango Catupiry\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho, mussarela, frango desfiado, catupiry e orégano_\n• Pizza Calabresa\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho de tomate, mussarela, calabresa fatiada, cebola e orégano_\n• Pizza Mussarela\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho de tomate, mussarela, tomate e orégano_\n• Pizza Atum\n Pequena (P): R$ 35,00 | Média (M): R$ 45,00 | Grande (G): R$ 60,00\n _Molho, mussarela, atum, catupiry ou cebola e orégano_\n• Pizza Picante\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho de tomate, mussarela, calabresa e pimenta calabresa_\n• Pizza Costela\n Pequena (P): R$ 36,00 | Média (M): R$ 45,00 | Grande (G): R$ 60,00\n _Molho de tomate, mussarela, costela desfiada e catupiry ou cebola_\n\n📁 *🍕 PIZZAS SALGADAS (cont.)*\n───────────────\n• Pizza 4 Queijos\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho de tomate, mussarela, gorgonzola, catupiry e cheddar_\n• Pizza Milho\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho de tomate, mussarela, milho e orégano_\n• Pizza Dom Camilo\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Molho de tomate, mussarela, presunto e calabresa_\n\n📁 *🍫 PIZZAS DOCES*\n───────────────\n• Pizza Tentação ⭐\n Pequena (P): R$ 35,00 | Média (M): R$ 50,00 | Grande (G): R$ 60,00\n _Creme de leite, chocolate, morango em rodela, leite condensado e coco ralado_\n• Pizza Romeu e Julieta\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Mussarela, goiabada derretida e orégano_\n• Pizza Brigadeiro\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Creme de leite, mussarela, chocolate e granulado_\n• Pizza MM Disquete\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Creme de leite, mussarela, chocolate e M&M_\n• Pizza Banana\n Pequena (P): R$ 30,00 | Média (M): R$ 40,00 | Grande (G): R$ 55,00\n _Creme de leite, mussarela, banana, leite condensado e canela em pó_\n━━━━━━━━━━━━━━━━━━━━\n✅ Qual você quer? É só me dizer! 😊",
+          "timestamp": 1770144167440
+        },
+        {
+          "role": "cliente",
+          "content": "Qual a mais pedida?",
+          "timestamp": 1770144167751
+        },
+        {
+          "role": "agente",
+          "content": "Olá! A pizza mais pedida aqui na Novo Sabor é a Pizza Portuguesa. Gostaria de pedir uma? 🍕",
+          "timestamp": 1770144171549
+        },
+        {
+          "role": "cliente",
+          "content": "Vou querer a de chocolate então",
+          "timestamp": 1770144171863
+        },
+        {
+          "role": "agente",
+          "content": "Hmm, não encontrei \"a de chocolate então\" no cardápio 🤔 Quer ver as opções?",
+          "timestamp": 1770144176432
+        },
+        {
+          "role": "cliente",
+          "content": "Ah, muda pra brigadeiro!",
+          "timestamp": 1770144176743
+        },
+        {
+          "role": "agente",
+          "content": "Hmm, não encontrei \"ah, muda pra brigadeiro!\" no cardápio 🤔 Quer ver as opções?",
+          "timestamp": 1770144179276
+        },
+        {
+          "role": "cliente",
+          "content": "Rua Alegre, 42",
+          "timestamp": 1770144179590
+        },
+        {
+          "role": "agente",
+          "content": "Quase lá! Só preciso de mais algumas informações:\n\n📝 *Seu nome completo*\n\n🚚 *Tipo de entrega:* 🛵 Delivery ou 🏃 Retirada\n\n💳 *Forma de pagamento:* Dinheiro, Cartao, Pix\n\nPode me enviar! 😊",
+          "timestamp": 1770144183343
+        },
+        {
+          "role": "cliente",
+          "content": "Isso aí!",
+          "timestamp": 1770144183653
+        },
+        {
+          "role": "agente",
+          "content": "✅ Ótimo! Para finalizar seu pedido, preciso de algumas informações:\n\n📝 *Seu nome completo*\n\n🚚 *Tipo de entrega:* 🛵 Delivery ou 🏃 Retirada no local\n\n📍 *Endereço* (se for delivery): rua, número, bairro\n\n💳 *Forma de pagamento:* Dinheiro, Cartao, Pix\n\nPode me enviar tudo junto ou separado! 😊",
+          "timestamp": 1770144186255
+        }
+      ]
+    },
+    {
+      "clientNumber": 9,
+      "clientName": "Roberto - Claro e Objetivo",
+      "completed": false,
+      "orderCreated": false,
+      "messagesExchanged": 6,
+      "duration": "16.2s",
+      "issues": [],
+      "expectedOutcome": "Pedido direto sem rodeios",
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Pizza marguerita grande com borda de catupiry",
+          "timestamp": 1770144186568
+        },
+        {
+          "role": "agente",
+          "content": "Ótima escolha! 🍕\n\n**Pizza Marguerita G + Borda Catupiry** sai por **R$ 40,00** (R$ 30,00 + R$ 10,00 da borda).\n\nQuer adicionar algo mais ou confirmar o pedido? 😊",
+          "timestamp": 1770144189185
+        },
+        {
+          "role": "cliente",
+          "content": "Entrega na Rua dos Ipês, 200",
+          "timestamp": 1770144189499
+        },
+        {
+          "role": "agente",
+          "content": "Quase lá! Só preciso de mais algumas informações:\n\n📝 *Seu nome completo*\n\n💳 *Forma de pagamento:* Dinheiro, Cartao, Pix\n\nPode me enviar! 😊",
+          "timestamp": 1770144192252
+        },
+        {
+          "role": "cliente",
+          "content": "Confirma",
+          "timestamp": 1770144192563
+        },
+        {
+          "role": "agente",
+          "content": "✅ Ótimo! Para finalizar seu pedido, preciso de algumas informações:\n\n📝 *Seu nome completo*\n\n🚚 *Tipo de entrega:* 🛵 Delivery ou 🏃 Retirada no local\n\n📍 *Endereço* (se for delivery): rua, número, bairro\n\n💳 *Forma de pagamento:* Dinheiro, Cartao, Pix\n\nPode me enviar tudo junto ou separado! 😊",
+          "timestamp": 1770144202408
+        }
+      ]
+    },
+    {
+      "clientNumber": 10,
+      "clientName": "Juliana - Combo de Esfiha",
+      "completed": false,
+      "orderCreated": false,
+      "messagesExchanged": 14,
+      "duration": "20.9s",
+      "issues": [],
+      "expectedOutcome": "Combo de esfihas",
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oi! Tem combo de esfiha?",
+          "timestamp": 1770144202723
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nSe precisar de algo, estou por aqui! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770144205263
+        },
+        {
+          "role": "cliente",
+          "content": "Me fala o que vem no combo",
+          "timestamp": 1770144205597
+        },
+        {
+          "role": "agente",
+          "content": "Olá! O Combo Pizza G + Borda + Refri 1.5L vem com uma pizza grande de sabores à sua escolha, uma borda recheada e um refrigerante de 1.5 litros. O valor é R$ 60.00. Gostaria de fazer o pedido?",
+          "timestamp": 1770144209839
+        },
+        {
+          "role": "cliente",
+          "content": "Quero esse de 6 esfihas com refri",
+          "timestamp": 1770144210149
+        },
+        {
+          "role": "agente",
+          "content": "Hmm, não encontrei \"esfihas com refri\" no cardápio 🤔 Quer ver as opções?",
+          "timestamp": 1770144212728
+        },
+        {
+          "role": "cliente",
+          "content": "Pode ser esfiha de calabresa e carne",
+          "timestamp": 1770144213030
+        },
+        {
+          "role": "agente",
+          "content": "✅ Adicionado ao pedido:\n\n• 1x Esfiha de Carne - R$ 4,00\n\n🛒 *SEU PEDIDO*\n───────────────\n2x Pizza Calabresa (Grande (G)) - R$ 110,00\n _Obs: Tamanho: Grande (G)_\n1x Borda de Cheddar - R$ 10,00\n1x Pizza Calabresa (Média (M)) - R$ 40,00\n _Obs: Tamanho: Média (M)_\n1x Borda de Catupiry - R$ 10,00\n1x Refrigerante 1 Litro - R$ 10,00\n7x Esfiha de Carne - R$ 28,00\n1x Pizza Brigadeiro (Grande (G)) - R$ 55,00\n _Obs: Tamanho: Grande (G)_\n───────────────\n📦 Subtotal: R$ 263,00\n\nDeseja mais alguma coisa? Posso sugerir *Borda Recheada* ou *Refrigerante*.\n\nPara finalizar, me diga:\n📝 Nome\n🚚 Tipo de entrega: 🛵 Delivery ou 🏪 Retirada\n📍 Endereço (se for entrega)\n💳 Forma de pagamento",
+          "timestamp": 1770144215555
+        },
+        {
+          "role": "cliente",
+          "content": "Guaraná 1 litro",
+          "timestamp": 1770144215861
+        },
+        {
+          "role": "agente",
+          "content": "Hmm, não encontrei \"litro\" no cardápio 🤔 Quer ver as opções?",
+          "timestamp": 1770144217800
+        },
+        {
+          "role": "cliente",
+          "content": "Rua do Lago, 77",
+          "timestamp": 1770144218111
+        },
+        {
+          "role": "agente",
+          "content": "Quase lá! Só preciso de mais algumas informações:\n\n📝 *Seu nome completo*\n\n💳 *Forma de pagamento:* Dinheiro, Cartao, Pix\n\nPode me enviar! 😊",
+          "timestamp": 1770144220880
+        },
+        {
+          "role": "cliente",
+          "content": "Perfeito, pode fechar",
+          "timestamp": 1770144221191
+        },
+        {
+          "role": "agente",
+          "content": "✅ Ótimo! Para finalizar seu pedido, preciso de algumas informações:\n\n📝 *Seu nome completo*\n\n🚚 *Tipo de entrega:* 🛵 Delivery ou 🏃 Retirada no local\n\n📍 *Endereço* (se for delivery): rua, número, bairro\n\n💳 *Forma de pagamento:* Dinheiro, Cartao, Pix\n\nPode me enviar tudo junto ou separado! 😊",
+          "timestamp": 1770144223307
+        }
+      ]
+    }
+  ]
+}

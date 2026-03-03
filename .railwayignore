@@ -1,0 +1,118 @@
+# Ignore local deps and VCS
+node_modules
+.git
+.gitignore
+.vscode
+.idea
+.kilocode
+.railway
+
+# Build and caches
+dist
+.cache
+*.log
+logs/
+undefined/
+
+# Additional log files
+*.out
+*.err
+server-output.log
+huge_logs.txt
+all_logs.txt
+test-result.txt
+test-results.txt
+
+# Large folders not needed for deploy
+mcp-playwright-server/
+sequentialthinking-mcp-server/
+pix-por-piggly/
+supabase-mcp-server/
+attached_assets/
+tutorial/
+tests/
+test-results/
+scripts/
+findeas theme/
+
+# Large folders not needed for deploy
+mcp-playwright-server/
+sequentialthinking-mcp-server/
+pix-por-piggly/
+supabase-mcp-server/
+attached_assets/
+tutorial/
+tests/
+test-results/
+scripts/
+findeas theme/
+sessions/
+
+# WhatsApp local session folders (Baileys). Use a Railway Volume and
+# set SESSIONS_DIR to persist these in production instead of baking into image.
+auth_*/
+auth_admin_*/
+auth_info_baileys/
+session-*.json
+sender-key-*.json
+pre-key-*.json
+tctoken-*.json
+lid-mapping-*.json
+
+# Documentation and test files - ROOT LEVEL ONLY
+*.md
+/test-*.ts
+/teste-*.ts
+/check-*.ts
+/debug-*.ts
+/fix-*.ts
+/run-*.ts
+/investigate-*.ts
+/find-*.ts
+/get-*.ts
+/update-*.ts
+/migrate-*.ts
+/create-*.ts
+/add-*.ts
+/enable-*.ts
+/verify-*.ts
+/query*.ts
+/compare*.ts
+/reproduce*.ts
+/execute*.ts
+/executar*.ts
+/reset-*.ts
+/generate-*.ts
+/setup-*.ts
+/perfis-*.ts
+/backup-*.ts
+/list-*.ts
+/remove-*.ts
+
+# Media and data files
+*.txt
+*.jpg
+*.jpeg
+*.webp
+*.wav
+*.mp3
+*.mp4
+*.zip
+*.json.backup
+*.py
+*.ps1
+*.cjs
+*.mjs
+*.out
+*.err
+dev-server.*
+# Note: *.png excluded from ignore to allow tutorial screenshots in client/public
+# Individual .png files not in client/public are excluded below:
+!client/public/tutorial-screenshots/*.png
+
+# Admin cookies and temp
+admin_cookies.txt
+cline_mcp_settings.json
+prompt-*.txt
+*-output.log
+*-log.txt

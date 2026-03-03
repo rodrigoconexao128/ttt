@@ -1,0 +1,45 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "EXPLORAR_PROJETO",
+      "status": "completed"
+    },
+    {
+      "label": "LER_App.tsx",
+      "status": "completed"
+    },
+    {
+      "label": "LER_useAuth",
+      "status": "completed"
+    },
+    {
+      "label": "LER_supabase.ts",
+      "status": "completed"
+    },
+    {
+      "label": "INICIAR_SERVIDOR",
+      "status": "completed"
+    },
+    {
+      "label": "CORRIGIR_BUG1_ADMIN",
+      "status": "completed",
+      "detail": "RequireAdmin agora verifica role admin IMEDIATAMENTE sem esperar /api/admin/session"
+    },
+    {
+      "label": "CORRIGIR_BUG2_LOGIN",
+      "status": "completed",
+      "detail": "useAuth com timeout 5s + retry reduzido + AbortController"
+    },
+    {
+      "label": "TESTE_BUILD",
+      "status": "completed",
+      "detail": "Build passou: 2,299.94 kB - sem erros de compilação"
+    },
+    {
+      "label": "VALIDAR_CORRECOES",
+      "status": "completed",
+      "detail": "Servidor reiniciado com correções aplicadas"
+    }
+  ]
+}

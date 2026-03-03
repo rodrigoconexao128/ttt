@@ -1,0 +1,330 @@
+﻿{"message":"Starting Container","level":"info","timestamp":"2026-02-24T23:09:52.630550189Z"}
+{"message":"🚀 [BOOT] railwayCommit=unknown","timestamp":"2026-02-24T23:09:53.241358071Z","level":"info"}
+{"message":"🔄 [PROXY MODE] Loading lightweight proxy module...","timestamp":"2026-02-24T23:09:53.241364692Z","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:09:53.241368343Z","message":"[WA-PROXY] Starting proxy server..."}
+{"level":"info","timestamp":"2026-02-24T23:09:53.241373003Z","message":"[WA-PROXY] Worker URL: http://vvvv.railway.internal:5000"}
+{"timestamp":"2026-02-24T23:09:53.241376423Z","level":"info","message":"[WA-PROXY] Proxy server listening on port 8080"}
+{"timestamp":"2026-02-24T23:09:53.241381339Z","level":"info","message":"[WA-PROXY] Forwarding all traffic to http://vvvv.railway.internal:5000"}
+{"message":"","timestamp":"2026-02-24T23:09:53.241382901Z","level":"info"}
+{"timestamp":"2026-02-24T23:09:53.241386684Z","level":"info","message":"[WA-PROXY] Health check: http://0.0.0.0:8080/health"}
+{"message":"> rest-express@1.0.1 start","level":"info","timestamp":"2026-02-24T23:09:53.241388661Z"}
+{"timestamp":"2026-02-24T23:09:53.241393866Z","message":"> cross-env NODE_ENV=production node dist/index.js","level":"info"}
+{"timestamp":"2026-02-24T23:09:53.241393938Z","message":"[WA-PROXY] Proxy stats: http://0.0.0.0:8080/proxy-status","level":"info"}
+{"timestamp":"2026-02-24T23:09:53.241398136Z","message":"","level":"info"}
+{"message":"🚀 [BOOT] Starting server (bootId=2026-02-24T23:09:52.646Z) mode=proxy","level":"info","timestamp":"2026-02-24T23:09:53.241401136Z"}
+{"message":"🚀 [BOOT] node=v20.6.1 env=production port=8080","timestamp":"2026-02-24T23:09:53.241403891Z","level":"info"}
+{"timestamp":"2026-02-24T23:09:56.732157530Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.2","level":"info"}
+{"timestamp":"2026-02-24T23:09:56.781996638Z","message":"[WA-PROXY] WebSocket proxy error:  (ECONNREFUSED)","level":"error"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.3","timestamp":"2026-02-24T23:09:56.782000969Z","level":"info"}
+{"message":"[WA-PROXY] WebSocket proxy error:  (ECONNREFUSED)","timestamp":"2026-02-24T23:09:56.782004043Z","level":"error"}
+{"timestamp":"2026-02-24T23:09:56.819012175Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.4"}
+{"message":"[WA-PROXY] WebSocket proxy error:  (ECONNREFUSED)","timestamp":"2026-02-24T23:09:56.819020168Z","level":"error"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.5","timestamp":"2026-02-24T23:09:57.009607236Z","level":"info"}
+{"message":"[WA-PROXY] WebSocket proxy error:  (ECONNREFUSED)","timestamp":"2026-02-24T23:09:57.009611729Z","level":"error"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.4","timestamp":"2026-02-24T23:09:57.315811700Z"}
+{"timestamp":"2026-02-24T23:09:57.315814721Z","level":"error","message":"[WA-PROXY] WebSocket proxy error:  (ECONNREFUSED)"}
+{"level":"info","timestamp":"2026-02-24T23:09:57.400812245Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.6"}
+{"timestamp":"2026-02-24T23:09:57.407914626Z","level":"error","message":"[WA-PROXY] WebSocket proxy error:  (ECONNREFUSED)"}
+{"timestamp":"2026-02-24T23:09:57.575833919Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.3"}
+{"timestamp":"2026-02-24T23:09:57.577569341Z","level":"error","message":"[WA-PROXY] WebSocket proxy error:  (ECONNREFUSED)"}
+{"timestamp":"2026-02-24T23:09:57.600997366Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.7","level":"info"}
+{"timestamp":"2026-02-24T23:09:57.601004300Z","level":"error","message":"[WA-PROXY] WebSocket proxy error:  (ECONNREFUSED)"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.8","level":"info","timestamp":"2026-02-24T23:09:57.687952374Z"}
+{"level":"error","message":"[WA-PROXY] WebSocket proxy error:  (ECONNREFUSED)","timestamp":"2026-02-24T23:09:57.687956892Z"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.7","timestamp":"2026-02-24T23:09:57.930867642Z","level":"info"}
+{"level":"error","message":"[WA-PROXY] WebSocket proxy error:  (ECONNREFUSED)","timestamp":"2026-02-24T23:09:57.938357182Z"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.6","timestamp":"2026-02-24T23:09:58.370842876Z","level":"info"}
+{"message":"[WA-PROXY] WebSocket proxy error:  (ECONNREFUSED)","level":"error","timestamp":"2026-02-24T23:09:58.370846277Z"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.9","timestamp":"2026-02-24T23:09:58.370849275Z","level":"info"}
+{"level":"error","message":"[WA-PROXY] WebSocket proxy error:  (ECONNREFUSED)","timestamp":"2026-02-24T23:09:58.370852748Z"}
+{"timestamp":"2026-02-24T23:09:58.695088923Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.10"}
+{"level":"error","timestamp":"2026-02-24T23:09:58.701555104Z","message":"[WA-PROXY] WebSocket proxy error:  (ECONNREFUSED)"}
+{"timestamp":"2026-02-24T23:09:58.980035382Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.9"}
+{"level":"info","timestamp":"2026-02-24T23:09:59.522474353Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.11"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.8","timestamp":"2026-02-24T23:10:00.044044620Z","level":"info"}
+{"timestamp":"2026-02-24T23:10:00.606622848Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.8","level":"info"}
+{"timestamp":"2026-02-24T23:10:00.757346024Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.5"}
+{"level":"info","timestamp":"2026-02-24T23:10:00.810873220Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.12"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.2","timestamp":"2026-02-24T23:10:00.942011003Z","level":"info"}
+{"timestamp":"2026-02-24T23:10:01.068841961Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.10"}
+{"timestamp":"2026-02-24T23:10:01.656117784Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.11","level":"info"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.10","timestamp":"2026-02-24T23:10:01.767255577Z","level":"info"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.9","timestamp":"2026-02-24T23:10:01.852973021Z"}
+{"timestamp":"2026-02-24T23:10:02.091333643Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.2"}
+{"timestamp":"2026-02-24T23:10:02.346593852Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.13"}
+{"timestamp":"2026-02-24T23:10:02.639075542Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.8"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.4","level":"info","timestamp":"2026-02-24T23:10:02.790464283Z"}
+{"timestamp":"2026-02-24T23:10:02.796499493Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.5"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.7","timestamp":"2026-02-24T23:11:13.141968171Z","level":"info"}
+{"timestamp":"2026-02-24T23:11:13.141976307Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.15"}
+{"timestamp":"2026-02-24T23:11:13.141982070Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.14"}
+{"timestamp":"2026-02-24T23:11:13.141986431Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.10"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.9","timestamp":"2026-02-24T23:11:13.141990333Z","level":"info"}
+{"timestamp":"2026-02-24T23:11:13.141997304Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.6"}
+{"level":"info","timestamp":"2026-02-24T23:11:13.142000039Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.10"}
+{"timestamp":"2026-02-24T23:11:13.142010979Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.4"}
+{"timestamp":"2026-02-24T23:11:13.142024602Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.4"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.9","timestamp":"2026-02-24T23:11:13.142027590Z","level":"info"}
+{"timestamp":"2026-02-24T23:11:14.919065318Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.8","level":"info"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.11","timestamp":"2026-02-24T23:11:16.598894886Z","level":"info"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.10","timestamp":"2026-02-24T23:11:16.756681529Z"}
+{"timestamp":"2026-02-24T23:11:19.208657220Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.7"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.9","timestamp":"2026-02-24T23:11:21.241444028Z"}
+{"timestamp":"2026-02-24T23:11:21.859147769Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.13"}
+{"timestamp":"2026-02-24T23:11:29.637253127Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.10"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.11","level":"info","timestamp":"2026-02-24T23:11:30.764197204Z"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.12","timestamp":"2026-02-24T23:11:39.999186413Z"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.10","timestamp":"2026-02-24T23:12:10.020644870Z"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.2","level":"info","timestamp":"2026-02-24T23:12:10.020649802Z"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.15","level":"info","timestamp":"2026-02-24T23:12:10.020652749Z"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.16","timestamp":"2026-02-24T23:12:10.020655642Z","level":"info"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.8","timestamp":"2026-02-24T23:12:10.020658576Z","level":"info"}
+{"timestamp":"2026-02-24T23:12:10.020661508Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.14"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.11","timestamp":"2026-02-24T23:12:10.020664505Z"}
+{"level":"info","timestamp":"2026-02-24T23:12:14.070650244Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.10"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.8","timestamp":"2026-02-24T23:12:15.380032753Z"}
+{"timestamp":"2026-02-24T23:12:16.307872957Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.10"}
+{"timestamp":"2026-02-24T23:12:21.673235780Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.10"}
+{"timestamp":"2026-02-24T23:12:24.651004785Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.12"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.9","level":"info","timestamp":"2026-02-24T23:12:27.692633118Z"}
+{"timestamp":"2026-02-24T23:12:28.588481063Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.2"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.3","timestamp":"2026-02-24T23:14:49.712433455Z","level":"info"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.6","timestamp":"2026-02-24T23:14:50.754586435Z","level":"info"}
+{"timestamp":"2026-02-24T23:15:10.734363087Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.4","level":"info"}
+{"timestamp":"2026-02-24T23:15:10.734366328Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.13","level":"info"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.14","level":"info","timestamp":"2026-02-24T23:15:10.734369453Z"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.5","level":"info","timestamp":"2026-02-24T23:15:10.734372583Z"}
+{"timestamp":"2026-02-24T23:15:10.734375672Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.5"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.8","timestamp":"2026-02-24T23:15:11.196886838Z","level":"info"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.6","level":"info","timestamp":"2026-02-24T23:15:13.297798407Z"}
+{"timestamp":"2026-02-24T23:15:14.893681817Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.4","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:15:15.765730485Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.6"}
+{"timestamp":"2026-02-24T23:15:15.925719475Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.14"}
+{"level":"info","timestamp":"2026-02-24T23:15:16.570367974Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.4"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.6","timestamp":"2026-02-24T23:15:18.710359779Z","level":"info"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.8","level":"info","timestamp":"2026-02-24T23:15:19.395366633Z"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.14","timestamp":"2026-02-24T23:15:19.760603257Z","level":"info"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.6","level":"info","timestamp":"2026-02-24T23:15:20.071109345Z"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.16","timestamp":"2026-02-24T23:15:20.691421097Z","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:15:20.835231956Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.5"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.8","timestamp":"2026-02-24T23:15:21.900348308Z","level":"info"}
+{"timestamp":"2026-02-24T23:15:22.606846586Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.3","level":"info"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.9","timestamp":"2026-02-24T23:15:22.658045284Z"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.11","level":"info","timestamp":"2026-02-24T23:15:23.579023123Z"}
+{"timestamp":"2026-02-24T23:15:23.605994675Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.14","level":"info"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.2","timestamp":"2026-02-24T23:15:24.546236534Z"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.15","level":"info","timestamp":"2026-02-24T23:15:26.823494611Z"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.9","timestamp":"2026-02-24T23:15:46.974417943Z","level":"info"}
+{"timestamp":"2026-02-24T23:16:06.776327059Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.13","level":"info"}
+{"timestamp":"2026-02-24T23:16:06.776330224Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.5"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.11","level":"info","timestamp":"2026-02-24T23:16:06.776333046Z"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.7","timestamp":"2026-02-24T23:16:08.781845095Z"}
+{"timestamp":"2026-02-24T23:16:13.337256162Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.2","level":"info"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.5","timestamp":"2026-02-24T23:16:13.633125580Z","level":"info"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.12","timestamp":"2026-02-24T23:16:14.357896396Z","level":"info"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.7","timestamp":"2026-02-24T23:16:15.073053633Z","level":"info"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.12","timestamp":"2026-02-24T23:16:15.785580344Z"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.8","level":"info","timestamp":"2026-02-24T23:16:16.735348604Z"}
+{"timestamp":"2026-02-24T23:16:17.846900425Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.10"}
+{"timestamp":"2026-02-24T23:16:18.860147058Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.12","level":"info"}
+{"timestamp":"2026-02-24T23:16:21.769730120Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.8","level":"info"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.9","level":"info","timestamp":"2026-02-24T23:16:22.070963456Z"}
+{"level":"info","timestamp":"2026-02-24T23:16:27.660393217Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.8"}
+{"level":"info","timestamp":"2026-02-24T23:16:28.809123078Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.4"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.8","timestamp":"2026-02-24T23:16:29.611819710Z"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.12","timestamp":"2026-02-24T23:16:30.605199428Z"}
+{"timestamp":"2026-02-24T23:17:11.030632722Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.2","level":"info"}
+{"timestamp":"2026-02-24T23:17:50.910643102Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.2","level":"info"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.2","timestamp":"2026-02-24T23:18:41.196927141Z"}
+{"level":"info","timestamp":"2026-02-24T23:18:41.196941812Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.3"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.3","timestamp":"2026-02-24T23:18:41.196947538Z"}
+{"timestamp":"2026-02-24T23:18:41.196954488Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.9","level":"info"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.10","timestamp":"2026-02-24T23:18:41.196959841Z","level":"info"}
+{"timestamp":"2026-02-24T23:18:41.196961953Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.7"}
+{"timestamp":"2026-02-24T23:18:41.196965672Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.16"}
+{"timestamp":"2026-02-24T23:18:43.822931973Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.15"}
+{"timestamp":"2026-02-24T23:18:46.778533214Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.3"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.13","timestamp":"2026-02-24T23:18:48.841472612Z"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.2","timestamp":"2026-02-24T23:18:49.782695798Z","level":"info"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.8","level":"info","timestamp":"2026-02-24T23:18:51.878838535Z"}
+{"timestamp":"2026-02-24T23:18:53.082691424Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.14"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.3","level":"info","timestamp":"2026-02-24T23:18:53.800840411Z"}
+{"level":"info","timestamp":"2026-02-24T23:18:57.750113835Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.15"}
+{"timestamp":"2026-02-24T23:18:57.797506948Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.14"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.16","timestamp":"2026-02-24T23:18:58.661851545Z"}
+{"timestamp":"2026-02-24T23:18:59.714142574Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.16"}
+{"timestamp":"2026-02-24T23:19:40.033118449Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.16","level":"info"}
+{"timestamp":"2026-02-24T23:19:40.033121377Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.11","level":"info"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.16","timestamp":"2026-02-24T23:19:40.033124464Z","level":"info"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.8","timestamp":"2026-02-24T23:19:40.033127866Z","level":"info"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.5","timestamp":"2026-02-24T23:19:40.033131576Z","level":"info"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.10","timestamp":"2026-02-24T23:19:40.033134818Z","level":"info"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.4","timestamp":"2026-02-24T23:19:41.778590949Z"}
+{"timestamp":"2026-02-24T23:19:42.086816539Z","level":"error","message":"[WA-PROXY] Connection to Worker failed (attempt 1/2): ECONNRESET"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.14","level":"info","timestamp":"2026-02-24T23:19:44.316761663Z"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.2","timestamp":"2026-02-24T23:19:47.109816455Z"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.8","timestamp":"2026-02-24T23:19:47.838697996Z","level":"info"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.4","timestamp":"2026-02-24T23:19:48.154837028Z"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.8","timestamp":"2026-02-24T23:19:52.826195949Z","level":"info"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.6","timestamp":"2026-02-24T23:19:53.699371679Z"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.6","timestamp":"2026-02-24T23:19:54.696204564Z"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.4","timestamp":"2026-02-24T23:19:56.774255545Z"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.6","level":"info","timestamp":"2026-02-24T23:19:58.782207404Z"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.12","timestamp":"2026-02-24T23:19:58.811050595Z","level":"info"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.14","timestamp":"2026-02-24T23:20:28.818010004Z"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.15","timestamp":"2026-02-24T23:20:58.662793877Z","level":"info"}
+{"timestamp":"2026-02-24T23:21:38.796406109Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.6"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.15","timestamp":"2026-02-24T23:22:18.678333038Z"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.14","timestamp":"2026-02-24T23:22:18.678337401Z"}
+{"timestamp":"2026-02-24T23:23:39.611750086Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.7","level":"info"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.5","timestamp":"2026-02-24T23:23:59.410559667Z","level":"info"}
+{"timestamp":"2026-02-24T23:24:19.399217880Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.11"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.8","timestamp":"2026-02-24T23:24:25.638058668Z"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.13","timestamp":"2026-02-24T23:24:55.637171692Z","level":"info"}
+{"timestamp":"2026-02-24T23:24:55.637179044Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.16","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:24:57.573849004Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.16"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.8","timestamp":"2026-02-24T23:26:07.470925022Z","level":"info"}
+{"timestamp":"2026-02-24T23:26:07.470928329Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.4"}
+{"timestamp":"2026-02-24T23:26:13.883679967Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.12","level":"info"}
+{"timestamp":"2026-02-24T23:26:14.359695332Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.5","level":"info"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.6","level":"info","timestamp":"2026-02-24T23:26:20.536808033Z"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.13","level":"info","timestamp":"2026-02-24T23:26:40.348408498Z"}
+{"level":"error","message":"[WA-PROXY] Connection to Worker failed (attempt 1/2): ECONNRESET","timestamp":"2026-02-24T23:26:46.734066044Z"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.2","timestamp":"2026-02-24T23:26:50.943963747Z"}
+{"timestamp":"2026-02-24T23:26:50.943972386Z","level":"error","message":"[WA-PROXY] WebSocket proxy error:  (ECONNREFUSED)"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.13","timestamp":"2026-02-24T23:26:50.943977320Z"}
+{"message":"[WA-PROXY] WebSocket proxy error:  (ECONNREFUSED)","timestamp":"2026-02-24T23:26:50.943980602Z","level":"error"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.2","timestamp":"2026-02-24T23:26:50.943983719Z","level":"info"}
+{"level":"error","timestamp":"2026-02-24T23:26:50.943987486Z","message":"[WA-PROXY] WebSocket proxy error:  (ECONNREFUSED)"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.2","timestamp":"2026-02-24T23:26:50.943990744Z","level":"info"}
+{"timestamp":"2026-02-24T23:26:50.943994277Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.4","level":"info"}
+{"timestamp":"2026-02-24T23:26:50.943997522Z","level":"error","message":"[WA-PROXY] WebSocket proxy error:  (ECONNREFUSED)"}
+{"level":"error","message":"[WA-PROXY] WebSocket proxy error:  (ECONNREFUSED)","timestamp":"2026-02-24T23:26:50.944002566Z"}
+{"timestamp":"2026-02-24T23:26:50.944056734Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.16"}
+{"timestamp":"2026-02-24T23:26:50.944059350Z","level":"error","message":"[WA-PROXY] WebSocket proxy error:  (ECONNREFUSED)"}
+{"timestamp":"2026-02-24T23:26:50.944061805Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.12"}
+{"message":"[WA-PROXY] WebSocket proxy error:  (ECONNREFUSED)","timestamp":"2026-02-24T23:26:50.944064395Z","level":"error"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.7","level":"info","timestamp":"2026-02-24T23:26:51.139494569Z"}
+{"timestamp":"2026-02-24T23:26:51.141143611Z","message":"[WA-PROXY] WebSocket proxy error:  (ECONNREFUSED)","level":"error"}
+{"timestamp":"2026-02-24T23:26:51.346498784Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.9"}
+{"timestamp":"2026-02-24T23:26:51.352954738Z","level":"error","message":"[WA-PROXY] WebSocket proxy error:  (ECONNREFUSED)"}
+{"timestamp":"2026-02-24T23:26:51.354496546Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.11","level":"info"}
+{"message":"[WA-PROXY] WebSocket proxy error:  (ECONNREFUSED)","timestamp":"2026-02-24T23:26:51.361040431Z","level":"error"}
+{"level":"info","timestamp":"2026-02-24T23:26:51.407017846Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.14"}
+{"level":"error","message":"[WA-PROXY] WebSocket proxy error:  (ECONNREFUSED)","timestamp":"2026-02-24T23:26:51.407022460Z"}
+{"level":"error","message":"[WA-PROXY] Connection to Worker failed (attempt 1/2): ECONNREFUSED","timestamp":"2026-02-24T23:26:51.433688986Z"}
+{"timestamp":"2026-02-24T23:26:51.479051002Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.8"}
+{"timestamp":"2026-02-24T23:26:51.479055471Z","level":"error","message":"[WA-PROXY] WebSocket proxy error:  (ECONNREFUSED)"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.9","level":"info","timestamp":"2026-02-24T23:26:51.837848007Z"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.13","level":"info","timestamp":"2026-02-24T23:26:51.837852291Z"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.13","timestamp":"2026-02-24T23:26:51.837856446Z"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.10","timestamp":"2026-02-24T23:26:52.076356468Z","level":"info"}
+{"timestamp":"2026-02-24T23:26:52.345170629Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.13"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.10","timestamp":"2026-02-24T23:26:52.879829801Z","level":"info"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.13","timestamp":"2026-02-24T23:26:53.074619778Z","level":"info"}
+{"timestamp":"2026-02-24T23:26:54.073791467Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.13"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.13","timestamp":"2026-02-24T23:26:54.401697539Z","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:26:54.508412657Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.2"}
+{"timestamp":"2026-02-24T23:26:54.792253163Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.10","level":"info"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.12","timestamp":"2026-02-24T23:26:54.792257378Z"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.2","timestamp":"2026-02-24T23:26:54.792260186Z","level":"info"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.13","timestamp":"2026-02-24T23:26:54.803389659Z","level":"info"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.2","timestamp":"2026-02-24T23:26:54.811016019Z","level":"info"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.13","timestamp":"2026-02-24T23:26:55.061746349Z","level":"info"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.5","timestamp":"2026-02-24T23:26:55.074034690Z"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.6","timestamp":"2026-02-24T23:26:55.479398033Z","level":"info"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.4","timestamp":"2026-02-24T23:26:55.819943258Z"}
+{"timestamp":"2026-02-24T23:26:55.819948154Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.9"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.6","timestamp":"2026-02-24T23:26:56.034094285Z","level":"info"}
+{"timestamp":"2026-02-24T23:26:56.324271516Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.14"}
+{"level":"info","timestamp":"2026-02-24T23:28:16.419874324Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.15"}
+{"timestamp":"2026-02-24T23:28:25.496245637Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.16","level":"info"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.15","timestamp":"2026-02-24T23:28:26.503979195Z","level":"info"}
+{"timestamp":"2026-02-24T23:28:27.584051086Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.3","level":"info"}
+{"timestamp":"2026-02-24T23:28:47.647378654Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.6"}
+{"timestamp":"2026-02-24T23:29:17.644678258Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.15","level":"info"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.16","timestamp":"2026-02-24T23:29:17.644681066Z"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.7","timestamp":"2026-02-24T23:29:18.148943980Z","level":"info"}
+{"timestamp":"2026-02-24T23:29:47.938282935Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.15"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.3","timestamp":"2026-02-24T23:29:47.938288624Z","level":"info"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.4","timestamp":"2026-02-24T23:29:48.441939434Z","level":"info"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.15","timestamp":"2026-02-24T23:29:49.461736665Z"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.7","timestamp":"2026-02-24T23:29:51.522828145Z"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.14","timestamp":"2026-02-24T23:29:51.603341168Z","level":"info"}
+{"timestamp":"2026-02-24T23:40:48.151212729Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.9"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.8","level":"info","timestamp":"2026-02-24T23:40:48.289067053Z"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.16","timestamp":"2026-02-24T23:40:50.775202759Z","level":"info"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.15","timestamp":"2026-02-24T23:40:51.673725745Z","level":"info"}
+{"timestamp":"2026-02-24T23:42:12.067452358Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.10"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.9","level":"info","timestamp":"2026-02-24T23:42:12.067459051Z"}
+{"timestamp":"2026-02-24T23:43:32.301411518Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.15","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:44:02.182484672Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.4"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.12","level":"info","timestamp":"2026-02-24T23:44:02.756172575Z"}
+{"timestamp":"2026-02-24T23:45:22.797086819Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.14"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.2","level":"info","timestamp":"2026-02-24T23:45:22.797095122Z"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.6","timestamp":"2026-02-24T23:45:42.596034215Z"}
+{"timestamp":"2026-02-24T23:45:42.596038693Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.9"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.15","timestamp":"2026-02-24T23:46:02.601449017Z"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.15","level":"info","timestamp":"2026-02-24T23:46:02.601455579Z"}
+{"timestamp":"2026-02-24T23:46:05.775728012Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.2"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.15","timestamp":"2026-02-24T23:46:08.898617770Z"}
+{"timestamp":"2026-02-24T23:46:28.899593798Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.14","level":"info"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.5","timestamp":"2026-02-24T23:46:28.899597881Z"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.2","timestamp":"2026-02-24T23:46:28.899600857Z"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.5","timestamp":"2026-02-24T23:46:28.899604950Z","level":"info"}
+{"timestamp":"2026-02-24T23:46:28.899607798Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.4","level":"info"}
+{"timestamp":"2026-02-24T23:46:30.718462572Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.5"}
+{"timestamp":"2026-02-24T23:48:21.938283533Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.3"}
+{"timestamp":"2026-02-24T23:48:21.938287565Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.3"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.16","timestamp":"2026-02-24T23:48:21.938291366Z","level":"info"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.3","timestamp":"2026-02-24T23:48:26.347814116Z"}
+{"level":"info","timestamp":"2026-02-24T23:48:29.500246149Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.10"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.14","level":"info","timestamp":"2026-02-24T23:48:49.549717025Z"}
+{"level":"info","timestamp":"2026-02-24T23:48:50.718566713Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.3"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.5","timestamp":"2026-02-24T23:48:56.772254414Z","level":"info"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.14","timestamp":"2026-02-24T23:49:00.670816735Z"}
+{"level":"info","timestamp":"2026-02-24T23:49:03.195862590Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.9"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.7","timestamp":"2026-02-24T23:49:03.796982923Z"}
+{"timestamp":"2026-02-24T23:49:06.237637681Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.6"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.15","timestamp":"2026-02-24T23:49:15.914146567Z"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.16","timestamp":"2026-02-24T23:49:16.292179292Z"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.12","level":"info","timestamp":"2026-02-24T23:49:16.557832920Z"}
+{"timestamp":"2026-02-24T23:49:16.855425223Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.4"}
+{"timestamp":"2026-02-24T23:49:16.872057225Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.5"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.7","level":"info","timestamp":"2026-02-24T23:49:16.952689821Z"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.3","timestamp":"2026-02-24T23:49:16.954466799Z"}
+{"timestamp":"2026-02-24T23:49:17.767692869Z","message":"[WA-PROXY] Connection to Worker failed (attempt 1/2): ECONNREFUSED","level":"error"}
+{"message":"[WA-PROXY] Connection to Worker failed (attempt 1/2): ECONNREFUSED","level":"error","timestamp":"2026-02-24T23:49:17.865670209Z"}
+{"timestamp":"2026-02-24T23:49:18.783083137Z","message":"[WA-PROXY] Connection to Worker failed (attempt 2/2): ECONNREFUSED","level":"error"}
+{"timestamp":"2026-02-24T23:49:20.914717864Z","level":"error","message":"[WA-PROXY] WebSocket proxy error: WebSocket upgrade timeout (undefined)"}
+{"message":"[WA-PROXY] WebSocket proxy error: WebSocket upgrade timeout (undefined)","level":"error","timestamp":"2026-02-24T23:49:21.297405712Z"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.10","level":"info","timestamp":"2026-02-24T23:49:21.448932998Z"}
+{"level":"error","message":"[WA-PROXY] WebSocket proxy error: WebSocket upgrade timeout (undefined)","timestamp":"2026-02-24T23:49:21.562859919Z"}
+{"timestamp":"2026-02-24T23:49:21.777752676Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.8"}
+{"timestamp":"2026-02-24T23:49:21.857987948Z","level":"error","message":"[WA-PROXY] WebSocket proxy error: WebSocket upgrade timeout (undefined)"}
+{"timestamp":"2026-02-24T23:49:21.866562198Z","message":"[WA-PROXY] WebSocket proxy error: WebSocket upgrade timeout (undefined)","level":"error"}
+{"level":"error","timestamp":"2026-02-24T23:49:21.951661982Z","message":"[WA-PROXY] WebSocket proxy error: WebSocket upgrade timeout (undefined)"}
+{"message":"[WA-PROXY] WebSocket proxy error: WebSocket upgrade timeout (undefined)","timestamp":"2026-02-24T23:49:21.957588030Z","level":"error"}
+{"timestamp":"2026-02-24T23:49:22.287393480Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.3","level":"info"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.5","level":"info","timestamp":"2026-02-24T23:49:22.452942746Z"}
+{"timestamp":"2026-02-24T23:49:22.478321389Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.3"}
+{"timestamp":"2026-02-24T23:49:22.522915613Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.14"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.15","timestamp":"2026-02-24T23:49:22.638434166Z"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.15","timestamp":"2026-02-24T23:49:23.301797669Z","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:49:23.301805102Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.4"}
+{"timestamp":"2026-02-24T23:49:23.301808677Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.6"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.10","level":"info","timestamp":"2026-02-24T23:49:23.544261856Z"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.15","timestamp":"2026-02-24T23:49:25.326263419Z"}
+{"timestamp":"2026-02-24T23:49:25.458204973Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.16","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:49:25.733253336Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.15"}
+{"timestamp":"2026-02-24T23:49:25.808778556Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.15","level":"info"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.7","timestamp":"2026-02-24T23:49:25.887495250Z","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:49:26.775835761Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.7"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.8","timestamp":"2026-02-24T23:49:28.567858505Z","level":"info"}
+{"timestamp":"2026-02-24T23:49:29.341534707Z","level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.14"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.2","timestamp":"2026-02-24T23:49:30.712252446Z","level":"info"}
+{"message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.11","level":"info","timestamp":"2026-02-24T23:50:30.715622526Z"}
+{"timestamp":"2026-02-24T23:50:37.726711708Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.3","level":"info"}
+{"level":"info","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.12","timestamp":"2026-02-24T23:51:17.615170778Z"}
+{"timestamp":"2026-02-24T23:53:38.752688207Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.7","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:53:40.770804680Z","message":"[WA-PROXY] WebSocket upgrade: /ws?token=%5BREDACTED%5D from 100.64.0.8"}

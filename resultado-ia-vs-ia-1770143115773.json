@@ -1,0 +1,951 @@
+{
+  "timestamp": "2026-02-03T18:25:15.776Z",
+  "config": {
+    "apiUrl": "http://localhost:5000",
+    "user": "bigacaicuiaba@gmail.com"
+  },
+  "summary": {
+    "totalDuration": "146.2s",
+    "completed": 0,
+    "total": 10,
+    "issuesCount": 32
+  },
+  "results": [
+    {
+      "clientNumber": 1,
+      "clientName": "João da Lanchonete",
+      "completed": false,
+      "messagesExchanged": 8,
+      "duration": "5.4s",
+      "issues": [
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro"
+      ],
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142970459
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770142970463
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142971004
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770142971008
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142971547
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770142971550
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142972305
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770142972309
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142972849
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770142972852
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142973411
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770142973414
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142974003
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770142974006
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142974557
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770142974560
+        }
+      ]
+    },
+    {
+      "clientNumber": 2,
+      "clientName": "Maria Estudante",
+      "completed": false,
+      "messagesExchanged": 8,
+      "duration": "4.3s",
+      "issues": [
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro"
+      ],
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142975097
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770142975100
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142975650
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770142975653
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142976191
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770142976193
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142976724
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770142976726
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142977251
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770142977253
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142977788
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770142977791
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142978328
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770142978331
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142978877
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770142978879
+        }
+      ]
+    },
+    {
+      "clientNumber": 3,
+      "clientName": "Carlos Fitness",
+      "completed": false,
+      "messagesExchanged": 8,
+      "duration": "4.5s",
+      "issues": [
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro"
+      ],
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142979428
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770142979430
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142979966
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770142979968
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142980541
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770142980544
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142981096
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770142981098
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142981631
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770142981633
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142982192
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770142982194
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142982828
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770142982830
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142983363
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770142983365
+        }
+      ]
+    },
+    {
+      "clientNumber": 4,
+      "clientName": "Ana Mãe de Família",
+      "completed": false,
+      "messagesExchanged": 8,
+      "duration": "4.3s",
+      "issues": [
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro",
+        "Possível mensagem de erro"
+      ],
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142983902
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770142983905
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142984453
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770142984456
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142984995
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770142984997
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142985533
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770142985535
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142986061
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770142986063
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142986626
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770142986628
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142987165
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770142987167
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142987693
+        },
+        {
+          "role": "agente",
+          "content": "[ERRO: fetch failed]",
+          "timestamp": 1770142987695
+        }
+      ]
+    },
+    {
+      "clientNumber": 5,
+      "clientName": "Pedro Trabalhador",
+      "completed": false,
+      "messagesExchanged": 8,
+      "duration": "20.0s",
+      "issues": [],
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142988229
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nFico à disposição! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🥟 Esfihas\n• 🍹 Bebidas\n• 🧀 Bordas Recheadas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770142990643
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142991176
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nQualquer coisa, é só me chamar! 😉\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🥟 Esfihas\n• 🍹 Bebidas\n• 🧀 Bordas Recheadas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770142992793
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142993323
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nSe precisar de algo, estou por aqui! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🥟 Esfihas\n• 🍹 Bebidas\n• 🧀 Bordas Recheadas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770142994836
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142995379
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nFico à disposição! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🥟 Esfihas\n• 🍹 Bebidas\n• 🧀 Bordas Recheadas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770142996864
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142997406
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nFico à disposição! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🥟 Esfihas\n• 🍹 Bebidas\n• 🧀 Bordas Recheadas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770142999046
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770142999589
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nSe precisar de algo, estou por aqui! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🥟 Esfihas\n• 🍹 Bebidas\n• 🧀 Bordas Recheadas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143001111
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143001670
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nFico à disposição! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🥟 Esfihas\n• 🍹 Bebidas\n• 🧀 Bordas Recheadas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143003454
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143004048
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nSe precisar de algo, estou por aqui! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🥟 Esfihas\n• 🍹 Bebidas\n• 🧀 Bordas Recheadas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143007730
+        }
+      ]
+    },
+    {
+      "clientNumber": 6,
+      "clientName": "Luiza Vegana",
+      "completed": false,
+      "messagesExchanged": 8,
+      "duration": "24.3s",
+      "issues": [],
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143008299
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nFico à disposição! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🥟 Esfihas\n• 🍹 Bebidas\n• 🧀 Bordas Recheadas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143010377
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143010907
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nFico à disposição! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143012622
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143013156
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nFico à disposição! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143017076
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143017690
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nFico à disposição! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🥟 Esfihas\n• 🍹 Bebidas\n• 🧀 Bordas Recheadas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143019216
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143019779
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nQualquer coisa, é só me chamar! 😉\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🥟 Esfihas\n• 🍹 Bebidas\n• 🧀 Bordas Recheadas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143023207
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143023744
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nQualquer coisa, é só me chamar! 😉\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143026350
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143026880
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nFico à disposição! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🥟 Esfihas\n• 🍹 Bebidas\n• 🧀 Bordas Recheadas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143029413
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143029957
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nFico à disposição! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🥟 Esfihas\n• 🍹 Bebidas\n• 🧀 Bordas Recheadas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143032054
+        }
+      ]
+    },
+    {
+      "clientNumber": 7,
+      "clientName": "Ricardo Empresário",
+      "completed": false,
+      "messagesExchanged": 8,
+      "duration": "21.9s",
+      "issues": [],
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143032580
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nQualquer coisa, é só me chamar! 😉\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🥟 Esfihas\n• 🍹 Bebidas\n• 🧀 Bordas Recheadas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143034680
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143035218
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nQualquer coisa, é só me chamar! 😉\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143037622
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143038154
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nSe precisar de algo, estou por aqui! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143040182
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143040712
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nQualquer coisa, é só me chamar! 😉\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143043031
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143043570
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nSe precisar de algo, estou por aqui! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143045635
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143046169
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nQualquer coisa, é só me chamar! 😉\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143048549
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143049088
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nFico à disposição! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143051204
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143051739
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nSe precisar de algo, estou por aqui! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143053925
+        }
+      ]
+    },
+    {
+      "clientNumber": 8,
+      "clientName": "Camila Adolescente",
+      "completed": false,
+      "messagesExchanged": 8,
+      "duration": "20.1s",
+      "issues": [],
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143054466
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nQualquer coisa, é só me chamar! 😉\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143055838
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143056378
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nFico à disposição! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143058149
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143058704
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nSe precisar de algo, estou por aqui! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143060240
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143060779
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nQualquer coisa, é só me chamar! 😉\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143062648
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143063196
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nFico à disposição! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143065906
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143066444
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nQualquer coisa, é só me chamar! 😉\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143068538
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143069162
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nQualquer coisa, é só me chamar! 😉\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143071192
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143071751
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nSe precisar de algo, estou por aqui! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143073995
+        }
+      ]
+    },
+    {
+      "clientNumber": 9,
+      "clientName": "Roberto Idoso",
+      "completed": false,
+      "messagesExchanged": 8,
+      "duration": "20.2s",
+      "issues": [],
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143074540
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nFico à disposição! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143076687
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143077260
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nSe precisar de algo, estou por aqui! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143079821
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143080359
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nSe precisar de algo, estou por aqui! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143082610
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143083145
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nSe precisar de algo, estou por aqui! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143084793
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143085341
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nFico à disposição! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143086931
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143087479
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nQualquer coisa, é só me chamar! 😉\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143089031
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143089568
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nFico à disposição! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143092004
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143092533
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nSe precisar de algo, estou por aqui! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143094161
+        }
+      ]
+    },
+    {
+      "clientNumber": 10,
+      "clientName": "Juliana Influencer",
+      "completed": false,
+      "messagesExchanged": 8,
+      "duration": "21.1s",
+      "issues": [],
+      "history": [
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143094709
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nFico à disposição! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143096218
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143096743
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nFico à disposição! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143098461
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143098987
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nQualquer coisa, é só me chamar! 😉\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143101272
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143101815
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nSe precisar de algo, estou por aqui! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143104079
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143104621
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nQualquer coisa, é só me chamar! 😉\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143106696
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143107252
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nSe precisar de algo, estou por aqui! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143110053
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143110580
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nSe precisar de algo, estou por aqui! 😊\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143112620
+        },
+        {
+          "role": "cliente",
+          "content": "Oi, quero ver o cardápio",
+          "timestamp": 1770143113155
+        },
+        {
+          "role": "agente",
+          "content": "Olá Cliente! 👋 Bem-vindo ao nosso delivery! Como posso ajudar você hoje?\n\nQualquer coisa, é só me chamar! 😉\n\nO que você deseja ver primeiro? Escolha uma categoria:\n• 🍕 Pizzas Salgadas\n• 🍫 Pizzas Doces\n• 🎁 Combos\n• 🧀 Bordas Recheadas\n• 🍹 Bebidas\n• 🥟 Esfihas\n\nEx.: Pizza, Esfihas, Açaí, Bebidas.",
+          "timestamp": 1770143115257
+        }
+      ]
+    }
+  ]
+}

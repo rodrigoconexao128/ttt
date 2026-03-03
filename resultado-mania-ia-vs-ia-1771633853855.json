@@ -1,0 +1,87 @@
+{
+  "timestamp": "2026-02-21T00:30:53.855Z",
+  "promptPath": "C:\\Users\\Windows\\Downloads\\agentezap correto\\vvvv\\prompt-mania-calibrado-v1.txt",
+  "missingAnchors": [],
+  "total": 3,
+  "passed": 3,
+  "failed": 0,
+  "scenarios": [
+    {
+      "name": "Preço não pode sair antes da qualificação",
+      "passed": true,
+      "reason": "Não enviou valor numérico antes nem depois sem validação de estoque.",
+      "transcript": [
+        {
+          "user": "Quero saber o preço",
+          "agent": "{nome}, para não te passar valor incorreto, vou confirmar agora e já volto com o preço exato 😊"
+        },
+        {
+          "user": "É de cabeceira",
+          "agent": "{nome}, qual tamanho você procura? (solteiro, solteirão, casal, queen ou king)"
+        },
+        {
+          "user": "queen",
+          "agent": "{nome}, qual modelo você deseja?"
+        },
+        {
+          "user": "modelo itália",
+          "agent": "{nome}, perfeito! Posso te ajudar com valores, mídia ou link do modelo escolhido."
+        },
+        {
+          "user": "agora qual o preço?",
+          "agent": "{nome}, preço sob consulta após validação de estoque. Vou confirmar e te retorno o valor exato 😊"
+        }
+      ]
+    },
+    {
+      "name": "Mídia correta para cabeceira (sem colchão)",
+      "passed": true,
+      "reason": "Enviou somente mídia de cabeceira Itália.",
+      "transcript": [
+        {
+          "user": "Quero cabeceira",
+          "agent": "{nome}, qual tamanho você procura? (solteiro, solteirão, casal, queen ou king)"
+        },
+        {
+          "user": "queen",
+          "agent": "{nome}, qual modelo você deseja?"
+        },
+        {
+          "user": "modelo itália",
+          "agent": "{nome}, perfeito! Posso te ajudar com valores, mídia ou link do modelo escolhido."
+        },
+        {
+          "user": "pode enviar a imagem",
+          "agent": "MIDIA: CABECEIRA_ITALIA"
+        }
+      ]
+    },
+    {
+      "name": "Link só depois de pedido explícito e qualificação",
+      "passed": true,
+      "reason": "Bloqueou link cedo e enviou somente URL após qualificação.",
+      "transcript": [
+        {
+          "user": "manda o link",
+          "agent": "{nome}, te envio sim 😊 Antes preciso só confirmar produto, tamanho e modelo para mandar o link certo."
+        },
+        {
+          "user": "cabeceira",
+          "agent": "{nome}, qual tamanho você procura? (solteiro, solteirão, casal, queen ou king)"
+        },
+        {
+          "user": "casal",
+          "agent": "{nome}, qual modelo você deseja?"
+        },
+        {
+          "user": "modelo dubai",
+          "agent": "{nome}, perfeito! Posso te ajudar com valores, mídia ou link do modelo escolhido."
+        },
+        {
+          "user": "quero o link",
+          "agent": "https://drive.google.com/drive/folders/exemplo-link-correto"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,500 @@
+﻿{"message":"  },","timestamp":"2026-02-25T01:49:28.483662347Z","level":"info"}
+{"message":"  registrationId: 841723791,","level":"info","timestamp":"2026-02-25T01:49:28.483669103Z"}
+{"message":"  currentRatchet: {","timestamp":"2026-02-25T01:49:28.483677031Z","level":"info"}
+{"message":"    ephemeralKeyPair: {","level":"info","timestamp":"2026-02-25T01:49:28.483684466Z"}
+{"timestamp":"2026-02-25T01:49:28.483692368Z","message":"      pubKey: <Buffer 05 9b ac 6f 9d 72 75 66 fc cc bf 0a bd 11 40 0e ed ad b0 4d dd a7 cf 0b bb 1f 49 24 f3 57 1c e0 65>,","level":"info"}
+{"message":"      privKey: <Buffer c0 56 5b 7f 8c ba 27 f5 e0 bd 38 68 51 62 71 fd 4a c7 af f3 32 61 af a4 fd f3 51 2d 77 91 a0 7e>","timestamp":"2026-02-25T01:49:28.483699315Z","level":"info"}
+{"message":"    baseKeyType: 1,","level":"info","timestamp":"2026-02-25T01:49:28.485659420Z"}
+{"level":"info","timestamp":"2026-02-25T01:49:28.485664401Z","message":"    closed: 1771962487939,"}
+{"timestamp":"2026-02-25T01:49:28.485668671Z","level":"info","message":"    used: 1771962425999,"}
+{"message":"    created: 1771962162277,","timestamp":"2026-02-25T01:49:28.485672396Z","level":"info"}
+{"message":"    remoteIdentityKey: <Buffer 05 a6 95 1a 4b 69 3a 9f ec d2 b6 43 d8 6b 78 54 06 6a a3 4e a9 76 53 95 2a 12 6e 1a 6e f8 da 9f 60>","level":"info","timestamp":"2026-02-25T01:49:28.485676019Z"}
+{"level":"info","message":"  }","timestamp":"2026-02-25T01:49:28.485679862Z"}
+{"message":"}","level":"info","timestamp":"2026-02-25T01:49:28.485684204Z"}
+{"message":"?? [MSG CACHE] Armazenada mensagem 3EB0992ACF6A40DA550504 para user cb9213c3... (cache size: 14)","timestamp":"2026-02-25T01:49:28.485688069Z","level":"info"}
+{"timestamp":"2026-02-25T01:49:28.485693812Z","level":"info","message":"🛡️ [ANTI-BLOCK] ✅ Mensagem enviada - ID: 3EB0992ACF6A40DA550504"}
+{"level":"info","timestamp":"2026-02-25T01:49:28.485698847Z","message":"🛡️ [ANTI-BAN v5.0] ✅ Msg enviada - Lote: 1/10"}
+{"message":"Error marking pending AI response as skipped: error: new row for relation \"pending_ai_responses\" violates check constraint \"pending_ai_responses_status_check\"","timestamp":"2026-02-25T01:49:28.485702957Z","level":"error"}
+{"message":"    at /app/node_modules/pg-pool/index.js:45:11","level":"error","timestamp":"2026-02-25T01:49:28.485707265Z"}
+{"level":"error","timestamp":"2026-02-25T01:49:28.485711269Z","message":"    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)"}
+{"level":"error","timestamp":"2026-02-25T01:49:28.485715257Z","message":"    at async DatabaseStorage.markPendingAIResponseSkipped (file:///app/dist/chunk-X5NZ2PZH.js:3803:7)"}
+{"message":"    at async processAccumulatedMessages (file:///app/dist/chunk-ZUJRJIT2.js:14422:5)","level":"error","timestamp":"2026-02-25T01:49:28.485719240Z"}
+{"level":"error","timestamp":"2026-02-25T01:49:28.485723199Z","message":"    at async Timeout._onTimeout (file:///app/dist/chunk-ZUJRJIT2.js:18616:9) {"}
+{"level":"error","timestamp":"2026-02-25T01:49:28.485727266Z","message":"  length: 659,"}
+{"level":"error","timestamp":"2026-02-25T01:49:28.485732409Z","message":"  severity: 'ERROR',"}
+{"message":"  code: '23514',","level":"error","timestamp":"2026-02-25T01:49:28.485736405Z"}
+{"message":"  detail: 'Failing row contains (16db338d-e517-4a08-8579-018140fee27d, 0c74a6cf-a0fb-4186-b094-3295bb4d1930, 06e5a890-8186-4c0c-b1fb-9355d2f0bec3, 558594266421, s.whatsapp.net, [\"O papel não energiza meu nome, meu nome é Francineu, e eu fa..., 2026-02-25 01:48:11.590827+00, 2026-02-25 01:48:41.590827+00, skipped, 2026-02-24 20:24:07.519746+00, 2026-02-25 01:49:27.774814+00, 1, agent_disabled, null, 2026-02-25 01:49:27.774814+00).',","timestamp":"2026-02-25T01:49:28.485740412Z","level":"error"}
+{"message":"  file: 'execMain.c',","level":"error","timestamp":"2026-02-25T01:49:28.488179476Z"}
+{"timestamp":"2026-02-25T01:49:28.488191445Z","level":"error","message":"  line: '2033',"}
+{"timestamp":"2026-02-25T01:49:28.488199212Z","level":"error","message":"  routine: 'ExecConstraints'"}
+{"level":"error","message":"  hint: undefined,","timestamp":"2026-02-25T01:49:28.488205500Z"}
+{"level":"error","message":"}","timestamp":"2026-02-25T01:49:28.488206382Z"}
+{"level":"info","message":"?? [MSG CACHE] Armazenada mensagem 3EB0992ACF6A40DA550504 para user cb9213c3... (cache size: 14)","timestamp":"2026-02-25T01:49:28.488213494Z"}
+{"message":"  position: undefined,","timestamp":"2026-02-25T01:49:28.488214028Z","level":"error"}
+{"level":"info","timestamp":"2026-02-25T01:49:28.488219727Z","message":"🔌 [DB Pool] Conexão REMOVIDA"}
+{"level":"error","message":"  internalPosition: undefined,","timestamp":"2026-02-25T01:49:28.488222859Z"}
+{"message":"✅ [DB Pool] Nova conexão ESTABELECIDA","timestamp":"2026-02-25T01:49:28.488226333Z","level":"info"}
+{"message":"  internalQuery: undefined,","timestamp":"2026-02-25T01:49:28.488230705Z","level":"error"}
+{"timestamp":"2026-02-25T01:49:28.488234249Z","message":"","level":"info"}
+{"message":"  where: undefined,","level":"error","timestamp":"2026-02-25T01:49:28.488237990Z"}
+{"timestamp":"2026-02-25T01:49:28.488241871Z","level":"info","message":"🔄 [AI AGENT] =========== PROCESSANDO RESPOSTA ==========="}
+{"timestamp":"2026-02-25T01:49:28.488246984Z","message":"  schema: 'public',","level":"error"}
+{"level":"info","message":"   ⏱️ Aguardou 6.4s | 1 mensagem(s) acumulada(s)","timestamp":"2026-02-25T01:49:28.488249780Z"}
+{"level":"error","message":"  table: 'pending_ai_responses',","timestamp":"2026-02-25T01:49:28.488254106Z"}
+{"message":"   📞 Contato: 559691111769","level":"info","timestamp":"2026-02-25T01:49:28.488256662Z"}
+{"level":"error","message":"  column: undefined,","timestamp":"2026-02-25T01:49:28.488260951Z"}
+{"message":"  dataType: undefined,","level":"error","timestamp":"2026-02-25T01:49:28.488266077Z"}
+{"level":"error","message":"  constraint: 'pending_ai_responses_status_check',","timestamp":"2026-02-25T01:49:28.488272387Z"}
+{"level":"info","message":"","timestamp":"2026-02-25T01:49:28.720375325Z"}
+{"level":"info","timestamp":"2026-02-25T01:49:28.720385181Z","message":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"}
+{"timestamp":"2026-02-25T01:49:28.720391426Z","message":"🚫 [AI AGENT] IA DESATIVADA - Timer cancelado","level":"info"}
+{"message":"   conversationId: 2d7b3a88-25ef-4c70-b8b4-256c2c7932fe","level":"info","timestamp":"2026-02-25T01:49:28.720398220Z"}
+{"level":"info","message":"   contactNumber: 559481474436","timestamp":"2026-02-25T01:49:28.720403672Z"}
+{"message":"   👉 IA foi desativada entre criação e execução do timer","timestamp":"2026-02-25T01:49:28.720410329Z","level":"info"}
+{"message":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!","timestamp":"2026-02-25T01:49:28.720414941Z","level":"info"}
+{"message":"","timestamp":"2026-02-25T01:49:28.720419040Z","level":"info"}
+{"message":"⏭️ [DB] Marcando timer como SKIPPED: 2d7b3a88-25ef-4c70-b8b4-256c2c7932fe - Razão: agent_disabled","timestamp":"2026-02-25T01:49:28.720424062Z","level":"info"}
+{"timestamp":"2026-02-25T01:49:29.530347165Z","message":"  code: '23514',","level":"error"}
+{"message":"  column: undefined,","timestamp":"2026-02-25T01:49:29.530355812Z","level":"error"}
+{"timestamp":"2026-02-25T01:49:29.530357926Z","level":"error","message":"  detail: 'Failing row contains (150aae43-67cb-4099-8ee2-9c3fde9c49a2, 7284d5e5-7ab2-4a99-b8fc-03102c00bf46, a6ebfa8b-6aaf-41f2-a688-28d6a0e7f752, 559491057839, s.whatsapp.net, [\"94991057839\"], 2026-02-25 01:45:05.106808+00, 2026-02-25 01:45:35.106808+00, skipped, 2026-02-25 00:57:06.619323+00, 2026-02-25 01:49:28.781399+00, 1, agent_disabled, null, 2026-02-25 01:49:28.781399+00).',"}
+{"level":"error","message":"Error marking pending AI response as skipped: error: new row for relation \"pending_ai_responses\" violates check constraint \"pending_ai_responses_status_check\"","timestamp":"2026-02-25T01:49:29.530359580Z"}
+{"timestamp":"2026-02-25T01:49:29.530366614Z","message":"  hint: undefined,","level":"error"}
+{"message":"  dataType: undefined,","timestamp":"2026-02-25T01:49:29.530369150Z","level":"error"}
+{"level":"error","timestamp":"2026-02-25T01:49:29.530370745Z","message":"    at /app/node_modules/pg-pool/index.js:45:11"}
+{"level":"error","message":"  position: undefined,","timestamp":"2026-02-25T01:49:29.530372786Z"}
+{"timestamp":"2026-02-25T01:49:29.530379092Z","level":"error","message":"  constraint: 'pending_ai_responses_status_check',"}
+{"timestamp":"2026-02-25T01:49:29.530379263Z","level":"error","message":"    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)"}
+{"message":"  internalPosition: undefined,","level":"error","timestamp":"2026-02-25T01:49:29.530396869Z"}
+{"level":"error","timestamp":"2026-02-25T01:49:29.530396990Z","message":"    at async DatabaseStorage.markPendingAIResponseSkipped (file:///app/dist/chunk-X5NZ2PZH.js:3803:7)"}
+{"level":"error","timestamp":"2026-02-25T01:49:29.530404670Z","message":"    at async processAccumulatedMessages (file:///app/dist/chunk-ZUJRJIT2.js:14422:5)"}
+{"timestamp":"2026-02-25T01:49:29.530406088Z","message":"  internalQuery: undefined,","level":"error"}
+{"level":"error","message":"    at async Timeout._onTimeout (file:///app/dist/chunk-ZUJRJIT2.js:18616:9) {","timestamp":"2026-02-25T01:49:29.530411588Z"}
+{"timestamp":"2026-02-25T01:49:29.530414689Z","message":"  where: undefined,","level":"error"}
+{"level":"error","timestamp":"2026-02-25T01:49:29.530417667Z","message":"  length: 607,"}
+{"message":"  severity: 'ERROR',","level":"error","timestamp":"2026-02-25T01:49:29.530423902Z"}
+{"level":"error","message":"  schema: 'public',","timestamp":"2026-02-25T01:49:29.530424487Z"}
+{"level":"error","message":"  table: 'pending_ai_responses',","timestamp":"2026-02-25T01:49:29.530431296Z"}
+{"timestamp":"2026-02-25T01:49:29.532071886Z","level":"info","message":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"}
+{"message":"🚫 [AI AGENT] IA DESATIVADA - Timer cancelado","level":"info","timestamp":"2026-02-25T01:49:29.532084405Z"}
+{"timestamp":"2026-02-25T01:49:29.532092131Z","message":"   conversationId: 31906a59-b213-404d-983c-590aaf077eb5","level":"info"}
+{"message":"   contactNumber: 555180133665","timestamp":"2026-02-25T01:49:29.532099485Z","level":"info"}
+{"level":"info","message":"   👉 IA foi desativada entre criação e execução do timer","timestamp":"2026-02-25T01:49:29.532106278Z"}
+{"level":"error","message":"  file: 'execMain.c',","timestamp":"2026-02-25T01:49:29.532112395Z"}
+{"message":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!","timestamp":"2026-02-25T01:49:29.532114534Z","level":"info"}
+{"message":"  line: '2033',","timestamp":"2026-02-25T01:49:29.532121152Z","level":"error"}
+{"timestamp":"2026-02-25T01:49:29.532123886Z","level":"info","message":""}
+{"level":"error","message":"  routine: 'ExecConstraints'","timestamp":"2026-02-25T01:49:29.532129241Z"}
+{"message":"⏭️ [DB] Marcando timer como SKIPPED: 31906a59-b213-404d-983c-590aaf077eb5 - Razão: agent_disabled","timestamp":"2026-02-25T01:49:29.532134124Z","level":"info"}
+{"level":"error","message":"}","timestamp":"2026-02-25T01:49:29.532137196Z"}
+{"level":"info","timestamp":"2026-02-25T01:49:29.532142668Z","message":"1:49:29 AM [express] GET /api/admin/session 304 in 3501ms :: {\"authenticated\":true,\"isAdmin\":true,\"a…"}
+{"level":"info","message":"🔌 [DB Pool] Conexão REMOVIDA","timestamp":"2026-02-25T01:49:29.532145932Z"}
+{"timestamp":"2026-02-25T01:49:29.532152724Z","level":"info","message":"✅ [DB Pool] Nova conexão ESTABELECIDA"}
+{"level":"info","message":"","timestamp":"2026-02-25T01:49:29.532159694Z"}
+{"level":"error","message":"Error marking pending AI response as skipped: error: new row for relation \"pending_ai_responses\" violates check constraint \"pending_ai_responses_status_check\"","timestamp":"2026-02-25T01:49:29.584094807Z"}
+{"timestamp":"2026-02-25T01:49:29.584099099Z","level":"error","message":"    at /app/node_modules/pg-pool/index.js:45:11"}
+{"timestamp":"2026-02-25T01:49:29.584103630Z","level":"error","message":"    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)"}
+{"message":"    at async DatabaseStorage.markPendingAIResponseSkipped (file:///app/dist/chunk-X5NZ2PZH.js:3803:7)","level":"error","timestamp":"2026-02-25T01:49:29.584107436Z"}
+{"timestamp":"2026-02-25T01:49:29.584111746Z","message":"    at async processAccumulatedMessages (file:///app/dist/chunk-ZUJRJIT2.js:14422:5)","level":"error"}
+{"message":"    at async Timeout._onTimeout (file:///app/dist/chunk-ZUJRJIT2.js:18616:9) {","timestamp":"2026-02-25T01:49:29.584115830Z","level":"error"}
+{"level":"error","message":"  length: 659,","timestamp":"2026-02-25T01:49:29.584120087Z"}
+{"message":"  severity: 'ERROR',","level":"error","timestamp":"2026-02-25T01:49:29.584123677Z"}
+{"level":"error","message":"  code: '23514',","timestamp":"2026-02-25T01:49:29.584127408Z"}
+{"message":"  detail: 'Failing row contains (1734aef2-2872-4054-afde-557b09b11485, 64b4e51b-dcd0-43e7-984e-c6d66833f01f, 06e5a890-8186-4c0c-b1fb-9355d2f0bec3, 5511975338193, s.whatsapp.net, [\"Camila Colosali Cabral suanes\\\\n39860470855 \\\\n10/09/1990\\\\n08940..., 2026-02-25 01:48:12.759287+00, 2026-02-25 01:48:42.759287+00, skipped, 2026-02-24 19:01:00.89772+00, 2026-02-25 01:49:29.477712+00, 1, agent_disabled, null, 2026-02-25 01:49:29.477712+00).',","timestamp":"2026-02-25T01:49:29.584131075Z","level":"error"}
+{"message":"  hint: undefined,","timestamp":"2026-02-25T01:49:29.584134768Z","level":"error"}
+{"level":"error","timestamp":"2026-02-25T01:49:29.584139209Z","message":"  position: undefined,"}
+{"message":"  internalPosition: undefined,","level":"error","timestamp":"2026-02-25T01:49:29.584143193Z"}
+{"level":"error","timestamp":"2026-02-25T01:49:29.584147081Z","message":"  internalQuery: undefined,"}
+{"level":"error","message":"  where: undefined,","timestamp":"2026-02-25T01:49:29.584150648Z"}
+{"timestamp":"2026-02-25T01:49:29.584154026Z","level":"error","message":"  schema: 'public',"}
+{"message":"  table: 'pending_ai_responses',","timestamp":"2026-02-25T01:49:29.584157885Z","level":"error"}
+{"message":"  column: undefined,","level":"error","timestamp":"2026-02-25T01:49:29.584162096Z"}
+{"message":"  dataType: undefined,","timestamp":"2026-02-25T01:49:29.584165909Z","level":"error"}
+{"level":"error","message":"  constraint: 'pending_ai_responses_status_check',","timestamp":"2026-02-25T01:49:29.585519727Z"}
+{"level":"error","message":"  file: 'execMain.c',","timestamp":"2026-02-25T01:49:29.585526315Z"}
+{"level":"error","timestamp":"2026-02-25T01:49:29.585532359Z","message":"  line: '2033',"}
+{"timestamp":"2026-02-25T01:49:29.585538227Z","message":"  routine: 'ExecConstraints'","level":"error"}
+{"message":"}","timestamp":"2026-02-25T01:49:29.585543795Z","level":"error"}
+{"timestamp":"2026-02-25T01:49:30.674637166Z","message":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!","level":"info"}
+{"level":"info","message":"","timestamp":"2026-02-25T01:49:30.674647084Z"}
+{"message":"?? [MSG CACHE] Armazenada mensagem A599A5700EEB08127A20C20D58E22B66 para user cb9213c3... (cache size: 15)","timestamp":"2026-02-25T01:49:30.674655158Z","level":"info"}
+{"message":"⏭️ [DB] Marcando timer como SKIPPED: 64ea8a5a-15a4-4c9f-9459-e80af675ebf9 - Razão: agent_disabled","timestamp":"2026-02-25T01:49:30.674655296Z","level":"info"}
+{"message":"🚨 [RECOVERY] ✅ Mensagem salva: A599A5700EEB08127A20C20D58E22B66 | Contato: 184722332352551","timestamp":"2026-02-25T01:49:30.674664366Z","level":"info"}
+{"message":"","timestamp":"2026-02-25T01:49:30.674664806Z","level":"info"}
+{"level":"info","timestamp":"2026-02-25T01:49:30.674666087Z","message":"   conversationId: 64ea8a5a-15a4-4c9f-9459-e80af675ebf9"}
+{"message":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!","timestamp":"2026-02-25T01:49:30.674673052Z","level":"info"}
+{"timestamp":"2026-02-25T01:49:30.674680392Z","message":"   contactNumber: 559481360948","level":"info"}
+{"timestamp":"2026-02-25T01:49:30.674680534Z","level":"info","message":"🚫 [AI AGENT] IA DESATIVADA - Timer cancelado"}
+{"level":"info","message":"   👉 IA foi desativada entre criação e execução do timer","timestamp":"2026-02-25T01:49:30.674688993Z"}
+{"level":"info","message":"🔌 [DB Pool] Conexão REMOVIDA","timestamp":"2026-02-25T01:49:30.674763150Z"}
+{"level":"info","timestamp":"2026-02-25T01:49:30.674768439Z","message":"1:49:30 AM [express] GET /api/auth/user 200 in 4187ms :: {\"id\":\"cb9213c3-fde3-479e-a4aa-344171c59735…"}
+{"level":"info","message":"?? [MSG CACHE] Armazenada mensagem A599A5700EEB08127A20C20D58E22B66 para user e82761d9... (cache size: 2)","timestamp":"2026-02-25T01:49:30.674773915Z"}
+{"level":"info","timestamp":"2026-02-25T01:49:30.674779169Z","message":"?? [FROM ME] LID resolvido: 150878426235051@lid ? 5517981679818@s.whatsapp.net"}
+{"level":"info","timestamp":"2026-02-25T01:49:30.674784882Z","message":"🛡️ [ANTI-BAN v5.0] 👤 Mensagem MANUAL do DONO detectada"}
+{"timestamp":"2026-02-25T01:49:30.674790760Z","message":"   📱 Contato: 5517981679818","level":"info"}
+{"timestamp":"2026-02-25T01:49:30.674797589Z","message":"   🔄 Contador de lote reiniciado","level":"info"}
+{"message":"🛡️ [ANTI-BAN v4.0] 👤 Mensagem MANUAL do DONO registrada - Bot aguardará antes de responder","timestamp":"2026-02-25T01:49:30.674802775Z","level":"info"}
+{"level":"info","timestamp":"2026-02-25T01:49:30.674807716Z","message":"📋 [MSG-UPSERT] IN notify | 184722332352551 | id=A599A5700EEB | content=[conversation,messageContextInfo] | stub=none"}
+{"level":"info","message":"✅ [DB Pool] Nova conexão ESTABELECIDA","timestamp":"2026-02-25T01:49:30.676690270Z"}
+{"message":"1:49:30 AM [express] GET /api/daily-limits 304 in 2473ms :: {\"hasActiveSubscription\":true,\"calibrati…","timestamp":"2026-02-25T01:49:30.676695405Z","level":"info"}
+{"timestamp":"2026-02-25T01:49:30.682330805Z","message":"?? [CACHE] Mapeamento LID ? phoneNumber salvo em mem�ria: 184722332352551@lid ? 559493004899@s.whatsapp.net","level":"info"}
+{"level":"info","message":"[WhatsApp] Original JID: 184722332352551@lid","timestamp":"2026-02-25T01:49:30.682345464Z"}
+{"level":"info","timestamp":"2026-02-25T01:49:30.682354278Z","message":"[WhatsApp] Normalized JID: 559493004899@s.whatsapp.net"}
+{"timestamp":"2026-02-25T01:49:30.682363197Z","message":"","level":"info"}
+{"level":"info","timestamp":"2026-02-25T01:49:30.682367126Z","message":"[WhatsApp] Clean number: 559493004899"}
+{"level":"info","timestamp":"2026-02-25T01:49:30.682372130Z","message":"?? [MESSAGE KEY DEBUG]"}
+{"level":"info","timestamp":"2026-02-25T01:49:30.682377567Z","message":"   remoteJid: 184722332352551@lid"}
+{"level":"info","message":"   remoteJidAlt: 559493004899@s.whatsapp.net","timestamp":"2026-02-25T01:49:30.682382443Z"}
+{"timestamp":"2026-02-25T01:49:30.682387336Z","level":"info","message":"   pushName: Bom Jardim-serviços de jardinagem"}
+{"message":"   participantPn: N/A","timestamp":"2026-02-25T01:49:30.682391941Z","level":"info"}
+{"message":"","level":"info","timestamp":"2026-02-25T01:49:30.682399480Z"}
+{"timestamp":"2026-02-25T01:49:30.682404426Z","level":"info","message":"? [LID RESOLVIDO] N�mero real encontrado via remoteJidAlt!"}
+{"timestamp":"2026-02-25T01:49:30.682409249Z","message":"   LID: 184722332352551@lid","level":"info"}
+{"message":"   JID WhatsApp REAL: 559493004899@s.whatsapp.net","level":"info","timestamp":"2026-02-25T01:49:30.682414231Z"}
+{"level":"info","message":"   N�mero limpo: 559493004899","timestamp":"2026-02-25T01:49:30.682419354Z"}
+{"timestamp":"2026-02-25T01:49:30.682424109Z","level":"info","message":"   Nome: Bom Jardim-serviços de jardinagem"}
+{"message":"","timestamp":"2026-02-25T01:49:30.682428677Z","level":"info"}
+{"message":"✅ [DB Pool] Nova conexão ESTABELECIDA","timestamp":"2026-02-25T01:49:31.777126653Z","level":"info"}
+{"message":"","timestamp":"2026-02-25T01:49:31.777138974Z","level":"info"}
+{"message":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!","timestamp":"2026-02-25T01:49:31.777143397Z","level":"info"}
+{"message":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!","timestamp":"2026-02-25T01:49:31.777148791Z","level":"info"}
+{"timestamp":"2026-02-25T01:49:31.777158783Z","message":"🚫 [AI AGENT] IA DESATIVADA - Timer cancelado","level":"info"}
+{"level":"info","message":"","timestamp":"2026-02-25T01:49:31.777161240Z"}
+{"message":"   conversationId: a299d01b-d4d5-4149-9a7c-be3ccd859061","timestamp":"2026-02-25T01:49:31.777167166Z","level":"info"}
+{"level":"info","timestamp":"2026-02-25T01:49:31.777177346Z","message":"⏭️ [DB] Marcando timer como SKIPPED: a299d01b-d4d5-4149-9a7c-be3ccd859061 - Razão: agent_disabled"}
+{"level":"info","message":"   contactNumber: 556282006631","timestamp":"2026-02-25T01:49:31.777178853Z"}
+{"message":"   👉 IA foi desativada entre criação e execução do timer","level":"info","timestamp":"2026-02-25T01:49:31.777192046Z"}
+{"message":"🔄 [USER-FOLLOW-UP] Cliente respondeu. Ciclo pausado por 2h para 99301621-195e-4e0b-9bae-74e04698d8cc (dar espaço à conversa)","level":"info","timestamp":"2026-02-25T01:49:31.777195659Z"}
+{"level":"error","message":"Error marking pending AI response as skipped: error: new row for relation \"pending_ai_responses\" violates check constraint \"pending_ai_responses_status_check\"","timestamp":"2026-02-25T01:49:31.777206296Z"}
+{"timestamp":"2026-02-25T01:49:31.777217066Z","level":"error","message":"    at /app/node_modules/pg-pool/index.js:45:11"}
+{"message":"    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)","timestamp":"2026-02-25T01:49:31.777226729Z","level":"error"}
+{"message":"    at async DatabaseStorage.markPendingAIResponseSkipped (file:///app/dist/chunk-X5NZ2PZH.js:3803:7)","timestamp":"2026-02-25T01:49:31.777234916Z","level":"error"}
+{"level":"error","timestamp":"2026-02-25T01:49:31.777244284Z","message":"    at async processAccumulatedMessages (file:///app/dist/chunk-ZUJRJIT2.js:14422:5)"}
+{"message":"    at async Timeout._onTimeout (file:///app/dist/chunk-ZUJRJIT2.js:18616:9) {","timestamp":"2026-02-25T01:49:31.777253286Z","level":"error"}
+{"message":"  length: 629,","level":"error","timestamp":"2026-02-25T01:49:31.777262008Z"}
+{"message":"  severity: 'ERROR',","timestamp":"2026-02-25T01:49:31.777270061Z","level":"error"}
+{"timestamp":"2026-02-25T01:49:31.777287475Z","message":"  code: '23514',","level":"error"}
+{"message":"  detail: 'Failing row contains (272fac31-bf00-4c0b-8653-566a81afc2c1, 2d7b3a88-25ef-4c70-b8b4-256c2c7932fe, a6ebfa8b-6aaf-41f2-a688-28d6a0e7f752, 559481474436, s.whatsapp.net, [\"Meu limite de Pix acabou desse mês\"], 2026-02-25 01:45:05.684136+00, 2026-02-25 01:45:35.684136+00, skipped, 2026-02-25 00:42:01.209244+00, 2026-02-25 01:49:31.07591+00, 1, agent_disabled, null, 2026-02-25 01:49:31.07591+00).',","timestamp":"2026-02-25T01:49:31.782518275Z","level":"error"}
+{"timestamp":"2026-02-25T01:49:31.782536826Z","message":"  hint: undefined,","level":"error"}
+{"level":"error","message":"  position: undefined,","timestamp":"2026-02-25T01:49:31.782545743Z"}
+{"message":"  internalPosition: undefined,","level":"error","timestamp":"2026-02-25T01:49:31.782552658Z"}
+{"level":"error","message":"  internalQuery: undefined,","timestamp":"2026-02-25T01:49:31.782560292Z"}
+{"message":"  where: undefined,","timestamp":"2026-02-25T01:49:31.782569951Z","level":"error"}
+{"level":"error","message":"  schema: 'public',","timestamp":"2026-02-25T01:49:31.782579868Z"}
+{"message":"  table: 'pending_ai_responses',","level":"error","timestamp":"2026-02-25T01:49:31.782594760Z"}
+{"timestamp":"2026-02-25T01:49:31.782607366Z","message":"  column: undefined,","level":"error"}
+{"message":"  dataType: undefined,","level":"error","timestamp":"2026-02-25T01:49:31.782615329Z"}
+{"message":"  constraint: 'pending_ai_responses_status_check',","level":"error","timestamp":"2026-02-25T01:49:31.782624116Z"}
+{"timestamp":"2026-02-25T01:49:31.782631821Z","message":"  file: 'execMain.c',","level":"error"}
+{"message":"  line: '2033',","timestamp":"2026-02-25T01:49:31.782639756Z","level":"error"}
+{"message":"  routine: 'ExecConstraints'","level":"error","timestamp":"2026-02-25T01:49:31.782648836Z"}
+{"timestamp":"2026-02-25T01:49:31.782659246Z","message":"}","level":"error"}
+{"level":"info","message":"","timestamp":"2026-02-25T01:49:31.782905006Z"}
+{"level":"info","message":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!","timestamp":"2026-02-25T01:49:31.782913509Z"}
+{"message":"🚫 [AI AGENT] IA DESATIVADA - Timer cancelado","level":"info","timestamp":"2026-02-25T01:49:31.782922614Z"}
+{"level":"info","message":"   conversationId: e2a1d512-f42c-4db8-a15e-014db313f321","timestamp":"2026-02-25T01:49:31.782930248Z"}
+{"timestamp":"2026-02-25T01:49:31.782937732Z","level":"info","message":"   contactNumber: 559491901612"}
+{"level":"info","message":"   👉 IA foi desativada entre criação e execução do timer","timestamp":"2026-02-25T01:49:31.782945530Z"}
+{"timestamp":"2026-02-25T01:49:31.782952795Z","message":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!","level":"info"}
+{"timestamp":"2026-02-25T01:49:31.782960182Z","level":"info","message":""}
+{"message":"⏭️ [DB] Marcando timer como SKIPPED: e2a1d512-f42c-4db8-a15e-014db313f321 - Razão: agent_disabled","timestamp":"2026-02-25T01:49:31.785681850Z","level":"info"}
+{"message":"🔌 [DB Pool] Conexão REMOVIDA","timestamp":"2026-02-25T01:49:31.785688860Z","level":"info"}
+{"timestamp":"2026-02-25T01:49:32.603491170Z","level":"info","message":"1:49:32 AM [express] GET /api/user/suspension-status 304 in 2ms :: {\"suspended\":false}"}
+{"message":"✅ [DB Pool] Nova conexão ESTABELECIDA","level":"info","timestamp":"2026-02-25T01:49:32.603527929Z"}
+{"level":"error","message":"Error marking pending AI response as skipped: error: new row for relation \"pending_ai_responses\" violates check constraint \"pending_ai_responses_status_check\"","timestamp":"2026-02-25T01:49:32.603534899Z"}
+{"level":"error","message":"    at /app/node_modules/pg-pool/index.js:45:11","timestamp":"2026-02-25T01:49:32.603542278Z"}
+{"timestamp":"2026-02-25T01:49:32.603548509Z","level":"error","message":"    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)"}
+{"message":"    at async DatabaseStorage.markPendingAIResponseSkipped (file:///app/dist/chunk-X5NZ2PZH.js:3803:7)","level":"error","timestamp":"2026-02-25T01:49:32.603554864Z"}
+{"timestamp":"2026-02-25T01:49:32.603561467Z","level":"error","message":"    at async processAccumulatedMessages (file:///app/dist/chunk-ZUJRJIT2.js:14422:5)"}
+{"message":"    at async Timeout._onTimeout (file:///app/dist/chunk-ZUJRJIT2.js:18616:9) {","timestamp":"2026-02-25T01:49:32.603568023Z","level":"error"}
+{"level":"error","message":"  length: 605,","timestamp":"2026-02-25T01:49:32.603574753Z"}
+{"timestamp":"2026-02-25T01:49:32.603581248Z","level":"error","message":"  severity: 'ERROR',"}
+{"timestamp":"2026-02-25T01:49:32.603588101Z","level":"error","message":"  code: '23514',"}
+{"timestamp":"2026-02-25T01:49:32.603594191Z","level":"error","message":"  detail: 'Failing row contains (1423016e-4387-41c8-82e2-ce0908d349e2, e2a1d512-f42c-4db8-a15e-014db313f321, a6ebfa8b-6aaf-41f2-a688-28d6a0e7f752, 559491901612, s.whatsapp.net, [\"Boa noite\"], 2026-02-25 01:48:15.979122+00, 2026-02-25 01:48:45.979122+00, skipped, 2026-02-25 00:02:52.041281+00, 2026-02-25 01:49:32.484391+00, 1, agent_disabled, null, 2026-02-25 01:49:32.484391+00).',"}
+{"timestamp":"2026-02-25T01:49:32.603601915Z","message":"  hint: undefined,","level":"error"}
+{"level":"error","message":"  position: undefined,","timestamp":"2026-02-25T01:49:32.603608275Z"}
+{"timestamp":"2026-02-25T01:49:32.603613716Z","message":"  internalPosition: undefined,","level":"error"}
+{"timestamp":"2026-02-25T01:49:32.603619422Z","level":"error","message":"  internalQuery: undefined,"}
+{"level":"error","timestamp":"2026-02-25T01:49:32.603625799Z","message":"  where: undefined,"}
+{"level":"error","message":"  schema: 'public',","timestamp":"2026-02-25T01:49:32.603631738Z"}
+{"level":"error","timestamp":"2026-02-25T01:49:32.605133842Z","message":"  routine: 'ExecConstraints'"}
+{"message":"}","timestamp":"2026-02-25T01:49:32.605142502Z","level":"error"}
+{"message":"  table: 'pending_ai_responses',","timestamp":"2026-02-25T01:49:32.605186077Z","level":"error"}
+{"message":"  column: undefined,","level":"error","timestamp":"2026-02-25T01:49:32.605192640Z"}
+{"message":"  dataType: undefined,","timestamp":"2026-02-25T01:49:32.605200690Z","level":"error"}
+{"message":"  constraint: 'pending_ai_responses_status_check',","timestamp":"2026-02-25T01:49:32.605208015Z","level":"error"}
+{"timestamp":"2026-02-25T01:49:32.605212937Z","message":"  file: 'execMain.c',","level":"error"}
+{"timestamp":"2026-02-25T01:49:32.605217569Z","message":"  line: '2033',","level":"error"}
+{"timestamp":"2026-02-25T01:49:33.498906557Z","message":"🔌 [DB Pool] Conexão REMOVIDA","level":"info"}
+{"level":"info","message":"✅ [DB Pool] Nova conexão ESTABELECIDA","timestamp":"2026-02-25T01:49:33.789878135Z"}
+{"message":"","timestamp":"2026-02-25T01:49:34.609659347Z","level":"info"}
+{"timestamp":"2026-02-25T01:49:34.609666227Z","message":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!","level":"info"}
+{"timestamp":"2026-02-25T01:49:34.609673895Z","message":"🚫 [AI AGENT] IA DESATIVADA - Timer cancelado","level":"info"}
+{"timestamp":"2026-02-25T01:49:34.609680961Z","level":"info","message":"   conversationId: b5e3474d-d2d3-42e3-b072-05b047415d4e"}
+{"timestamp":"2026-02-25T01:49:34.609688424Z","level":"info","message":"   contactNumber: 558791956246"}
+{"timestamp":"2026-02-25T01:49:34.609695655Z","message":"   👉 IA foi desativada entre criação e execução do timer","level":"info"}
+{"timestamp":"2026-02-25T01:49:34.609702926Z","level":"info","message":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"}
+{"message":"","timestamp":"2026-02-25T01:49:34.609709882Z","level":"info"}
+{"message":"⏭️ [DB] Marcando timer como SKIPPED: b5e3474d-d2d3-42e3-b072-05b047415d4e - Razão: agent_disabled","level":"info","timestamp":"2026-02-25T01:49:34.609717397Z"}
+{"timestamp":"2026-02-25T01:49:34.726075619Z","level":"info","message":"1:49:34 AM [express] GET /api/daily-limits 304 in 1ms :: {\"hasActiveSubscription\":true,\"calibration\"…"}
+{"level":"info","message":"1:49:35 AM [express] GET /api/access-status 304 in 1ms :: {\"accessStatus\":\"active\",\"shouldBlock\":fal…","timestamp":"2026-02-25T01:49:36.591882744Z"}
+{"level":"info","timestamp":"2026-02-25T01:49:36.591889190Z","message":"[CONNECTION UPDATE] User 8010a532... - connection: undefined, hasQR: true, statusCode: none"}
+{"timestamp":"2026-02-25T01:49:36.591894701Z","message":"[QR CODE] Generating QR Code for user 8010a532-cc13-425a-8a57-f22eb391ba8d...","level":"info"}
+{"message":"[QR CODE] QR Code generated successfully for user 8010a532-cc13-425a-8a57-f22eb391ba8d, length: 6394","level":"info","timestamp":"2026-02-25T01:49:36.591900138Z"}
+{"timestamp":"2026-02-25T01:49:36.591905338Z","message":"[BROADCAST] No WebSocket clients found for user 8010a532-cc13-425a-8a57-f22eb391ba8d","level":"info"}
+{"message":"[QR CODE] QR Code broadcasted to user 8010a532-cc13-425a-8a57-f22eb391ba8d (connection: 52853c09-ad60-49e6-9b42-7f0a09a220cc)","timestamp":"2026-02-25T01:49:36.591910706Z","level":"info"}
+{"timestamp":"2026-02-25T01:49:36.737381937Z","message":"📋 [MSG-UPSERT] IN notify | 559481327462-1634078710 | id=AC07AE09E949 | content=[imageMessage,messageContextInfo] | stub=none","level":"info"}
+{"message":"?? [MSG CACHE] Armazenada mensagem AC07AE09E949D5A78B21DF8B0ACEFB96 para user a6ebfa8b... (cache size: 8)","level":"info","timestamp":"2026-02-25T01:49:36.737390483Z"}
+{"level":"info","message":"Ignoring group/status message from: 559481327462-1634078710@g.us","timestamp":"2026-02-25T01:49:37.555595667Z"}
+{"level":"info","message":"1:49:38 AM [express] GET /api/auth/user 304 in 1ms :: {\"id\":\"a6ebfa8b-6aaf-41f2-a688-28d6a0e7f752\",\"…","timestamp":"2026-02-25T01:49:38.526338197Z"}
+{"timestamp":"2026-02-25T01:49:38.526344531Z","level":"info","message":"?? [UNRESPONDED CHECK] Processando resposta atrasada para 553171187213"}
+{"level":"info","message":"📋 [MSG-UPSERT] IN notify | 183748029083710 | id=ACDC601A03FE | content=[conversation,messageContextInfo] | stub=none","timestamp":"2026-02-25T01:49:39.548736699Z"}
+{"message":"?? [MSG CACHE] Armazenada mensagem ACDC601A03FEE9A31AD043C19B0F8F77 para user 06e5a890... (cache size: 12)","level":"info","timestamp":"2026-02-25T01:49:39.548746842Z"}
+{"message":"🚨 [RECOVERY] ✅ Mensagem salva: ACDC601A03FEE9A31AD043C19B0F8F77 | Contato: 183748029083710","timestamp":"2026-02-25T01:49:39.548755600Z","level":"info"}
+{"level":"info","message":"   N�mero limpo: 558896818632","timestamp":"2026-02-25T01:49:39.555802406Z"}
+{"message":"","timestamp":"2026-02-25T01:49:39.555807290Z","level":"info"}
+{"timestamp":"2026-02-25T01:49:39.555812009Z","level":"info","message":"   Nome: coração"}
+{"timestamp":"2026-02-25T01:49:39.555817334Z","message":"?? [MESSAGE KEY DEBUG]","level":"info"}
+{"level":"info","timestamp":"2026-02-25T01:49:39.555825343Z","message":"   remoteJid: 183748029083710@lid"}
+{"timestamp":"2026-02-25T01:49:39.555832051Z","level":"info","message":"   remoteJidAlt: 558896818632@s.whatsapp.net"}
+{"message":"   pushName: coração","level":"info","timestamp":"2026-02-25T01:49:39.555839486Z"}
+{"message":"   participantPn: N/A","timestamp":"2026-02-25T01:49:39.555846292Z","level":"info"}
+{"timestamp":"2026-02-25T01:49:39.555853157Z","message":"","level":"info"}
+{"timestamp":"2026-02-25T01:49:39.555853617Z","message":"","level":"info"}
+{"level":"info","timestamp":"2026-02-25T01:49:39.555861613Z","message":"? [LID RESOLVIDO] N�mero real encontrado via remoteJidAlt!"}
+{"timestamp":"2026-02-25T01:49:39.555861826Z","level":"info","message":"?? [CACHE] Mapeamento LID ? phoneNumber salvo em mem�ria: 183748029083710@lid ? 558896818632@s.whatsapp.net"}
+{"level":"info","timestamp":"2026-02-25T01:49:39.555869251Z","message":"   LID: 183748029083710@lid"}
+{"message":"[WhatsApp] Original JID: 183748029083710@lid","timestamp":"2026-02-25T01:49:39.555870157Z","level":"info"}
+{"message":"   JID WhatsApp REAL: 558896818632@s.whatsapp.net","level":"info","timestamp":"2026-02-25T01:49:39.555876398Z"}
+{"timestamp":"2026-02-25T01:49:39.555880721Z","message":"[WhatsApp] Normalized JID: 558896818632@s.whatsapp.net","level":"info"}
+{"message":"[WhatsApp] Clean number: 558896818632","level":"info","timestamp":"2026-02-25T01:49:39.555886669Z"}
+{"level":"info","timestamp":"2026-02-25T01:49:39.815714484Z","message":"?? [AVATAR] Sem foto de perfil para 558896818632"}
+{"timestamp":"2026-02-25T01:49:40.602978148Z","message":"?? [/api/agent/test] ENTRADA - userId: ffffa7d9-e302-49e0-81c4-20b31e229db3, message: Como funciona ","level":"info"}
+{"timestamp":"2026-02-25T01:49:42.692062097Z","message":"WebSocket client disconnected for user: a6ebfa8b-6aaf-41f2-a688-28d6a0e7f752","level":"info"}
+{"timestamp":"2026-02-25T01:49:42.732414247Z","message":"1:49:42 AM [express] GET /api/whatsapp/connection 304 in 1ms :: {\"id\":\"71baf2c6-7d65-4493-b8d5-b125f…","level":"info"}
+{"level":"info","message":"🔒 [AI AGENT] ⚠️ Conversa 31906a59-b213-404d-983c-590aaf077eb5 já está sendo processada, IGNORANDO duplicata","timestamp":"2026-02-25T01:49:43.882004259Z"}
+{"timestamp":"2026-02-25T01:49:43.882008211Z","level":"info","message":"WebSocket client connected for user: a6ebfa8b-6aaf-41f2-a688-28d6a0e7f752"}
+{"timestamp":"2026-02-25T01:49:43.882012274Z","level":"info","message":"WebSocket client connected for user: ee8486b3-6791-4087-bb80-625f2d4ae489"}
+{"timestamp":"2026-02-25T01:49:45.748713174Z","level":"info","message":"1:49:45 AM [express] GET /api/usage 304 in 1ms :: {\"agentMessagesCount\":0,\"limit\":-1,\"remaining\":-1,…"}
+{"message":"?? [UNRESPONDED CHECK] Processando resposta atrasada para 5514991397254","timestamp":"2026-02-25T01:49:45.748723495Z","level":"info"}
+{"timestamp":"2026-02-25T01:49:45.748730013Z","message":"?? [SCHEDULING] Novo agendamento criado: c2a77748-e184-40f2-b59b-a951252b5b27 para Teste Manual","level":"info"}
+{"timestamp":"2026-02-25T01:49:45.748741179Z","message":"1:49:45 AM [express] POST /api/scheduling/appointments 201 in 643ms :: {\"id\":\"c2a77748-e184-40f2-b59…","level":"info"}
+{"timestamp":"2026-02-25T01:49:45.748743284Z","level":"info","message":"WebSocket client disconnected for user: ee8486b3-6791-4087-bb80-625f2d4ae489"}
+{"message":"WebSocket client connected for user: a6ebfa8b-6aaf-41f2-a688-28d6a0e7f752","timestamp":"2026-02-25T01:49:46.666821088Z","level":"info"}
+{"level":"error","message":"  detail: 'Failing row contains (979e7ed0-31ff-46ec-81df-f3dfe127cebd, 31906a59-b213-404d-983c-590aaf077eb5, 06e5a890-8186-4c0c-b1fb-9355d2f0bec3, 555180133665, s.whatsapp.net, [\"Olá! Tenho interesse e queria mais informações, por favor.\"..., 2026-02-25 01:48:14.896665+00, 2026-02-25 01:48:44.896665+00, skipped, 2026-02-25 00:13:20.556838+00, 2026-02-25 01:49:46.284197+00, 1, agent_disabled, null, 2026-02-25 01:49:46.284197+00).',","timestamp":"2026-02-25T01:49:46.666825403Z"}
+{"level":"error","message":"Error marking pending AI response as skipped: error: new row for relation \"pending_ai_responses\" violates check constraint \"pending_ai_responses_status_check\"","timestamp":"2026-02-25T01:49:46.666831380Z"}
+{"timestamp":"2026-02-25T01:49:46.666838897Z","level":"error","message":"  hint: undefined,"}
+{"timestamp":"2026-02-25T01:49:46.666838968Z","message":"    at /app/node_modules/pg-pool/index.js:45:11","level":"error"}
+{"message":"    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)","timestamp":"2026-02-25T01:49:46.666847947Z","level":"error"}
+{"level":"error","message":"  position: undefined,","timestamp":"2026-02-25T01:49:46.666848419Z"}
+{"timestamp":"2026-02-25T01:49:46.666853567Z","message":"    at async DatabaseStorage.markPendingAIResponseSkipped (file:///app/dist/chunk-X5NZ2PZH.js:3803:7)","level":"error"}
+{"level":"error","timestamp":"2026-02-25T01:49:46.666858818Z","message":"    at async processAccumulatedMessages (file:///app/dist/chunk-ZUJRJIT2.js:14422:5)"}
+{"timestamp":"2026-02-25T01:49:46.666859834Z","level":"error","message":"  internalPosition: undefined,"}
+{"level":"error","timestamp":"2026-02-25T01:49:46.666864778Z","message":"    at async Timeout._onTimeout (file:///app/dist/chunk-ZUJRJIT2.js:18616:9) {"}
+{"level":"error","timestamp":"2026-02-25T01:49:46.666868272Z","message":"  internalQuery: undefined,"}
+{"timestamp":"2026-02-25T01:49:46.666869806Z","level":"error","message":"  length: 659,"}
+{"level":"error","message":"  severity: 'ERROR',","timestamp":"2026-02-25T01:49:46.666875986Z"}
+{"timestamp":"2026-02-25T01:49:46.666876901Z","message":"  where: undefined,","level":"error"}
+{"level":"error","message":"  code: '23514',","timestamp":"2026-02-25T01:49:46.666880851Z"}
+{"message":"  schema: 'public',","timestamp":"2026-02-25T01:49:46.666885503Z","level":"error"}
+{"message":"  table: 'pending_ai_responses',","timestamp":"2026-02-25T01:49:46.666891301Z","level":"error"}
+{"message":"  column: undefined,","timestamp":"2026-02-25T01:49:46.669055474Z","level":"error"}
+{"level":"error","message":"  dataType: undefined,","timestamp":"2026-02-25T01:49:46.669059426Z"}
+{"timestamp":"2026-02-25T01:49:46.669064736Z","message":"  constraint: 'pending_ai_responses_status_check',","level":"error"}
+{"timestamp":"2026-02-25T01:49:46.669068711Z","level":"error","message":"  file: 'execMain.c',"}
+{"level":"error","message":"  line: '2033',","timestamp":"2026-02-25T01:49:46.669072613Z"}
+{"message":"  routine: 'ExecConstraints'","level":"error","timestamp":"2026-02-25T01:49:46.669076199Z"}
+{"message":"}","timestamp":"2026-02-25T01:49:46.669080131Z","level":"error"}
+{"level":"info","timestamp":"2026-02-25T01:49:46.669084734Z","message":"🔌 [DB Pool] Conexão REMOVIDA"}
+{"level":"info","message":"[BROADCAST] Sent message to 10/10 clients for user cb9213c3-fde3-479e-a4aa-344171c59735, type: agent_response","timestamp":"2026-02-25T01:49:46.669088789Z"}
+{"timestamp":"2026-02-25T01:49:46.669092805Z","level":"info","message":"[AI Agent] Part 1/1 SENT to WhatsApp 5512997782038"}
+{"level":"info","message":"? [AI AGENT] Texto enviado com sucesso (marcando timer como completed ao final)","timestamp":"2026-02-25T01:49:46.669096587Z"}
+{"timestamp":"2026-02-25T01:49:46.815119829Z","level":"info","message":"⚠️ [CONNECT] OPEN TIMEOUT for user 5eab7abe... conn 72774418 — closing socket"}
+{"message":"🔓 [PENDING LOCK] Cleared lock for 72774418... reason: connect_open_timeout","timestamp":"2026-02-25T01:49:46.815299316Z","level":"info"}
+{"message":"[CONNECT] Connection promise rejected for 72774418-ad95-4dc6-a85c-281ef37d1c4a (open_timeout): Connection did not reach open within 45000ms","timestamp":"2026-02-25T01:49:46.815306203Z","level":"info"}
+{"message":"","level":"info","timestamp":"2026-02-25T01:49:46.860692181Z"}
+{"message":"🔄 [AI AGENT] =========== PROCESSANDO RESPOSTA ===========","timestamp":"2026-02-25T01:49:46.860696623Z","level":"info"}
+{"message":"   ⏱️ Aguardou 119.1s | 1 mensagem(s) acumulada(s)","level":"info","timestamp":"2026-02-25T01:49:46.860700685Z"}
+{"message":"   📞 Contato: 5521994127635","timestamp":"2026-02-25T01:49:46.860704655Z","level":"info"}
+{"timestamp":"2026-02-25T01:49:46.880563510Z","message":"⚠️ [CONNECT] OPEN TIMEOUT for user 96b245f2... conn e55b98b8 — closing socket","level":"info"}
+{"timestamp":"2026-02-25T01:49:46.880573431Z","level":"info","message":"🔓 [PENDING LOCK] Cleared lock for e55b98b8... reason: connect_open_timeout"}
+{"timestamp":"2026-02-25T01:49:46.880580997Z","level":"info","message":"[CONNECT] Connection promise rejected for e55b98b8-7c8e-4779-ab5c-ea59b7ddf6e7 (open_timeout): Connection did not reach open within 45000ms"}
+{"timestamp":"2026-02-25T01:49:47.693794829Z","message":"    at async processAccumulatedMessages (file:///app/dist/chunk-ZUJRJIT2.js:14422:5)","level":"error"}
+{"level":"error","message":"    at async Timeout._onTimeout (file:///app/dist/chunk-ZUJRJIT2.js:18616:9) {","timestamp":"2026-02-25T01:49:47.693800995Z"}
+{"timestamp":"2026-02-25T01:49:47.693806628Z","message":"  length: 610,","level":"error"}
+{"timestamp":"2026-02-25T01:49:47.693812026Z","level":"error","message":"  severity: 'ERROR',"}
+{"timestamp":"2026-02-25T01:49:47.693857282Z","level":"error","message":"  code: '23514',"}
+{"level":"error","message":"  detail: 'Failing row contains (30231b3a-6d74-465d-890f-8cdb3e9634ad, 64ea8a5a-15a4-4c9f-9459-e80af675ebf9, a6ebfa8b-6aaf-41f2-a688-28d6a0e7f752, 559481360948, s.whatsapp.net, [\"Sem refrigerante\"], 2026-02-25 01:45:06.64164+00, 2026-02-25 01:45:36.64164+00, skipped, 2026-02-25 00:40:02.518816+00, 2026-02-25 01:49:46.828366+00, 1, agent_disabled, null, 2026-02-25 01:49:46.828366+00).',","timestamp":"2026-02-25T01:49:47.693864345Z"}
+{"message":"  hint: undefined,","level":"error","timestamp":"2026-02-25T01:49:47.693870783Z"}
+{"level":"error","timestamp":"2026-02-25T01:49:47.693880225Z","message":"  position: undefined,"}
+{"timestamp":"2026-02-25T01:49:47.693886949Z","message":"  internalPosition: undefined,","level":"error"}
+{"message":"  internalQuery: undefined,","level":"error","timestamp":"2026-02-25T01:49:47.693895244Z"}
+{"timestamp":"2026-02-25T01:49:47.693895819Z","message":"  where: undefined,","level":"error"}
+{"level":"error","message":"  schema: 'public',","timestamp":"2026-02-25T01:49:47.693904780Z"}
+{"timestamp":"2026-02-25T01:49:47.693906399Z","message":"  column: undefined,","level":"error"}
+{"level":"error","timestamp":"2026-02-25T01:49:47.693913460Z","message":"  table: 'pending_ai_responses',"}
+{"message":"  dataType: undefined,","level":"error","timestamp":"2026-02-25T01:49:47.693915927Z"}
+{"level":"error","timestamp":"2026-02-25T01:49:47.693960743Z","message":"    at /app/node_modules/pg-pool/index.js:45:11"}
+{"level":"error","timestamp":"2026-02-25T01:49:47.693967393Z","message":"    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)"}
+{"timestamp":"2026-02-25T01:49:47.693974049Z","level":"error","message":"    at async DatabaseStorage.markPendingAIResponseSkipped (file:///app/dist/chunk-X5NZ2PZH.js:3803:7)"}
+{"message":"Error marking pending AI response as skipped: error: new row for relation \"pending_ai_responses\" violates check constraint \"pending_ai_responses_status_check\"","timestamp":"2026-02-25T01:49:47.693986008Z","level":"error"}
+{"message":"[CONNECT] Connection promise rejected for ea23103a-57c2-4a97-94ee-ef9ef64312da (open_timeout): Connection did not reach open within 45000ms","level":"info","timestamp":"2026-02-25T01:49:47.694629268Z"}
+{"level":"error","timestamp":"2026-02-25T01:49:47.694629317Z","message":"  line: '2033',"}
+{"level":"error","timestamp":"2026-02-25T01:49:47.694639777Z","message":"[RESTORE] Failed to restore session: Error: Connection did not reach open within 45000ms"}
+{"timestamp":"2026-02-25T01:49:47.694640978Z","level":"error","message":"  routine: 'ExecConstraints'"}
+{"timestamp":"2026-02-25T01:49:47.694643955Z","message":"[RESTORE] Deferred reconnect for e55b98b8 after open-timeout; keeping DB state unchanged","level":"error"}
+{"message":"}","timestamp":"2026-02-25T01:49:47.694650337Z","level":"error"}
+{"timestamp":"2026-02-25T01:49:47.694653685Z","level":"info","message":"🔓 [PENDING LOCK] Cleared lock for ea23103a... reason: connect_open_timeout"}
+{"message":"[RESTORE] Failed to restore session: Error: Connection did not reach open within 45000ms","timestamp":"2026-02-25T01:49:47.694656980Z","level":"error"}
+{"level":"info","message":"⚠️ [CONNECT] OPEN TIMEOUT for user e653d9fb... conn ea23103a — closing socket","timestamp":"2026-02-25T01:49:47.694660063Z"}
+{"timestamp":"2026-02-25T01:49:47.694672574Z","level":"error","message":"    at Timeout._onTimeout (file:///app/dist/chunk-ZUJRJIT2.js:12224:30)"}
+{"level":"error","message":"[RESTORE] Deferred reconnect for 72774418 after open-timeout; keeping DB state unchanged","timestamp":"2026-02-25T01:49:47.694677487Z"}
+{"timestamp":"2026-02-25T01:49:47.694681164Z","message":"    at listOnTimeout (node:internal/timers:573:17)","level":"error"}
+{"timestamp":"2026-02-25T01:49:47.694686377Z","level":"info","message":"[RESTORE] Waiting 3000ms before next batch..."}
+{"message":"    at process.processTimers (node:internal/timers:514:7)","timestamp":"2026-02-25T01:49:47.694689862Z","level":"error"}
+{"message":"    at listOnTimeout (node:internal/timers:573:17)","timestamp":"2026-02-25T01:49:47.694701131Z","level":"error"}
+{"timestamp":"2026-02-25T01:49:47.694708668Z","level":"error","message":"    at process.processTimers (node:internal/timers:514:7)"}
+{"level":"error","message":"[RESTORE] Failed to restore session: Error: Connection did not reach open within 45000ms","timestamp":"2026-02-25T01:49:47.694738222Z"}
+{"timestamp":"2026-02-25T01:49:47.694752664Z","level":"error","message":"    at Timeout._onTimeout (file:///app/dist/chunk-ZUJRJIT2.js:12224:30)"}
+{"timestamp":"2026-02-25T01:49:47.694770579Z","message":"  constraint: 'pending_ai_responses_status_check',","level":"error"}
+{"message":"  file: 'execMain.c',","level":"error","timestamp":"2026-02-25T01:49:47.694776315Z"}
+{"message":"[CONNECTION CLOSE] Details: {","timestamp":"2026-02-25T01:49:47.698238372Z","level":"info"}
+{"level":"info","message":"  userId: '96b245f2...',","timestamp":"2026-02-25T01:49:47.698247763Z"}
+{"level":"info","message":"  statusCode: undefined,","timestamp":"2026-02-25T01:49:47.698254190Z"}
+{"message":"    at Timeout._onTimeout (file:///app/dist/chunk-ZUJRJIT2.js:12224:30)","timestamp":"2026-02-25T01:49:47.698698619Z","level":"error"}
+{"message":"    at listOnTimeout (node:internal/timers:573:17)","timestamp":"2026-02-25T01:49:47.698704069Z","level":"error"}
+{"message":"    at process.processTimers (node:internal/timers:514:7)","timestamp":"2026-02-25T01:49:47.698709740Z","level":"error"}
+{"timestamp":"2026-02-25T01:49:47.698715374Z","level":"error","message":"[RESTORE] Deferred reconnect for ea23103a after open-timeout; keeping DB state unchanged"}
+{"message":"[CONNECTION UPDATE] User 5eab7abe... - connection: close, hasQR: false, statusCode: none","timestamp":"2026-02-25T01:49:47.698721298Z","level":"info"}
+{"message":"[CONNECTION CLOSE] Details: {","level":"info","timestamp":"2026-02-25T01:49:47.698727589Z"}
+{"message":"  userId: '5eab7abe...',","timestamp":"2026-02-25T01:49:47.698733599Z","level":"info"}
+{"level":"info","timestamp":"2026-02-25T01:49:47.698741329Z","message":"  statusCode: undefined,"}
+{"message":"  errorMessage: 'Connection did not reach open within 45000ms',","level":"info","timestamp":"2026-02-25T01:49:47.698746807Z"}
+{"message":"  DisconnectReason: 'unknown(undefined)'","timestamp":"2026-02-25T01:49:47.698752614Z","level":"info"}
+{"level":"info","timestamp":"2026-02-25T01:49:47.698761160Z","message":"}"}
+{"level":"info","timestamp":"2026-02-25T01:49:47.698766953Z","message":"[CONNECTION CLOSE] Auth files sample(10): identity-key-216707004133376_1.0.json, lid-mapping-553399142985.json, pre-key-7201.json, pre-key-4832.json, lid-mapping-11180420661466_reverse.json, sender-key-120363421278622355@g.us--73194933338217_1--23.json, session-276114991771890_1.35.json, session-185937774530643_1.0.json, lid-mapping-5521983908448.json, lid-mapping-554491054986.json"}
+{"level":"info","message":"[CONNECTION CLOSE] ?? STALE SOCKET IGNORED - Connection 72774418... User 5eab7abe...","timestamp":"2026-02-25T01:49:47.698773202Z"}
+{"message":"[CONNECTION CLOSE] Current socket differs from closing socket, ignoring close event","timestamp":"2026-02-25T01:49:47.698778588Z","level":"info"}
+{"timestamp":"2026-02-25T01:49:47.698784540Z","level":"info","message":"[CONNECTION UPDATE] User 96b245f2... - connection: close, hasQR: false, statusCode: none"}
+{"message":"  errorMessage: 'Connection did not reach open within 45000ms',","timestamp":"2026-02-25T01:49:47.700861820Z","level":"info"}
+{"message":"  DisconnectReason: 'unknown(undefined)'","level":"info","timestamp":"2026-02-25T01:49:47.700869198Z"}
+{"message":"}","timestamp":"2026-02-25T01:49:47.700875257Z","level":"info"}
+{"level":"info","timestamp":"2026-02-25T01:49:47.700881654Z","message":"[CONNECTION CLOSE] Auth files sample(10): pre-key-117.json, pre-key-1121.json, session-215182357864642_1.0.json, pre-key-414.json, pre-key-973.json, sender-key-120363422588263520@g.us--71851011272831_1--0.json, pre-key-1085.json, session-102757126144233_1.0.json, lid-mapping-559691115634.json, lid-mapping-31997573472366_reverse.json"}
+{"message":"[CONNECTION CLOSE] ?? STALE SOCKET IGNORED - Connection e55b98b8... User 96b245f2...","level":"info","timestamp":"2026-02-25T01:49:47.700887603Z"}
+{"level":"info","message":"[CONNECTION CLOSE] Current socket differs from closing socket, ignoring close event","timestamp":"2026-02-25T01:49:47.700893710Z"}
+{"message":"🔌 [DB Pool] Conexão REMOVIDA","timestamp":"2026-02-25T01:49:47.700901182Z","level":"info"}
+{"message":"1:49:47 AM [express] GET /api/access-status 304 in 23481ms :: {\"accessStatus\":\"trial\",\"shouldBlock\":…","timestamp":"2026-02-25T01:49:47.700907529Z","level":"info"}
+{"timestamp":"2026-02-25T01:49:47.700913012Z","level":"info","message":"[CONNECTION UPDATE] User e653d9fb... - connection: close, hasQR: false, statusCode: none"}
+{"level":"info","message":"[CONNECTION CLOSE] Details: {","timestamp":"2026-02-25T01:49:47.700919318Z"}
+{"message":"  userId: 'e653d9fb...',","timestamp":"2026-02-25T01:49:47.700925301Z","level":"info"}
+{"timestamp":"2026-02-25T01:49:47.700931609Z","level":"info","message":"  statusCode: undefined,"}
+{"timestamp":"2026-02-25T01:49:47.700936699Z","message":"  errorMessage: 'Connection did not reach open within 45000ms',","level":"info"}
+{"timestamp":"2026-02-25T01:49:47.700943053Z","message":"  DisconnectReason: 'unknown(undefined)'","level":"info"}
+{"message":"}","level":"info","timestamp":"2026-02-25T01:49:47.700948806Z"}
+{"level":"info","timestamp":"2026-02-25T01:49:47.700955067Z","message":"[CONNECTION CLOSE] Auth files sample(10): session-27918059180202_1.0.json, pre-key-1599.json, pre-key-2254.json, session-114005679059026_1.0.json, sender-key-557193072405-1443825101@g.us--34746453254185_1--0.json, lid-mapping-62851688548072.json, pre-key-1121.json, session-192088167735327_1.0.json, pre-key-414.json, sender-key-557193072405-1443825101@g.us--200832804991136_1--0.json"}
+{"level":"info","message":"[CONNECTION CLOSE] ?? STALE SOCKET IGNORED - Connection ea23103a... User e653d9fb...","timestamp":"2026-02-25T01:49:47.702697384Z"}
+{"level":"info","timestamp":"2026-02-25T01:49:47.702702932Z","message":"[CONNECTION CLOSE] Current socket differs from closing socket, ignoring close event"}
+{"level":"info","message":"✅ [DB Pool] Nova conexão ESTABELECIDA","timestamp":"2026-02-25T01:49:47.702708046Z"}
+{"timestamp":"2026-02-25T01:49:47.848569953Z","level":"error","message":"Error marking pending AI response as skipped: error: new row for relation \"pending_ai_responses\" violates check constraint \"pending_ai_responses_status_check\""}
+{"message":"    at /app/node_modules/pg-pool/index.js:45:11","timestamp":"2026-02-25T01:49:47.848576609Z","level":"error"}
+{"level":"error","timestamp":"2026-02-25T01:49:47.848602780Z","message":"    at async processAccumulatedMessages (file:///app/dist/chunk-ZUJRJIT2.js:14422:5)"}
+{"message":"    at async Timeout._onTimeout (file:///app/dist/chunk-ZUJRJIT2.js:18616:9) {","timestamp":"2026-02-25T01:49:47.848608921Z","level":"error"}
+{"level":"error","message":"  severity: 'ERROR',","timestamp":"2026-02-25T01:49:47.848620676Z"}
+{"message":"  code: '23514',","timestamp":"2026-02-25T01:49:47.848626504Z","level":"error"}
+{"level":"error","message":"  detail: 'Failing row contains (cf6bba4c-2cbb-4229-9244-7b025f90630c, a299d01b-d4d5-4149-9a7c-be3ccd859061, a6ebfa8b-6aaf-41f2-a688-28d6a0e7f752, 556282006631, s.whatsapp.net, [\"Rua Jonas casa 11 quadra 64\"], 2026-02-25 01:45:07.983253+00, 2026-02-25 01:45:37.983253+00, skipped, 2026-02-25 01:31:20.967738+00, 2026-02-25 01:49:47.721459+00, 1, agent_disabled, null, 2026-02-25 01:49:47.721459+00).',","timestamp":"2026-02-25T01:49:47.848633121Z"}
+{"level":"error","timestamp":"2026-02-25T01:49:47.848639353Z","message":"  hint: undefined,"}
+{"timestamp":"2026-02-25T01:49:47.848645292Z","level":"error","message":"  position: undefined,"}
+{"message":"  internalPosition: undefined,","timestamp":"2026-02-25T01:49:47.848650885Z","level":"error"}
+{"message":"  internalQuery: undefined,","timestamp":"2026-02-25T01:49:47.848678044Z","level":"error"}
+{"message":"  where: undefined,","timestamp":"2026-02-25T01:49:47.848689792Z","level":"error"}
+{"level":"error","timestamp":"2026-02-25T01:49:47.848695946Z","message":"  schema: 'public',"}
+{"message":"  table: 'pending_ai_responses',","timestamp":"2026-02-25T01:49:47.848702148Z","level":"error"}
+{"timestamp":"2026-02-25T01:49:47.848708888Z","message":"  column: undefined,","level":"error"}
+{"level":"error","message":"  constraint: 'pending_ai_responses_status_check',","timestamp":"2026-02-25T01:49:47.851800457Z"}
+{"message":"  file: 'execMain.c',","level":"error","timestamp":"2026-02-25T01:49:47.851806453Z"}
+{"level":"error","message":"  line: '2033',","timestamp":"2026-02-25T01:49:47.851812136Z"}
+{"message":"  routine: 'ExecConstraints'","timestamp":"2026-02-25T01:49:47.851816933Z","level":"error"}
+{"level":"error","timestamp":"2026-02-25T01:49:47.851822143Z","message":"}"}
+{"timestamp":"2026-02-25T01:49:48.607182767Z","message":"   contactNumber: 559491393529","level":"info"}
+{"timestamp":"2026-02-25T01:49:48.607188065Z","message":"⏸️ [PENDING CRON] 5518996817428 - Filtrado: inMemory=false, beingProcessed=true","level":"info"}
+{"level":"info","message":"   👉 IA foi desativada entre criação e execução do timer","timestamp":"2026-02-25T01:49:48.607190674Z"}
+{"level":"info","message":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!","timestamp":"2026-02-25T01:49:48.607197303Z"}
+{"message":"[BROADCAST] No WebSocket clients found for user 96b245f2-cee5-428c-b43a-9cdcda4442af","level":"info","timestamp":"2026-02-25T01:49:48.607210667Z"}
+{"level":"info","message":"⏸️ [PENDING CRON] 558791956246 - Filtrado: inMemory=false, beingProcessed=true","timestamp":"2026-02-25T01:49:48.607215434Z"}
+{"timestamp":"2026-02-25T01:49:48.607218720Z","level":"info","message":"⏸️ [PENDING CRON] 559491393529 - Filtrado: inMemory=false, beingProcessed=true"}
+{"timestamp":"2026-02-25T01:49:48.607223644Z","level":"info","message":"⏸️ [PENDING CRON] 5514998918092 - Filtrado: inMemory=false, beingProcessed=true"}
+{"message":"","level":"info","timestamp":"2026-02-25T01:49:48.607230050Z"}
+{"message":"⏭️ [DB] Marcando timer como SKIPPED: 61424133-6935-4e2e-ab08-1eefd841d28d - Razão: agent_disabled","timestamp":"2026-02-25T01:49:48.607237399Z","level":"info"}
+{"message":"🚨 [RECOVERY] ✅ Mensagem A5C233A1C7EC2035B4906A1F69FDE5C6 marcada como processada","timestamp":"2026-02-25T01:49:48.607241952Z","level":"info"}
+{"message":"","timestamp":"2026-02-25T01:49:48.607245650Z","level":"info"}
+{"timestamp":"2026-02-25T01:49:48.607250550Z","level":"info","message":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"}
+{"message":"🚫 [AI AGENT] IA DESATIVADA - Timer cancelado","level":"info","timestamp":"2026-02-25T01:49:48.607256357Z"}
+{"message":"🔌 [DB Pool] Conexão REMOVIDA","timestamp":"2026-02-25T01:49:48.607300295Z","level":"info"}
+{"message":"1:49:48 AM [express] GET /api/daily-limits 304 in 21569ms :: {\"hasActiveSubscription\":false,\"calibra…","timestamp":"2026-02-25T01:49:48.607316533Z","level":"info"}
+{"timestamp":"2026-02-25T01:49:48.607326747Z","message":"✅ [DB Pool] Nova conexão ESTABELECIDA","level":"info"}
+{"message":"","timestamp":"2026-02-25T01:49:48.609135030Z","level":"info"}
+{"timestamp":"2026-02-25T01:49:48.609138373Z","level":"error","message":"  code: '23514',"}
+{"level":"error","message":"Error marking pending AI response as skipped: error: new row for relation \"pending_ai_responses\" violates check constraint \"pending_ai_responses_status_check\"","timestamp":"2026-02-25T01:49:48.609165661Z"}
+{"level":"error","timestamp":"2026-02-25T01:49:48.609169887Z","message":"    at /app/node_modules/pg-pool/index.js:45:11"}
+{"level":"error","message":"    at async Timeout._onTimeout (file:///app/dist/chunk-ZUJRJIT2.js:18616:9) {","timestamp":"2026-02-25T01:49:48.609176068Z"}
+{"level":"info","message":"⏸️ [PENDING CRON] 5511975338193 - Filtrado: inMemory=false, beingProcessed=true","timestamp":"2026-02-25T01:49:48.609194942Z"}
+{"level":"info","timestamp":"2026-02-25T01:49:48.609201686Z","message":"⏸️ [PENDING CRON] 559491901612 - Filtrado: inMemory=false, beingProcessed=true"}
+{"level":"error","message":"  column: undefined,","timestamp":"2026-02-25T01:49:48.611012278Z"}
+{"message":"  constraint: 'pending_ai_responses_status_check',","level":"error","timestamp":"2026-02-25T01:49:48.611026084Z"}
+{"message":"  file: 'execMain.c',","timestamp":"2026-02-25T01:49:48.611031182Z","level":"error"}
+{"timestamp":"2026-02-25T01:49:48.611035825Z","level":"error","message":"  line: '2033',"}
+{"message":"}","level":"error","timestamp":"2026-02-25T01:49:48.611053482Z"}
+{"message":"  hint: undefined,","level":"error","timestamp":"2026-02-25T01:49:48.611107479Z"}
+{"level":"error","timestamp":"2026-02-25T01:49:48.611125041Z","message":"  internalPosition: undefined,"}
+{"timestamp":"2026-02-25T01:49:48.611131494Z","level":"error","message":"  internalQuery: undefined,"}
+{"message":"  schema: 'public',","level":"error","timestamp":"2026-02-25T01:49:48.611149194Z"}
+{"message":"  table: 'pending_ai_responses',","timestamp":"2026-02-25T01:49:48.611155324Z","level":"error"}
+{"level":"info","message":"","timestamp":"2026-02-25T01:49:48.680991712Z"}
+{"timestamp":"2026-02-25T01:49:48.681052010Z","level":"info","message":"🚫 [AI AGENT] IA DESATIVADA - Timer cancelado"}
+{"level":"info","message":"   conversationId: 22a41b44-eafa-4b41-9684-a168c534b216","timestamp":"2026-02-25T01:49:48.681085723Z"}
+{"message":"   👉 IA foi desativada entre criação e execução do timer","level":"info","timestamp":"2026-02-25T01:49:48.681100903Z"}
+{"level":"info","timestamp":"2026-02-25T01:49:48.681108248Z","message":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"}
+{"message":"⏭️ [DB] Marcando timer como SKIPPED: 22a41b44-eafa-4b41-9684-a168c534b216 - Razão: agent_disabled","timestamp":"2026-02-25T01:49:48.681125709Z","level":"info"}
+{"level":"info","message":"[EditService] JSON extraído de code block","timestamp":"2026-02-25T01:49:48.694704801Z"}
+{"message":"[LLM] ✅ Mistral chatComplete (mistral-medium-latest) respondeu","timestamp":"2026-02-25T01:49:48.694705917Z","level":"info"}
+{"level":"info","timestamp":"2026-02-25T01:49:48.694711958Z","message":"[EditService] Resposta bruta do LLM (11404 chars): ```json"}
+{"timestamp":"2026-02-25T01:49:48.694713329Z","message":"[EditService] ✅ Edição concluída: 7 aplicadas, 0 falharam","level":"info"}
+{"message":"  \"resposta_chat\": \"Incorporei **técnicas avançadas de vendas e persuasão** (ancoragem emocional, prova social dinâmica, técnica do 'sim' em cascata, e gatilhos de urgência com escassez real...","timestamp":"2026-02-25T01:49:48.694722314Z","level":"info"}
+{"timestamp":"2026-02-25T01:49:48.862693263Z","message":"🔌 [DB Pool] Conexão REMOVIDA","level":"info"}
+{"level":"info","timestamp":"2026-02-25T01:49:49.718767837Z","message":"?? [MESSAGE KEY DEBUG]"}
+{"level":"info","timestamp":"2026-02-25T01:49:49.718781725Z","message":"   remoteJid: 101116465385640@lid"}
+{"timestamp":"2026-02-25T01:49:49.718791298Z","message":"   remoteJidAlt: 557191824287@s.whatsapp.net","level":"info"}
+{"timestamp":"2026-02-25T01:49:49.718806869Z","level":"info","message":"   participantPn: N/A"}
+{"message":"","level":"info","timestamp":"2026-02-25T01:49:49.718820638Z"}
+{"level":"info","timestamp":"2026-02-25T01:49:49.718828652Z","message":"? [LID RESOLVIDO] N�mero real encontrado via remoteJidAlt!"}
+{"message":"   LID: 101116465385640@lid","timestamp":"2026-02-25T01:49:49.718837538Z","level":"info"}
+{"message":"   JID WhatsApp REAL: 557191824287@s.whatsapp.net","level":"info","timestamp":"2026-02-25T01:49:49.718846849Z"}
+{"message":"✅ [DB Pool] Nova conexão ESTABELECIDA","timestamp":"2026-02-25T01:49:49.718925738Z","level":"info"}
+{"message":"📋 [MSG-UPSERT] IN notify | 101116465385640 | id=ACF178BD6D53 | content=[conversation,messageContextInfo] | stub=none","timestamp":"2026-02-25T01:49:49.718931734Z","level":"info"}
+{"timestamp":"2026-02-25T01:49:49.718940199Z","message":"?? [MSG CACHE] Armazenada mensagem ACF178BD6D5337578056DE6A57024F94 para user e99199e0... (cache size: 7)","level":"info"}
+{"message":"🚨 [RECOVERY] ✅ Mensagem salva: ACF178BD6D5337578056DE6A57024F94 | Contato: 101116465385640","level":"info","timestamp":"2026-02-25T01:49:49.718946815Z"}
+{"message":"","timestamp":"2026-02-25T01:49:49.718954485Z","level":"info"}
+{"level":"info","message":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!","timestamp":"2026-02-25T01:49:49.718964327Z"}
+{"timestamp":"2026-02-25T01:49:49.718969418Z","level":"info","message":"🚫 [AI AGENT] IA DESATIVADA - Timer cancelado"}
+{"level":"info","message":"   conversationId: 19cc222d-793a-4e96-b541-90382551f223","timestamp":"2026-02-25T01:49:49.718980140Z"}
+{"timestamp":"2026-02-25T01:49:49.718984846Z","message":"   contactNumber: 555180486158","level":"info"}
+{"level":"info","message":"   👉 IA foi desativada entre criação e execução do timer","timestamp":"2026-02-25T01:49:49.718989860Z"}
+{"level":"info","timestamp":"2026-02-25T01:49:49.719000973Z","message":""}
+{"level":"info","timestamp":"2026-02-25T01:49:49.719027750Z","message":""}
+{"level":"info","message":"🚫 [AI AGENT] IA DESATIVADA - Timer cancelado","timestamp":"2026-02-25T01:49:49.721116952Z"}
+{"level":"info","message":"   conversationId: b91a3877-9c42-4e5a-8577-0e58345e44c9","timestamp":"2026-02-25T01:49:49.721122985Z"}
+{"timestamp":"2026-02-25T01:49:49.721143674Z","level":"info","message":"   👉 IA foi desativada entre criação e execução do timer"}
+{"timestamp":"2026-02-25T01:49:49.721153428Z","level":"info","message":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"}
+{"timestamp":"2026-02-25T01:49:49.721161040Z","level":"info","message":""}
+{"timestamp":"2026-02-25T01:49:49.721167309Z","level":"info","message":"⏭️ [DB] Marcando timer como SKIPPED: b91a3877-9c42-4e5a-8577-0e58345e44c9 - Razão: agent_disabled"}
+{"timestamp":"2026-02-25T01:49:49.721203840Z","message":"   N�mero limpo: 557191824287","level":"info"}
+{"timestamp":"2026-02-25T01:49:49.721208873Z","level":"info","message":"   Nome: Célia Pires"}
+{"message":"","timestamp":"2026-02-25T01:49:49.721213800Z","level":"info"}
+{"message":"?? [CACHE] Mapeamento LID ? phoneNumber salvo em mem�ria: 101116465385640@lid ? 557191824287@s.whatsapp.net","timestamp":"2026-02-25T01:49:49.721219821Z","level":"info"}
+{"timestamp":"2026-02-25T01:49:49.721224379Z","level":"info","message":"[WhatsApp] Original JID: 101116465385640@lid"}
+{"timestamp":"2026-02-25T01:49:49.721229756Z","level":"info","message":"[WhatsApp] Normalized JID: 557191824287@s.whatsapp.net"}
+{"timestamp":"2026-02-25T01:49:49.721235580Z","message":"[WhatsApp] Clean number: 557191824287","level":"info"}
+{"level":"info","message":"1:49:49 AM [express] GET /api/daily-limits 304 in 13379ms :: {\"hasActiveSubscription\":true,\"calibrat…","timestamp":"2026-02-25T01:49:49.721240272Z"}
+{"level":"info","timestamp":"2026-02-25T01:49:49.721244348Z","message":"?? [AVATAR] Sem foto de perfil para 557191824287"}
+{"level":"info","message":"[QR CODE] QR Code saved to database for user 8010a532-cc13-425a-8a57-f22eb391ba8d (took 13145ms)","timestamp":"2026-02-25T01:49:49.721248743Z"}
+{"timestamp":"2026-02-25T01:49:49.721253340Z","level":"info","message":""}
+{"message":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!","timestamp":"2026-02-25T01:49:49.721258218Z","level":"info"}

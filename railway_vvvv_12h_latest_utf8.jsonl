@@ -1,0 +1,500 @@
+﻿{"timestamp":"2026-02-24T23:55:50.216953590Z","message":"   Prompt length: 1852 chars","level":"info"}
+{"timestamp":"2026-02-24T23:55:50.216954688Z","message":"   Procurando \"Quero saber mais\" → last:❌ | history:❌","level":"info"}
+{"timestamp":"2026-02-24T23:55:50.216957470Z","level":"info","message":"📝 [AI Agent] Using LEGACY system (deterministic) for user 30f45651-e216-4df5-8fcc-cd44cef3bb0e"}
+{"timestamp":"2026-02-24T23:55:50.216962410Z","level":"info","message":"   Prompt (primeiros 150 chars): Especialista em Bem-Estar Íntimo Feminino.** Tom respeitoso e objetivo. Use linguagem clara e direta, sem excessos."}
+{"message":"   Procurando \"Olá! Tenho interesse e queria mais informações, por favor\" → last:❌ | history:❌","timestamp":"2026-02-24T23:55:50.216962786Z","level":"info"}
+{"timestamp":"2026-02-24T23:55:50.216966812Z","message":"","level":"info"}
+{"timestamp":"2026-02-24T23:55:50.216971656Z","message":"","level":"info"}
+{"timestamp":"2026-02-24T23:55:50.216977366Z","level":"info","message":"🤖 [AI Agent] ═══════════════════════════════════════════════════"}
+{"message":"**REGRAS (incluindo técnicas de v...","level":"info","timestamp":"2026-02-24T23:55:50.216981465Z"}
+{"message":"🤖 [AI Agent] Config para user 30f45651-e216-4df5-8fcc-cd44cef3bb0e respondendo cliente:","level":"info","timestamp":"2026-02-24T23:55:50.216987024Z"}
+{"message":"   Prompt (MD5 para debug): b5c406a7","level":"info","timestamp":"2026-02-24T23:55:50.216989895Z"}
+{"message":"   Model (legacy, ignorado): openai/gpt-oss-20b → real: system_config.openrouter_model","timestamp":"2026-02-24T23:55:50.216996285Z","level":"info"}
+{"message":"🤖 [AI Agent] ═══════════════════════════════════════════════════","timestamp":"2026-02-24T23:55:50.216997419Z","level":"info"}
+{"timestamp":"2026-02-24T23:55:50.217003294Z","level":"info","message":""}
+{"message":"🔍 [AI Agent] Verificando trigger phrases (2 configuradas)","level":"info","timestamp":"2026-02-24T23:55:50.217008693Z"}
+{"message":"","timestamp":"2026-02-24T23:55:50.219400480Z","level":"info"}
+{"message":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!","level":"info","timestamp":"2026-02-24T23:55:50.219410323Z"}
+{"level":"info","message":"⏸️ [AI Agent] RETURN NULL #4: Trigger phrases configuradas mas NENHUMA encontrada","timestamp":"2026-02-24T23:55:50.219418145Z"}
+{"message":"   userId: 30f45651-e216-4df5-8fcc-cd44cef3bb0e","timestamp":"2026-02-24T23:55:50.219424707Z","level":"info"}
+{"level":"info","message":"   Trigger phrases configuradas: Quero saber mais, Olá! Tenho interesse e queria mais informações, por favor","timestamp":"2026-02-24T23:55:50.219430848Z"}
+{"timestamp":"2026-02-24T23:55:50.219436929Z","level":"info","message":"   Mensagem atual: \"Hoje na nossa agência contamos com 3 planos e para eu conseguir indicar o melhor plano para você pre\""}
+{"message":"   👉 Para resolver: Remova as trigger phrases ou adicione uma que corresponda","level":"info","timestamp":"2026-02-24T23:55:50.219443395Z"}
+{"level":"info","message":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!","timestamp":"2026-02-24T23:55:50.219449171Z"}
+{"level":"info","timestamp":"2026-02-24T23:55:50.219453441Z","message":""}
+{"message":"[CONNECT] Registered pending connection for user d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c (connectionId: 51d97d77-c90e-4b12-b405-c12ba7caa835)","timestamp":"2026-02-24T23:55:51.105969597Z","level":"info"}
+{"message":"✅ [HEALTH CHECK] Connection 9566b4ef-caff-42ca-97aa-f9c05a6580db reconectado e isOpen=true!","timestamp":"2026-02-24T23:55:51.106003125Z","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:55:51.106003692Z","message":"🔓 [PENDING LOCK] Cleared lock for 9566b4ef... reason: implicit_open"}
+{"message":"?? [HEALTH CHECK] Conex�o zumbi detectada: d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c","timestamp":"2026-02-24T23:55:51.106012994Z","level":"info"}
+{"message":"   ?? DB: isConnected=true, Socket: INATIVO","level":"info","timestamp":"2026-02-24T23:55:51.106020179Z"}
+{"level":"info","timestamp":"2026-02-24T23:55:51.106026645Z","message":"[HEALTH CHECK] Tentando reconectar connection 51d97d77-c90e-4b12-b405-c12ba7caa835..."}
+{"level":"info","message":"[DB] Loaded 2155 contacts for connection 9566b4ef-caff-42ca-97aa-f9c05a6580db","timestamp":"2026-02-24T23:55:51.106037514Z"}
+{"message":"[CONNECT] Connection promise resolved for 9566b4ef-caff-42ca-97aa-f9c05a6580db (implicit_open_socket_user)","timestamp":"2026-02-24T23:55:51.106043744Z","level":"info"}
+{"message":"[CACHE WARMING] Loading 2155 contacts from DB...","timestamp":"2026-02-24T23:55:51.106045517Z","level":"info"}
+{"level":"info","message":"✅ [HEALTH CHECK] Connection 9566b4ef-caff-42ca-97aa-f9c05a6580db reconectado e isOpen=true!","timestamp":"2026-02-24T23:55:51.106053818Z"}
+{"timestamp":"2026-02-24T23:55:51.106055186Z","level":"info","message":"[CACHE WARMING] ? Loaded 2155 contacts into memory"}
+{"message":"[CONNECT] WhatsApp socket initialized for user b58c4f1d-032d-4b6a-8e85-7b03d4e0be9b, waiting for conn=open...","timestamp":"2026-02-24T23:55:51.106065250Z","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:55:51.106066434Z","message":"?? [HEALTH CHECK] Conex�o zumbi detectada: d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c"}
+{"timestamp":"2026-02-24T23:55:51.106074472Z","level":"info","message":"[CONNECTION UPDATE] User b58c4f1d... - connection: undefined, hasQR: false, statusCode: none"}
+{"timestamp":"2026-02-24T23:55:51.106076715Z","level":"info","message":"   ?? DB: isConnected=true, Socket: INATIVO"}
+{"message":"✅ [SESSION PROMOTE] conn 9566b4ef marked isOpen=true via connection_update_undefined","timestamp":"2026-02-24T23:55:51.106083640Z","level":"info"}
+{"message":"🚫 [AUTO-REACTIVATE] IA desativada GLOBALMENTE para user 0ead7092-10b0-4f54-98a0-0baa26612bd1 - NÃO reativando conversa 92acf79f-3827-47cd-8a90-17698d1af032","timestamp":"2026-02-24T23:55:51.106109777Z","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:55:51.108922717Z","message":"🚨 [RECOVERY] Iniciando recuperação de mensagens pendentes para 5a2e9f41..."}
+{"level":"info","message":"🚨 [RECOVERY] Aguardando 15s para estabilizar conexão...","timestamp":"2026-02-24T23:55:51.108934401Z"}
+{"level":"info","message":"[CONNECTION UPDATE] User b58c4f1d... - connection: undefined, hasQR: false, statusCode: none","timestamp":"2026-02-24T23:55:51.108942747Z"}
+{"timestamp":"2026-02-24T23:55:51.108948478Z","level":"info","message":"[CONNECTION UPDATE] User b58c4f1d... - connection: open, hasQR: false, statusCode: none"}
+{"timestamp":"2026-02-24T23:55:51.108955321Z","level":"info","message":"🔔 [NOTIFICATION DEBUG] userId: 30f45651-e216-4df5-8fcc-cd44cef3bb0e"}
+{"message":"[CONNECT] Starting connection for user d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c connectionId=51d97d77-c90e-4b12-b405-c12ba7caa835...","level":"info","timestamp":"2026-02-24T23:55:51.109366351Z"}
+{"message":"[HEALTH CHECK] Tentando reconectar connection 51d97d77-c90e-4b12-b405-c12ba7caa835...","timestamp":"2026-02-24T23:55:51.109372812Z","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:55:51.109380993Z","message":"[CONNECT] Connection already in progress for 51d97d77-c90e-4b12-b405-c12ba7caa835, waiting for it to complete..."}
+{"message":"🛡️ [ANTI-BLOCK] 📤 Enviando mensagem para 557598297575@s....","timestamp":"2026-02-24T23:55:51.109388048Z","level":"info"}
+{"level":"info","message":"🛡️ [ANTI-BAN] ⌨️ Simulando digitação por 4s...","timestamp":"2026-02-24T23:55:51.109405691Z"}
+{"timestamp":"2026-02-24T23:55:51.109413112Z","level":"info","message":"[CONNECTION UPDATE] User 5a2e9f41... - connection: undefined, hasQR: false, statusCode: none"}
+{"message":"✅ [PRESENCE] Status 'available' enviado para socket principal","level":"info","timestamp":"2026-02-24T23:55:51.109419368Z"}
+{"message":"","timestamp":"2026-02-24T23:55:51.109426179Z","level":"info"}
+{"timestamp":"2026-02-24T23:55:51.109432920Z","level":"info","message":"?? [CONTACTS INFO] Aguardando contatos do Baileys..."}
+{"level":"info","message":"   Contatos serão sincronizados automaticamente quando:","timestamp":"2026-02-24T23:55:51.109439586Z"}
+{"message":"   1. Evento contacts.upsert do Baileys disparar","level":"info","timestamp":"2026-02-24T23:55:51.109445824Z"}
+{"message":"   2. Mensagens forem recebidas/enviadas","level":"info","timestamp":"2026-02-24T23:55:51.109452333Z"}
+{"timestamp":"2026-02-24T23:55:51.109462379Z","level":"info","message":"   Cache warming carregou 18195 contatos do DB"}
+{"level":"info","timestamp":"2026-02-24T23:55:51.109468548Z","message":""}
+{"level":"info","message":"🔔 [NOTIFICATION DEBUG] businessConfig exists: true","timestamp":"2026-02-24T23:55:51.112878292Z"}
+{"timestamp":"2026-02-24T23:55:51.112885325Z","message":"🔔 [NOTIFICATION DEBUG] notificationEnabled: false","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:55:51.112891883Z","message":"🔔 [NOTIFICATION DEBUG] notificationMode: ai"}
+{"message":"🔔 [NOTIFICATION DEBUG] notificationManualKeywords: null","level":"info","timestamp":"2026-02-24T23:55:51.112898442Z"}
+{"message":"🔔 [NOTIFICATION DEBUG] notificationPhoneNumber: null","level":"info","timestamp":"2026-02-24T23:55:51.112903680Z"}
+{"message":"🔔 [NOTIFICATION DEBUG] clientMessage (combinedText): \"Hoje na nossa agência contamos com 3 planos e para eu conseguir indicar o melhor plano para você pre\"","level":"info","timestamp":"2026-02-24T23:55:51.112909339Z"}
+{"timestamp":"2026-02-24T23:55:51.112915343Z","message":"🔔 [NOTIFICATION DEBUG] aiResponse: \"null\"","level":"info"}
+{"level":"info","message":"🔔 [NOTIFICATION DEBUG] Keyword check condition: {\"notificationEnabled\":false,\"notificationManualKeywords\":false,\"notificationMode\":\"ai\",\"modeMatches\":false}","timestamp":"2026-02-24T23:55:51.112922432Z"}
+{"message":"🔔 [NOTIFICATION DEBUG] ❌ Skipping keyword check - conditions not met","level":"info","timestamp":"2026-02-24T23:55:51.112927476Z"}
+{"level":"info","timestamp":"2026-02-24T23:55:51.112932608Z","message":"?? [AI Agent] generateAIResponse retornou: NULL"}
+{"timestamp":"2026-02-24T23:55:51.112938333Z","level":"info","message":""}
+{"level":"info","message":"============================================================","timestamp":"2026-02-24T23:55:51.112943811Z"}
+{"level":"info","message":"⚠️ [AI Agent] RESPOSTA NULL - Nenhuma resposta gerada!","timestamp":"2026-02-24T23:55:51.112949297Z"}
+{"level":"info","message":"   conversationId: ef677ba0-9918-4e77-8011-d740ff08dd61","timestamp":"2026-02-24T23:55:51.112954213Z"}
+{"message":"   contactNumber: 559181290312","level":"info","timestamp":"2026-02-24T23:55:51.112960684Z"}
+{"level":"info","message":"   Possíveis causas (verifique logs acima para \"RETURN NULL\"):","timestamp":"2026-02-24T23:55:51.112968472Z"}
+{"message":"   1. Usuário SUSPENSO","level":"info","timestamp":"2026-02-24T23:55:51.112975928Z"}
+{"timestamp":"2026-02-24T23:55:51.113232970Z","level":"info","message":"   2. Mensagem de BOT detectada"}
+{"level":"info","message":"   3. agentConfig não encontrado ou isActive=false","timestamp":"2026-02-24T23:55:51.113244703Z"}
+{"level":"info","message":"   4. Trigger phrases configuradas mas nenhuma encontrada","timestamp":"2026-02-24T23:55:51.113250318Z"}
+{"level":"info","message":"   5. Erro na API de LLM (timeout, rate limit)","timestamp":"2026-02-24T23:55:51.115866105Z"}
+{"timestamp":"2026-02-24T23:55:51.115873513Z","level":"info","message":"============================================================"}
+{"timestamp":"2026-02-24T23:55:51.115879476Z","message":"","level":"info"}
+{"message":"🔄 [DB] Resetando timer para retry: ef677ba0-9918-4e77-8011-d740ff08dd61","timestamp":"2026-02-24T23:55:51.115885213Z","level":"info"}
+{"timestamp":"2026-02-24T23:55:51.115890794Z","message":"11:55:51 PM [express] GET /api/access-status 304 in 1957ms :: {\"accessStatus\":\"active\",\"shouldBlock\":…","level":"info"}
+{"timestamp":"2026-02-24T23:55:51.162405740Z","level":"info","message":"11:55:51 PM [express] GET /api/usage 304 in 2004ms :: {\"agentMessagesCount\":0,\"limit\":-1,\"remaining\":…"}
+{"message":"🔍 [BAILEYS-CTWA] requested placeholder resend for unavailable message","timestamp":"2026-02-24T23:55:51.187893991Z","level":"info"}
+{"timestamp":"2026-02-24T23:55:51.187904539Z","message":"📢 [CTWA-PDO-REQUEST] Baileys solicitou placeholder resend para mensagem AC5754BC9AF910A1868D193E09AEC26C de 266915708682396@lid (requestId=3EB0658CA31EE4737704FE)","level":"info"}
+{"message":"[CONNECT] History sync mode for conn 51d97d77: fullSync=false replay=false","level":"info","timestamp":"2026-02-24T23:55:52.131005667Z"}
+{"level":"info","message":"📢 [CTWA-STARTUP] Baileys v7.0.0-rc.9 | PLACEHOLDER_MESSAGE_RESEND=true | CIPHERTEXT_STUB=false","timestamp":"2026-02-24T23:55:52.131018458Z"}
+{"timestamp":"2026-02-24T23:55:52.131026242Z","message":"✅ [CTWA-STARTUP] Baileys CTWA fix (PR #2334) proto definitions present. PDO placeholder resend should work.","level":"info"}
+{"message":"11:55:51 PM [express] GET /api/whatsapp/connection 304 in 2ms :: {\"id\":\"d7895dae-5737-4d11-b44e-97f5f…","timestamp":"2026-02-24T23:55:52.131204618Z","level":"info"}
+{"message":"11:55:51 PM [express] GET /api/user/suspension-status 304 in 2ms :: {\"suspended\":false}","level":"info","timestamp":"2026-02-24T23:55:52.131212340Z"}
+{"timestamp":"2026-02-24T23:55:52.131219983Z","level":"info","message":"[BROADCAST] No WebSocket clients found for user b58c4f1d-032d-4b6a-8e85-7b03d4e0be9b"}
+{"message":"✅ [CONN OPEN FALLBACK] Promoted 9566b4ef via connection=undefined + socket.user","timestamp":"2026-02-24T23:55:52.131227471Z","level":"info"}
+{"level":"info","message":"?? [MSG CACHE] Armazenada mensagem A5BD25B9A245D7EE0B35ED888A38E083 para user bc2043cb... (cache size: 4)","timestamp":"2026-02-24T23:55:52.131238149Z"}
+{"level":"info","message":"?? [FROM ME] LID resolvido: 266915708682396@lid ? 554784970851@s.whatsapp.net","timestamp":"2026-02-24T23:55:52.131247013Z"}
+{"message":"🛡️ [ANTI-BAN v5.0] 👤 Mensagem MANUAL do DONO detectada","level":"info","timestamp":"2026-02-24T23:55:52.131254776Z"}
+{"level":"info","message":"   📱 Contato: 554784970851","timestamp":"2026-02-24T23:55:52.131264303Z"}
+{"message":"   🔄 Contador de lote reiniciado","timestamp":"2026-02-24T23:55:52.131273463Z","level":"info"}
+{"message":"🛡️ [ANTI-BAN v4.0] 👤 Mensagem MANUAL do DONO registrada - Bot aguardará antes de responder","timestamp":"2026-02-24T23:55:52.131285108Z","level":"info"}
+{"message":"[CONNECT] Found existing connection record for d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c (connId=51d97d77-c90e-4b12-b405-c12ba7caa835): isConnected=true","timestamp":"2026-02-24T23:55:52.131308974Z","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:55:52.131319902Z","message":"[CONNECT] Auth path: auth_d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c (1339 files)"}
+{"message":"[CONNECT] Creating WASocket for d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c...","timestamp":"2026-02-24T23:55:52.131328142Z","level":"info"}
+{"level":"info","message":"📲 [WhatsApp Sender] Sessão registrada para userId: d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c","timestamp":"2026-02-24T23:55:52.134392549Z"}
+{"timestamp":"2026-02-24T23:55:52.134406588Z","level":"info","message":"[BROADCAST] No WebSocket clients found for user b58c4f1d-032d-4b6a-8e85-7b03d4e0be9b"}
+{"timestamp":"2026-02-24T23:55:52.134408305Z","message":"🔄 [AI AGENT] Timer reagendado retry 2/8 em 30s - resposta falhou (conversationId: ef677ba0-9918-4e77-8011-d740ff08dd61)","level":"error"}
+{"level":"info","message":"?? [/api/agent/test] ENTRADA - userId: 37530116-52e2-4a72-9d85-8b4c4836fbdb, message: ?","timestamp":"2026-02-24T23:55:52.134414742Z"}
+{"level":"info","timestamp":"2026-02-24T23:55:52.134419129Z","message":"🔓 [AI AGENT] Conversa ef677ba0-9918-4e77-8011-d740ff08dd61 liberada para próximo processamento"}
+{"message":"","timestamp":"2026-02-24T23:55:52.134423279Z","level":"info"}
+{"message":"📋 [MSG-UPSERT] IN notify | 120363420114516315 | id=3A513805C1C9 | content=[senderKeyDistributionMessage,messageContextInfo,extendedTextMessage] | stub=none","level":"info","timestamp":"2026-02-24T23:55:52.134428892Z"}
+{"timestamp":"2026-02-24T23:55:52.134434692Z","message":"🧪 ═══════════════════════════════════════════════════════════════","level":"info"}
+{"message":"?? [MSG CACHE] Armazenada mensagem 3A513805C1C9459192A7 para user ea5d2c8a... (cache size: 1)","timestamp":"2026-02-24T23:55:52.134437908Z","level":"info"}
+{"timestamp":"2026-02-24T23:55:52.134441723Z","level":"info","message":"🧪 [SIMULADOR] Nome do contato: Visitante"}
+{"level":"info","message":"Ignoring group/status message from: 120363420114516315@g.us","timestamp":"2026-02-24T23:55:52.134447327Z"}
+{"message":"🧪 ═══════════════════════════════════════════════════════════════","level":"info","timestamp":"2026-02-24T23:55:52.134447950Z"}
+{"level":"info","message":"[CONNECTION UPDATE] User bc2043cb... - connection: undefined, hasQR: false, statusCode: none","timestamp":"2026-02-24T23:55:52.139119576Z"}
+{"level":"info","timestamp":"2026-02-24T23:55:52.142759549Z","message":"📱 [NEW-CONTACT-FIX] Presence + Subscribe enviados para novo contato 554784970851 (554784970851@s.whatsapp.net)"}
+{"level":"info","timestamp":"2026-02-24T23:55:52.359871311Z","message":"[CONNECTION UPDATE] User b58c4f1d... - connection: undefined, hasQR: false, statusCode: none"}
+{"message":"✅ [PRESENCE] Status 'available' enviado para socket principal","timestamp":"2026-02-24T23:55:52.359881286Z","level":"info"}
+{"timestamp":"2026-02-24T23:55:52.359886932Z","level":"info","message":""}
+{"level":"info","message":"?? [CONTACTS INFO] Aguardando contatos do Baileys...","timestamp":"2026-02-24T23:55:52.359892056Z"}
+{"timestamp":"2026-02-24T23:55:52.359896620Z","level":"info","message":"   Contatos serão sincronizados automaticamente quando:"}
+{"timestamp":"2026-02-24T23:55:52.359901447Z","level":"info","message":"   1. Evento contacts.upsert do Baileys disparar"}
+{"message":"   2. Mensagens forem recebidas/enviadas","level":"info","timestamp":"2026-02-24T23:55:52.359907020Z"}
+{"level":"info","timestamp":"2026-02-24T23:55:52.359911912Z","message":"   Cache warming carregou 3542 contatos do DB"}
+{"level":"info","message":"","timestamp":"2026-02-24T23:55:52.359916324Z"}
+{"level":"info","timestamp":"2026-02-24T23:55:52.359921628Z","message":"🚨 [RECOVERY] Iniciando recuperação de mensagens pendentes para b58c4f1d..."}
+{"level":"info","message":"🚨 [RECOVERY] Aguardando 15s para estabilizar conexão...","timestamp":"2026-02-24T23:55:52.359926592Z"}
+{"timestamp":"2026-02-24T23:55:53.058587569Z","level":"info","message":"[CACHE WARMING] ? Loaded 3601 contacts into memory"}
+{"message":"? [FOLLOW-UP] Status de aguardo de conex�o limpo para d1a296ae-740d-4784-b329-61c7fcb93aa3","timestamp":"2026-02-24T23:55:53.058590479Z","level":"info"}
+{"message":"[CONNECT] WhatsApp socket initialized for user d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c, waiting for conn=open...","timestamp":"2026-02-24T23:55:53.058595912Z","level":"info"}
+{"message":"🚫 [AUTO-REACTIVATE] IA desativada GLOBALMENTE para user 0ead7092-10b0-4f54-98a0-0baa26612bd1 - NÃO reativando conversa 35e87abf-d42c-49e5-a193-f838c15b0579","level":"info","timestamp":"2026-02-24T23:55:53.058604240Z"}
+{"level":"info","message":"","timestamp":"2026-02-24T23:55:53.058604378Z"}
+{"timestamp":"2026-02-24T23:55:53.058610874Z","level":"info","message":"11:55:52 PM [express] GET /api/access-status 304 in 1ms :: {\"accessStatus\":\"active\",\"shouldBlock\":fal…"}
+{"level":"info","message":"? [UNRESPONDED CHECK] Verifica��o conclu�da:","timestamp":"2026-02-24T23:55:53.058611156Z"}
+{"level":"info","message":"   ?? Total conversas 24h: 9","timestamp":"2026-02-24T23:55:53.058616999Z"}
+{"level":"info","message":"   ? N�o respondidas: 0","timestamp":"2026-02-24T23:55:53.058623104Z"}
+{"timestamp":"2026-02-24T23:55:53.058623104Z","level":"info","message":"🧪 [SIMULADOR] Histórico: 10 mensagens"}
+{"timestamp":"2026-02-24T23:55:53.058632106Z","level":"info","message":"🧪 [SIMULADOR] Mídias já enviadas: 0"}
+{"level":"info","timestamp":"2026-02-24T23:55:53.058637949Z","message":"   ?? Respostas agendadas: 0"}
+{"message":"11:55:52 PM [express] GET /api/usage 304 in 2ms :: {\"agentMessagesCount\":24,\"limit\":-1,\"remaining\":-1…","level":"info","timestamp":"2026-02-24T23:55:53.058641509Z"}
+{"timestamp":"2026-02-24T23:55:53.058648482Z","message":"[DB] Loaded 3601 contacts for connection 51d97d77-c90e-4b12-b405-c12ba7caa835","level":"info"}
+{"timestamp":"2026-02-24T23:55:53.058654040Z","level":"info","message":""}
+{"timestamp":"2026-02-24T23:55:53.058657064Z","message":"[CACHE WARMING] Loading 3601 contacts from DB...","level":"info"}
+{"level":"info","message":"🧪 [SIMULADOR] 📋 Usando sistema LEGADO (IA livre)","timestamp":"2026-02-24T23:55:53.058663309Z"}
+{"message":"🧪 [SIMULADOR] 📝 customPrompt fornecido - testando prompt não salvo","timestamp":"2026-02-24T23:55:53.058670258Z","level":"info"}
+{"timestamp":"2026-02-24T23:55:53.106578866Z","level":"info","message":"👤 [AI Agent] Nome do cliente: Visitante"}
+{"timestamp":"2026-02-24T23:55:53.106586231Z","level":"info","message":"📁 [AI Agent] Mídias já enviadas: nenhuma"}
+{"timestamp":"2026-02-24T23:55:53.295036972Z","message":"🔄 [USER-FOLLOW-UP] Cliente respondeu. Ciclo pausado por 2h para ce9081f9-4a94-415c-8ecb-2f4d5b26ee54 (dar espaço à conversa)","level":"info"}
+{"message":"? [UNRESPONDED CHECK] Verifica��o conclu�da:","timestamp":"2026-02-24T23:55:53.994185093Z","level":"info"}
+{"message":"   ?? Total conversas 24h: 24","timestamp":"2026-02-24T23:55:53.994196453Z","level":"info"}
+{"message":"","timestamp":"2026-02-24T23:55:53.994197235Z","level":"info"}
+{"message":"   ? N�o respondidas: 0","timestamp":"2026-02-24T23:55:53.994206259Z","level":"info"}
+{"level":"info","message":"🔍 [shouldUseFlowEngine] Verificando para user 37530116-52e2-4a72-9d85-8b4c4836fbdb","timestamp":"2026-02-24T23:55:53.994210369Z"}
+{"timestamp":"2026-02-24T23:55:53.994213573Z","message":"🛡️ [ANTI-BAN v4.0] 👤 Mensagem MANUAL do DONO registrada - Bot aguardará antes de responder","level":"info"}
+{"message":"   ?? Respostas agendadas: 0","timestamp":"2026-02-24T23:55:53.994215726Z","level":"info"}
+{"timestamp":"2026-02-24T23:55:53.994222564Z","level":"info","message":"?? [MSG CACHE] Armazenada mensagem 3EB0BEFD5CA44584EF8FD5 para user e99199e0... (cache size: 25)"}
+{"message":"","timestamp":"2026-02-24T23:55:53.994225314Z","level":"info"}
+{"level":"info","message":"?? [FROM ME] LID resolvido: 279383528997107@lid ? 558586589341@s.whatsapp.net","timestamp":"2026-02-24T23:55:53.994225458Z"}
+{"level":"info","timestamp":"2026-02-24T23:55:53.994226836Z","message":"🎵 [FROM ME] Baixando áudio do dono para transcrição..."}
+{"level":"info","message":"🛡️ [ANTI-BAN v5.0] 👤 Mensagem MANUAL do DONO detectada","timestamp":"2026-02-24T23:55:53.994234115Z"}
+{"timestamp":"2026-02-24T23:55:53.994242239Z","message":"   📱 Contato: 558586589341","level":"info"}
+{"level":"info","message":"11:55:53 PM [express] GET /api/whatsapp/connection 304 in 2ms :: {\"id\":\"d7895dae-5737-4d11-b44e-97f5f…","timestamp":"2026-02-24T23:55:53.994244180Z"}
+{"timestamp":"2026-02-24T23:55:53.994250094Z","level":"info","message":"   🔄 Contador de lote reiniciado"}
+{"timestamp":"2026-02-24T23:55:53.994253209Z","level":"info","message":""}
+{"timestamp":"2026-02-24T23:55:53.994282987Z","message":"🔍 [AI Agent] Verificando configurações para user 37530116-52e2-4a72-9d85-8b4c4836fbdb:","level":"info"}
+{"message":"   📊 Legacy (ai_agent_config): exists, isActive=true","timestamp":"2026-02-24T23:55:53.994299529Z","level":"info"}
+{"message":"   📊 Business (business_agent_configs): exists, isActive=true","timestamp":"2026-02-24T23:55:53.994308214Z","level":"info"}
+{"message":"   ✅ [AI Agent] Agent ENABLED (legacy isActive=true), processing response...","timestamp":"2026-02-24T23:55:53.994314780Z","level":"info"}
+{"timestamp":"2026-02-24T23:55:53.994321143Z","message":"🔍 [BAILEYS-CTWA] PDO message without response after 8 seconds. Phone possibly offline","level":"info"}
+{"level":"info","message":"","timestamp":"2026-02-24T23:55:53.994333469Z"}
+{"timestamp":"2026-02-24T23:55:53.996849810Z","message":"","level":"info"}
+{"level":"info","message":"════════════════════════════════════════════════════════════","timestamp":"2026-02-24T23:55:53.996861809Z"}
+{"message":"🍕 [DeliveryAI] Processando mensagem: \"?...\"","timestamp":"2026-02-24T23:55:53.996870778Z","level":"info"}
+{"message":"🎵 [FROM ME] mediaKey presente: true","timestamp":"2026-02-24T23:55:53.996876039Z","level":"info"}
+{"level":"info","message":"🎵 [FROM ME] directPath presente: true","timestamp":"2026-02-24T23:55:53.996938905Z"}
+{"timestamp":"2026-02-24T23:55:53.996947052Z","level":"info","message":"? [FOLLOW-UP] Status de aguardo de conex�o limpo para 8c755f9d-71ec-47e8-a1e0-f1997563607a"}
+{"message":"🚨 [RECOVERY] ✅ Mensagem AC5754BC9AF910A1868D193E09AEC26C marcada como processada","timestamp":"2026-02-24T23:55:53.996956050Z","level":"info"}
+{"timestamp":"2026-02-24T23:55:53.996966455Z","message":"[BROADCAST] No WebSocket clients found for user bc2043cb-af33-4434-92cf-b54fc83477e9","level":"info"}
+{"message":"   → chatbot_configs.is_active: não existe","level":"info","timestamp":"2026-02-24T23:55:53.996976379Z"}
+{"timestamp":"2026-02-24T23:55:53.996988220Z","level":"info","message":"   ⚠️ FlowEngine DESATIVADO - Usando Agente IA (prompt)"}
+{"message":"🍕 [AI Agent] Tentando processar com sistema de delivery...","timestamp":"2026-02-24T23:55:53.996998291Z","level":"info"}
+{"level":"info","message":"🚨 [AUTO-RECOVERY] Encontrados 20 timers \"completed\" sem resposta real","timestamp":"2026-02-24T23:55:54.054433584Z"}
+{"message":"","level":"info","timestamp":"2026-02-24T23:55:54.054446770Z"}
+{"message":"🚨 [AUTO-RECOVERY] =========================================","level":"info","timestamp":"2026-02-24T23:55:54.054455672Z"}
+{"message":"🚨 [AUTO-RECOVERY] Encontrados 20 timers para recuperar","timestamp":"2026-02-24T23:55:54.054463850Z","level":"info"}
+{"timestamp":"2026-02-24T23:55:54.054471195Z","level":"info","message":"🔄 [AUTO-RECOVERY] Recuperando resposta para 5521968095110 (user: 21051c36..., 1 msgs)"}
+{"message":"🔄 [DB] Resetando timer para retry: 6e03b24b-a85c-4099-a8f8-b6c42a443018","level":"info","timestamp":"2026-02-24T23:55:54.054478334Z"}
+{"message":"📤 [MediaStorage] Uploading 87020 bytes to e99199e0-f311-4e3b-b2cb-dc6ba70b61b3/1771977354065_7128da95.ogg...","timestamp":"2026-02-24T23:55:54.070527411Z","level":"info"}
+{"message":"🍕 [DeliveryAI] DEBUG getDeliveryData: userId=37530116-52e2-4a72-9d85-8b4c4836fbdb","level":"info","timestamp":"2026-02-24T23:55:54.095177496Z"}
+{"timestamp":"2026-02-24T23:55:54.095186558Z","level":"info","message":"🍕 [DeliveryAI] DEBUG config: null"}
+{"level":"info","message":"🍕 [DeliveryAI] DEBUG configError: null","timestamp":"2026-02-24T23:55:54.095192682Z"}
+{"timestamp":"2026-02-24T23:55:54.095199465Z","message":"🍕 [DeliveryAI] DEBUG is_active value: undefined (type: undefined)","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:55:54.095205632Z","message":"🍕 [DeliveryAI] Delivery não ativo para user 37530116-52e2-4a72-9d85-8b4c4836fbdb"}
+{"message":"🍕 [DeliveryAI] Motivo: configError=false, config=false, is_active=undefined","timestamp":"2026-02-24T23:55:54.095212240Z","level":"info"}
+{"message":"🍕 [DeliveryAI] Delivery não ativo para este usuário","level":"info","timestamp":"2026-02-24T23:55:54.095217920Z"}
+{"level":"info","timestamp":"2026-02-24T23:55:54.095226842Z","message":"🍕 [AI Agent] Delivery não ativo ou sem resposta - continuando fluxo normal"}
+{"timestamp":"2026-02-24T23:55:54.095234161Z","level":"info","message":"💇 [AI Agent] Tentando processar com sistema de salão..."}
+{"level":"info","timestamp":"2026-02-24T23:55:54.133428095Z","message":"📋 [MSG-UPSERT] IN notify | 120363143284690101 | id=AC8022073FFD | content=[imageMessage,messageContextInfo] | stub=none"}
+{"message":"?? [MSG CACHE] Armazenada mensagem AC8022073FFDACD33CADFA684AC018EE para user 057f95ed... (cache size: 2)","level":"info","timestamp":"2026-02-24T23:55:54.133437722Z"}
+{"timestamp":"2026-02-24T23:55:54.168731288Z","level":"info","message":"⏸️ [PENDING CRON] 5519992362179 - Filtrado: inMemory=true, beingProcessed=false"}
+{"message":"","timestamp":"2026-02-24T23:55:54.168737830Z","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:55:54.168744600Z","message":"🔄 [PENDING CRON] ========================================="}
+{"timestamp":"2026-02-24T23:55:54.168750599Z","message":"🔄 [PENDING CRON] Encontrados 5 timers órfãos para processar","level":"info"}
+{"level":"info","message":"🔄 [PENDING CRON] Sessões ativas: 62 | Stale removidos: 0","timestamp":"2026-02-24T23:55:54.168756924Z"}
+{"message":"🚀 [PENDING CRON] Processando 554197429787 (timer órfão há 12s)","level":"info","timestamp":"2026-02-24T23:55:54.168763704Z"}
+{"message":"🚀 [PENDING CRON] Processando 553598639063 (timer órfão há 10s)","level":"info","timestamp":"2026-02-24T23:55:54.168769089Z"}
+{"timestamp":"2026-02-24T23:55:54.168778797Z","level":"info","message":"🚀 [PENDING CRON] Processando 559182714874 (timer órfão há 9s)"}
+{"message":"🚀 [PENDING CRON] Processando 5521965002120 (timer órfão há 4s)","timestamp":"2026-02-24T23:55:54.168786349Z","level":"info"}
+{"message":"🚀 [PENDING CRON] Processando 559180639488 (timer órfão há 3s)","timestamp":"2026-02-24T23:55:54.168794506Z","level":"info"}
+{"message":"🔄 [PENDING CRON] Ciclo concluído: 5 processados, 0 pulados","level":"info","timestamp":"2026-02-24T23:55:54.168801143Z"}
+{"level":"info","message":"🔄 [PENDING CRON] =========================================","timestamp":"2026-02-24T23:55:54.168807164Z"}
+{"level":"info","timestamp":"2026-02-24T23:55:54.168813494Z","message":""}
+{"message":"💇 [AI Agent] Salão não ativo ou sem resposta - continuando fluxo normal","level":"info","timestamp":"2026-02-24T23:55:54.303107445Z"}
+{"level":"info","message":"Ignoring group/status message from: 120363143284690101@g.us","timestamp":"2026-02-24T23:55:54.341878380Z"}
+{"level":"info","message":"   ⏱️ Aguardou 42.0s | 1 mensagem(s) acumulada(s)","timestamp":"2026-02-24T23:55:55.052876068Z"}
+{"timestamp":"2026-02-24T23:55:55.052894413Z","message":"   📞 Contato: 554197429787","level":"info"}
+{"timestamp":"2026-02-24T23:55:55.052902727Z","level":"info","message":"🚫 [AUTO-REACTIVATE] Agente IA desativado em ai_agent_config para user 365d4cc6-2f59-422c-8f31-fcfd33e31b36 - NÃO reativando"}
+{"level":"info","message":"📝 [AI Agent] Using LEGACY system (deterministic) for user 37530116-52e2-4a72-9d85-8b4c4836fbdb","timestamp":"2026-02-24T23:55:55.052911549Z"}
+{"level":"info","message":"11:55:54 PM [express] GET /api/user/suspension-status 304 in 1ms :: {\"suspended\":false}","timestamp":"2026-02-24T23:55:55.052931185Z"}
+{"message":"   Active: true","timestamp":"2026-02-24T23:55:55.052938695Z","level":"info"}
+{"level":"info","message":"   Trigger phrases: 0","timestamp":"2026-02-24T23:55:55.052947411Z"}
+{"level":"info","timestamp":"2026-02-24T23:55:55.052948069Z","message":"🔄 [AUTO-RECOVERY] Recuperando resposta para 5514991265204 (user: 751b57a6..., 1 msgs)"}
+{"level":"info","message":"   Prompt length: 6215 chars","timestamp":"2026-02-24T23:55:55.052954811Z"}
+{"level":"info","timestamp":"2026-02-24T23:55:55.052960244Z","message":"🔄 [DB] Resetando timer para retry: 87b9607d-bf0d-4858-b131-372714ae7fd2"}
+{"level":"info","message":"   Prompt (primeiros 150 chars): Meu Negócio - Atendente virtual para e-commerce de cinta modeladora queima-gordura.","timestamp":"2026-02-24T23:55:55.052967979Z"}
+{"timestamp":"2026-02-24T23:55:55.052969990Z","level":"info","message":""}
+{"message":"","level":"info","timestamp":"2026-02-24T23:55:55.052970655Z"}
+{"message":"🔄 [AI AGENT] =========== PROCESSANDO RESPOSTA ===========","timestamp":"2026-02-24T23:55:55.052978131Z","level":"info"}
+{"message":"🤖 [AI Agent] ═══════════════════════════════════════════════════","timestamp":"2026-02-24T23:55:55.052980531Z","level":"info"}
+{"timestamp":"2026-02-24T23:55:55.052991694Z","level":"info","message":"🤖 [AI Agent] Config para user 37530116-52e2-4a72-9d85-8b4c4836fbdb respondendo cliente:"}
+{"timestamp":"2026-02-24T23:55:55.053001656Z","level":"info","message":"   Model (legacy, ignorado): mistral-small-latest → real: system_config.openrouter_model"}
+{"timestamp":"2026-02-24T23:55:55.053015469Z","level":"info","message":"Tom: **profissional, objetivo e acolhedor**."}
+{"level":"info","message":"","timestamp":"2026-02-24T23:55:55.053029452Z"}
+{"level":"info","message":"**SAUDAÇÃO EMOCIONAL...","timestamp":"2026-02-24T23:55:55.053037533Z"}
+{"timestamp":"2026-02-24T23:55:55.054948412Z","level":"info","message":"🛡️ [Blindagem V3] Análise do prompt: negócio=\"profissional objetivo e acolhedor\", tipo=\"terapia\""}
+{"timestamp":"2026-02-24T23:55:55.054960809Z","level":"info","message":"✅ [MediaStorage] Uploaded successfully: https://bnfpcuzjvycudccycqqt.supabase.co/storage/v1/object/public/whatsapp-media/e99199e0-f311-4e3b-b2cb-dc6ba70b61b3/1771977354065_7128da95.ogg"}
+{"timestamp":"2026-02-24T23:55:55.054968408Z","level":"info","message":"📤 [STORAGE] Mídia enviada para Storage: https://bnfpcuzjvycudccycqqt.supabase.co/storage/v1/object/public/whatsapp-media..."}
+{"level":"info","message":"✅ [FROM ME] Áudio do dono processado: 87020 bytes","timestamp":"2026-02-24T23:55:55.054979989Z"}
+{"message":"   Prompt (MD5 para debug): f0b2ead8","timestamp":"2026-02-24T23:55:55.055185909Z","level":"info"}
+{"timestamp":"2026-02-24T23:55:55.055226034Z","level":"info","message":"🤖 [AI Agent] ═══════════════════════════════════════════════════"}
+{"message":"","timestamp":"2026-02-24T23:55:55.055232905Z","level":"info"}
+{"level":"info","message":"🧠 [AI Agent] Memory analysis: greeted=true, pendingActions=0, sentMedia=0","timestamp":"2026-02-24T23:55:55.055239769Z"}
+{"message":"","level":"info","timestamp":"2026-02-24T23:55:55.108170303Z"}
+{"timestamp":"2026-02-24T23:55:55.108180942Z","message":"🔄 [AI AGENT] =========== PROCESSANDO RESPOSTA ===========","level":"info"}
+{"message":"   ⏱️ Aguardou 0.5s | 1 mensagem(s) acumulada(s)","timestamp":"2026-02-24T23:55:55.108187987Z","level":"info"}
+{"message":"   📞 Contato: 5521968095110","timestamp":"2026-02-24T23:55:55.108231107Z","level":"info"}
+{"timestamp":"2026-02-24T23:55:55.143722003Z","message":"🔄 [AUTO-RECOVERY] Recuperando resposta para 5511972913014 (user: bc2043cb..., 1 msgs)","level":"info"}
+{"timestamp":"2026-02-24T23:55:55.143732714Z","level":"info","message":"🔄 [DB] Resetando timer para retry: 2e5bffe8-d061-47e3-9ad1-d9becd0f04a1"}
+{"message":"🔄 [AUTO-RECOVERY] Recuperando resposta para 5521973471992 (user: 21421aef..., 1 msgs)","timestamp":"2026-02-24T23:55:56.042552109Z","level":"info"}
+{"level":"info","message":"🔄 [DB] Resetando timer para retry: b201029d-d525-4ec2-a384-dac40ff09836","timestamp":"2026-02-24T23:55:56.042561200Z"}
+{"level":"info","timestamp":"2026-02-24T23:55:56.042579776Z","message":"📞 [EXCLUSION] Normalizando número 554784970851 -> variações: [554784970851, 4784970851, 84970851]"}
+{"level":"info","timestamp":"2026-02-24T23:55:56.042586948Z","message":"✅ [FOLLOW-UP] Agendado inicial para conversa ce9081f9-4a94-415c-8ecb-2f4d5b26ee54 em 10 min"}
+{"message":"","timestamp":"2026-02-24T23:55:56.042587673Z","level":"info"}
+{"timestamp":"2026-02-24T23:55:56.042593036Z","level":"info","message":"🔄 [AI AGENT] Retry: Tentando processar 5519992362179 novamente..."}
+{"message":"🔄 [AI AGENT] =========== PROCESSANDO RESPOSTA ===========","level":"info","timestamp":"2026-02-24T23:55:56.042603944Z"}
+{"level":"info","message":"11:55:55 PM [express] GET /api/whatsapp/connection 304 in 2ms :: {\"id\":\"d7895dae-5737-4d11-b44e-97f5f…","timestamp":"2026-02-24T23:55:56.042604161Z"}
+{"timestamp":"2026-02-24T23:55:56.042616865Z","message":"   ⏱️ Aguardou 0.6s | 1 mensagem(s) acumulada(s)","level":"info"}
+{"timestamp":"2026-02-24T23:55:56.042621399Z","level":"info","message":"🔍 [EXCLUSION] Verificando lista de exclusão para usuário bc2043cb-af33-4434-92cf-b54fc83477e9 (config=default, isEnabled=default=true)"}
+{"message":"   📞 Contato: 5514991265204","level":"info","timestamp":"2026-02-24T23:55:56.042630212Z"}
+{"timestamp":"2026-02-24T23:55:56.049417089Z","level":"info","message":"🎯 [AI Agent] Pergunta: 1 chars → maxTokens: 1200 (SEM LIMITE - divisão em partes é depois)"}
+{"level":"info","timestamp":"2026-02-24T23:55:56.049427219Z","message":"🔧 [AI-CONFIG] DETERMINISM: provider=mistral, temperature=0.0, randomSeed=42, model=from-system-config (llm.ts usa openrouterModel)"}
+{"timestamp":"2026-02-24T23:55:56.049433320Z","level":"info","message":"🔄 [AI RETRY] LLM API (mistral) - Tentativa 1/1..."}
+{"message":"[LLM] 🎯 chatComplete via Mistral - Modelo do admin: mistral-medium-latest","level":"info","timestamp":"2026-02-24T23:55:56.049439637Z"}
+{"level":"info","message":"   8. [assistant] A cinta modeladora magnética custa *R$ 249,90 à vi...","timestamp":"2026-02-24T23:55:56.049460883Z"}
+{"message":"📝 [AI Agent] Using LEGACY prompt (16617 chars) - DETERMINISTIC MODE","timestamp":"2026-02-24T23:55:56.049466427Z","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:55:56.049466932Z","message":"   9. [user] QUAIS BENEFICIOS DESSA CINTA?..."}
+{"timestamp":"2026-02-24T23:55:56.049475780Z","message":"   10. [assistant] Visitante, vou te contar *os 3 benefícios comprova...","level":"info"}
+{"timestamp":"2026-02-24T23:55:56.049476861Z","message":"🛡️ [AI Agent] Anti-amnesia prompt injetado (10 msgs, saudação=false, hasReplies=true, jaDisseNegocio=false)","level":"info"}
+{"timestamp":"2026-02-24T23:55:56.049483389Z","level":"info","message":"   11. [user] ?... (NOVA MENSAGEM)"}
+{"timestamp":"2026-02-24T23:55:56.049489615Z","message":"📋 [AI Agent] Enviando 10 mensagens de contexto (0 duplicatas removidas):","level":"info"}
+{"level":"info","message":"Posso te ajudar com algo?...","timestamp":"2026-02-24T23:55:56.049499660Z"}
+{"level":"info","message":"   1. [user] oi...","timestamp":"2026-02-24T23:55:56.049500409Z"}
+{"message":"   2. [assistant] Olá, Visitante! 😊","timestamp":"2026-02-24T23:55:56.049514356Z","level":"info"}
+{"level":"info","message":"   5. [user] ESTAVA NO FACEBOOK E VIM TIRAR DUVIDAS SOBRE SEU P...","timestamp":"2026-02-24T23:55:56.049522939Z"}
+{"level":"info","message":"Como posso te ajudar com nossa ...","timestamp":"2026-02-24T23:55:56.049527322Z"}
+{"message":"   6. [assistant] Entendi, Visitante! 😊","timestamp":"2026-02-24T23:55:56.049544064Z","level":"info"}
+{"message":"   3. [user] OI...","timestamp":"2026-02-24T23:55:56.049546975Z","level":"info"}
+{"message":"Você quer saber sobre os *b...","level":"info","timestamp":"2026-02-24T23:55:56.049559225Z"}
+{"level":"info","message":"   4. [assistant] Tudo bem, Visitante? 😊","timestamp":"2026-02-24T23:55:56.049560018Z"}
+{"message":"   7. [user] GOSTARIA DE SABER O PREÇO LOGO...","level":"info","timestamp":"2026-02-24T23:55:56.049569379Z"}
+{"timestamp":"2026-02-24T23:55:56.051682323Z","level":"info","message":"✅ [MISTRAL ROTATION] Usando modelo do admin: mistral-medium-latest"}
+{"timestamp":"2026-02-24T23:55:56.051686189Z","level":"info","message":"[LLM] 🚀 Mistral chatComplete - Modelo: mistral-medium-latest (ADMIN) [1/5]"}
+{"message":"🔄 [LLM RETRY] Mistral chatComplete (mistral-medium-latest) - Tentativa 1/1...","level":"info","timestamp":"2026-02-24T23:55:56.051689896Z"}
+{"message":"📋 [MSG-UPSERT] IN notify | 120363406702791810 | id=3EB06FE7AE99 | content=[senderKeyDistributionMessage,messageContextInfo,pollUpdateMessage] | stub=none","level":"info","timestamp":"2026-02-24T23:55:56.076561590Z"}
+{"message":"?? [MSG CACHE] Armazenada mensagem 3EB06FE7AE996289306C66 para user e0661010... (cache size: 7)","timestamp":"2026-02-24T23:55:56.076567718Z","level":"info"}
+{"level":"info","message":"📞 [EXCLUSION] Verificando 554784970851 (variações: 554784970851, 4784970851, 84970851) -> ✅ Permitido","timestamp":"2026-02-24T23:55:56.123205800Z"}
+{"message":"⏳ [STUB-PDO-RETRY] Mensagem stub de 554784970851 (id=AC5754BC9AF910A1868D193E09AEC26C) - iniciando 4 tentativas PDO (intervalo=2s)","level":"info","timestamp":"2026-02-24T23:55:56.123216590Z"}
+{"message":"   📋 Plano: #1 (0s) → #2 (2s) → #3 (4s) → #4 (6s) → fallback (8s)","level":"info","timestamp":"2026-02-24T23:55:56.123223869Z"}
+{"timestamp":"2026-02-24T23:55:56.123229655Z","level":"info","message":"[CONNECTION UPDATE] User bc2043cb... - connection: undefined, hasQR: false, statusCode: none"}
+{"message":"📖 [STUB-PDO-RETRY] Read receipt enviado para AC5754BC9AF910A1868D193E09AEC26C","timestamp":"2026-02-24T23:55:56.123241623Z","level":"info"}
+{"message":"Closing session: SessionEntry {","level":"info","timestamp":"2026-02-24T23:55:56.169771134Z"}
+{"level":"info","timestamp":"2026-02-24T23:55:56.169783932Z","message":"  _chains: {"}
+{"level":"info","message":"    'BWTGAYu09PqpteUTS+KqovZUITEVSBJiuNkXR0RicncG': { chainKey: [Object], chainType: 2, messageKeys: [Object] },","timestamp":"2026-02-24T23:55:56.169791758Z"}
+{"message":"    'BbWznHyrDaXRedp3O/fyE6MD9RRLNBB4DM+s+BnKuu5G': { chainKey: [Object], chainType: 1, messageKeys: {} }","timestamp":"2026-02-24T23:55:56.169799261Z","level":"info"}
+{"message":"  },","timestamp":"2026-02-24T23:55:56.169805699Z","level":"info"}
+{"message":"  registrationId: 284794257,","timestamp":"2026-02-24T23:55:56.169812833Z","level":"info"}
+{"message":"  currentRatchet: {","timestamp":"2026-02-24T23:55:56.169819909Z","level":"info"}
+{"message":"    ephemeralKeyPair: {","timestamp":"2026-02-24T23:55:56.169827154Z","level":"info"}
+{"message":"      pubKey: <Buffer 05 b5 b3 9c 7c ab 0d a5 d1 79 da 77 3b f7 f2 13 a3 03 f5 14 4b 34 10 78 0c cf ac f8 19 ca ba ee 46>,","timestamp":"2026-02-24T23:55:56.169833538Z","level":"info"}
+{"message":"      privKey: <Buffer 30 73 ae c2 1f 60 52 1d f7 51 e5 e3 1e 97 3a 88 17 e4 c5 73 5a 7b ed 32 ec 29 b0 f1 2b b8 4e 61>","timestamp":"2026-02-24T23:55:56.169840951Z","level":"info"}
+{"message":"    },","level":"info","timestamp":"2026-02-24T23:55:56.169847996Z"}
+{"message":"    lastRemoteEphemeralKey: <Buffer 05 64 c6 01 8b b4 f4 fa a9 b5 e5 13 4b e2 aa a2 f6 54 21 31 15 48 12 62 b8 d9 17 47 44 62 72 77 06>,","level":"info","timestamp":"2026-02-24T23:55:56.169854866Z"}
+{"message":"    previousCounter: 0,","timestamp":"2026-02-24T23:55:56.169864094Z","level":"info"}
+{"message":"    rootKey: <Buffer d6 0b 0d 6f 21 1a c8 ba ae ee 06 10 f4 f6 89 e5 fd 2b 36 27 c0 8d 51 07 df 2d ed 56 81 1a 00 cb>","timestamp":"2026-02-24T23:55:56.169871004Z","level":"info"}
+{"level":"info","message":"  },","timestamp":"2026-02-24T23:55:56.169877480Z"}
+{"timestamp":"2026-02-24T23:55:56.169883505Z","message":"  indexInfo: {","level":"info"}
+{"timestamp":"2026-02-24T23:55:56.169890309Z","message":"    baseKey: <Buffer 05 4a da 61 1c 21 7a db f8 f5 1c 11 14 c7 ef 1d 10 0f 52 16 c8 8c c1 4e 7b c4 16 77 c2 bf 58 b7 4c>,","level":"info"}
+{"timestamp":"2026-02-24T23:55:56.169897582Z","message":"    baseKeyType: 2,","level":"info"}
+{"timestamp":"2026-02-24T23:55:56.169910259Z","level":"info","message":"    closed: -1,"}
+{"message":"    used: 1768481647620,","timestamp":"2026-02-24T23:55:56.169917336Z","level":"info"}
+{"message":"    created: 1768481647620,","level":"info","timestamp":"2026-02-24T23:55:56.169923238Z"}
+{"timestamp":"2026-02-24T23:55:56.169929456Z","level":"info","message":"    remoteIdentityKey: <Buffer 05 27 0c 92 84 85 bf 4d 36 68 f1 28 e6 df 28 86 8e 81 26 2c 88 0b 8e 27 99 9b 22 0e f9 1c f3 e3 4a>"}
+{"timestamp":"2026-02-24T23:55:56.174289550Z","message":"  }","level":"info"}
+{"message":"}","timestamp":"2026-02-24T23:55:56.174295193Z","level":"info"}
+{"message":"Ignoring group/status message from: 120363406702791810@g.us","timestamp":"2026-02-24T23:55:56.275182215Z","level":"info"}
+{"message":"?? [MSG CACHE] Armazenada mensagem 3EB00EE74CE7892061F0D6 para user e6c65f98... (cache size: 3)","timestamp":"2026-02-24T23:55:56.311494679Z","level":"info"}
+{"timestamp":"2026-02-24T23:55:56.311502735Z","message":"🛡️ [ANTI-BLOCK] ✅ Mensagem enviada - ID: 3EB00EE74CE7892061F0D6","level":"info"}
+{"timestamp":"2026-02-24T23:55:56.311508563Z","message":"🛡️ [ANTI-BAN v5.0] ✅ Msg enviada - Lote: 3/10","level":"info"}
+{"message":"🛡️ [ANTI-BLOCK v5.0] ⏳ Aguardando 14.8s antes de enviar...","timestamp":"2026-02-24T23:55:56.311514928Z","level":"info"}
+{"timestamp":"2026-02-24T23:55:56.311520928Z","message":"","level":"info"}
+{"level":"info","message":"🔄 [AI AGENT] =========== PROCESSANDO RESPOSTA ===========","timestamp":"2026-02-24T23:55:56.311527194Z"}
+{"timestamp":"2026-02-24T23:55:56.311533137Z","level":"info","message":"   ⏱️ Aguardou 392.7s | 1 mensagem(s) acumulada(s)"}
+{"timestamp":"2026-02-24T23:55:56.311539897Z","message":"   📞 Contato: 5519992362179","level":"info"}
+{"timestamp":"2026-02-24T23:55:57.026952344Z","message":"?? [MSG CACHE] Armazenada mensagem 3EB00EE74CE7892061F0D6 para user e6c65f98... (cache size: 3)","level":"info"}
+{"timestamp":"2026-02-24T23:55:57.026960195Z","level":"info","message":""}
+{"level":"info","message":"🔄 [AUTO-RECOVERY] Recuperando resposta para 5521966553993 (user: 21421aef..., 2 msgs)","timestamp":"2026-02-24T23:55:57.026964438Z"}
+{"message":"🔄 [AI AGENT] =========== PROCESSANDO RESPOSTA ===========","level":"info","timestamp":"2026-02-24T23:55:57.026967751Z"}
+{"timestamp":"2026-02-24T23:55:57.026969857Z","message":"   👉 IA foi desativada entre criação e execução do timer","level":"info"}
+{"message":"🔄 [DB] Resetando timer para retry: 29723b7f-1cd5-4b12-828c-0ddb8bfcceea","timestamp":"2026-02-24T23:55:57.026973400Z","level":"info"}
+{"message":"","timestamp":"2026-02-24T23:55:57.026978302Z","level":"info"}
+{"message":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!","timestamp":"2026-02-24T23:55:57.026980092Z","level":"info"}
+{"level":"info","message":"? [FOLLOW-UP] Status de aguardo de conex�o limpo para 5a2e9f41-7ca3-41f8-80a8-653f72ffb764","timestamp":"2026-02-24T23:55:57.026984393Z"}
+{"timestamp":"2026-02-24T23:55:57.026985412Z","message":"   conversationId: 2e5bffe8-d061-47e3-9ad1-d9becd0f04a1","level":"info"}
+{"timestamp":"2026-02-24T23:55:57.026986215Z","level":"info","message":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"}
+{"timestamp":"2026-02-24T23:55:57.026989901Z","message":"","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:55:57.026993547Z","message":"🚫 [AI AGENT] IA DESATIVADA - Timer cancelado"}
+{"message":"   contactNumber: 5511972913014","level":"info","timestamp":"2026-02-24T23:55:57.026999742Z"}
+{"message":"   ⏱️ Aguardou 42.4s | 1 mensagem(s) acumulada(s)","timestamp":"2026-02-24T23:55:57.027004620Z","level":"info"}
+{"timestamp":"2026-02-24T23:55:57.027016549Z","level":"info","message":"   📞 Contato: 553598639063"}
+{"level":"info","message":"[AI Agent] Part 1/2 SENT to WhatsApp 557598297575","timestamp":"2026-02-24T23:55:57.062905931Z"}
+{"level":"info","message":"🛡️ [ANTI-BLOCK v5.0] Mensagem enfileirada para e6c65f98...","timestamp":"2026-02-24T23:55:57.062914335Z"}
+{"message":"   📊 Fila: 2 | Prioridade: high","timestamp":"2026-02-24T23:55:57.062919825Z","level":"info"}
+{"message":"   📝 Texto: \"- *Sexta-feira*: 19h às 20h Já encaminho para ela ...\"","timestamp":"2026-02-24T23:55:57.062925463Z","level":"info"}
+{"timestamp":"2026-02-24T23:55:57.095778255Z","level":"info","message":""}
+{"message":"?? [UNRESPONDED CHECK] Iniciando verifica��o de mensagens n�o respondidas...","level":"info","timestamp":"2026-02-24T23:55:57.095786540Z"}
+{"level":"info","message":"   ?? Usu�rio: d1a296ae-740d-4784-b329-61c7fcb93aa3","timestamp":"2026-02-24T23:55:57.095792573Z"}
+{"timestamp":"2026-02-24T23:55:57.201969460Z","level":"info","message":""}
+{"level":"info","timestamp":"2026-02-24T23:55:57.201975575Z","message":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"}
+{"message":"⚠️ [AI Agent] BLOQUEIO: Session/socket não disponível","level":"info","timestamp":"2026-02-24T23:55:57.201984968Z"}
+{"message":"   userId: 87a6bc88-2539-4cd8-b71c-f14c45389cd6","timestamp":"2026-02-24T23:55:57.201991056Z","level":"info"}
+{"message":"   conversationId: d4065522-4ea6-4acf-ad37-05557fd8a505","level":"info","timestamp":"2026-02-24T23:55:57.201998213Z"}
+{"timestamp":"2026-02-24T23:55:57.202003833Z","level":"info","message":"   contactNumber: 5519992362179"}
+{"level":"info","timestamp":"2026-02-24T23:55:57.202010033Z","message":"   👉 WhatsApp provavelmente desconectado"}
+{"level":"info","message":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!","timestamp":"2026-02-24T23:55:57.202015004Z"}
+{"message":"","timestamp":"2026-02-24T23:55:57.202020878Z","level":"info"}
+{"message":"?? [MSG CACHE] Mensagem AC5754BC9AF910A1868D193E09AEC26C N�O encontrada no cache para user bc2043cb...","timestamp":"2026-02-24T23:55:57.202028403Z","level":"info"}
+{"message":"🔄 [STUB-PDO-RETRY] Tentativa #1 de PDO para AC5754BC9AF910A1868D193E09AEC26C de 554784970851","timestamp":"2026-02-24T23:55:57.202034231Z","level":"info"}
+{"level":"info","message":"[CONNECTION UPDATE] User bc2043cb... - connection: undefined, hasQR: false, statusCode: none","timestamp":"2026-02-24T23:55:57.203805838Z"}
+{"message":"⚠️ [STUB-PDO-RETRY] PDO #1 retornou undefined para AC5754BC9AF910A1868D193E09AEC26C (já em cache ou resolvido)","timestamp":"2026-02-24T23:55:57.203810047Z","level":"info"}
+{"level":"info","message":"✅ [AI AGENT] Usuário tem plano pago ativo e válido: Plano Promo Ilimitado Mensal","timestamp":"2026-02-24T23:55:57.373516490Z"}
+{"message":"   ?? Texto combinado: \"Tudo principalmente as varizes e o joelho eu não tenho mais Castilhãgens fiquem com DEUS 🙏😇...\"","timestamp":"2026-02-24T23:55:57.373525799Z","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:55:58.143231984Z","message":"   contactNumber: 554197429787"}
+{"message":"   Mensagens usadas: 26/25","timestamp":"2026-02-24T23:55:58.143243330Z","level":"info"}
+{"timestamp":"2026-02-24T23:55:58.143250621Z","level":"info","message":"   👉 Usuário precisa assinar plano"}
+{"timestamp":"2026-02-24T23:55:58.143256941Z","level":"info","message":"   🛑 Timer marcado como COMPLETED (sem retry - bloqueio permanente)"}
+{"message":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!","timestamp":"2026-02-24T23:55:58.143263219Z","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:55:58.143269429Z","message":""}
+{"timestamp":"2026-02-24T23:55:58.143278129Z","message":"🚫 [AUTO-REACTIVATE] Agente IA desativado em ai_agent_config para user 365d4cc6-2f59-422c-8f31-fcfd33e31b36 - NÃO reativando","level":"info"}
+{"message":"🎤 [Storage] Baixando áudio de URL externa para transcrição...","timestamp":"2026-02-24T23:55:58.143278988Z","level":"info"}
+{"level":"info","message":"11:55:57 PM [express] GET /api/whatsapp/connection 304 in 1ms :: {\"id\":\"d7895dae-5737-4d11-b44e-97f5f…","timestamp":"2026-02-24T23:55:58.143287633Z"}
+{"timestamp":"2026-02-24T23:55:58.143295337Z","message":"","level":"info"}
+{"timestamp":"2026-02-24T23:55:58.143302680Z","message":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:55:58.143310214Z","message":"🚫 [AI AGENT] IA DESATIVADA - Timer cancelado"}
+{"timestamp":"2026-02-24T23:55:58.143317146Z","level":"info","message":"   conversationId: b201029d-d525-4ec2-a384-dac40ff09836"}
+{"message":"   contactNumber: 5521973471992","level":"info","timestamp":"2026-02-24T23:55:58.143323382Z"}
+{"timestamp":"2026-02-24T23:55:58.143330148Z","message":"   👉 IA foi desativada entre criação e execução do timer","level":"info"}
+{"timestamp":"2026-02-24T23:55:58.143337248Z","level":"info","message":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"}
+{"level":"info","message":"","timestamp":"2026-02-24T23:55:58.143344275Z"}
+{"timestamp":"2026-02-24T23:55:58.143351004Z","message":"🔄 [AUTO-RECOVERY] Recuperando resposta para 5522999143654 (user: 21421aef..., 4 msgs)","level":"info"}
+{"timestamp":"2026-02-24T23:55:58.143358007Z","level":"info","message":"🔄 [DB] Resetando timer para retry: e2aa6d3b-07cc-46ee-b1c1-8dfe7d923d94"}
+{"message":"","level":"info","timestamp":"2026-02-24T23:55:58.143364807Z"}
+{"timestamp":"2026-02-24T23:55:58.143371886Z","level":"info","message":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"}
+{"message":"🚫 [AI AGENT] BLOQUEIO: Limite de 25 mensagens atingido","timestamp":"2026-02-24T23:55:58.143394839Z","level":"info"}
+{"message":"   userId: 057f95ed-ae0b-48cd-a223-6a8c24ae0654","timestamp":"2026-02-24T23:55:58.143401846Z","level":"info"}
+{"timestamp":"2026-02-24T23:55:58.145223925Z","message":"?? [FROM ME] Mensagem sincronizada: 554784970851 - \"Olá, seja bem-vindo(a) 🚀","level":"info"}
+{"timestamp":"2026-02-24T23:55:58.145236377Z","message":"Você acaba de entrar em contato com uma agência focada em crescimento e resultados reais.","level":"info"}
+{"message":"📌 Você já investe em anúncios?","timestamp":"2026-02-24T23:55:58.145245186Z","level":"info"}
+{"message":"Enquanto analisamos sua mensagem, nos conte:","timestamp":"2026-02-24T23:55:58.145247386Z","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:55:58.145255930Z","message":"📌 Qual é o seu negócio?"}
+{"level":"info","timestamp":"2026-02-24T23:55:58.145258247Z","message":"Assim conseguimos montar a melhor estratégia para você 💡"}
+{"timestamp":"2026-02-24T23:55:58.145264044Z","level":"info","message":"🤖 [STORAGE] IA desativada para conversa ce9081f9-4a94-415c-8ecb-2f4d5b26ee54 (follow-up permanece no estado atual)"}
+{"level":"info","message":"📌 Qual seu principal objetivo hoje? (vender mais, fortalecer marca, captar clientes…)","timestamp":"2026-02-24T23:55:58.145265600Z"}
+{"message":"Já já falamos!\"","timestamp":"2026-02-24T23:55:58.145268024Z","level":"info"}
+{"timestamp":"2026-02-24T23:55:58.145272792Z","level":"info","message":"?? [AUTO-PAUSE] IA pausada automaticamente para conversa ce9081f9-4a94-415c-8ecb-2f4d5b26ee54 - dono respondeu manualmente (manual only)"}
+{"timestamp":"2026-02-24T23:55:58.145279127Z","level":"info","message":"11:55:58 PM [express] GET /api/daily-limits 304 in 1080ms :: {\"hasActiveSubscription\":true,\"calibrati…"}
+{"message":"[BROADCAST] No WebSocket clients found for user bc2043cb-af33-4434-92cf-b54fc83477e9","timestamp":"2026-02-24T23:55:58.145280476Z","level":"info"}
+{"timestamp":"2026-02-24T23:55:58.145287994Z","message":"[BROADCAST] No WebSocket clients found for user bc2043cb-af33-4434-92cf-b54fc83477e9","level":"info"}
+{"timestamp":"2026-02-24T23:55:58.192455199Z","message":"","level":"info"}
+{"message":"🔄 [AI AGENT] =========== PROCESSANDO RESPOSTA ===========","timestamp":"2026-02-24T23:55:58.192464308Z","level":"info"}
+{"message":"   ⏱️ Aguardou 43.3s | 1 mensagem(s) acumulada(s)","level":"info","timestamp":"2026-02-24T23:55:58.192471264Z"}
+{"timestamp":"2026-02-24T23:55:58.192477246Z","message":"   📞 Contato: 559182714874","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:55:58.234079079Z","message":"📋 [MSG-UPSERT] IN notify | 120363420114516315 | id=3A5F8F4C7505 | content=[senderKeyDistributionMessage,messageContextInfo,extendedTextMessage] | stub=none"}
+{"timestamp":"2026-02-24T23:55:58.234088087Z","message":"?? [MSG CACHE] Armazenada mensagem 3A5F8F4C7505404BFAEC para user ea5d2c8a... (cache size: 2)","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:55:58.315615524Z","message":"🔄 [AI AGENT] Reagendando timer para 5519992362179 em 300s (sessão indisponível, connected=false)..."}
+{"message":"? [FOLLOW-UP] Status de aguardo de conex�o limpo para b58c4f1d-032d-4b6a-8e85-7b03d4e0be9b","timestamp":"2026-02-24T23:55:58.380382828Z","level":"info"}
+{"level":"info","message":"[CONNECTION UPDATE] User bc2043cb... - connection: undefined, hasQR: false, statusCode: none","timestamp":"2026-02-24T23:55:59.262386652Z"}
+{"message":"📝 [PERSISTENT TIMER] Atualizado para conversation d4065522-4ea6-4acf-ad37-05557fd8a505 - 1 msgs","timestamp":"2026-02-24T23:55:59.262397564Z","level":"info"}
+{"message":"?? [UNRESPONDED CHECK] Iniciando verifica��o de mensagens n�o respondidas...","timestamp":"2026-02-24T23:55:59.262422389Z","level":"info"}
+{"timestamp":"2026-02-24T23:55:59.262429467Z","level":"info","message":"   ?? Usu�rio: 8c755f9d-71ec-47e8-a1e0-f1997563607a"}
+{"message":"Ignoring group/status message from: 120363420114516315@g.us","timestamp":"2026-02-24T23:55:59.262437035Z","level":"info"}
+{"level":"info","message":"✅ [AI AGENT] Usuário tem plano pago ativo e válido: Plano Promo Ilimitado Mensal","timestamp":"2026-02-24T23:55:59.262444448Z"}
+{"timestamp":"2026-02-24T23:55:59.262449228Z","level":"info","message":""}
+{"message":"   ?? Texto combinado: \"[5] Olá! Tenho interesse em ser parceiro e queria mais informações, por favor....\"","level":"info","timestamp":"2026-02-24T23:55:59.262452790Z"}
+{"message":"","timestamp":"2026-02-24T23:55:59.262459849Z","level":"info"}
+{"timestamp":"2026-02-24T23:55:59.262466126Z","message":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!","level":"info"}
+{"timestamp":"2026-02-24T23:55:59.262476162Z","level":"info","message":"🚫 [AI AGENT] IA DESATIVADA - Timer cancelado"}
+{"level":"info","message":"   conversationId: 29723b7f-1cd5-4b12-828c-0ddb8bfcceea","timestamp":"2026-02-24T23:55:59.262482609Z"}
+{"timestamp":"2026-02-24T23:55:59.262488948Z","level":"info","message":"   contactNumber: 5521966553993"}
+{"message":"","timestamp":"2026-02-24T23:55:59.262495236Z","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:55:59.262496099Z","message":"   👉 IA foi desativada entre criação e execução do timer"}
+{"level":"info","timestamp":"2026-02-24T23:55:59.262501483Z","message":"🔄 [AUTO-RECOVERY] Recuperando resposta para 5515996480047 (user: bc2043cb..., 1 msgs)"}
+{"message":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!","timestamp":"2026-02-24T23:55:59.262503320Z","level":"info"}
+{"timestamp":"2026-02-24T23:55:59.262507783Z","level":"info","message":"🔄 [DB] Resetando timer para retry: 6a633fca-49fa-4724-b7e3-62c705193b5a"}
+{"level":"info","message":"🔄 [DB] Resetando timer para retry: c0956fdc-6ea2-471b-b810-870c02d501fb","timestamp":"2026-02-24T23:55:59.262513881Z"}
+{"timestamp":"2026-02-24T23:55:59.262519778Z","level":"info","message":"?? [UNRESPONDED CHECK] 16 conversas nas �ltimas 24h"}
+{"message":"💾 [AI AGENT] Timer reagendado no banco para 2026-02-25T00:00:58.314Z","timestamp":"2026-02-24T23:55:59.264132851Z","level":"info"}
+{"timestamp":"2026-02-24T23:55:59.264137145Z","level":"info","message":"🔄 [DB] Resetando timer para retry: d4065522-4ea6-4acf-ad37-05557fd8a505"}
+{"timestamp":"2026-02-24T23:55:59.264141694Z","level":"info","message":"🔍 [BAILEYS-CTWA] PDO message without response after 8 seconds. Phone possibly offline"}
+{"timestamp":"2026-02-24T23:55:59.264145624Z","message":"✅ [AI AGENT] Usuário tem plano pago ativo e válido: Plano Mensal","level":"info"}
+{"message":"   ?? Texto combinado: \"🙌🏾🙏🏾...\"","timestamp":"2026-02-24T23:55:59.264149221Z","level":"info"}
+{"timestamp":"2026-02-24T23:55:59.264152854Z","message":"?? [MSG CACHE] Mensagem AC5754BC9AF910A1868D193E09AEC26C N�O encontrada no cache para user bc2043cb...","level":"info"}
+{"timestamp":"2026-02-24T23:55:59.264156490Z","level":"info","message":"🔄 [STUB-PDO-RETRY] Tentativa #2 de PDO para AC5754BC9AF910A1868D193E09AEC26C de 554784970851"}
+{"level":"info","timestamp":"2026-02-24T23:55:59.264160352Z","message":"[CONNECTION UPDATE] User bc2043cb... - connection: undefined, hasQR: false, statusCode: none"}
+{"message":"🎤 [Storage] Áudio baixado da URL: 87020 bytes","timestamp":"2026-02-24T23:55:59.268412991Z","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:56:00.271072876Z","message":"   ⏱️ Aguardou 39.1s | 2 mensagem(s) acumulada(s)"}
+{"message":"   📞 Contato: 5521965002120","timestamp":"2026-02-24T23:56:00.271094312Z","level":"info"}
+{"message":"","timestamp":"2026-02-24T23:56:00.271102477Z","level":"info"}
+{"timestamp":"2026-02-24T23:56:00.271110325Z","level":"info","message":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"}
+{"message":"🚫 [AI AGENT] IA DESATIVADA - Timer cancelado","timestamp":"2026-02-24T23:56:00.271115801Z","level":"info"}
+{"level":"info","message":"   contactNumber: 5522999143654","timestamp":"2026-02-24T23:56:00.271127968Z"}
+{"timestamp":"2026-02-24T23:56:00.271134062Z","level":"info","message":"   👉 IA foi desativada entre criação e execução do timer"}
+{"timestamp":"2026-02-24T23:56:00.271144798Z","level":"info","message":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"}
+{"timestamp":"2026-02-24T23:56:00.271154064Z","level":"info","message":""}
+{"timestamp":"2026-02-24T23:56:00.271162629Z","level":"info","message":"🔄 [AUTO-RECOVERY] Recuperando resposta para 559484271915 (user: e82761d9..., 1 msgs)"}
+{"message":"🔄 [DB] Resetando timer para retry: 45b5d4ee-432c-4f0f-a836-0d4c9a1f4c6d","timestamp":"2026-02-24T23:56:00.271168518Z","level":"info"}
+{"timestamp":"2026-02-24T23:56:00.271174348Z","level":"info","message":"🔓 [AI AGENT] Conversa c0956fdc-6ea2-471b-b810-870c02d501fb liberada para próximo processamento"}
+{"message":"🔄 [AI AGENT] Timer reagendado retry 2/8 em 30s - resposta falhou (conversationId: c0956fdc-6ea2-471b-b810-870c02d501fb)","level":"error","timestamp":"2026-02-24T23:56:00.271179347Z"}
+{"timestamp":"2026-02-24T23:56:00.271185583Z","message":"✅ [AI AGENT] Usuário tem plano pago ativo e válido: Plano Mensal","level":"info"}
+{"message":"   ?? Texto combinado: \"Oi...\"","level":"info","timestamp":"2026-02-24T23:56:00.271190820Z"}
+{"timestamp":"2026-02-24T23:56:00.271743960Z","level":"info","message":"11:55:59 PM [express] GET /api/whatsapp/connection 304 in 1ms :: {\"id\":\"d7895dae-5737-4d11-b44e-97f5f…"}
+{"level":"info","message":"?? [AI AGENT] Nome do cliente: cremilda","timestamp":"2026-02-24T23:56:00.271750811Z"}
+{"timestamp":"2026-02-24T23:56:00.271756062Z","level":"info","message":"?? [AI AGENT] M�dias j� enviadas: nenhuma"}
+{"message":"","timestamp":"2026-02-24T23:56:00.271761863Z","level":"info"}
+{"message":"🔄 [AI AGENT] =========== PROCESSANDO RESPOSTA ===========","timestamp":"2026-02-24T23:56:00.271768212Z","level":"info"}
+{"timestamp":"2026-02-24T23:56:00.276916720Z","level":"info","message":"?? [AI AGENT] M�dias j� enviadas: nenhuma"}
+{"timestamp":"2026-02-24T23:56:00.276926107Z","message":"🔓 [AI AGENT] Conversa d4065522-4ea6-4acf-ad37-05557fd8a505 liberada para próximo processamento","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:56:00.361144682Z","message":"[LLM] ✅ Mistral chatComplete (mistral-medium-latest) respondeu"}
+{"level":"info","message":"","timestamp":"2026-02-24T23:56:00.361164358Z"}
+{"timestamp":"2026-02-24T23:56:00.361181412Z","message":"✅ [AI Agent] Resposta gerada: 2️⃣ *Suporte lombar terapêutico*: A estrutura semirrígida *alinha a coluna* e reduz dores lombares (...","level":"info"}
+{"level":"info","message":"3️⃣ *Tecnologia magnética*: Os ímãs ajudam a:","timestamp":"2026-02-24T23:56:00.361195122Z"}
+{"timestamp":"2026-02-24T23:56:00.361208664Z","level":"info","message":"🔄 [AI Agent] Placeholders processados na resposta"}
+{"timestamp":"2026-02-24T23:56:01.259963045Z","message":"   👉 IA foi desativada entre criação e execução do timer","level":"info"}
+{"message":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!","timestamp":"2026-02-24T23:56:01.259969849Z","level":"info"}
+{"timestamp":"2026-02-24T23:56:01.260030664Z","level":"info","message":"🧪 ═══════════════════════════════════════════════════════════════"}
+{"level":"info","message":"?? [AI AGENT] Nome do cliente: 🄱🅁🅄🄽🄰♪♥","timestamp":"2026-02-24T23:56:01.260033541Z"}
+{"message":"?? [AI AGENT] M�dias j� enviadas: nenhuma","timestamp":"2026-02-24T23:56:01.260042242Z","level":"info"}
+{"timestamp":"2026-02-24T23:56:01.260044824Z","message":"🧪 [SIMULADOR] 📁 Mídias na resposta: 0","level":"info"}
+{"timestamp":"2026-02-24T23:56:01.260049251Z","level":"info","message":""}
+{"timestamp":"2026-02-24T23:56:01.260050894Z","level":"info","message":"?? [AI AGENT] Modo hist�rico ATIVO - 11 mensagens dispon�veis para contexto"}
+{"timestamp":"2026-02-24T23:56:01.260054617Z","level":"info","message":"🍕 [DeliveryAI] DEBUG config: null"}
+{"message":"🔄 [AI AGENT] =========== PROCESSANDO RESPOSTA ===========","level":"info","timestamp":"2026-02-24T23:56:01.262614025Z"}
+{"message":"🎤 [Storage] Iniciando transcrição com Mistral...","level":"info","timestamp":"2026-02-24T23:56:01.262636271Z"}
+{"level":"info","timestamp":"2026-02-24T23:56:01.262637743Z","message":"🔄 [AUTO-RECOVERY] Recuperando resposta para 559481327462 (user: a6ebfa8b..., 3 msgs)"}
+{"message":"   📞 Contato: 559180639488","level":"info","timestamp":"2026-02-24T23:56:01.262640810Z"}
+{"message":"🔄 [STUB-PDO-RETRY] Tentativa #3 de PDO para AC5754BC9AF910A1868D193E09AEC26C de 554784970851","timestamp":"2026-02-24T23:56:01.262644703Z","level":"info"}
+{"message":"?? [MSG CACHE] Mensagem AC5754BC9AF910A1868D193E09AEC26C N�O encontrada no cache para user bc2043cb...","timestamp":"2026-02-24T23:56:01.262645632Z","level":"info"}
+{"timestamp":"2026-02-24T23:56:01.262650316Z","level":"info","message":"[CONNECTION UPDATE] User bc2043cb... - connection: undefined, hasQR: false, statusCode: none"}
+{"timestamp":"2026-02-24T23:56:01.262657452Z","level":"info","message":"[CONNECTION UPDATE] User bc2043cb... - connection: undefined, hasQR: false, statusCode: none"}
+{"timestamp":"2026-02-24T23:56:01.262660301Z","level":"info","message":"?? [AI AGENT] Modo hist�rico ATIVO - 2 mensagens dispon�veis para contexto"}
+{"timestamp":"2026-02-24T23:56:01.262674094Z","message":"?? [UNRESPONDED CHECK] Iniciando verifica��o de mensagens n�o respondidas...","level":"info"}
+{"message":"?? [AI AGENT] Modo hist�rico ATIVO - 9 mensagens dispon�veis para contexto","timestamp":"2026-02-24T23:56:01.335398321Z","level":"info"}
+{"timestamp":"2026-02-24T23:56:01.335413448Z","message":"📁 [AI Agent] Mídias já enviadas: nenhuma","level":"info"}
+{"timestamp":"2026-02-24T23:56:02.154380959Z","level":"info","message":"🛡️ [ANTI-BAN v5.0] 👤 Mensagem MANUAL do DONO detectada"}
+{"level":"info","message":"   📱 Contato: 558586589341","timestamp":"2026-02-24T23:56:02.154385637Z"}
+{"message":"🎵 [FROM ME] Baixando áudio do dono para transcrição...","timestamp":"2026-02-24T23:56:02.154399105Z","level":"info"}
+{"message":"🎵 [FROM ME] directPath presente: true","timestamp":"2026-02-24T23:56:02.154408647Z","level":"info"}
+{"message":"   Parte 1/2: 361 chars","level":"info","timestamp":"2026-02-24T23:56:02.154421492Z"}
+{"message":"11:56:01 PM [express] POST /api/agent/test 200 in 9765ms :: {\"response\":\"2️⃣ *Suporte lombar terapêut…","timestamp":"2026-02-24T23:56:02.154437960Z","level":"info"}
+{"message":"   contactNumber: 559484271915","timestamp":"2026-02-24T23:56:02.154641300Z","level":"info"}
+{"level":"info","message":"","timestamp":"2026-02-24T23:56:02.155734567Z"}
+{"level":"info","message":"🚨 [RECOVERY] Iniciando recuperação para usuário: d1a296ae...","timestamp":"2026-02-24T23:56:02.155758094Z"}
+{"level":"info","message":"🚫 [AUTO-REACTIVATE] Agente IA desativado em ai_agent_config para user 365d4cc6-2f59-422c-8f31-fcfd33e31b36 - NÃO reativando","timestamp":"2026-02-24T23:56:02.155760019Z"}
+{"timestamp":"2026-02-24T23:56:02.155774591Z","level":"info","message":""}
+{"message":"?? [AI AGENT] M�dias j� enviadas: nenhuma","level":"info","timestamp":"2026-02-24T23:56:02.155775117Z"}
+{"message":"✅ [MediaStorage] Uploaded successfully: https://bnfpcuzjvycudccycqqt.supabase.co/storage/v1/object/public/whatsapp-media/e99199e0-f311-4e3b-b2cb-dc6ba70b61b3/1771977361689_76a1c932.ogg","timestamp":"2026-02-24T23:56:02.155781178Z","level":"info"}
+{"message":"👤 [AI Agent] Nome do cliente: Lincoln César Ernesto","level":"info","timestamp":"2026-02-24T23:56:02.155805320Z"}
+{"timestamp":"2026-02-24T23:56:02.272837231Z","level":"info","message":"📁 [AI Agent] Mídias já enviadas: nenhuma"}
+{"timestamp":"2026-02-24T23:56:02.294443643Z","message":"🚨 [RECOVERY] ✅ Nenhuma mensagem pendente para d1a296ae...","level":"info"}

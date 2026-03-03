@@ -1,0 +1,432 @@
+{
+  "timestamp": "2026-01-11T14:20:18.748Z",
+  "total": 11,
+  "passou": 0,
+  "percentual": 0,
+  "resultados": [
+    {
+      "cliente": "Marina",
+      "negocio": "Loja de roupas femininas",
+      "passou": false,
+      "problemas": [
+        "❌ Nunca mencionou: \"agentezap.online\"",
+        "❌ Nunca mencionou: \"PARC2026PROMO\""
+      ],
+      "conversa": [
+        {
+          "cliente": "Oi!",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Tenho uma loja de roupas femininas, preciso automatizar atendimento",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Quanto custa?",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Tem envio em massa?",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Como faço pra testar?",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Fechou, vou criar conta",
+          "agente": "ERRO"
+        }
+      ]
+    },
+    {
+      "cliente": "Carlos",
+      "negocio": "Clínica médica",
+      "passou": false,
+      "problemas": [
+        "❌ Nunca mencionou: \"agentezap.online\"",
+        "❌ Nunca mencionou: \"7 dias\""
+      ],
+      "conversa": [
+        {
+          "cliente": "Boa tarde",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Tenho uma clínica médica, preciso de agendamento automático",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Isso é seguro? Dados de pacientes?",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Como funciona o agendamento?",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Tem contrato de fidelidade?",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Posso testar antes de pagar?",
+          "agente": "ERRO"
+        }
+      ]
+    },
+    {
+      "cliente": "Roberto",
+      "negocio": "Corretor de imóveis",
+      "passou": false,
+      "problemas": [
+        "❌ Nunca mencionou: \"agentezap.online\"",
+        "❌ Nunca mencionou: \"R$49\"",
+        "❌ Nunca mencionou: \"PARC2026PROMO\""
+      ],
+      "conversa": [
+        {
+          "cliente": "Oi, não entendo muito de internet",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Sou corretor de imóveis",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Como que funciona isso aí?",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Mas eu preciso instalar alguma coisa?",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "E se o cliente perguntar algo que a IA não sabe?",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Quanto é o preço?",
+          "agente": "ERRO"
+        }
+      ]
+    },
+    {
+      "cliente": "Fernanda",
+      "negocio": "Restaurante delivery",
+      "passou": false,
+      "problemas": [
+        "❌ Nunca mencionou: \"agentezap.online\""
+      ],
+      "conversa": [
+        {
+          "cliente": "Olá",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Tenho um restaurante delivery, atendo 500 pedidos por dia",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Preciso de envio em massa pra campanhas de promoção",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "E se o cliente não responder à campanha?",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Tem CRM pra organizar os clientes?",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Quero ver o sistema funcionando",
+          "agente": "ERRO"
+        }
+      ]
+    },
+    {
+      "cliente": "Juliana",
+      "negocio": "Salão de beleza",
+      "passou": false,
+      "problemas": [
+        "❌ Nunca mencionou: \"agentezap.online\"",
+        "❌ Nunca mencionou: \"PARC2026PROMO\""
+      ],
+      "conversa": [
+        {
+          "cliente": "Bom dia!",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Tenho salão de beleza, preciso automatizar agendamento",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Integra com Google Calendar?",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Tem follow-up automático pra quem não aparece?",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Quanto é?",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Vou testar!",
+          "agente": "ERRO"
+        }
+      ]
+    },
+    {
+      "cliente": "Pedro",
+      "negocio": "Academia de musculação",
+      "passou": false,
+      "problemas": [
+        "❌ Nunca mencionou: \"agentezap.online\""
+      ],
+      "conversa": [
+        {
+          "cliente": "E aí",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Sou dono de academia",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Já testei outros sistemas e nenhum funcionou",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Como vocês são diferentes?",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Tem como qualificar leads automaticamente?",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Tá, vou dar uma olhada",
+          "agente": "ERRO"
+        }
+      ]
+    },
+    {
+      "cliente": "Amanda",
+      "negocio": "Loja de móveis",
+      "passou": false,
+      "problemas": [
+        "❌ Nunca mencionou: \"agentezap.online\""
+      ],
+      "conversa": [
+        {
+          "cliente": "Boa noite",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Trabalho com móveis planejados",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Preciso saber como configurar o agente",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Como eu treino a IA pra responder sobre meus produtos?",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Onde configuro isso?",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Tem vídeo explicando?",
+          "agente": "ERRO"
+        }
+      ]
+    },
+    {
+      "cliente": "Lucas",
+      "negocio": "E-commerce de eletrônicos",
+      "passou": false,
+      "problemas": [
+        "❌ Nunca mencionou: \"agentezap.online\"",
+        "❌ Nunca mencionou: \"anti-bloqueio\""
+      ],
+      "conversa": [
+        {
+          "cliente": "Olá!",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Tenho e-commerce de eletrônicos, 2000 pedidos/mês",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Vocês usam qual modelo de IA?",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Tem API pra integrar com meu sistema?",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "E a taxa de bloqueio no WhatsApp?",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Quero testar",
+          "agente": "ERRO"
+        }
+      ]
+    },
+    {
+      "cliente": "Carla",
+      "negocio": "Consultório odontológico",
+      "passou": false,
+      "problemas": [
+        "❌ Nunca mencionou: \"agentezap.online\"",
+        "❌ Nunca mencionou: \"CRM\"",
+        "❌ Nunca mencionou: \"Kanban\""
+      ],
+      "conversa": [
+        {
+          "cliente": "Bom dia",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Sou dentista, tenho consultório",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Preciso organizar meus pacientes em etapas",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Tem kanban ou CRM?",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "E o follow-up pra quem não responde?",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Vou acessar o site",
+          "agente": "ERRO"
+        }
+      ]
+    },
+    {
+      "cliente": "Thiago",
+      "negocio": "Advogado",
+      "passou": false,
+      "problemas": [
+        "❌ Nunca mencionou: \"agentezap.online\"",
+        "❌ Nunca mencionou: \"R$49\"",
+        "❌ Nunca mencionou: \"PARC2026PROMO\""
+      ],
+      "conversa": [
+        {
+          "cliente": "Boa tarde",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Sou advogado trabalhista",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Preciso de um sistema para atendimento inicial de clientes",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "É possível agendar consultas automaticamente?",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Como funciona a precificação?",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Irei avaliar",
+          "agente": "ERRO"
+        }
+      ]
+    },
+    {
+      "cliente": "Roberto (Anti-Amnésia)",
+      "negocio": "Corretor de imóveis",
+      "passou": false,
+      "problemas": [
+        "❌ ANTI-AMNÉSIA: Não lembrou que já havia respondido sobre preço"
+      ],
+      "conversa": [
+        {
+          "cliente": "Oi!",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Sou corretor de imóveis",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Trabalho com venda e aluguel de apartamentos",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Quanto custa o sistema?",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Tem teste grátis?",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Como funciona o envio em massa?",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "E se o cliente não responder?",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Tem CRM?",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Oi",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Voltando... como faço pra configurar?",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "E o agendamento?",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Quanto custa mesmo?",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Tá, vou criar conta",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Olá",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Qual é o link mesmo?",
+          "agente": "ERRO"
+        },
+        {
+          "cliente": "Valeu!",
+          "agente": "ERRO"
+        }
+      ]
+    }
+  ]
+}

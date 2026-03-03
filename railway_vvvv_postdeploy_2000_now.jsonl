@@ -1,0 +1,110 @@
+﻿{"level":"info","message":"Mounting volume on: /var/lib/containers/railwayapp/bind-mounts/e105a334-92e7-42a3-b440-defc645abce9/vol_eg1nu9j50zria2sv","timestamp":"2026-02-25T03:48:59.076893494Z"}
+{"message":"Starting Container","timestamp":"2026-02-25T03:49:00.113096937Z","level":"info"}
+{"level":"info","timestamp":"2026-02-25T03:49:00.246575469Z","message":""}
+{"level":"info","message":"> rest-express@1.0.1 start","timestamp":"2026-02-25T03:49:00.246582345Z"}
+{"timestamp":"2026-02-25T03:49:00.246589377Z","message":"> cross-env NODE_ENV=production node dist/index.js","level":"info"}
+{"timestamp":"2026-02-25T03:49:00.246595892Z","message":"","level":"info"}
+{"message":"🚀 [BOOT] Starting server (bootId=2026-02-25T03:49:00.226Z) mode=monolith","timestamp":"2026-02-25T03:49:00.246603915Z","level":"info"}
+{"message":"🚀 [BOOT] node=v20.6.1 env=production port=8080","timestamp":"2026-02-25T03:49:00.246611495Z","level":"info"}
+{"message":"🚀 [BOOT] railwayCommit=unknown","timestamp":"2026-02-25T03:49:00.246623385Z","level":"info"}
+{"message":"🏗️ [MONOLITH MODE] Loading full application...","timestamp":"2026-02-25T03:49:00.246630473Z","level":"info"}
+{"level":"info","message":"[DB] Modo de conexão: Supabase Pooler (PgBouncer)","timestamp":"2026-02-25T03:49:01.181867307Z"}
+{"level":"info","message":"🛡️ [ANTI-BAN v5.0] Sistema SIMPLIFICADO inicializado","timestamp":"2026-02-25T03:49:02.022008829Z"}
+{"message":"   📊 Delay entre msgs: 5-15s","timestamp":"2026-02-25T03:49:02.022019165Z","level":"info"}
+{"timestamp":"2026-02-25T03:49:02.022025359Z","level":"info","message":"   📊 Após msg do dono: +5s"}
+{"level":"info","timestamp":"2026-02-25T03:49:02.022031049Z","message":"   📊 Lote: 10 msgs → pausa 60s"}
+{"level":"info","message":"🚀 [CENTRALIZED-SENDER v3.0] Sistema com ENQUETES inicializado","timestamp":"2026-02-25T03:49:02.022036971Z"}
+{"level":"info","timestamp":"2026-02-25T03:49:02.022043634Z","message":"   🗳️ Polls: DESATIVADO"}
+{"message":"   ⏱️ Delays: 5s - 15s","timestamp":"2026-02-25T03:49:02.022049635Z","level":"info"}
+{"level":"info","timestamp":"2026-02-25T03:49:02.022055108Z","message":"   ⌨️ Typing: ATIVADO"}
+{"level":"info","message":"   📦 Batch: 10 msgs, pausa 60s","timestamp":"2026-02-25T03:49:02.022060872Z"}
+{"level":"info","timestamp":"2026-02-25T03:49:02.949099671Z","message":"✅ [AI ROUTES] Rotas de IA registradas"}
+{"timestamp":"2026-02-25T03:49:02.949112485Z","level":"info","message":"🎤 [AUDIO-CONFIG] Registrando rotas de configuração de áudio TTS..."}
+{"message":"✅ [AUDIO-CONFIG] Rotas de áudio TTS registradas!","timestamp":"2026-02-25T03:49:02.949119269Z","level":"info"}
+{"message":"📦 [CHATBOT_FLOW] Registrando rotas do construtor de fluxo de chatbot...","timestamp":"2026-02-25T03:49:02.949124302Z","level":"info"}
+{"message":"✅ [CHATBOT_FLOW] Rotas registradas com sucesso!","timestamp":"2026-02-25T03:49:02.949129652Z","level":"info"}
+{"message":"💇 [Salon] Registrando rotas de salão...","timestamp":"2026-02-25T03:49:02.949135753Z","level":"info"}
+{"timestamp":"2026-02-25T03:49:02.949142146Z","level":"info","message":"✅ [Salon] Rotas de salão registradas com sucesso!"}
+{"message":"🎫 [DEBUG] About to call registerTicketRoutes...","level":"info","timestamp":"2026-02-25T03:49:02.949147296Z"}
+{"message":"🛡️ [ANTI-REENVIO] MessageDeduplicationService inicializado","level":"info","timestamp":"2026-02-25T03:49:02.949843041Z"}
+{"level":"info","message":"🛡️ [ANTI-BLOCK v5.0] MessageQueueService SIMPLIFICADO iniciado","timestamp":"2026-02-25T03:49:02.949850758Z"}
+{"message":"   📊 Config: 5-15s delay, 10 msgs/lote, 60s pausa","level":"info","timestamp":"2026-02-25T03:49:02.949857981Z"}
+{"message":"🚨 [RECOVERY] PendingMessageRecoveryService inicializado","timestamp":"2026-02-25T03:49:02.949865233Z","level":"info"}
+{"message":"🔄 [MISSED MSG] Polling de mensagens não processadas iniciado (a cada 45s)","level":"info","timestamp":"2026-02-25T03:49:02.949872904Z"}
+{"timestamp":"2026-02-25T03:49:02.949880325Z","level":"info","message":"🛡️ [ANTI-BLOCK] Callback de envio registrado"}
+{"level":"info","message":"[WHATSAPP] Using SESSIONS_DIR=/data/whatsapp-sessions","timestamp":"2026-02-25T03:49:02.949887572Z"}
+{"level":"info","message":"📲 [FOLLOW-UP] Callback registrado","timestamp":"2026-02-25T03:49:02.949895887Z"}
+{"message":"📲 [AGENDAMENTO] Callback registrado","level":"info","timestamp":"2026-02-25T03:49:02.949902513Z"}
+{"level":"info","message":"[dotenv@17.2.3] injecting env (0) from dist/.env -- tip: 👥 sync secrets across teammates & machines: https://dotenvx.com/ops","timestamp":"2026-02-25T03:49:02.949915294Z"}
+{"message":"✅ [FOLLOW-UP] Rotas registradas","timestamp":"2026-02-25T03:49:02.949922866Z","level":"info"}
+{"level":"info","message":"✅ [ADMIN FOLLOW-UP] Rotas registradas","timestamp":"2026-02-25T03:49:02.949930209Z"}
+{"timestamp":"2026-02-25T03:49:02.949937698Z","level":"info","message":"✅ [NOTAPAYERS] Rotas de follow-up para não pagantes registradas"}
+{"level":"info","message":"🎫 [Tickets] Registrando rotas de chamados...","timestamp":"2026-02-25T03:49:02.950046405Z"}
+{"message":"✅ [Tickets] Rotas registradas com sucesso!","level":"info","timestamp":"2026-02-25T03:49:02.950055336Z"}
+{"level":"info","message":"✅ [DEBUG] registerTicketRoutes called successfully","timestamp":"2026-02-25T03:49:02.950065027Z"}
+{"level":"info","message":"[Sectors] Registrando rotas de setores...","timestamp":"2026-02-25T03:49:02.950074622Z"}
+{"timestamp":"2026-02-25T03:49:02.950084227Z","message":"[Sectors] Rotas registradas com sucesso!","level":"info"}
+{"timestamp":"2026-02-25T03:49:02.950093036Z","level":"info","message":"[UserSectors] Registrando rotas de setores para usuário normal..."}
+{"message":"[UserSectors] Rotas registradas com sucesso!","level":"info","timestamp":"2026-02-25T03:49:02.950103661Z"}
+{"level":"info","message":"🔒 [Fase 4.2] Registrando rotas de encerramento de chamados...","timestamp":"2026-02-25T03:49:02.950112465Z"}
+{"message":"✅ [Fase 4.2] Rotas de encerramento registradas com sucesso!","timestamp":"2026-02-25T03:49:02.950122793Z","level":"info"}
+{"message":"✅ [STATUS] Admin status routes registered successfully","level":"info","timestamp":"2026-02-25T03:49:02.950129955Z"}
+{"message":"🚀 [USER-FOLLOW-UP] Serviço iniciado","timestamp":"2026-02-25T03:49:02.950137425Z","level":"info"}
+{"timestamp":"2026-02-25T03:49:02.950147167Z","level":"info","message":"📲 [USER-FOLLOW-UP] Callback registrado"}
+{"level":"info","message":"3:49:02 AM [express] serving on port 8080","timestamp":"2026-02-25T03:49:02.950158375Z"}
+{"level":"info","timestamp":"2026-02-25T03:49:03.199605950Z","message":"WebSocket client connected for user: 88b422cc-4092-46a5-b724-67bce82f47ad"}
+{"message":"WebSocket client connected for user: 7ba8ea20-6edc-4ef9-9110-f3284c9859a5","timestamp":"2026-02-25T03:49:03.977741515Z","level":"info"}
+{"level":"info","timestamp":"2026-02-25T03:49:03.977746058Z","message":"WebSocket client connected for user: 841c32ed-95fe-4267-a37a-9262e2fcd993"}
+{"level":"info","timestamp":"2026-02-25T03:49:03.977750000Z","message":"🚨 [RECOVERY] Message processor registrado"}
+{"message":"🚨 [RECOVERY] ✅ Message processor registrado com sucesso!","timestamp":"2026-02-25T03:49:03.977753939Z","level":"info"}
+{"timestamp":"2026-02-25T03:49:04.083431117Z","message":"WebSocket client connected for user: 7ba8ea20-6edc-4ef9-9110-f3284c9859a5","level":"info"}
+{"timestamp":"2026-02-25T03:49:04.171016317Z","message":"✅ [DB Pool] Nova conexão ESTABELECIDA","level":"info"}
+{"level":"info","message":"✅ [DB Pool] Nova conexão ESTABELECIDA","timestamp":"2026-02-25T03:49:04.222846282Z"}
+{"level":"info","message":"WebSocket client connected for user: 88b422cc-4092-46a5-b724-67bce82f47ad","timestamp":"2026-02-25T03:49:04.232202116Z"}
+{"level":"info","message":"✅ [DB] Autenticação OK em 1373ms | User: postgres | DB: postgres","timestamp":"2026-02-25T03:49:04.879974572Z"}
+{"timestamp":"2026-02-25T03:49:04.879979612Z","message":"WebSocket client connected for user: 841c32ed-95fe-4267-a37a-9262e2fcd993","level":"info"}
+{"message":"3:49:04 AM [express] GET /api/auth/user 304 in 1369ms :: {\"id\":\"841c32ed-95fe-4267-a37a-9262e2fcd993…","timestamp":"2026-02-25T03:49:04.879985664Z","level":"info"}
+{"timestamp":"2026-02-25T03:49:04.890049430Z","level":"info","message":"WebSocket client connected for user: 7ba8ea20-6edc-4ef9-9110-f3284c9859a5"}
+{"level":"info","message":"✅ [DB Pool] Nova conexão ESTABELECIDA","timestamp":"2026-02-25T03:49:05.089231358Z"}
+{"timestamp":"2026-02-25T03:49:05.184804574Z","level":"info","message":"WebSocket client connected for user: 88b422cc-4092-46a5-b724-67bce82f47ad"}
+{"message":"3:49:05 AM [express] GET /api/auth/user 304 in 1343ms :: {\"id\":\"88b422cc-4092-46a5-b724-67bce82f47ad…","timestamp":"2026-02-25T03:49:05.899246281Z","level":"info"}
+{"timestamp":"2026-02-25T03:49:05.899251123Z","level":"info","message":"🌱 Seeding database..."}
+{"level":"info","timestamp":"2026-02-25T03:49:05.980633749Z","message":"ℹ️ Admin owner already exists"}
+{"level":"info","message":"[DB] Verificando tabelas necessárias...","timestamp":"2026-02-25T03:49:05.984200193Z"}
+{"message":"WebSocket client connected for user: 7ba8ea20-6edc-4ef9-9110-f3284c9859a5","timestamp":"2026-02-25T03:49:06.145995023Z","level":"info"}
+{"message":"ℹ️ Mistral API Key already exists","level":"info","timestamp":"2026-02-25T03:49:06.171523983Z"}
+{"message":"✅ [DB] Tabela contact_lists já existe","timestamp":"2026-02-25T03:49:06.198190796Z","level":"info"}
+{"level":"info","timestamp":"2026-02-25T03:49:06.243754853Z","message":"WebSocket client connected for user: cb9213c3-fde3-479e-a4aa-344171c59735"}
+{"message":"ℹ️ Z.AI API Key already exists","level":"info","timestamp":"2026-02-25T03:49:06.953669206Z"}
+{"timestamp":"2026-02-25T03:49:06.953676121Z","message":"ℹ️ PIX key already exists","level":"info"}
+{"level":"info","message":"ℹ️ Admin auto-atendimento enabled already exists","timestamp":"2026-02-25T03:49:06.953682376Z"}
+{"message":"ℹ️ Owner notification number already exists","timestamp":"2026-02-25T03:49:06.953688468Z","level":"info"}
+{"timestamp":"2026-02-25T03:49:07.053091881Z","level":"info","message":"WebSocket client connected for user: 7ba8ea20-6edc-4ef9-9110-f3284c9859a5"}
+{"message":"WebSocket client connected for user: 841c32ed-95fe-4267-a37a-9262e2fcd993","timestamp":"2026-02-25T03:49:07.284112597Z","level":"info"}
+{"level":"info","message":"ℹ️ Admin auto-atendimento prompt already exists","timestamp":"2026-02-25T03:49:09.239612177Z"}
+{"message":"ℹ️ Plans already exist","timestamp":"2026-02-25T03:49:10.008734591Z","level":"info"}
+{"timestamp":"2026-02-25T03:49:10.008745429Z","level":"info","message":"ℹ️ Admin user role updated to owner"}
+{"timestamp":"2026-02-25T03:49:10.008753063Z","message":"🎉 Database seeded successfully","level":"info"}
+{"level":"info","timestamp":"2026-02-25T03:49:10.014456107Z","message":"[MIGRATION] ai_enabled column ensured on whatsapp_connections"}
+{"timestamp":"2026-02-25T03:49:15.104463544Z","message":"🔌 [DB Pool] Conexão REMOVIDA","level":"info"}
+{"message":"3:49:14 AM [express] GET /api/auth/user 304 in 197ms :: {\"id\":\"cb9213c3-fde3-479e-a4aa-344171c59735\"…","timestamp":"2026-02-25T03:49:15.104469923Z","level":"info"}
+{"level":"info","timestamp":"2026-02-25T03:49:16.218006917Z","message":"3:49:15 AM [express] GET /api/conversations-with-tags 200 in 1152ms :: {\"data\":[{\"id\":\"248cb3b8-6f91…"}
+{"timestamp":"2026-02-25T03:49:16.218014135Z","level":"info","message":"3:49:15 AM [express] GET /api/auth/user 304 in 1ms :: {\"id\":\"cb9213c3-fde3-479e-a4aa-344171c59735\",\"…"}
+{"timestamp":"2026-02-25T03:49:16.218021159Z","level":"info","message":"WebSocket client disconnected for user: cb9213c3-fde3-479e-a4aa-344171c59735"}
+{"level":"info","message":"3:49:18 AM [express] GET /api/user/suspension-status 304 in 196ms :: {\"suspended\":false}","timestamp":"2026-02-25T03:49:18.132764523Z"}
+{"timestamp":"2026-02-25T03:49:18.132775203Z","message":"3:49:18 AM [express] GET /api/auth/user 304 in 1ms :: {\"id\":\"cb9213c3-fde3-479e-a4aa-344171c59735\",\"…","level":"info"}
+{"level":"info","message":"3:49:17 AM [express] GET /api/auth/user 304 in 1ms :: {\"id\":\"cb9213c3-fde3-479e-a4aa-344171c59735\",\"…","timestamp":"2026-02-25T03:49:18.132804024Z"}
+{"timestamp":"2026-02-25T03:49:18.132810909Z","level":"info","message":"3:49:17 AM [express] GET /api/conversations-with-tags 200 in 1ms :: {\"data\":[{\"id\":\"248cb3b8-6f91-42…"}
+{"level":"info","timestamp":"2026-02-25T03:49:18.132817264Z","message":"3:49:17 AM [express] GET /api/whatsapp/connection 304 in 5ms :: {\"id\":\"8eb70fe1-f689-47ca-989f-c00b9…"}
+{"level":"info","message":"3:49:18 AM [express] GET /api/subscriptions/current 304 in 387ms :: {\"id\":\"c7ee20d9-0486-48e4-b21b-d…","timestamp":"2026-02-25T03:49:18.319457828Z"}
+{"level":"info","message":"3:49:18 AM [express] GET /api/agent/config 304 in 457ms :: {\"id\":\"f672ea78-7261-4b8d-a69f-f59a22d300…","timestamp":"2026-02-25T03:49:18.369728071Z"}
+{"level":"info","message":"WebSocket client connected for user: cb9213c3-fde3-479e-a4aa-344171c59735","timestamp":"2026-02-25T03:49:19.220576994Z"}
+{"message":"3:49:18 AM [express] GET /api/user/assigned-plan 304 in 826ms :: {\"hasAssignedPlan\":false}","timestamp":"2026-02-25T03:49:19.220590882Z","level":"info"}
+{"level":"info","timestamp":"2026-02-25T03:49:19.220601273Z","message":"✅ [DB Pool] Nova conexão ESTABELECIDA"}
+{"message":"3:49:18 AM [express] GET /api/tags 304 in 913ms :: [{\"id\":\"6bd86a13-e362-4f6a-afce-9ef7f0ccdd4f\",\"us…","level":"info","timestamp":"2026-02-25T03:49:19.220609851Z"}
+{"timestamp":"2026-02-25T03:49:19.220618579Z","level":"info","message":"3:49:18 AM [express] GET /api/user/branding 304 in 1023ms :: {\"isWhiteLabel\":false,\"companyName\":\"Ag…"}
+{"timestamp":"2026-02-25T03:49:19.220624773Z","message":"3:49:18 AM [express] GET /api/auth/user 304 in 1ms :: {\"id\":\"cb9213c3-fde3-479e-a4aa-344171c59735\",\"…","level":"info"}
+{"level":"info","message":"3:49:19 AM [express] GET /api/reseller/status 304 in 1165ms :: {\"hasResellerPlan\":true,\"reseller\":{\"…","timestamp":"2026-02-25T03:49:19.220679088Z"}
+{"level":"info","timestamp":"2026-02-25T03:49:19.220706564Z","message":"3:49:19 AM [express] GET /api/access-status 304 in 1544ms :: {\"accessStatus\":\"active\",\"shouldBlock\":…"}
+{"timestamp":"2026-02-25T03:49:19.220715495Z","message":"3:49:19 AM [express] GET /api/usage 304 in 1233ms :: {\"agentMessagesCount\":12819,\"limit\":-1,\"remaini…","level":"info"}
+{"message":"3:49:21 AM [express] GET /api/user/suspension-status 304 in 193ms :: {\"suspended\":false}","level":"info","timestamp":"2026-02-25T03:49:21.529559821Z"}

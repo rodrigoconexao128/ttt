@@ -1,0 +1,24 @@
+{
+  "now": "2026-02-25T19:37:58.686Z",
+  "userErr": null,
+  "user": {
+    "id": "cb9213c3-fde3-479e-a4aa-344171c59735",
+    "email": "rodrigo4@gmail.com",
+    "updated_at": "2026-02-24T23:49:56.622"
+  },
+  "connErr": "column whatsapp_connections.is_test_number does not exist",
+  "connections": [],
+  "convErr": "column conversations.user_id does not exist",
+  "conversation": null,
+  "msgsConvErr": "column messages.connection_id does not exist",
+  "lastMessagesConversation": [],
+  "pendingErr": "column pending_ai_responses.error_message does not exist",
+  "pending": [],
+  "pendingSummary": {
+    "total": 0,
+    "pending": 0,
+    "processing": 0,
+    "failed": 0,
+    "completed": 0
+  }
+}

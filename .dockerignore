@@ -1,0 +1,35 @@
+# Exclude VCS and editor files
+.git
+.gitignore
+.vscode/
+.kilocode/
+.replit
+
+# Node artifacts
+node_modules/
+dist/
+server/public/
+
+# Logs and temp
+*.log
+server.log
+tmp_admin_login.json
+
+# Auth/session dumps
+auth_*/
+auth_admin_*/
+
+# Large subprojects not needed for deploy
+mcp-playwright-server/
+sequentialthinking-mcp-server/
+supabase-mcp-server/
+pix-por-piggly/
+
+# Assets not required for server runtime
+attached_assets/
+piggly.zip
+
+# Findeas theme: include only assets and landing-5.html
+findeas theme/**
+!findeas theme/assets/**
+!findeas theme/landing-5.html

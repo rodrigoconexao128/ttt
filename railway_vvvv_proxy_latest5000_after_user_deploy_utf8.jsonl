@@ -1,0 +1,16 @@
+﻿{"message":"🔄 [WA-PROXY] ✅ Forwarding all traffic to http://vvvv.railway.internal:5000","timestamp":"2026-02-25T00:29:40.335576576Z","level":"info"}
+{"message":"🔄 [WA-PROXY] ✅ Health check: http://0.0.0.0:8080/health","timestamp":"2026-02-25T00:29:40.335584410Z","level":"info"}
+{"message":"","timestamp":"2026-02-25T00:29:40.335584959Z","level":"info"}
+{"timestamp":"2026-02-25T00:29:40.335589968Z","level":"info","message":"🔄 [WA-PROXY] ✅ Proxy stats: http://0.0.0.0:8080/proxy-status"}
+{"message":"> rest-express@1.0.1 start","timestamp":"2026-02-25T00:29:40.335602494Z","level":"info"}
+{"timestamp":"2026-02-25T00:29:40.335608920Z","message":"🔄 [WA-PROXY] Worker URL: http://vvvv.railway.internal:5000","level":"info"}
+{"timestamp":"2026-02-25T00:29:40.335617580Z","message":"🔄 [WA-PROXY] ✅ Proxy server listening on port 8080","level":"info"}
+{"message":"> cross-env NODE_ENV=production node dist/index.js","timestamp":"2026-02-25T00:29:40.335618106Z","level":"info"}
+{"level":"info","timestamp":"2026-02-25T00:29:40.335626578Z","message":"🚀 [BOOT] railwayCommit=93cbc6b13c6a0e23b3f8eb472d2f91f2a20e6d27"}
+{"timestamp":"2026-02-25T00:29:40.335626709Z","message":"","level":"info"}
+{"level":"info","timestamp":"2026-02-25T00:29:40.335631027Z","message":"🚀 [BOOT] Starting server (bootId=2026-02-25T00:29:40.111Z) mode=proxy"}
+{"message":"🔄 [PROXY MODE] Loading lightweight proxy module...","timestamp":"2026-02-25T00:29:40.335636522Z","level":"info"}
+{"timestamp":"2026-02-25T00:29:40.335640338Z","message":"🚀 [BOOT] node=v20.6.1 env=production port=8080","level":"info"}
+{"message":"🔄 [WA-PROXY] Starting proxy server...","timestamp":"2026-02-25T00:29:40.335642718Z","level":"info"}
+{"timestamp":"2026-02-25T00:29:40.712150786Z","level":"info","message":"Starting Container"}
+

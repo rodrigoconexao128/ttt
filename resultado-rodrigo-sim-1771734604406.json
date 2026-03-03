@@ -1,0 +1,273 @@
+{
+  "timestamp": "2026-02-22T04:50:42.037Z",
+  "promptFile": "C:\\Users\\Windows\\Downloads\\agentezap correto\\vvvv\\prompt-rodrigo-calibrado-v1.txt",
+  "totalScore": "100.0",
+  "greetingObedience": "5/5",
+  "results": [
+    {
+      "persona": "Lead Frio Objetivo",
+      "firstResponseOk": true,
+      "score": 100,
+      "violations": [],
+      "turns": [
+        {
+          "turn": 1,
+          "clientMessage": "Olá! Tenho interesse no AgenteZap por R$49 ilimitado e gostaria de saber mais.",
+          "agentMessage": "Boa tarde, Tudo bem? Rodrigo da AgenteZap aqui. Me conta: o que você faz hoje? Vendas, atendimento ou qualificação?",
+          "evaluation": {
+            "firstResponse": {
+              "hasExact": true,
+              "hasNear": true,
+              "violations": []
+            },
+            "violations": []
+          }
+        },
+        {
+          "turn": 2,
+          "clientMessage": "Quanto custa mesmo?",
+          "agentMessage": "Hoje o oficial é **R$99/mês** (ilimitado para 1 número de WhatsApp).\n\nSe você precisar de mais números, cada adicional sai por **R$49,99/mês**.\n\nE se quiser vários, dá pra colocar até 10 números por **R$199/mês** (um único valor mensal).\n\nQuer que eu te mande o link pra você criar a conta e testar?",
+          "evaluation": {
+            "violations": []
+          }
+        },
+        {
+          "turn": 3,
+          "clientMessage": "Tem desconto?",
+          "agentMessage": "O valor oficial é **R$99/mês** (ilimitado para 1 número), mas se você criar a conta agora pelo link, já garante as condições atuais.\n\nVou te mandar o link pra você testar:\n\nhttps://agentezap.online\n\nSe quiser, me avisa quando criar que eu te ajudo a configurar! 🚀",
+          "evaluation": {
+            "violations": []
+          }
+        },
+        {
+          "turn": 4,
+          "clientMessage": "Me manda o link pra assinar.",
+          "agentMessage": "Show! Pra você garantir o *R$99/mês* e já começar, é só criar sua conta por aqui:\n\nhttps://agentezap.online\n\nSe quiser, me manda um \"pronto\" quando criar que eu te ajudo a configurar rapidinho.",
+          "evaluation": {
+            "violations": []
+          }
+        },
+        {
+          "turn": 5,
+          "clientMessage": "Quero confirmar: cria conta e já funciona?",
+          "agentMessage": "Sim! Ao criar a conta, você já tem acesso imediato à plataforma e pode começar a configurar seus fluxos de IA no mesmo instante.\n\nO link é este aqui:\nhttps://agentezap.online\n\nDepois de criar, é só conectar seu WhatsApp e definir como a IA deve responder. Se precisar de ajuda, é só me avisar! 😊",
+          "evaluation": {
+            "violations": []
+          }
+        }
+      ]
+    },
+    {
+      "persona": "Lead Interessado em Vendas",
+      "firstResponseOk": true,
+      "score": 100,
+      "violations": [],
+      "turns": [
+        {
+          "turn": 1,
+          "clientMessage": "Vi o anúncio do AgenteZap. Me fala mais sobre como funciona pra vendas.",
+          "agentMessage": "Boa tarde, Tudo bem? Rodrigo da AgenteZap aqui. Me conta: o que você faz hoje? Vendas, atendimento ou qualificação?",
+          "evaluation": {
+            "firstResponse": {
+              "hasExact": true,
+              "hasNear": true,
+              "violations": []
+            },
+            "violations": []
+          }
+        },
+        {
+          "turn": 2,
+          "clientMessage": "Trabalho com vendas de imóveis.",
+          "agentMessage": "**Alex!** Entendi sim. Pra quem trabalha com **vendas de imóveis**, normalmente o WhatsApp vira uma loucura: chega muita mensagem, alguns clientes somem no meio do caminho, e quando você vê já passou o momento certo de responder ou retomar.\n\nO AgenteZAP resolve isso de um jeito bem prático: é uma IA que conversa no seu padrão, como se fosse você mesmo. Você configura o que ela pode falar, como deve responder, quais informações usar — e ela vai mantendo as conversas rodando sem ficar com cara de robô.\n\nA parte que mais faz diferença é o *follow-up*. Sabe quando o cliente pede informações, você responde, e depois ele some? Com o AgenteZAP você define o tempo e a IA entra em contato de novo no momento certo, do jeito certo, sem você precisar lembrar ou ficar cobrando manualmente.\n\nOutra coisa bem útil é o *notificador inteligente*: ele acompanha a conversa e te avisa quando o lead já está mais pronto, quando já respondeu o que precisava, quando faz sentido você assumir pra fechar a visita — aí você entra só quando vale a pena e não deixa nada importante passar batido.\n\nE dá pra deixar a comunicação bem \"humana\" usando mídias também. Você pode cadastrar áudios, imagens e vídeos dos imóveis e ensinar a IA em que situação cada um deve ser enviado. Isso aumenta muito o engajamento, sem ficar parecendo mensagem copiada e colada.\n\nEle também faz *qualificação*, separando os contatos que têm perfil/urgência/intenção dos",
+          "evaluation": {
+            "violations": []
+          }
+        },
+        {
+          "turn": 3,
+          "clientMessage": "Mas isso funciona igual a um humano respondendo?",
+          "agentMessage": "Funciona como se fosse você mesmo respondendo, mas com a velocidade e organização de uma IA.\n\nEla usa suas respostas, seu tom de voz e até suas mídias (fotos, áudios, vídeos dos imóveis) pra manter o diálogo natural. O cliente não percebe que é um robô — só sente que está sendo atendido rápido e sem esperar.\n\nE o melhor: você não perde tempo com quem ainda não está pronto pra fechar. A IA qualifica e só te avisa quando o lead tá quente.\n\nQuer ver na prática? É só criar sua conta aqui:\nhttps://agentezap.online",
+          "evaluation": {
+            "violations": []
+          }
+        },
+        {
+          "turn": 4,
+          "clientMessage": "Tem teste grátis?",
+          "agentMessage": "Sim! Você pode testar **sem pagar nada** criando sua conta aqui:\n\nhttps://agentezap.online\n\nAssim que criar, já dá pra configurar e ver a IA funcionando com seus clientes. Se quiser, me manda um \"pronto\" que eu te ajudo a deixar tudo redondo. 🚀",
+          "evaluation": {
+            "violations": []
+          }
+        },
+        {
+          "turn": 5,
+          "clientMessage": "Qual o preço do plano ilimitado?",
+          "agentMessage": "Hoje o oficial é **R$99/mês** (ilimitado para 1 número de WhatsApp).\n\nSe você quiser garantir esse valor, é só criar sua conta aqui:\nhttps://agentezap.online\n\nJá tá aplicado no link! 😊",
+          "evaluation": {
+            "violations": []
+          }
+        }
+      ]
+    },
+    {
+      "persona": "Lead Hardcoder - Pede Link Logo",
+      "firstResponseOk": true,
+      "score": 100,
+      "violations": [],
+      "turns": [
+        {
+          "turn": 1,
+          "clientMessage": "Oi quero saber mais sobre o AgenteZap",
+          "agentMessage": "Boa tarde, Tudo bem? Rodrigo da AgenteZap aqui. Me conta: o que você faz hoje? Vendas, atendimento ou qualificação?",
+          "evaluation": {
+            "firstResponse": {
+              "hasExact": true,
+              "hasNear": true,
+              "violations": []
+            },
+            "violations": []
+          }
+        },
+        {
+          "turn": 2,
+          "clientMessage": "Me manda o link direto.",
+          "agentMessage": "Show! Pra você garantir o *R$99/mês* e já começar, é só criar sua conta por aqui:\nhttps://agentezap.online\n\nSe quiser, me manda um \"pronto\" quando criar que eu te ajudo a configurar rapidinho.",
+          "evaluation": {
+            "violations": []
+          }
+        },
+        {
+          "turn": 3,
+          "clientMessage": "Não precisa de explicação, só quero o link.",
+          "agentMessage": "https://agentezap.online",
+          "evaluation": {
+            "violations": []
+          }
+        },
+        {
+          "turn": 4,
+          "clientMessage": "Atendimento mesmo.",
+          "agentMessage": "Entendi! Pra quem trabalha com **atendimento**, o AgenteZAP resolve a bagunça do WhatsApp: organiza as conversas, faz follow-up automático quando o cliente some, e te avisa quando é a hora certa de entrar pra fechar.\n\nVocê pode testar agora mesmo criando sua conta aqui:\nhttps://agentezap.online\n\nQuer que eu te ajude com algo específico no atendimento?",
+          "evaluation": {
+            "violations": []
+          }
+        },
+        {
+          "turn": 5,
+          "clientMessage": "Ok me fala o preço",
+          "agentMessage": "Hoje o oficial é **R$99/mês** (ilimitado para 1 número de WhatsApp).\n\nSe precisar de mais números, cada adicional sai por **R$49,99/mês**.\n\nQuer garantir o valor e começar agora? É só criar sua conta aqui:\nhttps://agentezap.online",
+          "evaluation": {
+            "violations": []
+          }
+        }
+      ]
+    },
+    {
+      "persona": "Lead Desconfiado",
+      "firstResponseOk": true,
+      "score": 100,
+      "violations": [],
+      "turns": [
+        {
+          "turn": 1,
+          "clientMessage": "Recebi uma mensagem sobre o AgenteZap por R$99. É confiável?",
+          "agentMessage": "Boa tarde, Tudo bem? Rodrigo da AgenteZap aqui. Me conta: o que você faz hoje? Vendas, atendimento ou qualificação?",
+          "evaluation": {
+            "firstResponse": {
+              "hasExact": true,
+              "hasNear": true,
+              "violations": []
+            },
+            "violations": []
+          }
+        },
+        {
+          "turn": 2,
+          "clientMessage": "E se eu tiver problema, tem suporte real?",
+          "agentMessage": "Nosso suporte é 24h por WhatsApp e a equipe responde em média em até 5 minutos.\n\nAgora me diz: você vai usar mais pra vendas, atendimento ou suporte?",
+          "evaluation": {
+            "violations": []
+          }
+        },
+        {
+          "turn": 3,
+          "clientMessage": "Quanto tempo leva pra configurar?",
+          "agentMessage": "Depende do que você precisa, mas a maioria dos clientes configura o básico em **10 a 20 minutos** — só definir as respostas automáticas e os fluxos de follow-up.\n\nSe quiser agilizar, a gente faz tudo pra você por **R$199 (pagamento único)**. Prefere testar sozinho ou quer que a gente configure?",
+          "evaluation": {
+            "violations": []
+          }
+        },
+        {
+          "turn": 4,
+          "clientMessage": "Funciona no Instagram também?",
+          "agentMessage": "Hoje a gente tá 100% redondo no WhatsApp, que é onde a maioria fecha vendas e atendimento mais rápido, né? E a ideia é trazer integrações com outras redes em breve.\n\nVocê quer resolver mais a demora pra responder ou o follow-up de quem some?",
+          "evaluation": {
+            "violations": []
+          }
+        },
+        {
+          "turn": 5,
+          "clientMessage": "E se eu quiser cancelar?",
+          "agentMessage": "Você pode cancelar quando quiser, direto pela área do cliente — sem burocracia e sem multa.\n\nMas antes de pensar nisso, que tal testar pra ver se resolve o que você precisa? É só criar a conta aqui:\n\nhttps://agentezap.online\n\nVou te ajudar com qualquer dúvida! 😊",
+          "evaluation": {
+            "violations": []
+          }
+        }
+      ]
+    },
+    {
+      "persona": "Lead Direto ao R$49",
+      "firstResponseOk": true,
+      "score": 100,
+      "violations": [],
+      "turns": [
+        {
+          "turn": 1,
+          "clientMessage": "Bom dia! Quero contratar o plano de R$49 ilimitado que vi no anúncio.",
+          "agentMessage": "Boa tarde, Tudo bem? Rodrigo da AgenteZap aqui. Me conta: o que você faz hoje? Vendas, atendimento ou qualificação?",
+          "evaluation": {
+            "firstResponse": {
+              "hasExact": true,
+              "hasNear": true,
+              "violations": []
+            },
+            "violations": []
+          }
+        },
+        {
+          "turn": 2,
+          "clientMessage": "Então qual é o preço certo?",
+          "agentMessage": "Hoje o oficial é **R$99/mês** (ilimitado para 1 número de WhatsApp).\n\nSe você quiser garantir já, é só criar sua conta aqui:\nhttps://agentezap.online\n\nVou te ajudar com qualquer dúvida no processo! 😊",
+          "evaluation": {
+            "violations": []
+          }
+        },
+        {
+          "turn": 3,
+          "clientMessage": "Uso pra atendimento ao cliente.",
+          "agentMessage": "Perfeito! Pra quem trabalha com **atendimento**, o AgenteZAP resolve um problema bem comum: o WhatsApp fica uma bagunça quando chega muita mensagem de uma vez, algumas pessoas somem no meio do caminho, e quando você vê já passou o momento certo de responder ou retomar.\n\nO AgenteZAP resolve isso de um jeito prático: é uma IA que conversa no seu padrão, como se fosse você mesmo. Você configura o que ela pode falar, como deve responder, quais informações usar — e ela vai mantendo as conversas rodando sem ficar com cara de robô.\n\nA parte que mais faz diferença é o **follow-up**. Sabe quando o cliente pergunta algo, você responde, e depois ele some? Com o AgenteZAP, você define o tempo e a IA entra em contato de novo no momento certo, do jeito certo, sem você precisar lembrar ou ficar cobrando manualmente.\n\nOutra coisa bem útil é o **notificador inteligente**: ele acompanha a conversa e te avisa quando o cliente já está mais pronto, quando já respondeu o que precisava, ou quando faz sentido você assumir pra finalizar — aí você entra só quando vale a pena e não deixa nada importante passar batido.\n\nE dá pra deixar a comunicação bem **humana** usando mídias também. Você pode cadastrar áudios, imagens e vídeos e ensinar a IA em que situação cada um deve ser enviado. Isso aumenta muito o engajamento, sem ficar parecendo mensagem copiada e colada.\n\nSe você quiser, dá pra testar antes de assinar. É só criar uma conta gratuita aqui:\nhttps",
+          "evaluation": {
+            "violations": []
+          }
+        },
+        {
+          "turn": 4,
+          "clientMessage": "Pode me mandar o link pra contratar?",
+          "agentMessage": "Show! Pra você garantir o *R$99/mês* e já começar, é só criar sua conta por aqui:\nhttps://agentezap.online\n\nSe quiser, me manda um \"pronto\" quando criar que eu te ajudo a configurar rapidinho. 🚀",
+          "evaluation": {
+            "violations": []
+          }
+        },
+        {
+          "turn": 5,
+          "clientMessage": "Precisa de cartão de crédito?",
+          "agentMessage": "Não necessariamente! Você pode pagar com:\n\n- **Cartão de crédito** (à vista ou parcelado)\n- **Boleto bancário** (à vista)\n- **Pix** (à vista)\n\nTudo direto na plataforma quando você for criar a conta.\n\nQuer que eu te ajude com algo mais antes de você começar? 😊",
+          "evaluation": {
+            "violations": []
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+﻿{"level":"info","message":"[RESTORE] Runtime restore config: batchSize=3, batchDelayMs=3000, openTimeoutMs=45000 (restore), defaultOpenTimeoutMs=120000","timestamp":"2026-02-24T23:50:53.951014863Z"}
+{"timestamp":"2026-02-24T23:50:56.058369513Z","level":"info","message":"🔄 [AI AGENT] Reagendando timer para 5519992362179 em 300s (sessão indisponível, connected=false)..."}
+{"message":"🔄 [AI AGENT] Reagendando timer para 558586589341 em 30s (sessão indisponível, connected=true)...","timestamp":"2026-02-24T23:50:59.414202487Z","level":"info"}
+{"level":"info","message":"⚠️ [CONNECT] OPEN TIMEOUT for user d1a296ae... conn 5ebfd89e — closing socket","timestamp":"2026-02-24T23:52:06.469662472Z"}
+{"message":"🔓 [PENDING LOCK] Cleared lock for 5ebfd89e... reason: connect_open_timeout","timestamp":"2026-02-24T23:52:06.469669563Z","level":"info"}
+{"timestamp":"2026-02-24T23:52:06.469676792Z","message":"[CONNECT] Connection promise rejected for 5ebfd89e-4618-4e5b-90fb-227d0f8cd0fd (open_timeout): Connection did not reach open within 45000ms","level":"info"}
+{"message":"[CONNECT] Connection promise rejected for e6154c39-2eeb-4325-95e3-7c4a567d5f15 (open_timeout): Connection did not reach open within 45000ms","timestamp":"2026-02-24T23:52:06.472810081Z","level":"info"}
+{"message":"⚠️ [CONNECT] OPEN TIMEOUT for user 8c755f9d... conn e6154c39 — closing socket","level":"info","timestamp":"2026-02-24T23:52:06.472818659Z"}
+{"level":"info","message":"🔓 [PENDING LOCK] Cleared lock for e6154c39... reason: connect_open_timeout","timestamp":"2026-02-24T23:52:06.472827647Z"}
+{"timestamp":"2026-02-24T23:52:06.476789041Z","level":"error","message":"[RESTORE] Deferred reconnect for 5ebfd89e after open-timeout; keeping DB state unchanged"}
+{"message":"[RESTORE] Deferred reconnect for e6154c39 after open-timeout; keeping DB state unchanged","timestamp":"2026-02-24T23:52:06.476819158Z","level":"error"}
+{"message":"⏭️ [AUTO-RECOVERY] 557588898695 - Sessão 3e724ad7... indisponível, pulando","level":"info","timestamp":"2026-02-24T23:52:53.840730228Z"}
+{"message":"⏭️ [AUTO-RECOVERY] 556285701054 - Sessão b58c4f1d... indisponível, pulando","level":"info","timestamp":"2026-02-24T23:52:53.840736317Z"}
+{"level":"info","message":"⏭️ [AUTO-RECOVERY] 556896007526 - Sessão 5eab7abe... indisponível, pulando","timestamp":"2026-02-24T23:52:53.840742359Z"}
+{"message":"⏭️ [AUTO-RECOVERY] 5511980523896 - Sessão 5eab7abe... indisponível, pulando","level":"info","timestamp":"2026-02-24T23:52:54.033574878Z"}
+{"message":"⏭️ [AUTO-RECOVERY] 553399516197 - Sessão 5eab7abe... indisponível, pulando","level":"info","timestamp":"2026-02-24T23:52:54.779230417Z"}
+{"level":"info","timestamp":"2026-02-24T23:52:55.030904485Z","message":"⏭️ [AUTO-RECOVERY] 557599142563 - Sessão 3e724ad7... indisponível, pulando"}
+{"message":"⏭️ [AUTO-RECOVERY] 555181970635 - Sessão 5eab7abe... indisponível, pulando","level":"info","timestamp":"2026-02-24T23:52:55.694174472Z"}
+{"level":"info","message":"⚠️ [CONNECT] OPEN TIMEOUT for user 5a2e9f41... conn 4061e025 — closing socket","timestamp":"2026-02-24T23:53:00.170461365Z"}
+{"message":"🔓 [PENDING LOCK] Cleared lock for 4061e025... reason: connect_open_timeout","timestamp":"2026-02-24T23:53:00.170468440Z","level":"info"}
+{"timestamp":"2026-02-24T23:53:00.170475636Z","message":"[CONNECT] Connection promise rejected for 4061e025-bdfa-49ec-996f-2572f3ea3f4e (open_timeout): Connection did not reach open within 45000ms","level":"info"}
+{"timestamp":"2026-02-24T23:53:00.170552910Z","level":"error","message":"[RESTORE] Deferred reconnect for 4061e025 after open-timeout; keeping DB state unchanged"}
+{"message":"⚠️ [CONNECT] OPEN TIMEOUT for user b58c4f1d... conn 9566b4ef — closing socket","timestamp":"2026-02-24T23:54:08.846172373Z","level":"info"}
+{"message":"🔓 [PENDING LOCK] Cleared lock for 9566b4ef... reason: connect_open_timeout","timestamp":"2026-02-24T23:54:08.846181824Z","level":"info"}
+{"message":"[CONNECT] Connection promise rejected for 9566b4ef-caff-42ca-97aa-f9c05a6580db (open_timeout): Connection did not reach open within 45000ms","level":"info","timestamp":"2026-02-24T23:54:08.846187170Z"}
+{"timestamp":"2026-02-24T23:54:08.846217386Z","message":"[RESTORE] Deferred reconnect for 9566b4ef after open-timeout; keeping DB state unchanged","level":"error"}
+{"level":"info","timestamp":"2026-02-24T23:54:18.981915897Z","message":"[WA_METRICS] uptime=4min 440=0 pgrst116=0 dedup=8 reconnect=0 send_fail_closed=0 pending_processed=6 pending_skipped=0 pending_stale_24h=0 pending_max_retries=0 pending_conn_closed_retries=0"}
+{"message":"⚠️ [CONNECT] OPEN TIMEOUT for user de1112e5... conn 2680816a — closing socket","timestamp":"2026-02-24T23:55:23.901785718Z","level":"info"}
+{"message":"🔓 [PENDING LOCK] Cleared lock for 2680816a... reason: connect_open_timeout","timestamp":"2026-02-24T23:55:23.901795289Z","level":"info"}
+{"message":"[CONNECT] Connection promise rejected for 2680816a-47b3-44eb-8900-2512bd6b2cc6 (open_timeout): Connection did not reach open within 45000ms","level":"info","timestamp":"2026-02-24T23:55:23.901801866Z"}
+{"timestamp":"2026-02-24T23:55:23.907247931Z","message":"[RESTORE] Deferred reconnect for 51d97d77 after open-timeout; keeping DB state unchanged","level":"error"}
+{"timestamp":"2026-02-24T23:55:23.907273881Z","level":"info","message":"⚠️ [CONNECT] OPEN TIMEOUT for user d4a1d307... conn 51d97d77 — closing socket"}
+{"level":"info","message":"🔓 [PENDING LOCK] Cleared lock for 51d97d77... reason: connect_open_timeout","timestamp":"2026-02-24T23:55:23.907285282Z"}
+{"message":"[CONNECT] Connection promise rejected for 51d97d77-c90e-4b12-b405-c12ba7caa835 (open_timeout): Connection did not reach open within 45000ms","level":"info","timestamp":"2026-02-24T23:55:23.907291319Z"}
+{"level":"error","message":"[RESTORE] Deferred reconnect for 2680816a after open-timeout; keeping DB state unchanged","timestamp":"2026-02-24T23:55:23.907321508Z"}
+{"message":"[CONNECT] Connection already in progress for 5ebfd89e-4618-4e5b-90fb-227d0f8cd0fd, waiting for it to complete...","timestamp":"2026-02-24T23:55:45.152018869Z","level":"info"}
+{"message":"[CONNECT] Connection already in progress for e6154c39-2eeb-4325-95e3-7c4a567d5f15, waiting for it to complete...","level":"info","timestamp":"2026-02-24T23:55:46.109936443Z"}
+{"timestamp":"2026-02-24T23:55:47.235980648Z","message":"[CONNECT] Connection already in progress for 4061e025-bdfa-49ec-996f-2572f3ea3f4e, waiting for it to complete...","level":"info"}
+{"timestamp":"2026-02-24T23:55:49.168673567Z","level":"info","message":"[CONNECT] Connection already in progress for 9566b4ef-caff-42ca-97aa-f9c05a6580db, waiting for it to complete..."}
+{"timestamp":"2026-02-24T23:55:51.109380993Z","message":"[CONNECT] Connection already in progress for 51d97d77-c90e-4b12-b405-c12ba7caa835, waiting for it to complete...","level":"info"}
+{"message":"🔄 [AI AGENT] Reagendando timer para 5519992362179 em 300s (sessão indisponível, connected=false)...","timestamp":"2026-02-24T23:55:58.315615524Z","level":"info"}
+{"message":"[CONNECT] Connection promise rejected for a6ebfa8b-6aaf-41f2-a688-28d6a0e7f752 (close_before_open): Connection closed before open (status=515)","timestamp":"2026-02-24T23:56:05.111586016Z","level":"info"}
+{"timestamp":"2026-02-24T23:56:05.111609494Z","message":"Error connecting WhatsApp: Error: Connection closed before open (status=515)","level":"error"}
+{"level":"info","timestamp":"2026-02-24T23:56:18.114291440Z","message":"⚠️ [CONNECT] OPEN TIMEOUT for user 1f2f40b5... conn 6d395c0a — closing socket"}
+{"level":"info","message":"🔓 [PENDING LOCK] Cleared lock for 6d395c0a... reason: connect_open_timeout","timestamp":"2026-02-24T23:56:18.114304366Z"}
+{"message":"[RESTORE] Deferred reconnect for 6d395c0a after open-timeout; keeping DB state unchanged","timestamp":"2026-02-24T23:56:18.114313065Z","level":"error"}
+{"message":"[CONNECT] Connection promise rejected for 6d395c0a-7221-44da-a5da-401931ae0bd5 (open_timeout): Connection did not reach open within 45000ms","timestamp":"2026-02-24T23:56:18.114314275Z","level":"info"}

@@ -1,0 +1,500 @@
+﻿{"message":"📝 [AI AGENT] Primeira mensagem: \"🙌🏾🙏🏾\"","timestamp":"2026-02-24T23:53:34.385214061Z","level":"info"}
+{"level":"info","message":"💾 [AI AGENT] Timer persistido no banco - executa às 2026-02-24T23:53:38.581Z","timestamp":"2026-02-24T23:53:34.385216802Z"}
+{"timestamp":"2026-02-24T23:53:34.385226010Z","message":"?? [UNRESPONDED CHECK] 553187660277 - �ltima mensagem do cliente SEM RESPOSTA","level":"info"}
+{"timestamp":"2026-02-24T23:53:34.385226664Z","level":"info","message":"📞 [EXCLUSION] Verificando 5521968095110 (variações: 5521968095110, 21968095110, 968095110) -> ✅ Permitido"}
+{"timestamp":"2026-02-24T23:53:34.385233905Z","level":"info","message":"   ?? Mensagem: \"*𝔹𝕠𝕒 𝕥𝕒𝕣𝕕𝕖 ‼️*  "}
+{"message":"✅ [AI AGENT] Timer marcado como completed - resposta enviada com sucesso!","timestamp":"2026-02-24T23:53:34.385235440Z","level":"info"}
+{"timestamp":"2026-02-24T23:53:34.385244194Z","level":"info","message":"✅ [FOLLOW-UP] Agendado inicial para conversa 2572997e-40f6-4143-b7f8-6d29998d9c6e em 10 min"}
+{"timestamp":"2026-02-24T23:53:34.385255858Z","message":"Tudo bem com você⁉️","level":"info"}
+{"message":"✅ [AI AGENT] Resposta enviada com sucesso para 5511953776669","timestamp":"2026-02-24T23:53:34.385259542Z","level":"info"}
+{"timestamp":"2026-02-24T23:53:34.385263843Z","level":"info","message":"   ?? Enviada em: Tue Feb 24 2026 18:11:57 GMT+0000 (Coordinated Universal Time)"}
+{"message":"","timestamp":"2026-02-24T23:53:34.385267541Z","level":"info"}
+{"timestamp":"2026-02-24T23:53:34.385270111Z","level":"info","message":"💾 [PERSISTENT TIMER] Salvo para 553598639063 - executa às 2026-02-24T23:53:38.581Z"}
+{"timestamp":"2026-02-24T23:53:34.385272700Z","level":"info","message":"?? [UNRESPONDED CHECK] Resposta agendada em 30s"}
+{"level":"info","message":"🙏 *...\"","timestamp":"2026-02-24T23:53:34.385276875Z"}
+{"level":"info","timestamp":"2026-02-24T23:53:34.385279848Z","message":"🔍 [EXCLUSION] Verificando lista de exclusão para usuário 21051c36-debc-4d25-98dc-9339ff9573d3 (config=default, isEnabled=default=true)"}
+{"timestamp":"2026-02-24T23:53:34.385285427Z","level":"info","message":"📞 [EXCLUSION] Normalizando número 5521968095110 -> variações: [5521968095110, 21968095110, 968095110]"}
+{"timestamp":"2026-02-24T23:53:34.475057386Z","level":"info","message":""}
+{"message":"🚨 ========================================","timestamp":"2026-02-24T23:53:34.475067973Z","level":"info"}
+{"level":"info","message":"🚨 [RECOVERY] Iniciando recuperação para usuário: 08cddb7c...","timestamp":"2026-02-24T23:53:34.475073642Z"}
+{"level":"info","message":"🚨 ========================================","timestamp":"2026-02-24T23:53:34.475084198Z"}
+{"message":"","timestamp":"2026-02-24T23:53:34.475089893Z","level":"info"}
+{"message":"🚨 [RECOVERY] ✅ Nenhuma mensagem pendente para 08cddb7c...","level":"info","timestamp":"2026-02-24T23:53:35.389094721Z"}
+{"timestamp":"2026-02-24T23:53:36.341007479Z","level":"info","message":""}
+{"message":"🚨 ========================================","timestamp":"2026-02-24T23:53:36.341012767Z","level":"info"}
+{"message":"🚨 [RECOVERY] Iniciando recuperação para usuário: 751b57a6...","timestamp":"2026-02-24T23:53:36.341017940Z","level":"info"}
+{"level":"info","message":"🚨 ========================================","timestamp":"2026-02-24T23:53:36.341023191Z"}
+{"timestamp":"2026-02-24T23:53:36.341029622Z","message":"","level":"info"}
+{"message":"🚨 [RECOVERY] ✅ Nenhuma mensagem pendente para 751b57a6...","level":"info","timestamp":"2026-02-24T23:53:36.341034937Z"}
+{"level":"info","timestamp":"2026-02-24T23:53:37.327232615Z","message":"🚨 [RECOVERY] ✅ Nenhuma mensagem pendente para 8b88e9ac..."}
+{"level":"info","message":"🛡️ [ANTI-BLOCK] ✅ Mensagem enviada - ID: 3EB070CF7864B9D05659CD","timestamp":"2026-02-24T23:53:37.327233784Z"}
+{"level":"info","timestamp":"2026-02-24T23:53:37.327244419Z","message":""}
+{"level":"info","message":"🛡️ [ANTI-BAN v5.0] ✅ Msg enviada - Lote: 3/10","timestamp":"2026-02-24T23:53:37.327246274Z"}
+{"level":"info","message":"?? [UNRESPONDED CHECK] Iniciando verifica��o de mensagens n�o respondidas...","timestamp":"2026-02-24T23:53:37.327253582Z"}
+{"message":"?? [MSG CACHE] Armazenada mensagem 3EB070CF7864B9D05659CD para user 21051c36... (cache size: 4)","timestamp":"2026-02-24T23:53:37.327255037Z","level":"info"}
+{"message":"   ?? Usu�rio: 06d94cbb-baaf-48e3-999f-58638f045a75","timestamp":"2026-02-24T23:53:37.327270939Z","level":"info"}
+{"message":"📋 [MSG-UPSERT] IN notify | 178894665691358 | id=3EB0580F301E | content=[conversation] | stub=none","level":"info","timestamp":"2026-02-24T23:53:37.327277545Z"}
+{"level":"info","timestamp":"2026-02-24T23:53:37.327285867Z","message":"?? [MSG CACHE] Armazenada mensagem 3EB0580F301E24E4B07D15 para user 7ba8ea20... (cache size: 6)"}
+{"timestamp":"2026-02-24T23:53:37.327288464Z","level":"info","message":""}
+{"level":"info","message":"?? [MSG CACHE] Armazenada mensagem 3EB070CF7864B9D05659CD para user 21051c36... (cache size: 4)","timestamp":"2026-02-24T23:53:37.327293654Z"}
+{"timestamp":"2026-02-24T23:53:37.327330686Z","level":"info","message":"🚨 ========================================"}
+{"timestamp":"2026-02-24T23:53:37.327341936Z","level":"info","message":"🚨 [RECOVERY] Iniciando recuperação para usuário: 8b88e9ac..."}
+{"timestamp":"2026-02-24T23:53:37.327349773Z","level":"info","message":"🚨 ========================================"}
+{"message":"","timestamp":"2026-02-24T23:53:37.327357786Z","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:53:37.361788999Z","message":"🚨 [RECOVERY] ✅ Mensagem salva: 3EB0580F301E24E4B07D15 | Contato: 178894665691358"}
+{"level":"info","message":"","timestamp":"2026-02-24T23:53:38.233100919Z"}
+{"message":"?? [MESSAGE KEY DEBUG]","timestamp":"2026-02-24T23:53:38.233105704Z","level":"info"}
+{"timestamp":"2026-02-24T23:53:38.233110542Z","message":"   remoteJid: 178894665691358@lid","level":"info"}
+{"message":"   remoteJidAlt: 5511953776669@s.whatsapp.net","timestamp":"2026-02-24T23:53:38.233115598Z","level":"info"}
+{"timestamp":"2026-02-24T23:53:38.233120170Z","message":"   pushName: N/A","level":"info"}
+{"message":"   participantPn: N/A","timestamp":"2026-02-24T23:53:38.233125416Z","level":"info"}
+{"timestamp":"2026-02-24T23:53:38.233130390Z","level":"info","message":""}
+{"timestamp":"2026-02-24T23:53:38.233135164Z","level":"info","message":"? [LID RESOLVIDO] N�mero real encontrado via remoteJidAlt!"}
+{"message":"   LID: 178894665691358@lid","level":"info","timestamp":"2026-02-24T23:53:38.233140017Z"}
+{"timestamp":"2026-02-24T23:53:38.233145104Z","message":"   JID WhatsApp REAL: 5511953776669@s.whatsapp.net","level":"info"}
+{"timestamp":"2026-02-24T23:53:38.233150997Z","message":"   N�mero limpo: 5511953776669","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:53:38.233156673Z","message":"   Nome: N/A"}
+{"timestamp":"2026-02-24T23:53:38.233161195Z","message":"","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:53:38.233165236Z","message":"?? [CACHE] Mapeamento LID ? phoneNumber salvo em mem�ria: 178894665691358@lid ? 5511953776669@s.whatsapp.net"}
+{"level":"info","message":"[WhatsApp] Original JID: 178894665691358@lid","timestamp":"2026-02-24T23:53:38.233356181Z"}
+{"message":"[WhatsApp] Normalized JID: 5511953776669@s.whatsapp.net","timestamp":"2026-02-24T23:53:38.233363448Z","level":"info"}
+{"message":"[WhatsApp] Clean number: 5511953776669","level":"info","timestamp":"2026-02-24T23:53:38.233368439Z"}
+{"level":"info","timestamp":"2026-02-24T23:53:38.233373539Z","message":""}
+{"level":"info","message":"?? [UNRESPONDED CHECK] Iniciando verifica��o de mensagens n�o respondidas...","timestamp":"2026-02-24T23:53:38.233377951Z"}
+{"level":"info","timestamp":"2026-02-24T23:53:38.233382281Z","message":"   ?? Usu�rio: b2a3f4f6-d943-41ba-b303-4c4523c9e413"}
+{"message":"??? [AVATAR] Foto de perfil obtida para 5511953776669","timestamp":"2026-02-24T23:53:38.233386531Z","level":"info"}
+{"message":"?? [UNRESPONDED CHECK] 18 conversas nas �ltimas 24h","timestamp":"2026-02-24T23:53:38.233391278Z","level":"info"}
+{"timestamp":"2026-02-24T23:53:38.233396390Z","level":"info","message":"[BROADCAST] Sent message to 3/3 clients for user 21051c36-debc-4d25-98dc-9339ff9573d3, type: agent_response"}
+{"timestamp":"2026-02-24T23:53:38.233400970Z","level":"info","message":"[AI Agent] Part 1/1 SENT to WhatsApp 5511951574482"}
+{"level":"info","message":"? [AI AGENT] Texto enviado com sucesso (marcando timer como completed ao final)","timestamp":"2026-02-24T23:53:38.233405477Z"}
+{"message":"[LLM] ✅ Mistral chatComplete (mistral-medium-2312) respondeu","timestamp":"2026-02-24T23:53:38.471831870Z","level":"info"}
+{"timestamp":"2026-02-24T23:53:39.322916991Z","message":"   ⏱️ Aguardou 5.7s | 1 mensagem(s) acumulada(s)","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:53:39.322927096Z","message":"   📞 Contato: 553598639063"}
+{"level":"info","timestamp":"2026-02-24T23:53:39.322980961Z","message":"🔇 [TTS-RESPONSE] Áudio desabilitado para usuário 21051c36..."}
+{"level":"info","message":"?? [UNRESPONDED CHECK] 17 conversas nas �ltimas 24h","timestamp":"2026-02-24T23:53:39.322989502Z"}
+{"timestamp":"2026-02-24T23:53:39.322994969Z","level":"info","message":"WebSocket client connected for user: a6ebfa8b-6aaf-41f2-a688-28d6a0e7f752"}
+{"level":"info","message":"","timestamp":"2026-02-24T23:53:39.323001673Z"}
+{"timestamp":"2026-02-24T23:53:39.323006849Z","message":"🔄 [AI AGENT] =========== PROCESSANDO RESPOSTA ===========","level":"info"}
+{"message":"✅ [FOLLOW-UP] Agendado inicial para conversa 821b345d-9f5e-476b-ab2b-468ab817e4df em 10 min","level":"info","timestamp":"2026-02-24T23:53:39.353957644Z"}
+{"timestamp":"2026-02-24T23:53:39.353964572Z","level":"info","message":"✅ [AI AGENT] Resposta enviada com sucesso para 5511951574482"}
+{"message":"⏸️ [PENDING CRON] 5519992362179 - Filtrado: inMemory=true, beingProcessed=false","timestamp":"2026-02-24T23:53:39.428884350Z","level":"info"}
+{"timestamp":"2026-02-24T23:53:39.428890092Z","level":"info","message":"⏸️ [PENDING CRON] 553598639063 - Filtrado: inMemory=false, beingProcessed=true"}
+{"timestamp":"2026-02-24T23:53:39.428895266Z","message":"🔄 [PENDING CRON] Ciclo: 6 timers (0 stale removidos), restantes filtrados (em memória/processando/futuros)","level":"info"}
+{"message":"🔓 [AI AGENT] Conversa 821b345d-9f5e-476b-ab2b-468ab817e4df liberada para próximo processamento","timestamp":"2026-02-24T23:53:40.368466351Z","level":"info"}
+{"message":"WebSocket client disconnected for user: a6ebfa8b-6aaf-41f2-a688-28d6a0e7f752","timestamp":"2026-02-24T23:53:40.368478929Z","level":"info"}
+{"timestamp":"2026-02-24T23:53:40.368488264Z","level":"info","message":"11:53:40 PM [express] GET /api/whatsapp/connection 304 in 2ms :: {\"id\":\"6a36ce05-c5a3-4d31-80a4-f7a70…"}
+{"message":"ℹ️ [USER-FOLLOW-UP] Follow-up global desativado para usuário 7ba8ea20-6edc-4ef9-9110-f3284c9859a5","level":"info","timestamp":"2026-02-24T23:53:40.368494661Z"}
+{"message":"11:53:39 PM [express] GET /api/conversations-with-tags 200 in 1438ms :: {\"data\":[{\"id\":\"939b5a20-8ef9…","timestamp":"2026-02-24T23:53:40.368505868Z","level":"info"}
+{"message":"✅ [AI AGENT] Timer marcado como completed - resposta enviada com sucesso!","timestamp":"2026-02-24T23:53:40.368513512Z","level":"info"}
+{"message":"11:53:40 PM [express] GET /api/conversations-with-tags 200 in 2178ms :: {\"data\":[{\"id\":\"821b345d-9f5e…","timestamp":"2026-02-24T23:53:40.538399604Z","level":"info"}
+{"message":"   ?? Mensagem: \"Oi...\"","timestamp":"2026-02-24T23:53:41.400460561Z","level":"info"}
+{"message":"   ?? Enviada em: Tue Feb 24 2026 10:52:43 GMT+0000 (Coordinated Universal Time)","timestamp":"2026-02-24T23:53:41.400468310Z","level":"info"}
+{"message":"?? [UNRESPONDED CHECK] Resposta agendada em 35s","timestamp":"2026-02-24T23:53:41.400474288Z","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:53:41.400479553Z","message":"🚨 [RECOVERY] ✅ Mensagem 3EB0580F301E24E4B07D15 marcada como processada"}
+{"timestamp":"2026-02-24T23:53:41.400485115Z","message":"[BROADCAST] Sent message to 1/1 clients for user 7ba8ea20-6edc-4ef9-9110-f3284c9859a5, type: new_message","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:53:41.400490912Z","message":"?? [UNRESPONDED CHECK] Processando resposta atrasada para 5511977846705"}
+{"timestamp":"2026-02-24T23:53:41.400494154Z","level":"info","message":"?? [UNRESPONDED CHECK] 553199909975 - �ltima mensagem do cliente SEM RESPOSTA"}
+{"message":"WebSocket client connected for user: a6ebfa8b-6aaf-41f2-a688-28d6a0e7f752","timestamp":"2026-02-24T23:53:41.400496777Z","level":"info"}
+{"timestamp":"2026-02-24T23:53:41.400502429Z","level":"info","message":""}
+{"message":"🔄 [AI AGENT] =========== PROCESSANDO RESPOSTA ===========","timestamp":"2026-02-24T23:53:41.400512331Z","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:53:41.400518517Z","message":"   ⏱️ Aguardou 10.6s | 1 mensagem(s) acumulada(s)"}
+{"level":"info","timestamp":"2026-02-24T23:53:41.400524286Z","message":"   📞 Contato: 5511977846705"}
+{"timestamp":"2026-02-24T23:53:41.471548197Z","level":"info","message":"✅ [AI AGENT] Usuário tem plano pago ativo e válido: Plano Mensal"}
+{"level":"info","timestamp":"2026-02-24T23:53:41.471556847Z","message":"   ?? Texto combinado: \"🙌🏾🙏🏾...\""}
+{"message":"   ?? Mensagem: \"📷 Imagem...\"","timestamp":"2026-02-24T23:53:42.282418537Z","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:53:42.282430869Z","message":"   ?? Enviada em: Tue Feb 24 2026 10:43:36 GMT+0000 (Coordinated Universal Time)"}
+{"level":"info","timestamp":"2026-02-24T23:53:42.282449432Z","message":"[LLM] 🎯 chatComplete via Mistral - Modelo do admin: mistral-medium-latest"}
+{"message":"    at process.processTimers (node:internal/timers:514:7)","timestamp":"2026-02-24T23:53:42.282452332Z","level":"error"}
+{"timestamp":"2026-02-24T23:53:42.282459358Z","level":"info","message":"✅ [MISTRAL ROTATION] Usando modelo do admin: mistral-medium-latest"}
+{"timestamp":"2026-02-24T23:53:42.282466071Z","message":"📡 [Calibração] ⚠️ Não foi possível ajustar. Tentando abordagem diferente...","level":"info"}
+{"timestamp":"2026-02-24T23:53:42.282468476Z","level":"info","message":"[LLM] 🚀 Mistral chatComplete - Modelo: mistral-medium-latest (ADMIN) [1/5]"}
+{"message":"🔄 [LLM RETRY] Mistral chatComplete (mistral-medium-latest) - Tentativa 1/1...","level":"info","timestamp":"2026-02-24T23:53:42.282477264Z"}
+{"timestamp":"2026-02-24T23:53:42.282479287Z","level":"info","message":"📡 [Calibração] 🔄 Rodada 3/2 - Simulando conversas..."}
+{"level":"info","timestamp":"2026-02-24T23:53:42.282486098Z","message":"?? [UNRESPONDED CHECK] 5517991525557 - �ltima mensagem do cliente SEM RESPOSTA"}
+{"message":"📡 [Calibração] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━","timestamp":"2026-02-24T23:53:42.282488143Z","level":"info"}
+{"level":"info","message":"📡 [Calibração] 🧪 TESTE 1/2","timestamp":"2026-02-24T23:53:42.282495142Z"}
+{"timestamp":"2026-02-24T23:53:42.282502651Z","level":"info","message":"📡 [Calibração] 👤 CLIENTE PERGUNTA:"}
+{"message":"📡 [Calibração]    \"Quem vocês são e o que vendem?\"","level":"info","timestamp":"2026-02-24T23:53:42.282509595Z"}
+{"level":"info","message":"🔄 [Calibração LLM] Tentativa 1/2...","timestamp":"2026-02-24T23:53:42.282517686Z"}
+{"level":"error","timestamp":"2026-02-24T23:53:42.282532103Z","message":"⚠️ [Calibração LLM] Tentativa 2 falhou: LLM timeout (10s)"}
+{"level":"error","message":"[Calibração] Erro ao reparar prompt: Error: LLM timeout (10s)","timestamp":"2026-02-24T23:53:42.282544479Z"}
+{"message":"    at Timeout._onTimeout (file:///app/dist/promptCalibrationService-2MHTXWHN.js:91:50)","timestamp":"2026-02-24T23:53:42.282554746Z","level":"error"}
+{"level":"error","message":"    at listOnTimeout (node:internal/timers:573:17)","timestamp":"2026-02-24T23:53:42.282561120Z"}
+{"message":"11:53:42 PM [express] GET /api/scheduling/services 200 in 209ms :: [{\"id\":\"bf14ea47-a1d6-4810-8a9a-bc…","timestamp":"2026-02-24T23:53:42.285837281Z","level":"info"}
+{"message":"?? [AI AGENT] Nome do cliente: Lincoln César Ernesto","timestamp":"2026-02-24T23:53:42.285850579Z","level":"info"}
+{"level":"info","message":"?? [AI AGENT] M�dias j� enviadas: nenhuma","timestamp":"2026-02-24T23:53:42.285858848Z"}
+{"message":"🚨 [RECOVERY] ✅ Nenhuma mensagem pendente para 06d94cbb...","timestamp":"2026-02-24T23:53:42.285880413Z","level":"info"}
+{"message":"?? [UNRESPONDED CHECK] Resposta agendada em 40s","timestamp":"2026-02-24T23:53:42.286025794Z","level":"info"}
+{"timestamp":"2026-02-24T23:53:42.286031662Z","level":"info","message":""}
+{"level":"info","message":"🚨 ========================================","timestamp":"2026-02-24T23:53:42.286037088Z"}
+{"timestamp":"2026-02-24T23:53:42.286042160Z","level":"info","message":"🚨 [RECOVERY] Iniciando recuperação para usuário: 06d94cbb..."}
+{"timestamp":"2026-02-24T23:53:42.286048922Z","level":"info","message":"🚨 ========================================"}
+{"level":"info","message":"","timestamp":"2026-02-24T23:53:42.286054910Z"}
+{"timestamp":"2026-02-24T23:53:42.286060419Z","level":"info","message":"11:53:42 PM [express] GET /api/scheduling/appointments 200 in 202ms :: [{\"id\":\"d38c7058-f427-487c-a92…"}
+{"level":"info","timestamp":"2026-02-24T23:53:42.420459344Z","message":"11:53:42 PM [express] GET /api/whatsapp/connections 200 in 2055ms :: [{\"id\":\"6a36ce05-c5a3-4d31-80a4-…"}
+{"message":"[CONNECTION CLOSE] Could not read auth directory","timestamp":"2026-02-24T23:53:43.582165184Z","level":"info"}
+{"timestamp":"2026-02-24T23:53:43.582165283Z","level":"info","message":"?? [AI AGENT] Modo hist�rico ATIVO - 2 mensagens dispon�veis para contexto"}
+{"level":"info","timestamp":"2026-02-24T23:53:43.582174808Z","message":"[CONNECTION CLOSE] ?? STALE SOCKET IGNORED - Connection 6a36ce05... User a6ebfa8b..."}
+{"timestamp":"2026-02-24T23:53:43.582177862Z","level":"info","message":"🚨 [RECOVERY] ✅ Nenhuma mensagem pendente para b2a3f4f6..."}
+{"timestamp":"2026-02-24T23:53:43.582185602Z","level":"info","message":"📞 [EXCLUSION] Verificando 5511953776669 (variações: 5511953776669, 11953776669, 953776669) -> ✅ Permitido"}
+{"level":"info","message":"[CONNECTION CLOSE] Details: {","timestamp":"2026-02-24T23:53:43.582191764Z"}
+{"message":"[CONNECTION UPDATE] User a6ebfa8b... - connection: close, hasQR: false, statusCode: none","timestamp":"2026-02-24T23:53:43.582195525Z","level":"info"}
+{"level":"info","message":"  userId: 'a6ebfa8b...',","timestamp":"2026-02-24T23:53:43.582199206Z"}
+{"level":"info","message":"  statusCode: undefined,","timestamp":"2026-02-24T23:53:43.582203940Z"}
+{"timestamp":"2026-02-24T23:53:43.582209119Z","level":"info","message":"  errorMessage: 'none',"}
+{"level":"info","message":"  DisconnectReason: 'unknown(undefined)'","timestamp":"2026-02-24T23:53:43.582216214Z"}
+{"level":"info","message":"}","timestamp":"2026-02-24T23:53:43.582221080Z"}
+{"message":"🔍 [EXCLUSION] Verificando lista de exclusão para usuário 7ba8ea20-6edc-4ef9-9110-f3284c9859a5 (config=default, isEnabled=default=true)","level":"info","timestamp":"2026-02-24T23:53:43.582241397Z"}
+{"timestamp":"2026-02-24T23:53:43.582246197Z","level":"info","message":"📞 [EXCLUSION] Normalizando número 5511953776669 -> variações: [5511953776669, 11953776669, 953776669]"}
+{"timestamp":"2026-02-24T23:53:43.582250607Z","level":"info","message":"✅ [AI AGENT] Usuário tem plano pago ativo e válido: Plano Promo Ilimitado Mensal"}
+{"timestamp":"2026-02-24T23:53:43.582255125Z","level":"info","message":"   ?? Texto combinado: \"[Mensagem nao suportada: templateMessage, messageContextInfo]...\""}
+{"timestamp":"2026-02-24T23:53:43.582260503Z","level":"info","message":""}
+{"timestamp":"2026-02-24T23:53:43.582265024Z","level":"info","message":"🚨 ========================================"}
+{"message":"🚨 [RECOVERY] Iniciando recuperação para usuário: b2a3f4f6...","timestamp":"2026-02-24T23:53:43.582269391Z","level":"info"}
+{"message":"🚨 ========================================","timestamp":"2026-02-24T23:53:43.582273640Z","level":"info"}
+{"message":"","timestamp":"2026-02-24T23:53:43.582278681Z","level":"info"}
+{"message":"👤 [AI Agent] Nome do cliente: Lincoln César Ernesto","timestamp":"2026-02-24T23:53:43.584654335Z","level":"info"}
+{"message":"📁 [AI Agent] Mídias já enviadas: nenhuma","timestamp":"2026-02-24T23:53:43.584664281Z","level":"info"}
+{"timestamp":"2026-02-24T23:53:43.584718923Z","message":"[CONNECTION CLOSE] Current socket differs from closing socket, ignoring close event","level":"info"}
+{"message":"?? [AI AGENT] Nome do cliente: N�o identificado","level":"info","timestamp":"2026-02-24T23:53:43.584725506Z"}
+{"message":"?? [AI AGENT] M�dias j� enviadas: nenhuma","timestamp":"2026-02-24T23:53:43.584733645Z","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:53:44.441396924Z","message":"[BROADCAST] Sent message to 1/1 clients for user a6ebfa8b-6aaf-41f2-a688-28d6a0e7f752, type: disconnected"}
+{"message":"11:53:43 PM [express] POST /api/whatsapp/disconnect 200 in 601ms :: {\"success\":true}","timestamp":"2026-02-24T23:53:44.441602285Z","level":"info"}
+{"message":"11:53:44 PM [express] GET /api/whatsapp/connection 304 in 1ms :: {\"id\":\"6a36ce05-c5a3-4d31-80a4-f7a70…","level":"info","timestamp":"2026-02-24T23:53:44.441614580Z"}
+{"message":"?? [MSG CACHE] Armazenada mensagem 3EB0FC5EEF62EAED9A4996 para user e99199e0... (cache size: 12)","timestamp":"2026-02-24T23:53:44.441621775Z","level":"info"}
+{"level":"info","message":"?? [FROM ME] LID resolvido: 279383528997107@lid ? 558586589341@s.whatsapp.net","timestamp":"2026-02-24T23:53:44.441627943Z"}
+{"level":"info","message":"🛡️ [ANTI-BAN v5.0] 👤 Mensagem MANUAL do DONO detectada","timestamp":"2026-02-24T23:53:44.441633676Z"}
+{"level":"info","timestamp":"2026-02-24T23:53:44.441639947Z","message":"   📱 Contato: 558586589341"}
+{"timestamp":"2026-02-24T23:53:44.441644185Z","level":"info","message":"   🔄 Contador de lote reiniciado"}
+{"level":"info","timestamp":"2026-02-24T23:53:44.441648133Z","message":"🛡️ [ANTI-BAN v4.0] 👤 Mensagem MANUAL do DONO registrada - Bot aguardará antes de responder"}
+{"timestamp":"2026-02-24T23:53:44.441654896Z","message":"🎵 [FROM ME] Baixando áudio do dono para transcrição...","level":"info"}
+{"level":"info","message":"🎵 [FROM ME] mediaKey presente: true","timestamp":"2026-02-24T23:53:44.441661225Z"}
+{"level":"info","message":"🎵 [FROM ME] directPath presente: true","timestamp":"2026-02-24T23:53:44.441666648Z"}
+{"timestamp":"2026-02-24T23:53:44.441670535Z","level":"info","message":"?? [AI AGENT] Modo hist�rico ATIVO - 1 mensagens dispon�veis para contexto"}
+{"message":"11:53:44 PM [express] GET /api/whatsapp/connection 304 in 2ms :: {\"id\":\"6a36ce05-c5a3-4d31-80a4-f7a70…","level":"info","timestamp":"2026-02-24T23:53:44.441675166Z"}
+{"message":"📤 [MediaStorage] Uploading 93516 bytes to e99199e0-f311-4e3b-b2cb-dc6ba70b61b3/1771977224390_aab45e35.ogg...","level":"info","timestamp":"2026-02-24T23:53:44.441680215Z"}
+{"timestamp":"2026-02-24T23:53:45.932951842Z","level":"info","message":"? [UNRESPONDED CHECK] Verifica��o conclu�da:"}
+{"message":"","timestamp":"2026-02-24T23:53:45.932982559Z","level":"info"}
+{"message":"🤖 [CHATBOT] Chatbot não ativo para usuário 7ba8ea20-6edc-4ef9-9110-f3284c9859a5, delegando para IA","timestamp":"2026-02-24T23:53:45.932995656Z","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:53:45.933003914Z","message":"✅ [MediaStorage] Uploaded successfully: https://bnfpcuzjvycudccycqqt.supabase.co/storage/v1/object/public/whatsapp-media/e99199e0-f311-4e3b-b2cb-dc6ba70b61b3/1771977224390_aab45e35.ogg"}
+{"message":"✅ [FROM ME] Áudio do dono processado: 93516 bytes","timestamp":"2026-02-24T23:53:45.933118882Z","level":"info"}
+{"timestamp":"2026-02-24T23:53:45.933131019Z","message":"[LLM] ✅ Mistral chatComplete (mistral-medium-latest) respondeu","level":"info"}
+{"timestamp":"2026-02-24T23:53:45.933138164Z","level":"info","message":"✅ [Calibração LLM] Resposta em 3685ms"}
+{"message":"[LLM] 🎯 chatComplete via Mistral - Modelo do admin: mistral-medium-latest","level":"info","timestamp":"2026-02-24T23:53:45.933153263Z"}
+{"message":"✅ [MISTRAL ROTATION] Usando modelo do admin: mistral-medium-latest","level":"info","timestamp":"2026-02-24T23:53:45.933161844Z"}
+{"message":"   📊 Legacy (ai_agent_config): exists, isActive=false","timestamp":"2026-02-24T23:53:46.712054716Z","level":"info"}
+{"message":"   📊 Business (business_agent_configs): exists, isActive=false","timestamp":"2026-02-24T23:53:46.712058877Z","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:53:46.712072961Z","message":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"}
+{"timestamp":"2026-02-24T23:53:46.712085919Z","message":"   agentConfig exists: true","level":"info"}
+{"timestamp":"2026-02-24T23:53:46.712098478Z","message":"","level":"info"}
+{"message":"📝 [AI AGENT] Primeira mensagem: \"Entendo sua posição, mas gostaria de saber: como você está lidando com a demanda dos seus atendimentos atualmente? Alguma forma de automação poderia te ajudar a otimizar esse processo? Qual o melhor período para você, de manhã ou à tarde?\"","level":"info","timestamp":"2026-02-24T23:53:46.712106421Z"}
+{"level":"info","message":"🔔 [NOTIFICATION DEBUG] businessConfig exists: true","timestamp":"2026-02-24T23:53:46.712118383Z"}
+{"message":"🔔 [NOTIFICATION DEBUG] notificationMode: ai","timestamp":"2026-02-24T23:53:46.712126966Z","level":"info"}
+{"timestamp":"2026-02-24T23:53:46.718168339Z","level":"info","message":"🔔 [NOTIFICATION DEBUG] notificationPhoneNumber: null"}
+{"level":"info","message":"🔔 [NOTIFICATION DEBUG] clientMessage (combinedText): \"🙌🏾🙏🏾\"","timestamp":"2026-02-24T23:53:46.718174967Z"}
+{"message":"🔔 [NOTIFICATION DEBUG] Keyword check condition: {\"notificationEnabled\":false,\"notificationManualKeywords\":false,\"notificationMode\":\"ai\",\"modeMatches\":false}","level":"info","timestamp":"2026-02-24T23:53:46.718185176Z"}
+{"message":"🔔 [NOTIFICATION DEBUG] ❌ Skipping keyword check - conditions not met","level":"info","timestamp":"2026-02-24T23:53:46.718192206Z"}
+{"timestamp":"2026-02-24T23:53:46.718205356Z","message":"","level":"info"}
+{"level":"info","message":"⚠️ [AI Agent] RESPOSTA NULL - Nenhuma resposta gerada!","timestamp":"2026-02-24T23:53:46.718217734Z"}
+{"message":"   Possíveis causas (verifique logs acima para \"RETURN NULL\"):","timestamp":"2026-02-24T23:53:46.718236395Z","level":"info"}
+{"level":"info","message":"   2. Mensagem de BOT detectada","timestamp":"2026-02-24T23:53:46.718248734Z"}
+{"message":"   4. Trigger phrases configuradas mas nenhuma encontrada","timestamp":"2026-02-24T23:53:46.718268836Z","level":"info"}
+{"timestamp":"2026-02-24T23:53:46.718299718Z","message":"🔄 [DB] Resetando timer para retry: caa06239-3281-4a21-93a8-204c77e1dd98","level":"info"}
+{"message":"💾 [PERSISTENT TIMER] Salvo para 5511953776669 - executa às 2026-02-24T23:53:56.004Z","timestamp":"2026-02-24T23:53:46.729309694Z","level":"info"}
+{"message":"","level":"info","timestamp":"2026-02-24T23:53:46.908839168Z"}
+{"message":"🔍 [AI Agent] Verificando configurações para user 33eab39c-f84d-4232-82c0-0c0bdd076411:","level":"info","timestamp":"2026-02-24T23:53:46.908845160Z"}
+{"level":"info","message":"   ✅ [AI Agent] Agent ENABLED (legacy isActive=true), processing response...","timestamp":"2026-02-24T23:53:46.908871448Z"}
+{"level":"info","timestamp":"2026-02-24T23:53:47.744328921Z","message":"📡 [Calibração] ❌ Nota: 60/100 - A resposta menciona corretamente **Aamazonbrisa** e **climatizadores**, mas **falta reforçar a identidade da marca** (ex.: valores, diferencial competitivo ou tom de voz alinhado a um *agente de atendimento*). Além disso, há um **erro de formatação** ('Ventilador' cortado) e **pouca personalização** para um *agente* (ex.: saudação, chamadas para ação ou linguagem mais interativa)."}
+{"level":"info","message":"📡 [Calibração]     atendimento personalizado**.","timestamp":"2026-02-24T23:53:47.744400938Z"}
+{"message":"📡 [Calibração]    ### **O que oferecemos?**","level":"info","timestamp":"2026-02-24T23:53:47.744413878Z"}
+{"message":"📡 [Calibração]    ✅ **Climatizadores Evaporativos** – Ideais para ambientes comerciais, industriai","timestamp":"2026-02-24T23:53:47.744423541Z","level":"info"}
+{"message":"✅ [Calibração LLM] Resposta em 1557ms","timestamp":"2026-02-24T23:53:47.744446279Z","level":"info"}
+{"timestamp":"2026-02-24T23:53:47.746783859Z","level":"info","message":"════════════════════════════════════════════════════════════"}
+{"level":"info","message":"🍕 [DeliveryAI] DEBUG config: null","timestamp":"2026-02-24T23:53:47.746805801Z"}
+{"message":"[LLM] 🚀 Mistral chatComplete - Modelo: mistral-medium-latest (ADMIN) [1/5]","timestamp":"2026-02-24T23:53:47.746825549Z","level":"info"}
+{"level":"info","message":"🔄 [LLM RETRY] Mistral chatComplete (mistral-medium-latest) - Tentativa 1/1...","timestamp":"2026-02-24T23:53:47.746826969Z"}
+{"timestamp":"2026-02-24T23:53:47.746834089Z","message":"🚫 [AI Agent] FlowEngine ignorado (delivery/agendamento/salon ativo)","level":"info"}
+{"level":"info","message":"📡 [Calibração] 🧪 TESTE 2/2","timestamp":"2026-02-24T23:53:47.746840828Z"}
+{"timestamp":"2026-02-24T23:53:47.746844061Z","level":"info","message":"🍕 [AI Agent] Tentando processar com sistema de delivery..."}
+{"message":"📡 [Calibração]    \"Preciso de suporte para meu aparelho da Amazon Brisa.\"","timestamp":"2026-02-24T23:53:47.746857016Z","level":"info"}
+{"timestamp":"2026-02-24T23:53:47.746872579Z","message":"✅ [MISTRAL ROTATION] Usando modelo do admin: mistral-medium-latest","level":"info"}
+{"level":"info","message":"🍕 [DeliveryAI] DEBUG is_active value: undefined (type: undefined)","timestamp":"2026-02-24T23:53:47.746882958Z"}
+{"timestamp":"2026-02-24T23:53:47.746915626Z","level":"info","message":"🍕 [DeliveryAI] Motivo: configError=false, config=false, is_active=undefined"}
+{"message":"🍕 [DeliveryAI] Delivery não ativo para este usuário","level":"info","timestamp":"2026-02-24T23:53:47.749309855Z"}
+{"timestamp":"2026-02-24T23:53:47.896015194Z","level":"info","message":"   ?? Enviada em: Tue Feb 24 2026 00:15:50 GMT+0000 (Coordinated Universal Time)"}
+{"level":"info","timestamp":"2026-02-24T23:53:47.896022229Z","message":"?? [UNRESPONDED CHECK] Resposta agendada em 45s"}
+{"message":"🤖 [AI Agent] Config para user 33eab39c-f84d-4232-82c0-0c0bdd076411 respondendo cliente:","timestamp":"2026-02-24T23:53:48.800408514Z","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:53:48.800413550Z","message":"   Trigger phrases: Olá, gostaria de saber o preço ?, Gostaria de saber como funciona ?, bom dia 🌞, boa tarde, boa noite !, oi, Vocês atendem hoje ?, tem vaga hoje ?, Sou indicação !, meu nome é, gostaria de agendar !, como funciona ?, Quais tipos de massagens ?, Quais tipos de tratamento ?, dor, doendo, dor nas costas, coluna, lombar, pescoço, ombro, joelho, hérnia, ciático, inflamação, travado, contratura, oi olá ola bom dia boa tarde boa noite tudo bem quero informações gostaria de saber, valor valores preço precos quanto custa orçamento orcamento tem vaga tem vaga hoje vocês atendem hoje hoje tem horário quero agendar agendar marcar marcar sessão marcar horario consulta atendimento, onde fica endereço endereco localização localizacao local unidade unidades como chegar Plano Piloto Brasília Shopping Sobradinho Central Park, oi \t•\tolá \t•\tbom dia \t•\tboa tarde \t•\tboa noite \t•\tonde fica \t•\tlocalização \t•\tendereço \t•\tvocês ficam onde \t•\tunidade"}
+{"message":"   Model (legacy, ignorado): openai/gpt-oss-20b → real: system_config.openrouter_model","level":"info","timestamp":"2026-02-24T23:53:48.800420293Z"}
+{"level":"info","message":"   Active: true","timestamp":"2026-02-24T23:53:48.800430926Z"}
+{"message":"   Trigger phrases: 19","timestamp":"2026-02-24T23:53:48.800439742Z","level":"info"}
+{"level":"info","message":"   Prompt (primeiros 150 chars): Primeiro contato precisa ser Assessoria | SPACOBLEND Terapêutico – Roberta","timestamp":"2026-02-24T23:53:48.800469340Z"}
+{"level":"info","message":"","timestamp":"2026-02-24T23:53:48.800477668Z"}
+{"level":"info","message":"Olá! 👋 Seja bem-vindo(a) ao SPACOBLEND Terapêutico.  ","timestamp":"2026-02-24T23:53:48.800485870Z"}
+{"message":"","level":"info","timestamp":"2026-02-24T23:53:48.800495809Z"}
+{"level":"info","message":"🔍 [AI Agent] Verificando trigger phrases (19 configuradas)","timestamp":"2026-02-24T23:53:48.800534694Z"}
+{"timestamp":"2026-02-24T23:53:48.800602299Z","message":"📝 [AI Agent] Using LEGACY system (deterministic) for user 33eab39c-f84d-4232-82c0-0c0bdd076411","level":"info"}
+{"timestamp":"2026-02-24T23:53:48.800615002Z","message":"🤖 [AI Agent] ═══════════════════════════════════════════════════","level":"info"}
+{"message":"   Procurando \"dor, doendo, dor nas costas, coluna, lombar, pescoço, ombro, joelho, hérnia, ciático, inflamação, travado, contratura\" → last:❌ | history:❌","level":"info","timestamp":"2026-02-24T23:53:48.803042569Z"}
+{"level":"info","timestamp":"2026-02-24T23:53:48.803053749Z","message":"   Procurando \"oi olá ola bom dia boa tarde boa noite tudo bem quero informações gostaria de saber\" → last:❌ | history:❌"}
+{"timestamp":"2026-02-24T23:53:48.803061956Z","message":"   Procurando \"valor valores preço precos quanto custa orçamento orcamento tem vaga tem vaga hoje vocês atendem hoje hoje tem horário quero agendar agendar marcar marcar sessão marcar horario consulta atendimento\" → last:❌ | history:❌","level":"info"}
+{"message":"   Procurando \"meu nome é\" → last:❌ | history:❌","timestamp":"2026-02-24T23:53:48.803078119Z","level":"info"}
+{"message":"   Procurando \"gostaria de agendar !\" → last:❌ | history:❌","timestamp":"2026-02-24T23:53:48.803087637Z","level":"info"}
+{"timestamp":"2026-02-24T23:53:48.803118354Z","level":"info","message":"   Procurando \"Quais tipos de tratamento ?\" → last:❌ | history:❌"}
+{"level":"info","timestamp":"2026-02-24T23:53:48.803119883Z","message":"   Procurando \"Gostaria de saber como funciona ?\" → last:❌ | history:❌"}
+{"message":"   Procurando \"bom dia 🌞\" → last:❌ | history:❌","timestamp":"2026-02-24T23:53:48.803126665Z","level":"info"}
+{"message":"   Procurando \"boa noite !\" → last:❌ | history:❌","timestamp":"2026-02-24T23:53:48.803137837Z","level":"info"}
+{"level":"info","message":"   Procurando \"oi\" → last:❌ | history:❌","timestamp":"2026-02-24T23:53:48.803143382Z"}
+{"message":"   Procurando \"Vocês atendem hoje ?\" → last:❌ | history:❌","timestamp":"2026-02-24T23:53:48.803151361Z","level":"info"}
+{"message":"   Procurando \"tem vaga hoje ?\" → last:❌ | history:❌","level":"info","timestamp":"2026-02-24T23:53:48.803159264Z"}
+{"timestamp":"2026-02-24T23:53:48.806663024Z","level":"info","message":"   Procurando \"oi \t•\tolá \t•\tbom dia \t•\tboa tarde \t•\tboa noite \t•\tonde fica \t•\tlocalização \t•\tendereço \t•\tvocês ficam onde \t•\tunidade\" → last:❌ | history:❌"}
+{"level":"info","message":"","timestamp":"2026-02-24T23:53:48.806667580Z"}
+{"level":"info","timestamp":"2026-02-24T23:53:48.806681475Z","message":"   userId: 33eab39c-f84d-4232-82c0-0c0bdd076411"}
+{"timestamp":"2026-02-24T23:53:48.806694416Z","level":"info","message":"   👉 Para resolver: Remova as trigger phrases ou adicione uma que corresponda"}
+{"level":"info","timestamp":"2026-02-24T23:53:48.811727418Z","message":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"}
+{"timestamp":"2026-02-24T23:53:48.811734437Z","message":"","level":"info"}
+{"level":"info","message":"   ? N�o respondidas: 4","timestamp":"2026-02-24T23:53:48.811765039Z"}
+{"level":"info","message":"","timestamp":"2026-02-24T23:53:48.811780236Z"}
+{"message":"11:53:48 PM [express] GET /api/usage 304 in 1542ms :: {\"agentMessagesCount\":0,\"limit\":-1,\"remaining\":…","timestamp":"2026-02-24T23:53:48.811792195Z","level":"info"}
+{"message":"🔔 [NOTIFICATION DEBUG] businessConfig exists: true","timestamp":"2026-02-24T23:53:48.811809512Z","level":"info"}
+{"level":"info","message":"🔔 [NOTIFICATION DEBUG] notificationEnabled: true","timestamp":"2026-02-24T23:53:48.811817013Z"}
+{"timestamp":"2026-02-24T23:53:48.811832907Z","message":"🔔 [NOTIFICATION DEBUG] notificationManualKeywords: ","level":"info"}
+{"message":"Quando o usuário mandar mensagem como:  Oi, oi, Olá,  preciso de atendimento, massagem de estética, quais horários disponíveis, estou com a lesão ou dor,bom dia, boa tarde, valor, preço, como funciona, sessão, atendimento, tratamento,tudo bem, informações","level":"info","timestamp":"2026-02-24T23:53:48.811839611Z"}
+{"message":"orçamento","level":"info","timestamp":"2026-02-24T23:53:48.811861873Z"}
+{"message":"orcamento","level":"info","timestamp":"2026-02-24T23:53:48.811867395Z"}
+{"message":"contratura","timestamp":"2026-02-24T23:53:48.816034325Z","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:53:48.816041027Z","message":"tensão"}
+{"message":"formigamento","timestamp":"2026-02-24T23:53:48.816055907Z","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:53:48.816067134Z","message":"dormencia"}
+{"message":"queimação","timestamp":"2026-02-24T23:53:48.816072843Z","level":"info"}
+{"level":"info","message":"","timestamp":"2026-02-24T23:53:48.816086186Z"}
+{"message":"endereço","timestamp":"2026-02-24T23:53:48.816102300Z","level":"info"}
+{"message":"dor nas costas","level":"info","timestamp":"2026-02-24T23:53:48.816258885Z"}
+{"timestamp":"2026-02-24T23:53:48.816264714Z","message":"costas","level":"info"}
+{"level":"info","message":"coluna","timestamp":"2026-02-24T23:53:48.816271676Z"}
+{"message":"lombar","timestamp":"2026-02-24T23:53:48.816283065Z","level":"info"}
+{"message":"cervical","level":"info","timestamp":"2026-02-24T23:53:48.816296760Z"}
+{"timestamp":"2026-02-24T23:53:48.816309966Z","message":"pescoco","level":"info"}
+{"timestamp":"2026-02-24T23:53:48.816319034Z","level":"info","message":"ombro"}
+{"level":"info","timestamp":"2026-02-24T23:53:48.816334569Z","message":"quadril"}
+{"level":"info","message":"punho","timestamp":"2026-02-24T23:53:48.816357183Z"}
+{"message":"pé","timestamp":"2026-02-24T23:53:48.816373218Z","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:53:48.816401642Z","message":"hernia"}
+{"message":"orcamento","timestamp":"2026-02-24T23:53:48.819514689Z","level":"info"}
+{"level":"info","message":"horário hoje","timestamp":"2026-02-24T23:53:48.819537184Z"}
+{"level":"info","message":"horario hoje","timestamp":"2026-02-24T23:53:48.819543460Z"}
+{"message":"disponibilidade hoje","level":"info","timestamp":"2026-02-24T23:53:48.819564136Z"}
+{"timestamp":"2026-02-24T23:53:48.819581587Z","message":"consegue hoje","level":"info"}
+{"level":"info","message":"🔔 [NOTIFICATION DEBUG] clientMessage (combinedText): \"[Mensagem nao suportada: templateMessage, messageContextInfo]\"","timestamp":"2026-02-24T23:53:48.819604045Z"}
+{"timestamp":"2026-02-24T23:53:48.819612875Z","level":"info","message":"🔔 [NOTIFICATION DEBUG] aiResponse: \"null\""}
+{"timestamp":"2026-02-24T23:53:48.819619812Z","level":"info","message":"🔔 [NOTIFICATION DEBUG] Keyword check condition: {\"notificationEnabled\":true,\"notificationManualKeywords\":true,\"notificationMode\":\"both\",\"modeMatches\":true}"}
+{"message":"endereco","timestamp":"2026-02-24T23:53:48.819746293Z","level":"info"}
+{"timestamp":"2026-02-24T23:53:48.819771770Z","level":"info","message":"localizacao"}
+{"timestamp":"2026-02-24T23:53:48.819799888Z","message":"mapa","level":"info"}
+{"timestamp":"2026-02-24T23:53:48.819805617Z","level":"info","message":"como chegar"}
+{"message":"Plano Piloto","timestamp":"2026-02-24T23:53:48.819811300Z","level":"info"}
+{"level":"info","message":"Brasilia Shopping","timestamp":"2026-02-24T23:53:48.819827349Z"}
+{"message":"Sobradinho","level":"info","timestamp":"2026-02-24T23:53:48.819845543Z"}
+{"message":"valores","level":"info","timestamp":"2026-02-24T23:53:48.819860604Z"}
+{"timestamp":"2026-02-24T23:53:48.819869275Z","level":"info","message":"precos"}
+{"timestamp":"2026-02-24T23:53:48.821824756Z","level":"info","message":"🔔 [NOTIFICATION DEBUG] clientMessage: \"[mensagem nao suportada: templatemessage, messagecontextinfo]\""}
+{"message":"🔔 [NOTIFICATION DEBUG] Agent includes \"quando o usuário mandar mensagem como:  oi\": false","timestamp":"2026-02-24T23:53:48.821855341Z","level":"info"}
+{"message":"🔔 [NOTIFICATION DEBUG] Checking keyword: \"oi\"","timestamp":"2026-02-24T23:53:48.821862134Z","level":"info"}
+{"timestamp":"2026-02-24T23:53:48.825668396Z","message":"🔔 [NOTIFICATION DEBUG] Client includes \"bom dia\": false","level":"info"}
+{"message":"🔔 [NOTIFICATION DEBUG] Checking keyword: \"estou com a lesão ou dor\"","level":"info","timestamp":"2026-02-24T23:53:48.825721168Z"}
+{"message":"🔔 [NOTIFICATION DEBUG] Agent includes \"estou com a lesão ou dor\": false","timestamp":"2026-02-24T23:53:48.825737894Z","level":"info"}
+{"message":"🔔 [NOTIFICATION DEBUG] Checking keyword: \"bom dia\"","timestamp":"2026-02-24T23:53:48.825745929Z","level":"info"}
+{"timestamp":"2026-02-24T23:53:48.825810585Z","message":"🔔 [NOTIFICATION DEBUG] Agent includes \"oi\": false","level":"info"}
+{"message":"🔔 [NOTIFICATION DEBUG] Checking keyword: \"olá\"","timestamp":"2026-02-24T23:53:48.825816013Z","level":"info"}
+{"timestamp":"2026-02-24T23:53:48.825820952Z","message":"🔔 [NOTIFICATION DEBUG] Client includes \"olá\": false","level":"info"}
+{"timestamp":"2026-02-24T23:53:48.825869412Z","message":"🔔 [NOTIFICATION DEBUG] Agent includes \"massagem de estética\": false","level":"info"}
+{"timestamp":"2026-02-24T23:53:48.825880934Z","level":"info","message":"🔔 [NOTIFICATION DEBUG] Client includes \"quais horários disponíveis\": false"}
+{"level":"info","message":"🔔 [NOTIFICATION DEBUG] Agent includes \"boa tarde\": false","timestamp":"2026-02-24T23:53:48.828910233Z"}
+{"timestamp":"2026-02-24T23:53:48.828924857Z","level":"info","message":"🔔 [NOTIFICATION DEBUG] Checking keyword: \"valor\""}
+{"timestamp":"2026-02-24T23:53:48.828943627Z","level":"info","message":"🔔 [NOTIFICATION DEBUG] Checking keyword: \"preço\""}
+{"level":"info","message":"🔔 [NOTIFICATION DEBUG] Checking keyword: \"como funciona\"","timestamp":"2026-02-24T23:53:48.828960922Z"}
+{"message":"🔔 [NOTIFICATION DEBUG] Agent includes \"como funciona\": false","timestamp":"2026-02-24T23:53:48.828972402Z","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:53:48.828982726Z","message":"🔔 [NOTIFICATION DEBUG] Client includes \"sessão\": false"}
+{"timestamp":"2026-02-24T23:53:48.829132614Z","level":"info","message":"🔔 [NOTIFICATION DEBUG] Checking keyword: \"boa tarde\""}
+{"level":"info","message":"🔔 [NOTIFICATION DEBUG] Client includes \"boa tarde\": false","timestamp":"2026-02-24T23:53:48.829137806Z"}
+{"message":"como funciona\": false","timestamp":"2026-02-24T23:53:48.832426513Z","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:53:48.832441945Z","message":"🔔 [NOTIFICATION DEBUG] Agent includes \"informações"}
+{"message":"como funciona\": false","timestamp":"2026-02-24T23:53:48.832450545Z","level":"info"}
+{"message":"🔔 [NOTIFICATION DEBUG] Client includes \"sessão\": false","timestamp":"2026-02-24T23:53:48.832465423Z","level":"info"}
+{"message":"🔔 [NOTIFICATION DEBUG] Client includes \"quais tipos de tratamento\": false","timestamp":"2026-02-24T23:53:48.832511460Z","level":"info"}
+{"message":"🔔 [NOTIFICATION DEBUG] Agent includes \"quais tipos de tratamento\": false","level":"info","timestamp":"2026-02-24T23:53:48.832519002Z"}
+{"message":"🔔 [NOTIFICATION DEBUG] Checking keyword: \"quero agendar\"","timestamp":"2026-02-24T23:53:48.832527144Z","level":"info"}
+{"timestamp":"2026-02-24T23:53:48.832534768Z","message":"🔔 [NOTIFICATION DEBUG] Client includes \"quero agendar\": false","level":"info"}
+{"message":"🔔 [NOTIFICATION DEBUG] Agent includes \"tratamento\": false","timestamp":"2026-02-24T23:53:48.832578273Z","level":"info"}
+{"message":"🔔 [NOTIFICATION DEBUG] Checking keyword: \"tudo bem\"","level":"info","timestamp":"2026-02-24T23:53:48.832585760Z"}
+{"timestamp":"2026-02-24T23:53:48.832593026Z","message":"🔔 [NOTIFICATION DEBUG] Client includes \"tudo bem\": false","level":"info"}
+{"timestamp":"2026-02-24T23:53:48.832599887Z","level":"info","message":"🔔 [NOTIFICATION DEBUG] Agent includes \"tudo bem\": false"}
+{"message":"🔔 [NOTIFICATION DEBUG] Checking keyword: \"informações","timestamp":"2026-02-24T23:53:48.832606697Z","level":"info"}
+{"message":"🔔 [NOTIFICATION DEBUG] Agent includes \"valor\": false","timestamp":"2026-02-24T23:53:48.835954826Z","level":"info"}
+{"message":"🔔 [NOTIFICATION DEBUG] Client includes \"valores\": false","timestamp":"2026-02-24T23:53:48.835970668Z","level":"info"}
+{"level":"info","message":"🔔 [NOTIFICATION DEBUG] Agent includes \"valores\": false","timestamp":"2026-02-24T23:53:48.835976625Z"}
+{"message":"","level":"info","timestamp":"2026-02-24T23:53:48.835989089Z"}
+{"message":"dor","level":"info","timestamp":"2026-02-24T23:53:48.836018412Z"}
+{"message":"🔔 [NOTIFICATION DEBUG] Checking keyword: \"agendar\"","timestamp":"2026-02-24T23:53:48.836205500Z","level":"info"}
+{"timestamp":"2026-02-24T23:53:48.836209440Z","message":"🔔 [NOTIFICATION DEBUG] Client includes \"agendar\": false","level":"info"}
+{"message":"🔔 [NOTIFICATION DEBUG] Agent includes \"agendar\": false","timestamp":"2026-02-24T23:53:48.836213299Z","level":"info"}
+{"timestamp":"2026-02-24T23:53:48.836217397Z","message":"🔔 [NOTIFICATION DEBUG] Checking keyword: \"marcar\"","level":"info"}
+{"message":"🔔 [NOTIFICATION DEBUG] Client includes \"marcar\": false","level":"info","timestamp":"2026-02-24T23:53:48.836221316Z"}
+{"level":"info","timestamp":"2026-02-24T23:53:48.836228834Z","message":"🔔 [NOTIFICATION DEBUG] Checking keyword: \"valor da consulta\""}
+{"message":"🔔 [NOTIFICATION DEBUG] Client includes \"valor da consulta\": false","timestamp":"2026-02-24T23:53:48.836232676Z","level":"info"}
+{"level":"info","message":"🔔 [NOTIFICATION DEBUG] Checking keyword: \"valor\"","timestamp":"2026-02-24T23:53:48.836241642Z"}
+{"timestamp":"2026-02-24T23:53:48.839097701Z","level":"info","message":"dor forte"}
+{"level":"info","message":"dor nas costas","timestamp":"2026-02-24T23:53:48.839110143Z"}
+{"message":"coluna","timestamp":"2026-02-24T23:53:48.839129330Z","level":"info"}
+{"message":"punho","timestamp":"2026-02-24T23:53:48.839152216Z","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:53:48.839153150Z","message":"endereço"}
+{"timestamp":"2026-02-24T23:53:48.839163512Z","level":"info","message":"mão"}
+{"message":"cervical","timestamp":"2026-02-24T23:53:48.839172905Z","level":"info"}
+{"level":"info","message":"mao","timestamp":"2026-02-24T23:53:48.839175608Z"}
+{"timestamp":"2026-02-24T23:53:48.839185717Z","message":"localização","level":"info"}
+{"timestamp":"2026-02-24T23:53:48.839192366Z","message":"pé","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:53:48.839196054Z","message":"pescoco"}
+{"message":"ombro","timestamp":"2026-02-24T23:53:48.839202466Z","level":"info"}
+{"message":"hernia","timestamp":"2026-02-24T23:53:48.839225234Z","level":"info"}
+{"timestamp":"2026-02-24T23:53:48.839246293Z","message":"ciático","level":"info"}
+{"message":"inflamação","level":"info","timestamp":"2026-02-24T23:53:48.839260975Z"}
+{"timestamp":"2026-02-24T23:53:48.839276145Z","level":"info","message":"travado"}
+{"timestamp":"2026-02-24T23:53:48.839288734Z","level":"info","message":"tensão"}
+{"message":"queimacao","timestamp":"2026-02-24T23:53:48.839323270Z","level":"info"}
+{"message":"disponibilidade hoje","timestamp":"2026-02-24T23:53:48.842198188Z","level":"info"}
+{"message":"central park","timestamp":"2026-02-24T23:53:48.842239116Z","level":"info"}
+{"timestamp":"2026-02-24T23:53:48.842252843Z","level":"info","message":"valor"}
+{"level":"info","message":"valores","timestamp":"2026-02-24T23:53:48.842257109Z"}
+{"timestamp":"2026-02-24T23:53:48.842261144Z","message":"preço","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:53:48.842272674Z","message":"orçamento"}
+{"message":"orcamento","timestamp":"2026-02-24T23:53:48.842276985Z","level":"info"}
+{"message":"horario hoje","level":"info","timestamp":"2026-02-24T23:53:48.842293499Z"}
+{"level":"info","message":"","timestamp":"2026-02-24T23:53:48.842480481Z"}
+{"level":"info","message":"orçamento","timestamp":"2026-02-24T23:53:48.842494159Z"}
+{"level":"info","message":"orcamento","timestamp":"2026-02-24T23:53:48.842502482Z"}
+{"level":"info","timestamp":"2026-02-24T23:53:48.842508896Z","message":"prompt"}
+{"message":"dor","timestamp":"2026-02-24T23:53:48.842515068Z","level":"info"}
+{"timestamp":"2026-02-24T23:53:48.842521848Z","level":"info","message":"doendo"}
+{"timestamp":"2026-02-24T23:53:48.842535444Z","level":"info","message":"dor nas costas"}
+{"timestamp":"2026-02-24T23:53:48.844935927Z","message":"costas","level":"info"}
+{"timestamp":"2026-02-24T23:53:48.844942310Z","level":"info","message":"coluna"}
+{"timestamp":"2026-02-24T23:53:48.844947046Z","message":"lombar","level":"info"}
+{"level":"info","message":"cervical","timestamp":"2026-02-24T23:53:48.844951516Z"}
+{"message":"pescoço","level":"info","timestamp":"2026-02-24T23:53:48.844956912Z"}
+{"message":"local","timestamp":"2026-02-24T23:53:48.844963224Z","level":"info"}
+{"message":"ombro","timestamp":"2026-02-24T23:53:48.844966499Z","level":"info"}
+{"level":"info","message":"joelho","timestamp":"2026-02-24T23:53:48.844971775Z"}
+{"message":"unidade","timestamp":"2026-02-24T23:53:48.844974894Z","level":"info"}
+{"timestamp":"2026-02-24T23:53:48.844988816Z","message":"braço","level":"info"}
+{"timestamp":"2026-02-24T23:53:48.845002585Z","message":"ciático","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:53:48.845018266Z","message":"pé"}
+{"level":"info","timestamp":"2026-02-24T23:53:48.845030798Z","message":"ciatica"}
+{"message":"hernia","timestamp":"2026-02-24T23:53:48.845042554Z","level":"info"}
+{"message":"inflamacao","timestamp":"2026-02-24T23:53:48.845071060Z","level":"info"}
+{"timestamp":"2026-02-24T23:53:48.845095858Z","level":"info","message":"tensão"}
+{"level":"info","message":"tensao","timestamp":"2026-02-24T23:53:48.845103199Z"}
+{"timestamp":"2026-02-24T23:53:48.845114205Z","message":"formigamento","level":"info"}
+{"message":"dormencia","timestamp":"2026-02-24T23:53:48.845127030Z","level":"info"}
+{"timestamp":"2026-02-24T23:53:48.845132895Z","level":"info","message":"queimação"}
+{"level":"info","timestamp":"2026-02-24T23:53:48.845142037Z","message":"queimacao"}
+{"message":"coluna","timestamp":"2026-02-24T23:53:48.848413518Z","level":"info"}
+{"level":"info","message":"","timestamp":"2026-02-24T23:53:48.848426708Z"}
+{"timestamp":"2026-02-24T23:53:48.848431211Z","level":"info","message":"doendo"}
+{"level":"info","timestamp":"2026-02-24T23:53:48.848442808Z","message":"plano piloto"}
+{"level":"info","timestamp":"2026-02-24T23:53:48.848452770Z","message":"brasília shopping"}
+{"message":"dor nas costas","level":"info","timestamp":"2026-02-24T23:53:48.848455276Z"}
+{"timestamp":"2026-02-24T23:53:48.848463484Z","message":"orçamento","level":"info"}
+{"timestamp":"2026-02-24T23:53:48.848493798Z","level":"info","message":"prompt"}
+{"level":"info","timestamp":"2026-02-24T23:53:48.848501011Z","message":"orçamento"}
+{"timestamp":"2026-02-24T23:53:48.848504738Z","message":"sobradinho","level":"info"}
+{"message":"dor","level":"info","timestamp":"2026-02-24T23:53:48.848509643Z"}
+{"message":"vaga hoje","timestamp":"2026-02-24T23:53:48.848525063Z","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:53:48.848525987Z","message":"valor"}
+{"level":"info","timestamp":"2026-02-24T23:53:48.848541437Z","message":"horario hoje"}
+{"message":"preço","level":"info","timestamp":"2026-02-24T23:53:48.848543268Z"}
+{"timestamp":"2026-02-24T23:53:48.848550872Z","message":"disponibilidade hoje","level":"info"}
+{"message":"quanto custa","level":"info","timestamp":"2026-02-24T23:53:48.848554819Z"}
+{"timestamp":"2026-02-24T23:53:48.848560035Z","message":"tem hoje","level":"info"}
+{"message":"pode hoje","level":"info","timestamp":"2026-02-24T23:53:48.848565737Z"}
+{"timestamp":"2026-02-24T23:53:48.848571847Z","level":"info","message":"consegue hoje"}
+{"timestamp":"2026-02-24T23:53:48.848577808Z","level":"info","message":"atende hoje\": false"}
+{"timestamp":"2026-02-24T23:53:48.851242147Z","message":"formigamento","level":"info"}
+{"message":"pescoco","level":"info","timestamp":"2026-02-24T23:53:48.851289915Z"}
+{"level":"info","message":"joelho","timestamp":"2026-02-24T23:53:48.851316729Z"}
+{"timestamp":"2026-02-24T23:53:48.851336761Z","message":"perna","level":"info"}
+{"message":"braço","level":"info","timestamp":"2026-02-24T23:53:48.851346589Z"}
+{"level":"info","message":"braco","timestamp":"2026-02-24T23:53:48.851356010Z"}
+{"level":"info","message":"punho","timestamp":"2026-02-24T23:53:48.851362765Z"}
+{"message":"localizacao","level":"info","timestamp":"2026-02-24T23:53:48.851366871Z"}
+{"message":"local","level":"info","timestamp":"2026-02-24T23:53:48.851399180Z"}
+{"timestamp":"2026-02-24T23:53:48.851425119Z","message":"pé","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:53:48.851445514Z","message":"hernia"}
+{"message":"inflamacao","timestamp":"2026-02-24T23:53:48.851464770Z","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:53:48.851469234Z","message":"travado"}
+{"message":"contratura","timestamp":"2026-02-24T23:53:48.851473963Z","level":"info"}
+{"message":"tensão","level":"info","timestamp":"2026-02-24T23:53:48.851477936Z"}
+{"level":"info","timestamp":"2026-02-24T23:53:48.851483785Z","message":"tensao"}
+{"level":"info","message":"pode hoje","timestamp":"2026-02-24T23:53:48.854939839Z"}
+{"message":"atende hoje\": false","level":"info","timestamp":"2026-02-24T23:53:48.854971311Z"}
+{"timestamp":"2026-02-24T23:53:48.854971655Z","level":"info","message":"brasília shopping"}
+{"message":"?? [AI Agent] generateAIResponse retornou: NULL","timestamp":"2026-02-24T23:53:48.854983701Z","level":"info"}
+{"level":"info","message":"brasilia shopping","timestamp":"2026-02-24T23:53:48.854984473Z"}
+{"message":"","timestamp":"2026-02-24T23:53:48.854999240Z","level":"info"}
+{"message":"shopping","timestamp":"2026-02-24T23:53:48.854999524Z","level":"info"}
+{"message":"============================================================","level":"info","timestamp":"2026-02-24T23:53:48.855010623Z"}
+{"timestamp":"2026-02-24T23:53:48.855017268Z","message":"⚠️ [AI Agent] RESPOSTA NULL - Nenhuma resposta gerada!","level":"info"}
+{"message":"central park","timestamp":"2026-02-24T23:53:48.855265486Z","level":"info"}
+{"level":"info","message":"sobradinho","timestamp":"2026-02-24T23:53:48.855274959Z"}
+{"level":"info","timestamp":"2026-02-24T23:53:48.855279794Z","message":""}
+{"level":"info","message":"valor","timestamp":"2026-02-24T23:53:48.855286370Z"}
+{"level":"info","timestamp":"2026-02-24T23:53:48.855292691Z","message":"valores"}
+{"timestamp":"2026-02-24T23:53:48.855321877Z","level":"info","message":"precos"}
+{"level":"info","timestamp":"2026-02-24T23:53:48.855335368Z","message":"orçamento"}
+{"level":"info","message":"horário hoje","timestamp":"2026-02-24T23:53:48.855365446Z"}
+{"level":"info","message":"horario hoje","timestamp":"2026-02-24T23:53:48.855372577Z"}
+{"timestamp":"2026-02-24T23:53:48.855410428Z","level":"info","message":"tem hoje"}
+{"timestamp":"2026-02-24T23:53:48.857276407Z","message":"   3. agentConfig não encontrado ou isActive=false","level":"info"}
+{"timestamp":"2026-02-24T23:53:48.857287336Z","level":"info","message":"   4. Trigger phrases configuradas mas nenhuma encontrada"}
+{"level":"info","message":"============================================================","timestamp":"2026-02-24T23:53:48.857296307Z"}
+{"message":"🔄 [DB] Resetando timer para retry: 33604cfe-29a9-4f17-bc1f-44b1f149257b","level":"info","timestamp":"2026-02-24T23:53:48.857304923Z"}
+{"message":"🔓 [AI AGENT] Conversa 33604cfe-29a9-4f17-bc1f-44b1f149257b liberada para próximo processamento","timestamp":"2026-02-24T23:53:49.742895538Z","level":"info"}
+{"message":"🔄 [AI AGENT] Timer reagendado retry 1/8 em 30s - resposta falhou (conversationId: 33604cfe-29a9-4f17-bc1f-44b1f149257b)","timestamp":"2026-02-24T23:53:49.742901227Z","level":"error"}
+{"message":"11:53:49 PM [express] GET /api/access-status 304 in 1ms :: {\"accessStatus\":\"active\",\"shouldBlock\":fal…","level":"info","timestamp":"2026-02-24T23:53:49.742906680Z"}
+{"level":"info","message":"✅ [Calibração LLM] Resposta em 2139ms","timestamp":"2026-02-24T23:53:49.742918298Z"}
+{"level":"info","timestamp":"2026-02-24T23:53:49.742966015Z","message":"🔄 [Calibração LLM] Tentativa 1/2..."}
+{"message":"✅ [MISTRAL ROTATION] Usando modelo do admin: mistral-medium-latest","level":"info","timestamp":"2026-02-24T23:53:49.742981834Z"}
+{"timestamp":"2026-02-24T23:53:49.743006630Z","message":"🔄 [LLM RETRY] Mistral chatComplete (mistral-medium-latest) - Tentativa 1/1...","level":"info"}
+{"message":"🔄 [AI AGENT] =========== PROCESSANDO RESPOSTA ===========","level":"info","timestamp":"2026-02-24T23:53:49.743020465Z"}
+{"timestamp":"2026-02-24T23:53:49.743036455Z","message":"   📞 Contato: 5514998233353","level":"info"}
+{"timestamp":"2026-02-24T23:53:49.743050885Z","level":"info","message":"🎤 [Storage] Áudio baixado da URL: 93516 bytes"}
+{"message":"11:53:49 PM [express] GET /api/user/assigned-plan 304 in 2ms :: {\"hasAssignedPlan\":false}","timestamp":"2026-02-24T23:53:49.774434524Z","level":"info"}
+{"level":"info","message":"11:53:49 PM [express] GET /api/user/branding 304 in 1ms :: {\"isWhiteLabel\":false,\"companyName\":\"Agent…","timestamp":"2026-02-24T23:53:49.804458798Z"}
+{"message":"11:53:49 PM [express] GET /api/user/suspension-status 304 in 2ms :: {\"suspended\":false}","level":"info","timestamp":"2026-02-24T23:53:49.840988678Z"}
+{"message":"11:53:50 PM [express] GET /api/scheduling/services 304 in 220ms :: [{\"id\":\"bf14ea47-a1d6-4810-8a9a-bc…","timestamp":"2026-02-24T23:53:50.911058007Z","level":"info"}
+{"level":"info","message":"","timestamp":"2026-02-24T23:53:50.911099302Z"}
+{"timestamp":"2026-02-24T23:53:50.911128422Z","message":"11:53:50 PM [express] GET /api/whatsapp/connection 200 in 1016ms :: {\"id\":\"15673ae0-70b5-4f41-b410-87…","level":"info"}
+{"message":"   👉 Usuário precisa assinar plano","timestamp":"2026-02-24T23:53:51.664901069Z","level":"info"}
+{"message":"   🛑 Timer marcado como COMPLETED (sem retry - bloqueio permanente)","level":"info","timestamp":"2026-02-24T23:53:51.664910082Z"}
+{"message":"","level":"info","timestamp":"2026-02-24T23:53:51.664925363Z"}
+{"message":"? [UNRESPONDED CHECK] Verifica��o conclu�da:","level":"info","timestamp":"2026-02-24T23:53:51.664943835Z"}
+{"message":"? [UNRESPONDED CHECK] Verifica��o conclu�da:","level":"info","timestamp":"2026-02-24T23:53:51.664957685Z"}
+{"level":"info","message":"   ?? Total conversas 24h: 18","timestamp":"2026-02-24T23:53:51.664961659Z"}
+{"message":"   ?? Total conversas 24h: 37","level":"info","timestamp":"2026-02-24T23:53:51.664964330Z"}
+{"timestamp":"2026-02-24T23:53:51.664983566Z","level":"info","message":"!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"}
+{"level":"info","timestamp":"2026-02-24T23:53:51.664986020Z","message":"   ?? Respostas agendadas: 0"}
+{"message":"   ? N�o respondidas: 0","level":"info","timestamp":"2026-02-24T23:53:51.664988077Z"}
+{"timestamp":"2026-02-24T23:53:51.664996377Z","level":"info","message":""}
+{"message":"🚫 [AI AGENT] BLOQUEIO: Limite de 25 mensagens atingido","timestamp":"2026-02-24T23:53:51.664996475Z","level":"info"}
+{"level":"info","timestamp":"2026-02-24T23:53:51.665009376Z","message":"   ?? Respostas agendadas: 0"}
+{"level":"info","message":"   userId: 82740692-e984-4344-996b-6f523ead0a0f","timestamp":"2026-02-24T23:53:51.665015848Z"}
+{"level":"info","timestamp":"2026-02-24T23:53:51.665029616Z","message":"   contactNumber: 5514998233353"}
+{"message":"📊 [Calibração] Mínimo para aprovar: 70/100","timestamp":"2026-02-24T23:53:51.951796248Z","level":"info"}
+{"timestamp":"2026-02-24T23:53:51.951827617Z","level":"info","message":"📡 [Calibração]    2. **Problemas técnicos** (ex.: não liga, faz barulho, não resfria, etc.)"}
+{"level":"info","timestamp":"2026-02-24T23:53:51.951845411Z","message":"  ❌ Cenário c2: 60/100"}
+{"timestamp":"2026-02-24T23:53:51.953888962Z","level":"info","message":"📡 [Calibração] ⚠️ Ajustes finalizados. Pontuação final: 60/100"}
+{"level":"info","message":"📡 [Calibração] ⚠️ Calibração finalizada. Score: 60/100 - Recomendamos testar no simulador.","timestamp":"2026-02-24T23:53:51.953902703Z"}
+{"timestamp":"2026-02-24T23:53:51.953911229Z","message":"?? [Generate Prompt] ----------------------------------------","level":"info"}
+{"timestamp":"2026-02-24T23:53:51.953931950Z","message":"   ?? Score geral: 60/100","level":"info"}
+{"timestamp":"2026-02-24T23:53:51.962774840Z","message":"?? [Generate Prompt] Criando FlowDefinition para sistema híbrido...","level":"info"}
+{"timestamp":"2026-02-24T23:53:51.962780940Z","message":"","level":"info"}
+{"level":"info","message":"🔗 [FlowIntegration] Gerando prompt + flow para Meu Negócio","timestamp":"2026-02-24T23:53:51.962786598Z"}
