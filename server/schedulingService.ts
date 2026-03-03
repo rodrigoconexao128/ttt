@@ -980,15 +980,45 @@ export async function processSchedulingTags(
       }
     } else {
       console.log(`❌ [Scheduling] Failed to create appointment: ${result.error}`);
-      // Apenas remover a tag sem adicionar mensagem de erro
-      // Com as novas instruções, a IA só usa a tag após confirmação,
-      // então se falhar é um erro técnico - a IA já informou o cliente
-      modifiedText = modifiedText.replace(fullMatch, '');
       
-      // Se a mensagem ficou vazia após remover a tag, adicionar fallback
-      // Isso acontece quando a IA só enviou a tag sem texto natural
-      if (modifiedText.trim() === '') {
-        modifiedText = `Puxa, o horário ${time} não está mais disponível! 😅 Mas sem problemas, posso verificar outros horários para você. Qual horário prefere?`;
+      // Remove a tag da resposta
+      modifiedText = modifiedText.replace(fullMatch, '');
+      const trimmedMsg = modifiedText.trim();
+      
+      // Detectar frases de confirmação de agendamento que a IA pode ter escrito
+      // Se a IA escreveu confirmação mas o agendamento falhou, precisamos corrigir a mensagem
+      // para não mentir ao cliente sobre um agendamento que não existe
+      const confirmacaoPatterns = [
+        /reservei\s+seu\s+hor[aá]rio/i,
+        /agendei\s+(para|seu)/i,
+        /hor[aá]rio\s+(confirmado|reservado|agendado)/i,
+        /agendamento\s+(realizado|confirmado|feito)/i,
+        /ficou\s+(agendado|marcado|reservado)/i,
+        /confirmei\s+seu\s+hor[aá]rio/i,
+        /vou\s+reservar\s+seu\s+hor[aá]rio/i,
+        /reservando\s+seu\s+hor[aá]rio/i,
+        /seu\s+hor[aá]rio\s+(está|foi)\s+(reservado|marcado|agendado)/i,
+      ];
+      
+      const mensagemParecioConfirmacao = confirmacaoPatterns.some(p => p.test(trimmedMsg));
+      
+      // Mensagem de erro baseada no tipo de falha
+      let errorMessage: string;
+      if (result.error === 'Horário não disponível') {
+        errorMessage = `Opa! Infelizmente esse horário (${time} de ${date}) não está disponível para agendamento. 😕 Pode me informar outro horário ou data de preferência? Vou verificar a disponibilidade! 😊`;
+      } else if (result.error === 'Sistema de agendamento desativado') {
+        errorMessage = `O sistema de agendamento está desativado no momento. Por favor, entre em contato diretamente para marcar seu horário! 😊`;
+      } else {
+        errorMessage = `Puxa, tive um problema técnico ao registrar o horário ${time} de ${date}. 😅 Por favor, confirme a data e horário novamente para eu tentar salvar!`;
+      }
+      
+      if (trimmedMsg === '' || mensagemParecioConfirmacao) {
+        // Mensagem era uma confirmação falsa — substituir completamente para não enganar o cliente
+        modifiedText = errorMessage;
+        console.log(`📅 [Scheduling] ⚠️ Mensagem de confirmação falsa detectada e substituída por erro`);
+      } else {
+        // Mensagem tinha outro conteúdo — só anexar aviso de erro
+        modifiedText = trimmedMsg + `\n\n⚠️ ${errorMessage}`;
       }
     }
     
