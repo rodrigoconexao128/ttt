@@ -3547,10 +3547,16 @@ export function findItemByNameFuzzy(
   searchName: string,
   categoryFilter?: string  // NOVO: Filtrar por categoria específica
 ): MenuItem | null {
-  const normalized = searchName.toLowerCase().trim()
-    .replace(/refri\b/g, 'refrigerante')
-    .replace(/(\d)\s*l\b/gi, '$1 litros')
-    .replace(/(\d)\s*litro\b/gi, '$1 litros');
+  // 🆕 Normalização unificada: aplicar mesmas regras para busca E nomes de itens
+  const normalizeForItemMatch = (text: string): string => {
+    return text.toLowerCase().trim()
+      .replace(/coca[\s-]*cola/gi, 'coca')   // coca-cola → coca
+      .replace(/guarana/gi, 'guaraná')
+      .replace(/-/g, ' ')                     // hifens → espaço
+      .replace(/\s+/g, ' ');
+  };
+  
+  const normalized = normalizeForItemMatch(searchName);
   
   // Filtrar categorias se especificado
   const categoriesToSearch = categoryFilter 
@@ -3567,18 +3573,18 @@ export function findItemByNameFuzzy(
 
   const searchWords = normalized
     .split(/\s+/)
-    .filter(w => w.length > 2 && !['de', 'da', 'do', 'uma', 'um'].includes(w));
+    .filter(w => w.length > 1 && !['de', 'da', 'do', 'uma', 'um'].includes(w));
 
   const flavorWords = normalized
     .split(/\s+/)
-    .filter(w => w.length > 4 && !['pizza', 'esfiha', 'esfirra', 'quero', 'grande', 'media', 'pequena'].includes(w));
+    .filter(w => w.length > 3 && !['pizza', 'esfiha', 'esfirra', 'quero', 'grande', 'media', 'pequena'].includes(w));
 
   type Candidate = { item: MenuItem; categoryName: string; score: number; reason: string };
   const candidates: Candidate[] = [];
 
   for (const category of categoriesToSearch) {
     for (const item of category.items) {
-      const itemNameLower = item.name.toLowerCase();
+      const itemNameLower = normalizeForItemMatch(item.name);
       let score = 0;
       let reason = '';
 
