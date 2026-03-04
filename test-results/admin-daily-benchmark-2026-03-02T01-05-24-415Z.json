@@ -1,0 +1,67 @@
+{
+  "generatedAt": "2026-03-02T01:05:24.415Z",
+  "totalCases": 14,
+  "totalTurns": 53,
+  "falseSuccessCount": 0,
+  "wrongLinkCount": 0,
+  "wrongUserBindingCount": 0,
+  "conversionReadyCount": 14,
+  "jobs": [
+    {
+      "name": "simulate:admin-ia-vs-ia",
+      "command": "npm run simulate:admin-ia-vs-ia",
+      "startedAt": "2026-03-02T01:02:25.097Z",
+      "durationMs": 36231,
+      "reportPath": "/opt/agentezap/vvvv/test-results/admin-agent-ia-vs-ia-2026-03-02T01-03-01-292Z.json"
+    },
+    {
+      "name": "simulate:admin-guided-flow",
+      "command": "npm run simulate:admin-guided-flow",
+      "startedAt": "2026-03-02T01:03:01.329Z",
+      "durationMs": 34057,
+      "reportPath": "/opt/agentezap/vvvv/test-results/admin-guided-flow-2026-03-02T01-03-35-347Z.json"
+    },
+    {
+      "name": "simulate:admin-module-matrix",
+      "command": "npm run simulate:admin-module-matrix",
+      "startedAt": "2026-03-02T01:03:35.386Z",
+      "durationMs": 43167,
+      "reportPath": "/opt/agentezap/vvvv/test-results/admin-module-matrix-2026-03-02T01-04-18-519Z.json"
+    },
+    {
+      "name": "audit:admin-delivery-claims",
+      "command": "npm run audit:admin-delivery-claims",
+      "startedAt": "2026-03-02T01:04:18.554Z",
+      "durationMs": 587,
+      "reportPath": "/opt/agentezap/vvvv/test-results/admin-delivery-claims-audit-2026-03-02T01-04-19-120Z.json"
+    },
+    {
+      "name": "simulate:admin-real-db-flow",
+      "command": "npm run simulate:admin-real-db-flow",
+      "startedAt": "2026-03-02T01:04:19.142Z",
+      "durationMs": 65267,
+      "reportPath": "/opt/agentezap/vvvv/test-results/admin-real-db-flow-2026-03-02T01-05-24-375Z.json"
+    }
+  ],
+  "metrics": {
+    "context_loss_rate": 0,
+    "unnecessary_reask_rate": 0,
+    "false_success_rate": 0,
+    "wrong_link_rate": 0,
+    "wrong_user_binding_rate": 0,
+    "avg_completion_turns": 4.08,
+    "avg_latency_ms": 35861.8,
+    "conversion_ready_rate": 1
+  },
+  "thresholds": {
+    "false_success_rate_max": 0
+  },
+  "alertTriggered": false,
+  "sourceReports": {
+    "iaVsIa": "/opt/agentezap/vvvv/test-results/admin-agent-ia-vs-ia-2026-03-02T01-03-01-292Z.json",
+    "guidedFlow": "/opt/agentezap/vvvv/test-results/admin-guided-flow-2026-03-02T01-03-35-347Z.json",
+    "moduleMatrix": "/opt/agentezap/vvvv/test-results/admin-module-matrix-2026-03-02T01-04-18-519Z.json",
+    "deliveryAudit": "/opt/agentezap/vvvv/test-results/admin-delivery-claims-audit-2026-03-02T01-04-19-120Z.json",
+    "realDbFlow": "/opt/agentezap/vvvv/test-results/admin-real-db-flow-2026-03-02T01-05-24-375Z.json"
+  }
+}

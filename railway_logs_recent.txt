@@ -1,0 +1,100 @@
+﻿
+ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+­ƒìò [DeliveryAI] Processando mensagem: "https://adm.bemprotege.com.br/proposta/MTI4OTEyNCw..."
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+Ô£à [AI AGENT] Usu├írio tem plano pago ativo e v├ílido: Plano Promo Ilimitado Mensal
+   ?? Texto combinado: "Segue os comprovantes dos materias utilizados para instala├º├úo das 2x c├ómeras 
+
+Total gastos em materiais = 353,74 
+M├úo de obra = 300 reais 
+
+Valor tot..."
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöä [AI AGENT] Reagendando timer para 5511979719027 em 30s (sess├úo indispon├¡vel)...
+4:42:21 PM [express] GET /api/usage 304 in 732ms :: {"agentMessagesCount":350,"limit":-1,"remaining"ÔÇª
+­ƒôØ [PERSISTENT TIMER] Atualizado para conversation 448fdd9b-bb1b-40d4-8204-1e3f8b75f732 - 1 msgs
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+­ƒÆ¥ [AI AGENT] Timer reagendado no banco para 2026-01-27T16:42:51.185Z
+­ƒöä [DB] Resetando timer para retry: 448fdd9b-bb1b-40d4-8204-1e3f8b75f732
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+ÔÜá´©Å [AI Agent] BLOQUEIO: Session/socket n├úo dispon├¡vel
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   userId: 0ead7092-10b0-4f54-98a0-0baa26612bd1
+   ÔÅ▒´©Å Aguardou 679.4s | 3 mensagem(s) acumulada(s)
+   ­ƒô× Contato: 5511979719027
+   conversationId: 564b0ee8-51f6-40cb-aef6-ae02989f6c16
+   contactNumber: 5511979719027
+   ­ƒæë WhatsApp provavelmente desconectado
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=cd97a8e8-bae3-469d-b36a-c9f2a36a67c8
+­ƒìò [DeliveryAI] DEBUG config: null
+­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
+­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)
+­ƒìò [DeliveryAI] Delivery n├úo ativo para user cd97a8e8-bae3-469d-b36a-c9f2a36a67c8
+­ƒìò [DeliveryAI] Motivo: configError=true, config=false, is_active=undefined
+­ƒìò [DeliveryAI] Delivery n├úo ativo para este usu├írio
+­ƒìò [AI Agent] Delivery n├úo ativo ou sem resposta - continuando fluxo normal
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+   Model (legacy, ignorado): openai/gpt-oss-20b ÔåÆ real: system_config.openrouter_model
+   Active: true
+   Trigger phrases: 4
+­ƒöä [DB] Resetando timer para retry: 564b0ee8-51f6-40cb-aef6-ae02989f6c16
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+   Prompt length: 2637 chars
+­ƒôØ [AI Agent] Using LEGACY system (deterministic) for user cd97a8e8-bae3-469d-b36a-c9f2a36a67c8
+   Prompt (primeiros 150 chars): Atendente Virtual da Vic Engenharia - Tom: acolhedor, profissional e objetivo.
+1...
+
+­ƒñû [AI Agent] ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+   Prompt (MD5 para debug): 25798910
+REGRAS PRIORIT├üRIAS (com t├®cnicas de vendas e persuas├úo expl├¡citas):
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: 448fdd9b-bb1b-40d4-8204-1e3f8b75f732)
+­ƒöô [AI AGENT] Conversa 448fdd9b-bb1b-40d4-8204-1e3f8b75f732 liberada para pr├│ximo processamento
+­ƒôØ [PERSISTENT TIMER] Atualizado para conversation 564b0ee8-51f6-40cb-aef6-ae02989f6c16 - 3 msgs
+­ƒÆ¥ [AI AGENT] Timer reagendado no banco para 2026-01-27T16:42:51.420Z
+   Procurando "COMO FA├çO PARA FAZER A COMPRA DO APARTAMENTO" ÔåÆ last:ÔØî | history:ÔØî
+   Procurando "GOSTARIA DE MAIS INFORMA├çOES" ÔåÆ last:ÔØî | history:ÔØî
+   Procurando "QUAIS VALORES" ÔåÆ last:ÔØî | history:ÔØî
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   Mensagem atual: "https://adm.bemprotege.com.br/proposta/MTI4OTEyNCwxNjQ0MTE0LDEyMyw1MjAyMA=="
+   ­ƒæë Para resolver: Remova as trigger phrases ou adicione uma que corresponda
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: 564b0ee8-51f6-40cb-aef6-ae02989f6c16)
+­ƒöö [NOTIFICATION DEBUG] userId: cd97a8e8-bae3-469d-b36a-c9f2a36a67c8
+­ƒöö [NOTIFICATION DEBUG] clientMessage (combinedText): "https://adm.bemprotege.com.br/proposta/MTI4OTEyNCwxNjQ0MTE0LDEyMyw1MjAyMA=="
+­ƒöö [NOTIFICATION DEBUG] Keyword check condition: {"notificationEnabled":false,"notificationManualKeywords":false,"modeMatches":false}
+­ƒöö [NOTIFICATION DEBUG] ÔØî Skipping keyword check - conditions not met
+============================================================
+ÔÜá´©Å [AI Agent] RESPOSTA NULL - Nenhuma resposta gerada!
+   Poss├¡veis causas (verifique logs acima para "RETURN NULL"):
+   1. Usu├írio SUSPENSO
+?? [AI AGENT] Nome do cliente: El├®trica LL Macedo
+   3. agentConfig n├úo encontrado ou isActive=false
+   4. Trigger phrases configuradas mas nenhuma encontrada
+?? [AI AGENT] M´┐¢dias j´┐¢ enviadas: nenhuma
+   5. Erro na API de LLM (timeout, rate limit)
+============================================================
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: 5a8e4878-0ca6-4e62-8a31-cde4a194b4c5)
+­ƒöä [DB] Resetando timer para retry: 5a8e4878-0ca6-4e62-8a31-cde4a194b4c5
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöÆ [AI AGENT] ÔÜá´©Å Conversa 711b69af-1ada-4b82-a064-4c724ad25bf4 j├í est├í sendo processada, IGNORANDO duplicata
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+   ­ƒô× Contato: 5521987596995
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒôü [AI Agent] M├¡dias j├í enviadas: nenhuma
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool

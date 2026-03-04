@@ -1,0 +1,305 @@
+{
+  "business": {
+    "name": "Clínica Bem Estar",
+    "type": "Clínica de Estética",
+    "owner": "Dra. Ana",
+    "description": "Clínica de estética com tratamentos faciais, corporais e depilação a laser. Atende por agendamento."
+  },
+  "startTime": "2025-12-14T19:27:13.874Z",
+  "messages": [
+    {
+      "msgNum": 1,
+      "role": "client",
+      "content": "Oi, sou da Clínica Bem Estar. Vi propaganda da AgenteZap e vim ver se vale a pena.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:27:14.597Z"
+    },
+    {
+      "msgNum": 2,
+      "role": "agent",
+      "content": "Oi Dra. Ana! Que bom ter você aqui! A AgenteZap pode ser um grande diferencial para a Clínica Bem Estar. Ela atende seus clientes 24/7, agendando consultas e tirando dúvidas sobre tratamentos. Quer que eu mostre como funciona? [ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:27:15.577Z"
+    },
+    {
+      "msgNum": 3,
+      "role": "client",
+      "content": "\"Tá, mas como que isso funciona na prática? Tipo, se um cliente perguntar sobre depilação a laser, o que ele faz?\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:27:18.887Z"
+    },
+    {
+      "msgNum": 4,
+      "role": "agent",
+      "content": "Ótima pergunta! A AgenteZap é treinada para entender as necessidades dos seus clientes. Se alguém perguntar sobre depilação a laser, ela pode responder com informações detalhadas sobre o procedimento, duração, preços e até agendar uma consulta. Tudo isso sem você precisar ficar online o tempo todo. Quer ver uma demonstração em vídeo? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:27:22.685Z"
+    },
+    {
+      "msgNum": 5,
+      "role": "client",
+      "content": "Hmm, mas como que ela vai saber se o cliente quer depilação nas pernas ou axilas? Isso não é muito genérico?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:27:24.216Z"
+    },
+    {
+      "msgNum": 6,
+      "role": "agent",
+      "content": "Bom, a AgenteZap é super inteligente! Ela pode ser treinada para entender contextos específicos. Por exemplo, se o cliente perguntar sobre depilação, a IA pode responder com opções como \"pernas\", \"axilas\", \"virilha\", etc. E se o cliente quiser algo mais específico, ela pode transferir a conversa para você. Quer que eu mostre como funciona na prática? [ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:27:25.626Z"
+    },
+    {
+      "msgNum": 7,
+      "role": "client",
+      "content": "Tá, mas como ela vai saber diferenciar se o cliente quer depilação a laser ou depilação comum? Já tentei chatbot antes e não funcionou, sempre confundia os pedidos.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:27:27.169Z"
+    },
+    {
+      "msgNum": 8,
+      "role": "agent",
+      "content": "Entendo sua preocupação, Dra. Ana. A AgenteZap é diferente porque usa IA avançada para entender o contexto da conversa. Por exemplo, se o cliente perguntar sobre \"depilação a laser\", a IA já sabe que é um serviço específico e pode responder com informações detalhadas sobre esse tratamento. E se o cliente quiser depilação comum, a IA também consegue identificar e responder corretamente. Quer que eu explique mais sobre como a IA entende essas nuances? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:27:28.535Z"
+    },
+    {
+      "msgNum": 9,
+      "role": "client",
+      "content": "Hmm... mas como que eu sei que esse chatbot não vai responder errado pra meus clientes? Já vi outros que falam besteira e ainda pioram a imagem da clínica.\n\nE esse vídeo que você tá mandando, tem alguma coisa de específico pra clínica de estética? Ou é só um vídeo genérico?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:27:30.482Z"
+    },
+    {
+      "msgNum": 10,
+      "role": "agent",
+      "content": "Dra. Ana, entendo sua preocupação! A AgenteZap é treinada para ser precisa e profissional. A gente configura ela com as informações da sua clínica, então ela vai responder com base no que você oferece. O vídeo que te mandei é uma demonstração genérica, mas a gente pode criar uma versão personalizada para a Clínica Bem Estar, mostrando como a IA atende seus clientes específicos. Quer que eu mostre um exemplo de como a AgenteZap pode responder perguntas sobre os tratamentos da sua clínica? [ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:27:31.759Z"
+    },
+    {
+      "msgNum": 11,
+      "role": "client",
+      "content": "Tá, mas como é que ela vai saber responder sobre os preços dos meus tratamentos? Já tentei chatbot antes e não funcionou, ficou só respondendo bobagem.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:27:33.392Z"
+    },
+    {
+      "msgNum": 12,
+      "role": "agent",
+      "content": "Dra. Ana, a AgenteZap é diferente! A gente configura ela com os preços e informações da sua clínica. Por exemplo, se um cliente perguntar sobre o preço de um tratamento facial, a IA responde com o valor exato que você cadastrou. E se o cliente quiser agendar, ela faz isso também. Quer que eu mostre como funciona na prática? [ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:27:34.472Z"
+    },
+    {
+      "msgNum": 13,
+      "role": "client",
+      "content": "Hmm, mas como que ela entende que é pra agendar um tratamento facial e não um corporal? E se o cliente perguntar algo que não tá cadastrado?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:27:36.075Z"
+    },
+    {
+      "msgNum": 14,
+      "role": "agent",
+      "content": "Dra. Ana, a AgenteZap é treinada para entender o contexto da conversa. Por exemplo, se o cliente perguntar sobre \"tratamento facial\", ela já sabe que é para agendar esse serviço específico. E se o cliente perguntar algo que não está cadastrado, a IA pode responder com uma mensagem padrão, como \"Vou encaminhar sua dúvida para um atendente humano\" e transferir a conversa para você. Quer que eu mostre como isso funciona? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:27:37.234Z"
+    },
+    {
+      "msgNum": 15,
+      "role": "client",
+      "content": "Tá, mas como que isso vai me ajudar a vender mais? Eu já tentei chatbot antes e não funcionou.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:27:38.778Z"
+    },
+    {
+      "msgNum": 16,
+      "role": "agent",
+      "content": "Dra. Ana, a AgenteZap não é um chatbot comum! Ela atende seus clientes 24/7, agendando consultas e tirando dúvidas sobre tratamentos. Por exemplo, se um cliente perguntar sobre um tratamento facial, a IA pode enviar fotos, explicar os benefícios e até fechar a venda. Isso aumenta suas vendas sem você precisar ficar online o tempo todo. Quer ver um exemplo de como ela pode ajudar a vender mais? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:27:39.893Z"
+    },
+    {
+      "msgNum": 17,
+      "role": "client",
+      "content": "Tá, mas como é que ela entende sobre clínica de estética? Já tentei chatbot antes e foi um desastre.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:27:41.325Z"
+    },
+    {
+      "msgNum": 18,
+      "role": "agent",
+      "content": "Dra. Ana, a AgenteZap é treinada especificamente para entender o universo da estética. A gente configura ela com as informações da sua clínica, então ela sabe tudo sobre tratamentos faciais, corporais e depilação a laser. Por exemplo, se um cliente perguntar sobre um tratamento, a IA responde com detalhes sobre duração, preços e benefícios. Quer que eu mostre como ela pode ser útil para a Clínica Bem Estar? [ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:27:42.539Z"
+    },
+    {
+      "msgNum": 19,
+      "role": "client",
+      "content": "Tá, mas como é que isso vai me ajudar a vender mais na clínica? Não foi isso que eu perguntei antes?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:27:43.996Z"
+    },
+    {
+      "msgNum": 20,
+      "role": "agent",
+      "content": "Dra. Ana, a AgenteZap pode aumentar suas vendas de várias formas! Por exemplo, ela pode enviar promoções para clientes que já agendaram tratamentos, oferecer combos de serviços e até enviar lembretes para evitar faltas. Tudo isso sem você precisar ficar online o tempo todo. Quer que eu mostre como ela pode ajudar a vender mais na Clínica Bem Estar? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:27:45.027Z"
+    },
+    {
+      "msgNum": 21,
+      "role": "client",
+      "content": "Tá, mas como que isso vai funcionar na prática? Tipo, como que ela vai saber que um cliente já agendou um tratamento? E esses combos, como que ela monta?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:27:46.528Z"
+    },
+    {
+      "msgNum": 22,
+      "role": "agent",
+      "content": "Dra. Ana, a AgenteZap integra com seu sistema de agendamento. Quando um cliente agenda um tratamento, a IA já sabe e pode enviar promoções relevantes. Por exemplo, se um cliente agendou um tratamento facial, a AgenteZap pode oferecer um combo com um tratamento corporal com desconto. Tudo isso é personalizado para a Clínica Bem Estar. Quer que eu mostre como funciona na prática? [ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:27:47.615Z"
+    },
+    {
+      "msgNum": 23,
+      "role": "client",
+      "content": "\"Ah, tá... Mas como é que isso vai me ajudar a vender mais? Tipo, como que a IA sabe o que oferecer pra cada cliente?\"\n\n(Observação: Ele não repetiu nada, então você demonstra interesse, mas ainda desconfiado)",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:27:49.325Z"
+    },
+    {
+      "msgNum": 24,
+      "role": "agent",
+      "content": "Dra. Ana, a AgenteZap analisa o histórico de cada cliente. Por exemplo, se alguém já agendou um tratamento facial, a IA pode oferecer um combo com um tratamento corporal com desconto. Tudo isso é personalizado para a Clínica Bem Estar. Quer que eu mostre como ela pode ajudar a vender mais? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:27:50.270Z"
+    },
+    {
+      "msgNum": 25,
+      "role": "client",
+      "content": "Ah, tá. Mas como é que isso funciona na prática? Tipo, se eu já tenho um sistema de agendamento, como que a AgenteZap se encaixa aí? E o preço? Você ainda não me disse quanto custa.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:27:52.044Z"
+    },
+    {
+      "msgNum": 26,
+      "role": "agent",
+      "content": "Dra. Ana, a AgenteZap integra facilmente com seu sistema de agendamento atual. Ela usa a mesma base de dados para oferecer promoções e combos personalizados. O preço é R$ 99/mês, e você pode testar por 7 dias sem compromisso. Quer que eu crie seu acesso agora mesmo? [ENVIAR_MIDIA:TABELA_PRECOS]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:TABELA_PRECOS]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:27:52.982Z"
+    },
+    {
+      "msgNum": 27,
+      "role": "client",
+      "content": "Tá, mas como é que ela faz pra oferecer promoções e combos sem eu ter que ficar configurando toda hora? E essa tabela de preços aí, tem algum desconto pra quem paga anual?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:27:57.122Z"
+    },
+    {
+      "msgNum": 28,
+      "role": "agent",
+      "content": "Dra. Ana, a AgenteZap é inteligente! Você configura os combos e promoções uma vez, e a IA oferece automaticamente para os clientes certos. Sobre o preço, não temos desconto anual, mas você pode testar por 7 dias sem compromisso. Quer que eu crie seu acesso agora mesmo? [ENVIAR_MIDIA:TABELA_PRECOS]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:TABELA_PRECOS]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:27:57.938Z"
+    },
+    {
+      "msgNum": 29,
+      "role": "client",
+      "content": "\"Ah, tá... mas como que essa IA sabe quem é o cliente certo pra oferecer os combos? E o que acontece se ela errar? Já tentei chatbot antes e foi um fracasso. E esse preço aí tá um pouco salgado, não acha?\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:27:59.641Z"
+    },
+    {
+      "msgNum": 30,
+      "role": "agent",
+      "content": "Dra. Ana, a AgenteZap analisa o histórico de compras e agendamentos de cada cliente. Por exemplo, se alguém já fez um tratamento facial, a IA oferece um combo com um tratamento corporal. E se ela errar, pode transferir a conversa para você. Sobre o preço, R$ 99/mês é um investimento que pode aumentar suas vendas significativamente. Quer que eu mostre como ela pode ajudar a vender mais? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:28:00.850Z"
+    }
+  ],
+  "analysis": {
+    "totalMessages": 30,
+    "mediaTagsUsed": [
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:TABELA_PRECOS]",
+      "[ENVIAR_MIDIA:TABELA_PRECOS]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+    ],
+    "actionsUsed": [],
+    "potentialRepetitions": [],
+    "clientConvinced": false,
+    "observations": []
+  }
+}

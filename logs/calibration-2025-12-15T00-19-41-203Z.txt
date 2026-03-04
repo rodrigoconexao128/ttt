@@ -1,0 +1,46 @@
+
+═══════════════════════════════════════════════════════════════════════════════
+📊 RELATÓRIO DE CALIBRAÇÃO - RODRIGO (AGENTE VENDEDOR)
+═══════════════════════════════════════════════════════════════════════════════
+
+DATA: 14/12/2025, 21:19:41
+TESTE: IA vs IA SEM ROTEIRO (Cliente age naturalmente)
+
+═══════════════════════════════════════════════════════════════════════════════
+📈 RESULTADOS GERAIS
+═══════════════════════════════════════════════════════════════════════════════
+
+TAXA DE CONVERSÃO: 75% (3/4 nichos)
+⚠️ BOM, MAS PODE MELHORAR
+
+═══════════════════════════════════════════════════════════════════════════════
+📋 RESULTADOS POR NICHO
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ Restaurante: CONVERTEU (1 mensagens)
+
+✅ Hotmart/Infoprodutor: CONVERTEU (6 mensagens)
+
+✅ Loja de Roupas Online: CONVERTEU (1 mensagens)
+
+❌ Clínica Médica: NÃO CONVERTEU 
+   📌 Motivo: Cliente não entendeu - Rodrigo explicou de forma confusa
+   💬 Última msg cliente: "Tá, então me manda o link do teste e eu dou uma olhada. Mas se eu não gostar, eu posso cancelar mesm..."
+
+
+═══════════════════════════════════════════════════════════════════════════════
+🔧 SUGESTÕES DE AJUSTE
+═══════════════════════════════════════════════════════════════════════════════
+
+3. SIMPLIFICAR EXPLICAÇÃO:
+   - Usar linguagem mais simples
+   - Dar exemplos práticos logo
+   - Evitar jargão técnico
+
+
+═══════════════════════════════════════════════════════════════════════════════
+📁 LOGS DETALHADOS
+═══════════════════════════════════════════════════════════════════════════════
+
+Conversas completas salvas em: logs/calibration-{timestamp}.json
+

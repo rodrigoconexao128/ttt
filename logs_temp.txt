@@ -1,0 +1,500 @@
+﻿­ƒìò [DeliveryAI] Motivo: configError=false, config=true, is_active=false
+
+­ƒìò [DeliveryAI] DEBUG configError: null
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöö [NOTIFICATION DEBUG] userId: 841c32ed-95fe-4267-a37a-9262e2fcd993
+­ƒöö [NOTIFICATION DEBUG] businessConfig exists: false
+­ƒÆá Caixa com 4 Ampolas (15mg) ÔÇô R$ 890,00
+
+­ƒöö [NOTIFICATION DEBUG] ÔØî Skipping keyword check - conditions not met
+?? [AI Agent] generateAIResponse retornou: "Desculpe, mas isso n├úo faz parte do meu escopo. Posso ajudar com os servi├ºos de contabilidade, abert..."
+­ƒöö [NOTIFICATION DEBUG] notificationManualKeywords: pix
+­ƒöö [NOTIFICATION DEBUG] Checking keyword: "pix"
+­ƒöö [NOTIFICATION DEBUG] notificationPhoneNumber: 5517991610665
+­ƒöö [NOTIFICATION DEBUG] Client includes "pix": false
+­ƒöö [NOTIFICATION DEBUG] clientMessage (combinedText): "Ola. Boa tarde. J├í assisti ao v├¡deo e vendo minha disponibilidade poder├¡amos chegar aos 40,00 por m├¬"
+­ƒöö [NOTIFICATION DEBUG] userId: cb9213c3-fde3-479e-a4aa-344171c59735
+­ƒöö [NOTIFICATION DEBUG] Agent includes "pix": false
+­ƒöö [NOTIFICATION DEBUG] Ô£à Entering keyword check block!
+­ƒöö [NOTIFICATION DEBUG] businessConfig exists: true
+­ƒöö [NOTIFICATION DEBUG] notificationEnabled: true
+­ƒöö [NOTIFICATION DEBUG] aiResponse: "O plano promocional est├í em R$49/m├¬s. Se quiser testar gr├ítis e depois ativar o plano ilimitado por "
+­ƒöö [NOTIFICATION DEBUG] notificationMode: both
+­ƒöö [NOTIFICATION DEBUG] Keyword check condition: {"notificationEnabled":true,"notificationManualKeywords":true,"notificationMode":"both","modeMatches":true}
+­ƒöö [NOTIFICATION DEBUG] Keywords to check: ["pix"]
+­ƒöö [NOTIFICATION DEBUG] clientMessage: "ola. boa tarde. j├í assisti ao v├¡deo e vendo minha disponibilidade poder├¡amos chegar aos 40,00 por m├¬"
+­ƒöö [NOTIFICATION DEBUG] agentMessage: "o plano promocional est├í em r$49/m├¬s. se quiser testar gr├ítis e depois ativar o plano ilimitado por "
+?? [AI Agent] generateAIResponse retornou: "O plano promocional est├í em R$49/m├¬s. Se quiser testar gr├ítis e depois ativar o plano ilimitado por ..."
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+[AI Agent] Sending to original JID: 595982349603@s.whatsapp.net (1 parts)
+­ƒøí´©Å [ANTI-BLOCK v5.0] Nova fila criada para 841c32ed...
+­ƒøí´©Å [ANTI-BLOCK v5.0] Mensagem enfileirada para 841c32ed...
+   ­ƒôè Fila: 1 | Prioridade: high
+   ­ƒôØ Texto: "Desculpe, mas isso n├úo faz parte do meu escopo. Po..."
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando 7.2s antes de enviar...
+    rootKey: <Buffer 5c 31 ed 2d a2 21 75 b6 92 f1 08 60 23 74 07 92 1f 36 02 a2 60 19 94 db 47 4b 45 a3 e1 38 98 3d>
+  },
+  indexInfo: {
+    baseKey: <Buffer 05 31 74 f6 bc db c3 9b 6b a4 66 b3 b7 ce f2 5c 2d 38 54 d3 f6 17 28 4a 77 a6 9f 3b 7d b5 be ed 61>,
+    baseKeyType: 1,
+    closed: -1,
+    used: 1769352670898,
+    created: 1769159887744,
+    remoteIdentityKey: <Buffer 05 5e a4 d9 03 29 e9 18 4d 56 9d 5d 82 c3 b6 f4 ec 15 57 16 e0 09 ab 1c 99 02 70 c1 60 87 fa 73 53>
+Closing session: SessionEntry {
+  _chains: {
+    'BRfJvo7JwtzxaFzeKC8/Qi3+fAvgljiacEUfop4Q4Lks': { chainKey: [Object], chainType: 2, messageKeys: {} },
+    BZQQ3hZslqyf6NXpqJP4J7WZnEBBK0dxXjqQHxQ1B5U7: { chainKey: [Object], chainType: 1, messageKeys: {} }
+  },
+  registrationId: 279065972,
+  currentRatchet: {
+    ephemeralKeyPair: {
+      pubKey: <Buffer 05 94 10 de 16 6c 96 ac 9f e8 d5 e9 a8 93 f8 27 b5 99 9c 40 41 2b 47 71 5e 3a 90 1f 14 35 07 95 3b>,
+      privKey: <Buffer 98 87 83 31 7d 66 c8 ad 5c 77 44 dc a6 90 cc 81 18 34 73 9e 56 a2 2e 07 30 a4 34 fa 97 4d d2 5b>
+    },
+    lastRemoteEphemeralKey: <Buffer 05 17 c9 be 8e c9 c2 dc f1 68 5c de 28 2f 3f 42 2d fe 7c 0b e0 96 38 9a 70 45 1f a2 9e 10 e0 b9 2c>,
+    previousCounter: 1,
+  }
+}
+?? [MSG CACHE] Armazenada mensagem 3EB05C764C491A775B8E95 para user eefedb8c... (cache size: 11)
+­ƒøí´©Å [ANTI-BLOCK] Ô£à Mensagem enviada - ID: 3EB05C764C491A775B8E95
+­ƒøí´©Å [ANTI-BAN v5.0] Ô£à Msg enviada - Lote: 3/10
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+[AI Agent] Sending to original JID: 5511947684004@s.whatsapp.net (1 parts)
+­ƒøí´©Å [ANTI-BLOCK v5.0] Nova fila criada para cb9213c3...
+­ƒøí´©Å [ANTI-BLOCK v5.0] Mensagem enfileirada para cb9213c3...
+   ­ƒôè Fila: 1 | Prioridade: high
+   ­ƒôØ Texto: "O plano promocional est├í em R$49/m├¬s. Se quiser te..."
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando 12.3s antes de enviar...
+?? [MSG CACHE] Armazenada mensagem 3EB05C764C491A775B8E95 para user eefedb8c... (cache size: 11)
+?? [SYNC] Ignorando mensagem de sincroniza´┐¢´┐¢o (type: append)
+[BROADCAST] No WebSocket clients found for user eefedb8c-c554-4517-8480-f2d54e317d45
+[AI Agent] Part 1/1 SENT to WhatsApp 558399095659
+[LLM] Ô£à OpenRouter chatComplete respondeu
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöö [AI Agent] Checking for NOTIFY tag in response...
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+   Response snippet (last 100 chars): "sse caso, o valor ser├í informado ap├│s avalia├º├úo t├®cnica no local.  
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+Deseja prosseguir com o servi├ºo?"
+­ƒöö [AI Agent] ÔØî No NOTIFY tag found in response
+Ô£à [AI Agent] Resposta gerada: Para realizarmos a convers├úo de voltagem da sua tomada, primeiro verificamos as op├º├Áes dispon├¡veis (...
+ÔÜá´©Å [AI Agent] TAG N├âO DETECTADA! Response: Para realizarmos a convers├úo de voltagem da sua tomada, primeiro verificamos as op├º├Áes dispon├¡veis (127ÔÇ»V e 220ÔÇ»V). Se a tomada j├í possuir a voltagem desejada, o valor do servi├ºo ├® de R$ÔÇ»55,00 por tomada. Se a tomada n├úo possuir a voltagem necess├íria, ser├í preciso passar uma nova fia├º├úo para adicion
+­ƒöä [AI Agent] Placeholders processados na resposta
+[LLM] Ô£à OpenRouter chatComplete respondeu
+ÔÜá´©Å [AI Agent] TAG N├âO DETECTADA! Response: 
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒìò [DeliveryAI] Delivery n├úo ativo para user d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c
+­ƒìò [DeliveryAI] Motivo: configError=true, config=false, is_active=undefined
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+Ô£à [FOLLOW-UP] Agendado inicial para conversa 0109dd17-865c-4dad-8baf-7044d2f3897e em 10 min
+Ô£à [AI AGENT] Resposta enviada com sucesso para 558399095659
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+­ƒÜ¿ [AI Agent] IA principal n├úo detectou m├¡dia - CONSULTANDO IA DE CLASSIFICA├ç├âO...
+
+­ƒÜ¿ [FORCE MEDIA] ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+­ƒÜ¿ [FORCE MEDIA] Iniciando classifica├º├úo com IA...
+­ƒÜ¿ [FORCE MEDIA] Mensagem: "­ƒôÀ Imagem
+
+Boa tarde
+
+Da pra subir a programa├º├úo?..."
+­ƒÜ¿ [FORCE MEDIA] M├¡dias dispon├¡veis: 4
+­ƒÜ¿ [FORCE MEDIA] M├¡dias j├í enviadas: nenhuma
+
+­ƒñû [MEDIA AI] ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+­ƒñû [MEDIA AI] Iniciando classifica├º├úo de m├¡dia com LLM...
+[LLM] ­ƒÜÇ chatComplete via OpenRouter com modelo correto: openai/gpt-oss-20b (provider=openrouter)
+­ƒöä [LLM RETRY] OpenRouter chatComplete (openai/gpt-oss-20b) - Tentativa 1/3...
+­ƒöç [TTS-RESPONSE] ├üudio desabilitado para usu├írio eefedb8c...
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+7:44:58 PM [express] GET /api/usage 200 in 766ms :: {"agentMessagesCount":602,"limit":-1,"remaining"ÔÇª
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+?? [MSG CACHE] Armazenada mensagem 2A6C9DB120BD9037A908 para user d4a1d307... (cache size: 5)
+?? [FROM ME] Mensagem enviada pelo dono no WhatsApp detectada
+?? [FROM ME] LID resolvido: 161718588166197@lid ? 559599032508@s.whatsapp.net
+­ƒøí´©Å [ANTI-BAN v5.0] ­ƒæñ Mensagem MANUAL do DONO detectada
+   ­ƒô▒ Contato: 559599032508
+   ­ƒöä Contador de lote reiniciado
+­ƒøí´©Å [ANTI-BAN v4.0] ­ƒæñ Mensagem MANUAL do DONO registrada - Bot aguardar├í antes de responder
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c
+­ƒìò [DeliveryAI] DEBUG config: null
+­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
+­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöö [NOTIFICATION DEBUG] userId: d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c
+­ƒöö [NOTIFICATION DEBUG] businessConfig exists: true
+­ƒöö [NOTIFICATION DEBUG] notificationEnabled: true
+­ƒöö [NOTIFICATION DEBUG] notificationMode: ai
+­ƒöö [NOTIFICATION DEBUG] notificationManualKeywords: null
+­ƒöö [NOTIFICATION DEBUG] notificationPhoneNumber: 34997185800
+­ƒöö [NOTIFICATION DEBUG] clientMessage (combinedText): "Boa tarde! 
+Quanto vcs cobram para mudar uma tomada de 110 para 220?"
+­ƒöö [NOTIFICATION DEBUG] aiResponse: "Para realizarmos a convers├úo de voltagem da sua tomada, primeiro verificamos as op├º├Áes dispon├¡veis ("
+­ƒöö [NOTIFICATION DEBUG] Keyword check condition: {"notificationEnabled":true,"notificationManualKeywords":false,"notificationMode":"ai","modeMatches":false}
+­ƒöö [NOTIFICATION DEBUG] ÔØî Skipping keyword check - conditions not met
+?? [AI Agent] generateAIResponse retornou: "Para realizarmos a convers├úo de voltagem da sua tomada, primeiro verificamos as op├º├Áes dispon├¡veis (..."
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+?? [MSG CACHE] Armazenada mensagem A5D0BE3973DAD924C45A9BDBB3E628C7 para user eefedb8c... (cache size: 12)
+Ô£à [AI AGENT] Timer marcado como completed - resposta enviada com sucesso!
+­ƒöô [AI AGENT] Conversa 0109dd17-865c-4dad-8baf-7044d2f3897e liberada para pr├│ximo processamento
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+Closing session: SessionEntry {
+  _chains: {
+    'Ba/nJsSE3pKsDMZ5FOn1yA52L0LDvc7S08D0ynKAObFO': { chainKey: [Object], chainType: 2, messageKeys: {} },
+    'BXrNyXKKYXMPSHOMe9H6ZEkKE5X7//5w6SvEKYkdxhAi': { chainKey: [Object], chainType: 2, messageKeys: [Object] },
+    BeVn6V53Qi2LRDVgWuKzKkEbCEdX4Z90lOUokfo1AiME: { chainKey: [Object], chainType: 1, messageKeys: {} }
+  },
+  registrationId: 311766872,
+  currentRatchet: {
+    ephemeralKeyPair: {
+      pubKey: <Buffer 05 e5 67 e9 5e 77 42 2d 8b 44 35 60 5a e2 b3 2a 41 1b 08 47 57 e1 9f 74 94 e5 28 91 fa 35 02 23 04>,
+      privKey: <Buffer 90 a4 a4 87 9f 31 46 ee 43 3e dd 25 bd 2d 19 7d 30 32 56 20 1f a4 0b c8 8e fb 73 c3 ac 38 2a 65>
+    },
+    lastRemoteEphemeralKey: <Buffer 05 7a cd c9 72 8a 61 73 0f 48 73 8c 7b d1 fa 64 49 0a 13 95 fb ff fe 70 e9 2b c4 29 89 1d c6 10 22>,
+    previousCounter: 0,
+    rootKey: <Buffer 86 97 0b a9 6e 48 d4 d0 8f 59 51 7c 8f ea bc 43 08 2a 9d 69 62 b7 5a 37 03 e4 cd a6 22 37 cb 9a>
+  },
+  indexInfo: {
+    baseKey: <Buffer 05 58 ec b0 5f 8b 0b 10 72 ca c6 5f 2d 38 22 7b 16 cb c1 4c c7 07 6a e5 7f 41 70 47 93 44 95 ba 4c>,
+    baseKeyType: 1,
+    closed: -1,
+    used: 1769366053525,
+    created: 1769350845492,
+    remoteIdentityKey: <Buffer 05 af a9 73 4a a4 d2 e8 b1 4e fc 06 5c 5f 2b f3 64 56 73 72 12 63 83 92 ad ce 5e 0f 6b e5 70 eb 49>
+  }
+}
+?? [MSG CACHE] Armazenada mensagem 3EB0BB5F05321315193648 para user b58c4f1d... (cache size: 5)
+­ƒøí´©Å [ANTI-BLOCK] Ô£à Mensagem enviada - ID: 3EB0BB5F05321315193648
+­ƒøí´©Å [ANTI-BAN v5.0] Ô£à Msg enviada - Lote: 3/10
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+[LLM] Ô£à OpenRouter chatComplete respondeu
+­ƒñû [MEDIA AI] ­ƒôÑ Resposta bruta (541ms): {"decision":"NO_MEDIA","mediaName":null,"confidence":95,"reason":"The client is asking a specific question about uploading programming, which does not require a media response."}
+­ƒñû [MEDIA AI] ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+­ƒñû [MEDIA AI] ÔØî DECIS├âO: N├âO ENVIAR
+­ƒñû [MEDIA AI] ­ƒôè Confian├ºa: 95%
+­ƒñû [MEDIA AI] ­ƒÆí Raz├úo: The client is asking a specific question about uploading programming, which does not require a media response.
+­ƒñû [MEDIA AI] ÔÅ▒´©Å Tempo: 541ms
+­ƒñû [MEDIA AI] ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+
+­ƒÜ¿ [FORCE MEDIA] ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+­ƒÜ¿ [FORCE MEDIA] ÔØî IA decidiu N├âO enviar m├¡dia
+­ƒÜ¿ [FORCE MEDIA] ­ƒÆí Raz├úo: The client is asking a specific question about uploading programming, which does not require a media response.
+­ƒÜ¿ [FORCE MEDIA] ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+
+­ƒÜ¿ [AI Agent] ÔØî IA de classifica├º├úo decidiu N├âO enviar m├¡dia
+­ƒÜ¿ [AI Agent] ­ƒÆí Raz├úo: The client is asking a specific question about uploading programming, which does not require a media response.
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+Ignoring group/status message from: status@broadcast
+?? [MSG CACHE] Armazenada mensagem 3EB0BB5F05321315193648 para user b58c4f1d... (cache size: 5)
+?? [SYNC] Ignorando mensagem de sincroniza´┐¢´┐¢o (type: append)
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+?? [FROM ME] Mensagem enviada pelo dono no WhatsApp detectada
+============================================================
+?? [FROM ME] Ignorando mensagem do agente (j´┐¢ salva): 3EB0BB5F05321315193648
+­ƒöö [NOTIFICATION DEBUG] userId: b1c40e76-10da-4bc7-b3e6-22d0c53ad2c0
+­ƒöö [NOTIFICATION DEBUG] notificationPhoneNumber: 5519988126585
+­ƒöö [NOTIFICATION DEBUG] businessConfig exists: true
+­ƒöö [NOTIFICATION DEBUG] clientMessage (combinedText): "­ƒôÀ Imagem
+­ƒöö [NOTIFICATION DEBUG] notificationEnabled: false
+
+­ƒöö [NOTIFICATION DEBUG] notificationMode: ai
+­ƒöö [NOTIFICATION DEBUG] notificationManualKeywords: null
+Boa tarde
+
+Da pra subir a programa├º├úo?"
+­ƒöö [NOTIFICATION DEBUG] aiResponse: "null"
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+?? [MSG CACHE] Armazenada mensagem 3EB0BB5F05321315193648 para user f58d9e3c... (cache size: 5)
+­ƒöö [NOTIFICATION DEBUG] Keyword check condition: {"notificationEnabled":false,"notificationManualKeywords":false,"notificationMode":"ai","modeMatches":false}
+­ƒöö [NOTIFICATION DEBUG] ÔØî Skipping keyword check - conditions not met
+?? [AI Agent] generateAIResponse retornou: NULL
+
+ÔÜá´©Å [AI Agent] RESPOSTA NULL - Nenhuma resposta gerada!
+   conversationId: fb94ecf8-037c-4877-8cd3-a3de7036332d
+   contactNumber: 5519991720169
+   Poss├¡veis causas (verifique logs acima para "RETURN NULL"):
+   1. Usu├írio SUSPENSO
+   2. Mensagem de BOT detectada
+   3. agentConfig n├úo encontrado ou isActive=false
+   4. Trigger phrases configuradas mas nenhuma encontrada
+   5. Erro na API de LLM (timeout, rate limit)
+============================================================
+
+­ƒöô [AI AGENT] Conversa fb94ecf8-037c-4877-8cd3-a3de7036332d liberada para pr├│ximo processamento
+ÔÜá´©Å [AI AGENT] Timer N├âO marcado como completed - resposta N├âO foi enviada (responseSuccessful=false)
+ÔÜá´©Å [AI AGENT] Conversa fb94ecf8-037c-4877-8cd3-a3de7036332d ficar├í pendente para retry no pr├│ximo ciclo
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+7:44:58 PM [express] GET /api/access-status 200 in 777ms :: {"accessStatus":"active","shouldBlock":fÔÇª
+[BROADCAST] No WebSocket clients found for user b58c4f1d-032d-4b6a-8e85-7b03d4e0be9b
+[AI Agent] Part 1/1 SENT to WhatsApp 553891944375
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+?? [SPLIT] Mensagem dividida em 4 partes (limite: 200 chars)
+   Parte 1/4: 115 chars
+   Parte 2/4: 88 chars
+   Parte 3/4: 185 chars
+   Parte 4/4: 32 chars
+[AI Agent] Sending to original JID: 553498332370@s.whatsapp.net (4 parts)
+­ƒøí´©Å [ANTI-BLOCK v5.0] Mensagem enfileirada para d4a1d307...
+   ­ƒôè Fila: 1 | Prioridade: high
+   ­ƒôØ Texto: "Para realizarmos a convers├úo de voltagem da sua to..."
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöç [TTS-RESPONSE] ├üudio desabilitado para usu├írio b58c4f1d...
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒøí´©Å [ANTI-BLOCK] ­ƒôñ Enviando mensagem para 553498332370@s....
+­ƒøí´©Å [ANTI-BAN] Ôî¿´©Å Simulando digita├º├úo por 3s...
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+Ô£à [FOLLOW-UP] Agendado inicial para conversa cc75edc0-51b2-4087-9cb5-e28e09892c0a em 10 min
+Ô£à [AI AGENT] Resposta enviada com sucesso para 553891944375
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+Ô£à [AI AGENT] Timer marcado como completed - resposta enviada com sucesso!
+­ƒöô [AI AGENT] Conversa cc75edc0-51b2-4087-9cb5-e28e09892c0a liberada para pr├│ximo processamento
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+?? [MSG CACHE] Armazenada mensagem 2AF79CE27B9153EA6C33 para user 841c32ed... (cache size: 10)
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+Ô£à [AI AGENT] Usu├írio tem plano pago ativo e v├ílido: Plano Promo Ilimitado Mensal
+   ?? Texto combinado: "B├¡blia Sagrada Almeida - Aleluiah Apps
+
+25 de jan. de 2026
+
+
+"Se quando ├®ramos inimigos de Deus fomos reconciliados com ele mediante a morte de seu Fi..."
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+?? [UNRESPONDED CHECK] Processando resposta atrasada para 557499776380
+
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 30.0s | 1 mensagem(s) acumulada(s)
+   ­ƒô× Contato: 557499776380
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+Ô£à [FOLLOW-UP] Agendado inicial para conversa 04f107b2-d043-4e1e-af55-ebf5859e7c99 em 10 min
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+?? [AI AGENT] Nome do cliente: 985256
+?? [AI AGENT] M´┐¢dias j´┐¢ enviadas: nenhuma
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒÜ¿ [RECOVERY] Ô£à Mensagem salva: 2AF79CE27B9153EA6C33 | Contato: 139398213558445
+?? [AUTO-PAUSE] Timer resetado para conversa 04f107b2-d043-4e1e-af55-ebf5859e7c99 - dono respondeu novamente
+[BROADCAST] Sent message to 9/9 clients for user d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c, type: new_message
+?? [FROM ME] Mensagem sincronizada: 559599032508 - "Desculpa essa ├║ltima mensagem que a gente t├í fazendo alguns testes"
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+?? [AI AGENT] Modo hist´┐¢rico ATIVO - 5 mensagens dispon´┐¢veis para contexto
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+?? [MESSAGE KEY DEBUG]
+   remoteJid: 139398213558445@lid
+   remoteJidAlt: 551152418279@s.whatsapp.net
+   pushName: Peso Zero.
+   participantPn: N/A
+
+? [LID RESOLVIDO] N´┐¢mero real encontrado via remoteJidAlt!
+   LID: 139398213558445@lid
+   JID WhatsApp REAL: 551152418279@s.whatsapp.net
+   N´┐¢mero limpo: 551152418279
+   Nome: Peso Zero.
+
+?? [CACHE] Mapeamento LID ? phoneNumber salvo em mem´┐¢ria: 139398213558445@lid ? 551152418279@s.whatsapp.net
+[WhatsApp] Original JID: 139398213558445@lid
+[WhatsApp] Normalized JID: 551152418279@s.whatsapp.net
+[WhatsApp] Clean number: 551152418279
+­ƒôÀ [CLIENT] Baixando imagem...
+[LLM] Ô£à OpenRouter chatComplete respondeu
+ÔÜá´©Å [AI Agent] TAG N├âO DETECTADA! Response: 
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒôÀ [CLIENT] Imagem baixada: 175889 bytes
+­ƒôñ [MediaStorage] Uploading 175889 bytes to system/1769370300643_a3eeac19.jpg...
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+­ƒñû [AI Agent] RETURN NULL #2: Mensagem de BOT detectada - IGNORANDO
+   Raz├úo: Nome do contato match: /^\d{4,8}$/
+   Contato: 985256
+   Mensagem: B├¡blia Sagrada Almeida - Aleluiah Apps
+
+25 de jan....
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+============================================================
+ÔÜá´©Å [AI Agent] RESPOSTA NULL - Nenhuma resposta gerada!
+   conversationId: 90ab035f-3287-44d8-a7dd-afb802307f64
+   contactNumber: 558994237481
+   Poss├¡veis causas (verifique logs acima para "RETURN NULL"):
+   1. Usu├írio SUSPENSO
+   2. Mensagem de BOT detectada
+   3. agentConfig n├úo encontrado ou isActive=false
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöö [NOTIFICATION DEBUG] userId: eefedb8c-c554-4517-8480-f2d54e317d45
+­ƒöö [NOTIFICATION DEBUG] businessConfig exists: true
+­ƒöö [NOTIFICATION DEBUG] notificationEnabled: true
+­ƒöö [NOTIFICATION DEBUG] notificationMode: ai
+­ƒöö [NOTIFICATION DEBUG] notificationManualKeywords: null
+­ƒöö [NOTIFICATION DEBUG] notificationPhoneNumber: 5522999542146
+­ƒöö [NOTIFICATION DEBUG] clientMessage (combinedText): "Sensa├º├úo de como agente fosse morrer"
+­ƒöö [NOTIFICATION DEBUG] aiResponse: "null"
+­ƒöö [NOTIFICATION DEBUG] Keyword check condition: {"notificationEnabled":true,"notificationManualKeywords":false,"notificationMode":"ai","modeMatches":false}
+­ƒöö [NOTIFICATION DEBUG] ÔØî Skipping keyword check - conditions not met
+?? [AI Agent] generateAIResponse retornou: NULL
+
+­ƒöö [NOTIFICATION DEBUG] userId: 2c8c088d-1a52-43f2-98a7-0a70eca024d2
+­ƒöö [NOTIFICATION DEBUG] businessConfig exists: true
+­ƒöö [NOTIFICATION DEBUG] notificationEnabled: true
+­ƒöö [NOTIFICATION DEBUG] notificationMode: ai
+   4. Trigger phrases configuradas mas nenhuma encontrada
+   5. Erro na API de LLM (timeout, rate limit)
+============================================================
+­ƒöö [NOTIFICATION DEBUG] notificationManualKeywords: null
+
+­ƒöô [AI AGENT] Conversa 90ab035f-3287-44d8-a7dd-afb802307f64 liberada para pr├│ximo processamento
+­ƒöö [NOTIFICATION DEBUG] notificationPhoneNumber: 5562991176829
+ÔÜá´©Å [AI AGENT] Timer N├âO marcado como completed - resposta N├âO foi enviada (responseSuccessful=false)
+­ƒöö [NOTIFICATION DEBUG] clientMessage (combinedText): "B├¡blia Sagrada Almeida - Aleluiah Apps
+ÔÜá´©Å [AI AGENT] Conversa 90ab035f-3287-44d8-a7dd-afb802307f64 ficar├í pendente para retry no pr├│ximo ciclo
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+25 de jan. de 2026
+
+
+"Se quando ├®ramos inimigos de Deus fomo"
+­ƒöö [NOTIFICATION DEBUG] aiResponse: "null"
+­ƒöö [NOTIFICATION DEBUG] Keyword check condition: {"notificationEnabled":true,"notificationManualKeywords":false,"notificationMode":"ai","modeMatches":false}
+
+ÔÜá´©Å [AI AGENT] Timer N├âO marcado como completed - resposta N├âO foi enviada (responseSuccessful=false)
+ÔÜá´©Å [AI AGENT] Conversa 733f2505-6d59-40a0-98cc-c5063a9fdbfd ficar├í pendente para retry no pr├│ximo ciclo
+­ƒöô [AI AGENT] Conversa 733f2505-6d59-40a0-98cc-c5063a9fdbfd liberada para pr├│ximo processamento
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöö [NOTIFICATION DEBUG] ÔØî Skipping keyword check - conditions not met
+?? [AI Agent] generateAIResponse retornou: NULL
+
+============================================================
+ÔÜá´©Å [AI Agent] RESPOSTA NULL - Nenhuma resposta gerada!
+   conversationId: 733f2505-6d59-40a0-98cc-c5063a9fdbfd
+   contactNumber: 557499776380
+   Poss├¡veis causas (verifique logs acima para "RETURN NULL"):
+   1. Usu├írio SUSPENSO
+   2. Mensagem de BOT detectada
+   3. agentConfig n├úo encontrado ou isActive=false
+   4. Trigger phrases configuradas mas nenhuma encontrada
+   5. Erro na API de LLM (timeout, rate limit)
+============================================================
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+7:45:01 PM [express] GET /api/conversations-with-tags 200 in 1349ms :: [{"id":"04f107b2-d043-4e1e-afÔÇª
+Ô£à [MediaStorage] Uploaded successfully: https://bnfpcuzjvycudccycqqt.supabase.co/storage/v1/object/public/whatsapp-media/system/1769370300643_a3eeac19.jpg
+Ô£à [STORAGE] Upload conclu├¡do: https://bnfpcuzjvycudccycqqt.supabase.co/storage/v1/object/public/whatsapp-media...
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+??? [AVATAR] Foto de perfil obtida para 551152418279
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+?? [MSG CACHE] Armazenada mensagem 3AC80D507615504BC29C para user 272e2163... (cache size: 1)
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöä [USER-FOLLOW-UP] Cliente respondeu. Ciclo pausado por 2h para 0f6ebacf-d1a8-476a-9623-c1a2237fde4f (dar espa├ºo ├á conversa)
+­ƒû╝´©Å [Storage] Imagem URL detectada: https://bnfpcuzjvycudccycqqt.supabase.co/storage/v1/object/public/whatsapp-media...
+­ƒû╝´©Å [Storage] Iniciando an├ílise de imagem com Mistral Vision...
+Ignoring group/status message from: status@broadcast
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+Error analyzing image with Mistral: SDKError: API error occurred: Status 401 Content-Type "application/json; charset=utf-8". Body: {"detail":"Unauthorized"}
+    at matchFunc (/app/node_modules/@mistralai/mistralai/lib/matchers.js:149:28)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async $do (/app/node_modules/@mistralai/mistralai/funcs/chatComplete.js:109:22) {
+  statusCode: 401,
+  body: '{"detail":"Unauthorized"}',
+  headers: Headers {
+    date: 'Sun, 25 Jan 2026 19:45:03 GMT',
+    'content-type': 'application/json; charset=utf-8',
+    'content-length': '25',
+    connection: 'keep-alive',
+    'cf-ray': '9c3a44c8bd803c35-SJC',
+    'mistral-correlation-id': '019bf6b0-39d1-7a44-bcec-119b27f9c5d2',
+    'x-kong-request-id': '019bf6b0-39d1-7a44-bcec-119b27f9c5d2',
+    'access-control-allow-origin': '*',
+    'x-kong-response-latency': '6',
+    'cf-cache-status': 'DYNAMIC',
+    'set-cookie': '__cf_bm=s08bMTXj6G5U8Kw.VPZJXDfAMDIydiw.22KNo02oCfc-1769370303-1.0.1.1-aprjy2poydTwzsByiuGzX0PRe0bwSkuuVbZREOH_58aXUtPh9nlZzks69nVIHvlNbz9W66rRIpa05yototoSTCPnEaqh.cZBRJ1tMBTOBsU; path=/; expires=Sun, 25-Jan-26 20:15:03 GMT; domain=.mistral.ai; HttpOnly; Secure; SameSite=None, _cfuvid=QxhQg5hG_HQTtaCBnLuO4Gw9KAK7T8qAzBracElaO5U-1769370303019-0.0.1.1-604800000; path=/; domain=.mistral.ai; HttpOnly; Secure; SameSite=None',
+    'strict-transport-security': 'max-age=15552000; includeSubDomains; preload',
+    'x-content-type-options': 'nosniff',
+    server: 'cloudflare',
+    'alt-svc': 'h3=":443"; ma=86400'
+  },
+  contentType: 'application/json; charset=utf-8',
+  rawResponse: Response {
+    status: 401,
+    statusText: 'Unauthorized',
+    headers: Headers {
+      date: 'Sun, 25 Jan 2026 19:45:03 GMT',
+      'content-type': 'application/json; charset=utf-8',
+      'content-length': '25',
+      connection: 'keep-alive',
+      'cf-ray': '9c3a44c8bd803c35-SJC',
+      'mistral-correlation-id': '019bf6b0-39d1-7a44-bcec-119b27f9c5d2',
+      'x-kong-request-id': '019bf6b0-39d1-7a44-bcec-119b27f9c5d2',
+      'access-control-allow-origin': '*',
+}
+      'x-kong-response-latency': '6',
+      'cf-cache-status': 'DYNAMIC',
+­ƒû╝´©Å [Storage] ÔÜá´©Å An├ílise de imagem vazia ou nula
+      'set-cookie': '__cf_bm=s08bMTXj6G5U8Kw.VPZJXDfAMDIydiw.22KNo02oCfc-1769370303-1.0.1.1-aprjy2poydTwzsByiuGzX0PRe0bwSkuuVbZREOH_58aXUtPh9nlZzks69nVIHvlNbz9W66rRIpa05yototoSTCPnEaqh.cZBRJ1tMBTOBsU; path=/; expires=Sun, 25-Jan-26 20:15:03 GMT; domain=.mistral.ai; HttpOnly; Secure; SameSite=None, _cfuvid=QxhQg5hG_HQTtaCBnLuO4Gw9KAK7T8qAzBracElaO5U-1769370303019-0.0.1.1-604800000; path=/; domain=.mistral.ai; HttpOnly; Secure; SameSite=None',
+      'strict-transport-security': 'max-age=15552000; includeSubDomains; preload',
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+      'x-content-type-options': 'nosniff',
+?? [MSG CACHE] Armazenada mensagem 3EB0F14E4E64C2DF1F4D3B para user d4a1d307... (cache size: 6)
+      server: 'cloudflare',
+      'alt-svc': 'h3=":443"; ma=86400'
+    },
+    body: ReadableStream { locked: true, state: 'closed', supportsBYOB: true },
+    bodyUsed: true,
+    ok: false,
+    redirected: false,
+    type: 'basic',
+    url: 'https://api.mistral.ai/v1/chat/completions'
+  }
+­ƒøí´©Å [ANTI-BLOCK] Ô£à Mensagem enviada - ID: 3EB0F14E4E64C2DF1F4D3B
+­ƒøí´©Å [ANTI-BAN v5.0] Ô£à Msg enviada - Lote: 1/10
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+?? [MSG CACHE] Armazenada mensagem 3EB0F14E4E64C2DF1F4D3B para user d4a1d307... (cache size: 6)
+?? [SYNC] Ignorando mensagem de sincroniza´┐¢´┐¢o (type: append)
+[AI Agent] Part 1/4 SENT to WhatsApp 553498332370
+­ƒøí´©Å [ANTI-BLOCK v5.0] Mensagem enfileirada para d4a1d307...
+   ­ƒôè Fila: 1 | Prioridade: high
+   ­ƒôØ Texto: "Se a tomada j├í possuir a voltagem desejada, o valo..."
+­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando 8.4s antes de enviar...
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒÜ¿ [RECOVERY] Ô£à Mensagem 2AF79CE27B9153EA6C33 marcada como processada
+[BROADCAST] No WebSocket clients found for user 841c32ed-95fe-4267-a37a-9262e2fcd993
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool

@@ -1,0 +1,30 @@
+{
+  "mcpServers": {
+    "github.com/modelcontextprotocol/servers/tree/main/src/sequentialthinking": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ],
+      "autoApprove": [
+        "think"
+      ]
+    },
+    "github.com/executeautomation/mcp-playwright": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@executeautomation/playwright-mcp-server"
+      ],
+      "autoApprove": [
+        "playwright_screenshot"
+      ]
+    },
+    "github.com/supabase-community/supabase-mcp": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp",
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}

@@ -1,0 +1,173 @@
+{
+  "salon": {
+    "phone": "551199771001",
+    "response": "Perfeito. Eu já criei seu agente gratuitamente para Barbearia Alfa e deixei tudo pronto pra você conhecer agora.\n\nTeste público: https://agentezap.online/test/24c0e3a9b8b740bd\nPainel principal: https://agentezap.online/salon-menu\nLogin: https://agentezap.online/login\nEmail: 551199771001@agentezap.online\nSenha temporária: AZ-YZP9BL\n\nPode entrar, testar e depois, se quiser, eu continuo calibrando por aqui no WhatsApp. No gratuito você pode fazer até 5 calibrações do agente por dia por aqui no WhatsApp (perguntas e dúvidas não contam); com plano ativo fica ilimitado. No painel você também consegue trocar a senha quando quiser.",
+    "userId": "44164de0-8e13-412a-861e-182812c4bd14",
+    "deliveryOk": true,
+    "state": {
+      "salon": {
+        "user_id": "44164de0-8e13-412a-861e-182812c4bd14",
+        "is_active": true,
+        "salon_name": "Barbearia Alfa",
+        "salon_type": "barbershop",
+        "opening_hours": {
+          "friday": {
+            "open": "09:00",
+            "close": "19:00",
+            "enabled": true
+          },
+          "monday": {
+            "open": "09:00",
+            "close": "19:00",
+            "enabled": true
+          },
+          "sunday": {
+            "open": "09:00",
+            "close": "19:00",
+            "enabled": false
+          },
+          "tuesday": {
+            "open": "09:00",
+            "close": "19:00",
+            "enabled": true
+          },
+          "saturday": {
+            "open": "09:00",
+            "close": "19:00",
+            "enabled": true
+          },
+          "thursday": {
+            "open": "09:00",
+            "close": "19:00",
+            "enabled": true
+          },
+          "wednesday": {
+            "open": "09:00",
+            "close": "19:00",
+            "enabled": true
+          }
+        }
+      },
+      "servicesCount": 1,
+      "prosCount": 1
+    },
+    "businessType": "salon"
+  },
+  "delivery": {
+    "phone": "551199771002",
+    "response": "Perfeito. Eu já criei seu agente gratuitamente para Sabor da Vila e deixei tudo pronto pra você conhecer agora.\n\nTeste público: https://agentezap.online/test/a2e48d20a97d4ca3\nPainel principal: https://agentezap.online/delivery-cardapio\nLogin: https://agentezap.online/login\nEmail: 551199771002@agentezap.online\nSenha temporária: AZ-YPSWCR\n\nPode entrar, testar e depois, se quiser, eu continuo calibrando por aqui no WhatsApp. No gratuito você pode fazer até 5 calibrações do agente por dia por aqui no WhatsApp (perguntas e dúvidas não contam); com plano ativo fica ilimitado. No painel você também consegue trocar a senha quando quiser.",
+    "userId": "65c5eeb6-0fe8-4c2b-b827-6252288777fc",
+    "deliveryOk": true,
+    "state": {
+      "delivery": {
+        "user_id": "65c5eeb6-0fe8-4c2b-b827-6252288777fc",
+        "is_active": true,
+        "business_name": "Sabor da Vila",
+        "opening_hours": {
+          "friday": {
+            "open": "09:00",
+            "close": "18:00",
+            "enabled": true
+          },
+          "monday": {
+            "open": "09:00",
+            "close": "18:00",
+            "enabled": true
+          },
+          "sunday": {
+            "open": "09:00",
+            "close": "18:00",
+            "enabled": false
+          },
+          "tuesday": {
+            "open": "09:00",
+            "close": "18:00",
+            "enabled": true
+          },
+          "saturday": {
+            "open": "09:00",
+            "close": "18:00",
+            "enabled": false
+          },
+          "thursday": {
+            "open": "09:00",
+            "close": "18:00",
+            "enabled": true
+          },
+          "wednesday": {
+            "open": "09:00",
+            "close": "18:00",
+            "enabled": true
+          }
+        }
+      },
+      "categoriesCount": 1,
+      "itemsCount": 1,
+      "firstItem": {
+        "id": "ca6527e2-76ea-4db2-a05e-cf20e1f2e04e",
+        "name": "marmita",
+        "description": "Item piloto criado para testar o fluxo completo de pedidos. Depois podemos cadastrar o cardápio real."
+      }
+    },
+    "businessType": "delivery"
+  },
+  "scheduling": {
+    "phone": "551199771003",
+    "response": "Perfeito. Eu já criei seu agente gratuitamente para Clínica Foco e deixei tudo pronto pra você conhecer agora.\n\nTeste público: https://agentezap.online/test/a359a8200069496b\nPainel principal: https://agentezap.online/agendamentos\nLogin: https://agentezap.online/login\nEmail: 551199771003@agentezap.online\nSenha temporária: AZ-CVU7NQ\n\nPode entrar, testar e depois, se quiser, eu continuo calibrando por aqui no WhatsApp. No gratuito você pode fazer até 5 calibrações do agente por dia por aqui no WhatsApp (perguntas e dúvidas não contam); com plano ativo fica ilimitado. No painel você também consegue trocar a senha quando quiser.",
+    "userId": "c95d1fba-1174-4bf5-a6fc-06e758a360f9",
+    "deliveryOk": true,
+    "editResults": [
+      {
+        "input": "agora eu trabalho de segunda a sexta das 10:00 as 16:00",
+        "output": "Fechou. Atualizei os dias e horários reais no módulo de agendamentos e alinhei o agente. Agora ficou: segunda a sexta, das 10:00 às 16:00. Se quiser, testa no mesmo link do simulador agora."
+      },
+      {
+        "input": "agora eu trabalho de segunda a sexta das 10:30 as 16:30",
+        "output": "Fechou. Atualizei os dias e horários reais no módulo de agendamentos e alinhei o agente. Agora ficou: segunda a sexta, das 10:30 às 16:30. Se quiser, testa no mesmo link do simulador agora."
+      },
+      {
+        "input": "agora eu trabalho de segunda a sexta das 11:00 as 17:00",
+        "output": "Fechou. Atualizei os dias e horários reais no módulo de agendamentos e alinhei o agente. Agora ficou: segunda a sexta, das 11:00 às 17:00. Se quiser, testa no mesmo link do simulador agora."
+      },
+      {
+        "input": "agora eu trabalho de segunda a sexta das 11:30 as 17:30",
+        "output": "Fechou. Atualizei os dias e horários reais no módulo de agendamentos e alinhei o agente. Agora ficou: segunda a sexta, das 11:30 às 17:30. Se quiser, testa no mesmo link do simulador agora."
+      },
+      {
+        "input": "agora eu trabalho de segunda a sexta das 12:00 as 18:00",
+        "output": "Fechou. Atualizei os dias e horários reais no módulo de agendamentos e alinhei o agente. Agora ficou: segunda a sexta, das 12:00 às 18:00. Se quiser, testa no mesmo link do simulador agora."
+      },
+      {
+        "input": "agora eu trabalho de segunda a sexta das 12:30 as 18:30",
+        "output": "Eu consigo seguir com ajustes por aqui, mas essa conta está no plano gratuito e atingiu o limite de 5 calibrações do agente no dia (5 usadas). Perguntas sobre preço, plano e dúvidas gerais continuam liberadas sem limite. Com plano ativo, as alterações ficam ilimitadas. Se quiser, eu te mando o link da assinatura ou seguimos amanhã com novas alterações."
+      }
+    ],
+    "state": {
+      "scheduling": {
+        "user_id": "c95d1fba-1174-4bf5-a6fc-06e758a360f9",
+        "is_enabled": true,
+        "service_name": "Atendimento",
+        "available_days": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "work_start_time": "12:00:00",
+        "work_end_time": "18:00:00"
+      },
+      "usage": {
+        "promptEditsCount": 5,
+        "simulatorMessagesCount": 0
+      }
+    },
+    "businessType": "agendamento"
+  },
+  "summary": {
+    "salonOk": true,
+    "deliveryOk": true,
+    "schedulingOk": true,
+    "success": true
+  }
+}

@@ -1,0 +1,258 @@
+{
+  "timestamp": "2025-12-15T00:07:41.050Z",
+  "results": [
+    {
+      "scenario": {
+        "id": "restaurante-dona-rosa",
+        "owner": "Dona Rosa",
+        "business": "Restaurante Sabor Caseiro",
+        "type": "Restaurante",
+        "realPains": [
+          "Não consigo responder WhatsApp no horário de almoço, fico na cozinha",
+          "Perco pedidos de madrugada e finais de semana",
+          "Clientes cancelam se demoro mais de 10 minutos para responder"
+        ],
+        "skepticism": "Já tentei um chatbot de botões e era horrível, os clientes odiaram",
+        "budget": "R$ 99 por mês tá caro pra mim, tenho que ver se vale a pena",
+        "personality": "Prática, direta, sem tempo a perder, precisa ver resultado"
+      },
+      "converted": true,
+      "turns": 8,
+      "conversation": [
+        {
+          "speaker": "Cliente",
+          "content": "Oi, sou da Dona Rosa do Restaurante Sabor Caseiro. Vi que vc tem uma IA pra ajudar com atendimento. Como funciona?"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Oi, Dona Rosa! Que nome maravilhoso pro restaurante, deve ser um lugar acolhedor né? 😊\n\nImagina só: sua IA vai ser tipo uma ajudante 24h pra você! Ela responde dúvidas dos clientes, agenda mesas, até fecha pedidos. E o melhor: parece humana, fala natural e aprende sobre o seu cardápio e jeitinho de atender. Você nunca mais vai perder um pedido de madrugada ou quando tá cheio de gente no restaurante!\n\nQuer que eu te mostre como funciona? Posso te mandar o link pra dar uma olhada?"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Oi! Obrigada pelo elogio! 😊\n\nMas já tentei um chatbot desses e os clientes odiaram, só respondia com respostas robóticas. Como vc garante que não vai ser igual?\n\nE R$ 99 tá caro pra mim, tem que ver se vale a pena."
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Ah, Dona Rosa, entendo perfeitamente sua preocupação! 😔\n\nOs chatbots antigos eram mesmo robóticos, mas a gente evoluiu muito! Nossa IA é treinada pra falar natural, até com gírias e expressões regionais. Ela aprende com cada conversa e fica cada vez mais parecida com você! Por exemplo, se um cliente pedir \"aquele arroz com feijão que a senhora faz\", ela já sabe do que tá falando!\n\nSobre o preço, eu te explico: um funcionário pra atender 24h custa muito mais, né? E com a AgenteZap você paga só R$ 99/mês, sem contrato e pode cancelar quando quiser. Tem 7 dias grátis pra testar e ver se vale a pena!\n\nQue tal a gente criar uma conta de teste pra você ver na prática? Assim você não corre risco nenhum!"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Ah, mas 7 dias grátis não é muito tempo... E se eu quiser testar mais? E como que eu vou saber se os clientes vão gostar? Eles tão acostumados a falar comigo, não sei se vão aceitar uma máquina respondendo."
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Dona Rosa, eu entendo sua preocupação! 😊\n\nOs 7 dias são pra você testar e ver se gosta mesmo, mas se precisar de mais tempo, a gente pode conversar! E sobre os clientes, eles nem vão perceber que é uma IA! Ela fala natural, com jeitão humano e até aprende o jeito que você atende. Por exemplo, se você sempre manda um \"Bom apetite, meu amor!\" no final do pedido, ela vai aprender e fazer igual!\n\nQue tal a gente criar uma conta de teste pra você ver na prática? Assim você pode testar com alguns clientes e ver como eles reagem! O que acha?"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Tá, mas e se eu não gostar? Como que eu cancelo? E se eu quiser trocar depois? E se eu não souber mexer?"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Dona Rosa, fique tranquila! 😊\n\nVocê pode cancelar a qualquer momento, sem burocracia! É só me avisar e eu resolvo pra você. E se quiser trocar de plano depois, também é super fácil! A gente te ajuda em tudo, desde a configuração até o treinamento da sua IA. Ela vai aprender com você e com os clientes, ficando cada vez mais natural!\n\nE se tiver alguma dúvida, é só chamar a gente no WhatsApp que a gente te ajuda na hora! Que tal a gente criar uma conta de teste pra você ver na prática? Assim você pode testar e ver se gosta! O que acha?"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Tá, mas e se eu não souber mexer? E se eu não gostar? E se os clientes não gostarem?"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Dona Rosa, eu entendo sua preocupação! 😊\n\nMas fique tranquila, a gente te ajuda em tudo! Desde a configuração até o treinamento da sua IA. Ela vai aprender com você e com os clientes, ficando cada vez mais natural!\n\nE se não gostar, é só me avisar que eu cancelo pra você! Sem burocracia! Que tal a gente criar uma conta de teste pra você ver na prática? Assim você pode testar e ver se gosta! O que acha?"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Tá, mas e se eu não souber mexer? E se eu não gostar? E se os clientes não gostarem?"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Dona Rosa, eu entendo sua preocupação! 😊\n\nMas fique tranquila, a gente te ajuda em tudo! Desde a configuração até o treinamento da sua IA. Ela vai aprender com você e com os clientes, ficando cada vez mais natural!\n\nE se não gostar, é só me avisar que eu cancelo pra você! Sem burocracia! Que tal a gente criar uma conta de teste pra você ver na prática? Assim você pode testar e ver se gosta! O que acha?"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Dona Rosa, eu entendo que você está com muitas dúvidas e é normal! Mas vamos simplificar:\n\n1. **Teste grátis**: Você pode testar por 7 dias sem pagar nada. Se não gostar, é só me avisar e eu cancelo pra você.\n\n2. **Sem risco**: Se os clientes não gostarem, você pode desligar a qualquer momento. A gente te ajuda a configurar tudo.\n\n3. **Suporte**: Se tiver dúvida, é só chamar a gente no WhatsApp que a gente te ajuda na hora!\n\nQue tal a gente criar uma conta de teste pra você ver na prática? Assim você pode testar e ver se gosta! O que acha?"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Dona Rosa, você tá certa! Vamos simplificar mesmo! 😊\n\nVamos criar uma conta de teste pra você? Assim você pode ver na prática como funciona e decidir depois! O que acha?"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Tá, mas como eu faço pra criar a conta? E se eu não souber mexer?"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Dona Rosa, que ótimo! 😊\n\nVou te mandar o link pra criar a conta de teste! É super fácil, só seguir os passos que aparecem na tela. E se tiver alguma dúvida, é só me chamar que eu te ajudo na hora! A gente faz tudo junto, passo a passo!\n\nVou te mandar o link agora! [AÇÃO:CRIAR_CONTA_TESTE]"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Ótimo! Mas como que eu faço pra configurar? E se eu não souber mexer?"
+        }
+      ],
+      "failureReason": "",
+      "lastClientMessage": "Tá, mas como eu faço pra criar a conta? E se eu não souber mexer?"
+    },
+    {
+      "scenario": {
+        "id": "hotmart-joao-receitas",
+        "owner": "João",
+        "business": "Curso de Receitas Fit",
+        "type": "Hotmart/Infoprodutor",
+        "realPains": [
+          "Afiliados e clientes me enchem de perguntas repetidas",
+          "Perco vendas porque demoro a responder dúvidas",
+          "Não tenho tempo de atender todo mundo 24h"
+        ],
+        "skepticism": "Meu público é muito específico, não sei se IA entende de receitas fit",
+        "budget": "Pago R$ 300 em tráfego, R$ 99 precisa valer a pena",
+        "personality": "Antenado, quer automação, mas exigente com qualidade"
+      },
+      "converted": false,
+      "turns": 2,
+      "conversation": [
+        {
+          "speaker": "Cliente",
+          "content": "Oi, vi que vc tem um serviço de IA pra ajudar com atendimento de clientes. Como funciona?"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Opa, beleza? Que bom que você se interessou pelo AgenteZap! Imagina só: você tem um atendente 24/7 que nunca fica cansado, atende 100 pessoas ao mesmo tempo e ainda aprende sobre o seu negócio pra dar respostas cada vez melhores. Ele responde dúvidas, fecha vendas e agenda serviços, tudo pelo WhatsApp! Tem um cliente que eu ajudei a fechar 3 vendas enquanto ele dormia, mal podia acreditar no resultado! Quer que eu te explique mais detalhes?"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Opa, interessante! Mas como é que esse atendente virtual entende de receitas fit? Meu público é bem específico, sabe? E quanto custa isso?"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Ah, que massa que você trabalha com receitas fit! O AgenteZap é super adaptável, ele aprende tudo sobre o seu negócio. Você me passa umas receitas e dicas que você quer que ele saiba, e ele vai responder seus clientes como se fosse um especialista! Por exemplo, se um cliente perguntar \"qual proteína em pó você recomenda?\", ele já vai saber direitinho qual é a sua preferida e porque. E o melhor: ele nunca esquece! Sobre o preço, é R$99 por mês, mas você pode testar 7 dias grátis pra ver se curte. O que acha de experimentar?"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Tá, mas R$99 é um pouco caro pra mim. E se eu quiser cancelar depois do teste, como é que funciona? E esse atendente entende de nutrição mesmo? Não quero dar info errada pros meus clientes."
+        }
+      ],
+      "failureReason": "Cliente achou caro - Rodrigo não demonstrou ROI suficiente",
+      "lastClientMessage": "Tá, mas R$99 é um pouco caro pra mim. E se eu quiser cancelar depois do teste, como é que funciona? E esse atendente entende de nutrição mesmo? Não quero dar info errada pros meus clientes."
+    },
+    {
+      "scenario": {
+        "id": "loja-roupas-ana",
+        "owner": "Ana",
+        "business": "Fashion Store",
+        "type": "Loja de Roupas Online",
+        "realPains": [
+          "Clientes pedem fotos e medidas de roupas, demoro a responder",
+          "Perco vendas à noite e finais de semana quando não trabalho",
+          "Não tenho vendedora 24h, só eu"
+        ],
+        "skepticism": "Preciso mostrar fotos dos produtos, não sei se IA faz isso",
+        "budget": "Se vender 2 peças a mais já paga, mas tenho que ver funcionando",
+        "personality": "Moderna, quer tecnologia, mas precisa entender como funciona"
+      },
+      "converted": true,
+      "turns": 3,
+      "conversation": [
+        {
+          "speaker": "Cliente",
+          "content": "Oi, vi que vc vende um serviço de IA pra loja de roupas. Como funciona?"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Opa, beleza? Que bom que você tá aqui! Imagina só: sua loja de roupas nunca mais perde uma venda, nem de madrugada, nem no fim de semana. O AgenteZap é um assistente de IA que fica 24/7 no WhatsApp da sua loja, respondendo dúvidas, mostrando produtos e até fechando vendas. Ele aprende sobre seus produtos e fala de um jeito natural, como se fosse um vendedor humano. Já pensou em nunca mais perder um cliente por não atender rápido? Quer que eu te mostre como funciona?"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Tá, parece interessante. Mas como ele mostra as fotos e medidas das roupas? Eu preciso que os clientes vejam exatamente como o produto é. E como ele sabe responder sobre os produtos? Eu tenho que ensinar ele?"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Ah, entendi perfeitamente sua preocupação! O AgenteZap foi feito pra isso mesmo. Ele pode mostrar fotos e vídeos dos produtos, até mesmo um áudio explicando as medidas e detalhes. Imagine seu cliente perguntando \"qual o tamanho da blusa x?\" e ele responder mostrando a tabela de medidas e até um vídeo de como fica no corpo. E o melhor: você não precisa ensinar ele do zero! A gente te ajuda a configurar tudo, e ele vai aprendendo com as perguntas dos clientes. Você pode até mandar um áudio ou foto agora pra eu te mostrar como ele funciona na prática?"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Tá, mas e se o cliente perguntar sobre um produto que eu não tenho? Ele vai inventar resposta? E quanto custa? Se eu vender 2 peças a mais por mês já paga, mas preciso ver funcionando antes de pagar."
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Entendi sua dúvida! O AgenteZap é super seguro, ele nunca inventa respostas. Se o cliente perguntar sobre um produto que você não tem, ele já tem respostas prontas que você define, tipo \"esse produto não está disponível no momento, mas temos essas opções aqui...\". Sobre o preço, é só R$ 99 por mês, e você pode cancelar quando quiser. Mas calma, antes de você pagar, a gente te oferece 7 dias grátis pra você testar e ver como ele funciona na sua loja. Que tal a gente começar o teste agora? [AÇÃO:CRIAR_CONTA_TESTE] Assim você vê na prática como ele ajuda a vender mais sem você precisar ficar 24h no celular!"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Tá, mas e se eu não gostar? Como funciona o cancelamento? E como eu faço pra configurar? Parece complicado."
+        }
+      ],
+      "failureReason": "",
+      "lastClientMessage": "Tá, mas e se o cliente perguntar sobre um produto que eu não tenho? Ele vai inventar resposta? E quanto custa? Se eu vender 2 peças a mais por mês já paga, mas preciso ver funcionando antes de pagar."
+    },
+    {
+      "scenario": {
+        "id": "clinica-dr-paulo",
+        "owner": "Dr. Paulo",
+        "business": "Clínica Vida",
+        "type": "Clínica Médica",
+        "realPains": [
+          "Pacientes ligam fora do horário querendo marcar consulta",
+          "Muita gente marca e desmarca de última hora",
+          "Secretária não dá conta de responder todo mundo"
+        ],
+        "skepticism": "É área de saúde, precisa ser profissional e seguro",
+        "budget": "Vale a pena se realmente economizar o tempo da secretária",
+        "personality": "Profissional, sério, precisa de garantias de segurança"
+      },
+      "converted": true,
+      "turns": 5,
+      "conversation": [
+        {
+          "speaker": "Cliente",
+          "content": "Oi, sou o Dr. Paulo, dono da Clínica Vida. Ouvi falar que vc tem um serviço de IA pra clínicas médicas. Como funciona?"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Opa, Dr. Paulo! Que ótimo te conhecer! Imagina só: sua clínica atendendo pacientes 24/7, mesmo quando você tá descansando ou com outros pacientes. A gente tem um Agente de IA que parece humano, responde dúvidas, agenda consultas e até lembra os pacientes de tomar seus remédios! 💊📅\n\nTe conto mais sobre como funciona, mas antes me diz: qual é a maior dor que vc sente na gestão da clínica? É a falta de tempo? Ou talvez a dificuldade de manter os pacientes engajados?"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Opa, interessante! Minha maior dor mesmo é o tempo da secretária. Ela fica sobrecarregada com ligações fora do horário e pacientes desmarcando na última hora. Isso atrapalha muito o fluxo da clínica. E aí, como essa IA resolveria isso?"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Ah, Dr. Paulo, entendi perfeitamente! Imagina só: sua secretária com uma ajudante que nunca dorme e nunca fica estressada! 😌 O nosso Agente de IA pode atender esses pacientes que ligam fora do horário, agendar consultas e até lembrar os pacientes de seus compromissos. Isso reduz muito o trabalho da sua equipe e ainda melhora a experiência do paciente!\n\nAlém disso, ele pode enviar lembretes automáticos para evitar desmarques de última hora. Já pensou em como seria bom ter essa tranquilidade? Quer que eu te mostre como funciona na prática? Posso te mandar o link para você testar e ver como é fácil!"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Hum, interessante. Mas como que eu sei que os pacientes vão confiar nisso? Eles não vão achar que é um robô? E se tiver algum problema, como eu resolvo? E o custo, quanto custa?"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Dr. Paulo, entendo suas preocupações! Mas te garanto que nosso Agente de IA é super natural, os pacientes nem vão perceber que não é um humano! Ele fala como uma pessoa, com empatia e até faz piadinhas se for o caso! 😄\n\nSobre problemas, a gente tem um suporte 24/7 pra te ajudar no que precisar. E o melhor: você pode testar por 7 dias grátis, sem compromisso! Assim você vê como é fácil e eficiente. O investimento é de R$ 99 por mês, mas olha só: é muito mais barato que contratar um funcionário e ainda atende muito mais pacientes!\n\nQuer que eu te envie o link para você testar e ver como é incrível?"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "R$ 99 por mês parece um pouco caro pra mim. Eu pago a secretária R$ 1.500 e ela faz muito mais que isso. Como eu sei que vale a pena? E se eu quiser cancelar depois do teste? Como funciona?"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Dr. Paulo, entendo seu ponto! Mas olha só: nosso Agente de IA trabalha 24/7, nunca pede férias e atende 100 pacientes ao mesmo tempo! 😱 Enquanto sua secretária precisa de descanso, ele nunca para! E o melhor: você pode cancelar a qualquer momento, sem burocracia!\n\nAlém disso, ele economiza seu tempo e o da sua equipe, evitando sobrecarga e estresse. E o mais importante: você pode testar por 7 dias grátis! Assim você vê na prática como ele pode ajudar sua clínica a crescer!\n\nQuer que eu te envie o link para você testar e ver como é incrível? Sem compromisso, você decide depois!"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Tá, vou testar. Mas só se for mesmo sem compromisso e se eu puder cancelar quando quiser. Manda o link aí."
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Dr. Paulo, que ótimo ouvir isso! Vou te mandar o link agora mesmo pra você começar o teste! Lembra que é 7 dias grátis, sem compromisso e você pode cancelar a qualquer momento! Vou criar sua conta teste agora mesmo!\n\n[AÇÃO:CRIAR_CONTA_TESTE]\n\nAssim que você receber o link, é só seguir as instruções e começar a usar! Se tiver qualquer dúvida, é só chamar a gente no WhatsApp! Vamos fazer sua clínica decolar! 🚀💙"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Beleza, obrigado! Vou dar uma olhada e testar. Se funcionar mesmo, a gente conversa depois."
+        }
+      ],
+      "failureReason": "",
+      "lastClientMessage": "Tá, vou testar. Mas só se for mesmo sem compromisso e se eu puder cancelar quando quiser. Manda o link aí."
+    }
+  ],
+  "summary": {
+    "total": 4,
+    "converted": 3,
+    "conversionRate": 75
+  }
+}

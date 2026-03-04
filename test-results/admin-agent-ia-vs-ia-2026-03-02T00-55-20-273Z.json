@@ -1,0 +1,125 @@
+[
+  {
+    "scenarioId": "ia-vs-ia-lead-leigo",
+    "phone": "5511128871410",
+    "success": true,
+    "hasCredentials": true,
+    "hasDeterministicDelivery": true,
+    "hasDemoScreenshot": false,
+    "hasDemoVideo": false,
+    "turns": [
+      {
+        "turn": 1,
+        "client": "Oi, tudo bem? Vi que vocês fazem atendimento automático no Whats, é verdade?",
+        "agent": "Boa! Agora me explica melhor tudo que você quer que o agente tenha e faça, tipo de atendimento, se faz venda, agendamento, tira dúvida, cobra cliente... quanto mais detalhe, mais certeiro eu deixo.",
+        "hasCredentials": false,
+        "hasDeterministicDelivery": false,
+        "hasDemoScreenshot": false,
+        "hasDemoVideo": false
+      },
+      {
+        "turn": 2,
+        "client": "Minha empresa e Studio Prisma e eu vendo roupas femininas.",
+        "agent": "Perfeito! Agora me manda os dias e horários de atendimento do seu negócio (exemplo: segunda a sexta das 9h às 18h) que eu configuro tudo.",
+        "hasCredentials": false,
+        "hasDeterministicDelivery": false,
+        "hasDemoScreenshot": false,
+        "hasDemoVideo": false
+      },
+      {
+        "turn": 3,
+        "client": "Quero que ele responda como vendedor, tire duvidas e faca follow-up sem parecer robo.",
+        "agent": "Perfeito. Eu já criei seu agente gratuitamente para é verdade e deixei tudo pronto pra você conhecer agora.\n\nTeste público: https://agentezap.online/test/4b33834ceccb486f\nPainel principal: https://agentezap.online/meu-agente-ia\nLogin: https://agentezap.online/login\nEmail: 5511128871410@agentezap.online\nSenha temporária: AZ-FEBLX2\n\nPode entrar, testar e depois, se quiser, eu continuo calibrando por aqui no WhatsApp. No gratuito você pode fazer até 5 calibrações do agente por dia por aqui no WhatsApp (perguntas e dúvidas não contam); com plano ativo fica ilimitado. No painel você também consegue trocar a senha quando quiser.",
+        "hasCredentials": true,
+        "hasDeterministicDelivery": true,
+        "hasDemoScreenshot": false,
+        "hasDemoVideo": false
+      }
+    ]
+  },
+  {
+    "scenarioId": "ia-vs-ia-delivery",
+    "phone": "5511128973050",
+    "success": true,
+    "hasCredentials": true,
+    "hasDeterministicDelivery": true,
+    "hasDemoScreenshot": false,
+    "hasDemoVideo": false,
+    "turns": [
+      {
+        "turn": 1,
+        "client": "Oi! Vi que vocês fazem delivery, dá pra mudar os itens e horários depois que eu fizer o pedido?",
+        "agent": "Boa! Agora me explica melhor tudo que você quer que o agente tenha e faça, tipo de atendimento, se faz venda, agendamento, tira dúvida, cobra cliente... quanto mais detalhe, mais certeiro eu deixo.",
+        "hasCredentials": false,
+        "hasDeterministicDelivery": false,
+        "hasDemoScreenshot": false,
+        "hasDemoVideo": false
+      },
+      {
+        "turn": 2,
+        "client": "Meu negocio e Restaurante Sabor da Vila e eu vendo marmita e lanche.",
+        "agent": "Entendi, delivery! Só preciso saber: você quer que ele conclua o pedido até o fim no WhatsApp ou só faça o primeiro atendimento e depois passe pra você?",
+        "hasCredentials": false,
+        "hasDeterministicDelivery": false,
+        "hasDemoScreenshot": false,
+        "hasDemoVideo": false
+      },
+      {
+        "turn": 3,
+        "client": "Quero que ele responda rapido, mostre cardapio e faca upsell.",
+        "agent": "Perfeito. Eu já criei seu agente gratuitamente para dá pra mudar os itens e horários depois que eu fizer o pedido e deixei tudo pronto pra você conhecer agora.\n\nTeste público: https://agentezap.online/test/7991124f093a45ac\nPainel principal: https://agentezap.online/delivery-cardapio\nLogin: https://agentezap.online/login\nEmail: 5511128973050@agentezap.online\nSenha temporária: AZ-T884B9\n\nPode entrar, testar e depois, se quiser, eu continuo calibrando por aqui no WhatsApp. No gratuito você pode fazer até 5 calibrações do agente por dia por aqui no WhatsApp (perguntas e dúvidas não contam); com plano ativo fica ilimitado. No painel você também consegue trocar a senha quando quiser.",
+        "hasCredentials": true,
+        "hasDeterministicDelivery": true,
+        "hasDemoScreenshot": false,
+        "hasDemoVideo": false
+      }
+    ]
+  },
+  {
+    "scenarioId": "ia-vs-ia-demo-midia",
+    "phone": "5511129096780",
+    "success": true,
+    "hasCredentials": true,
+    "hasDeterministicDelivery": true,
+    "hasDemoScreenshot": false,
+    "hasDemoVideo": false,
+    "turns": [
+      {
+        "turn": 1,
+        "client": "Oi, tudo bem? Tô interessado, mas queria ver um print ou vídeo antes pra confirmar.",
+        "agent": "Entendi! O plano ilimitado hoje e *R$99/mes* e inclui tudo. Mas antes de falar de plano, eu monto seu agente grátis. Me conta: qual o nome do seu negócio e o que você faz/vende?",
+        "hasCredentials": false,
+        "hasDeterministicDelivery": false,
+        "hasDemoScreenshot": false,
+        "hasDemoVideo": false
+      },
+      {
+        "turn": 2,
+        "client": "Meu negocio e Barbearia Alfa e meu principal servico e corte e barba.",
+        "agent": "Boa! Agora me explica melhor tudo que você quer que o agente tenha e faça, tipo de atendimento, se faz venda, agendamento, tira dúvida, cobra cliente... quanto mais detalhe, mais certeiro eu deixo.",
+        "hasCredentials": false,
+        "hasDeterministicDelivery": false,
+        "hasDemoScreenshot": false,
+        "hasDemoVideo": false
+      },
+      {
+        "turn": 3,
+        "client": "Quero que ele atenda como recepcao, confirme horarios e fale natural.",
+        "agent": "Perfeito, salão/barbearia! Ele vai realmente fechar agendamentos pelo WhatsApp? Se sim, já me manda os dias e horários de atendimento pra eu configurar tudo certinho.",
+        "hasCredentials": false,
+        "hasDeterministicDelivery": false,
+        "hasDemoScreenshot": false,
+        "hasDemoVideo": false
+      },
+      {
+        "turn": 4,
+        "client": "Sim, vai trabalhar com agendamento de segunda a sabado das 09:00 as 19:00.",
+        "agent": "Perfeito. Eu já criei seu agente gratuitamente para Barbearia Alfa e meu principal servico e corte e barba e deixei tudo pronto pra você conhecer agora.\n\nTeste público: https://agentezap.online/test/12fdbb70faab4210\nPainel principal: https://agentezap.online/salon-menu\nLogin: https://agentezap.online/login\nEmail: 5511129096780@agentezap.online\nSenha temporária: AZ-LL54C2\n\nPode entrar, testar e depois, se quiser, eu continuo calibrando por aqui no WhatsApp. No gratuito você pode fazer até 5 calibrações do agente por dia por aqui no WhatsApp (perguntas e dúvidas não contam); com plano ativo fica ilimitado. No painel você também consegue trocar a senha quando quiser.",
+        "hasCredentials": true,
+        "hasDeterministicDelivery": true,
+        "hasDemoScreenshot": false,
+        "hasDemoVideo": false
+      }
+    ]
+  }
+]

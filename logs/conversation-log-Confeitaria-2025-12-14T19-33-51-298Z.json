@@ -1,0 +1,306 @@
+{
+  "business": {
+    "name": "Doce Sabor",
+    "type": "Confeitaria",
+    "owner": "Patrícia",
+    "description": "Confeitaria artesanal com bolos de casamento, aniversário e doces finos. Encomendas personalizadas."
+  },
+  "startTime": "2025-12-14T19:33:03.696Z",
+  "messages": [
+    {
+      "msgNum": 1,
+      "role": "client",
+      "content": "Opa, Rodrigo. Vi seu anúncio sobre a AgenteZap. Mas já tentei chatbot antes e não deu certo. Como é que essa sua IA é diferente?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:33:04.576Z"
+    },
+    {
+      "msgNum": 2,
+      "role": "agent",
+      "content": "Entendo sua preocupação, Patrícia! A AgenteZap é diferente porque ela atende como se fosse um humano, não um robô. Ela entende o contexto das conversas, aprende com cada interação e melhora com o tempo. Já falei sobre isso?\n\nEla pode ajudar sua confeitaria a responder clientes 24/7, tirar dúvidas sobre os bolos, agendar encomendas e até fechar vendas. Quer ver como funciona? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nQual sua maior dúvida ainda?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:33:05.724Z"
+    },
+    {
+      "msgNum": 3,
+      "role": "client",
+      "content": "Tá, mas como é que ela vai saber responder sobre os sabores dos meus bolos? Já tentei chatbot antes e não deu certo...",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:33:07.201Z"
+    },
+    {
+      "msgNum": 4,
+      "role": "agent",
+      "content": "Já falei sobre isso! A AgenteZap é diferente porque ela aprende com você. Você pode treinar ela com as informações dos seus bolos, sabores, preços e tudo mais. Ela vai ficar cada vez mais inteligente e vai atender seus clientes como se fosse você mesma respondendo.\n\nE o melhor: ela está disponível 24/7, então nunca vai perder uma venda por estar fora do horário de atendimento. Quer que eu explique mais sobre como funciona? [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nO que te impede de testar agora?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:33:08.367Z"
+    },
+    {
+      "msgNum": 5,
+      "role": "client",
+      "content": "\"Tá, mas como é que ela vai entender os detalhes dos meus bolos artesanais? Tipo, se o cliente pedir um bolo de casamento com recheio de brigadeiro e cobertura de chocolate belga, ela vai conseguir lidar com isso?\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:33:10.044Z"
+    },
+    {
+      "msgNum": 6,
+      "role": "agent",
+      "content": "A AgenteZap é treinada para entender detalhes complexos como esses! Você pode configurar ela com todas as informações dos seus bolos artesanais, incluindo sabores, recheios, coberturas e até opções personalizadas.\n\nEla vai aprender a responder perguntas específicas, como \"Qual o tempo de preparo do bolo de casamento com recheio de brigadeiro e cobertura de chocolate belga?\" ou \"Posso fazer um bolo de aniversário com recheio de morango e cobertura de chocolate branco?\".\n\nQuer que eu mostre um exemplo de como ela pode responder? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nQual horário mais pega fogo aí na loja?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:33:11.619Z"
+    },
+    {
+      "msgNum": 7,
+      "role": "client",
+      "content": "Tá, mas como é que ela vai saber se eu tenho disponibilidade no dia? Já tentei chatbot antes e não funcionou...",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:33:13.170Z"
+    },
+    {
+      "msgNum": 8,
+      "role": "agent",
+      "content": "Já falei sobre isso! A AgenteZap pode ser integrada ao seu calendário ou agenda de encomendas. Assim, ela vai saber automaticamente se você tem disponibilidade no dia e horário que o cliente solicitar.\n\nEla pode até agendar a encomenda diretamente no seu calendário e enviar um lembrete para você. Além disso, ela pode responder perguntas frequentes sobre prazos de entrega, opções de personalização e até fechar vendas enquanto você está ocupada.\n\nQuer que eu mostre como funciona? [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nO que acha de testar por 7 dias sem compromisso?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:33:14.482Z"
+    },
+    {
+      "msgNum": 9,
+      "role": "client",
+      "content": "Tá, mas como é que ela entende que um bolo de casamento é diferente de um de aniversário? Já tentei chatbot antes e só atrapalhou mais.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:33:16.029Z"
+    },
+    {
+      "msgNum": 10,
+      "role": "agent",
+      "content": "Já falei sobre isso! A AgenteZap entende as diferenças porque você pode treiná-la com as especificações de cada tipo de bolo. Você pode criar categorias, como \"bolos de casamento\" e \"bolos de aniversário\", e incluir todas as informações relevantes em cada uma.\n\nEla vai aprender a responder perguntas específicas, como \"Qual o tamanho mínimo do bolo de casamento?\" ou \"Posso fazer um bolo de aniversário com tema de super-herói?\".\n\nQuer que eu mostre um exemplo de como ela pode responder? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nQuantos clientes vocês atendem por dia no WhatsApp?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:33:17.347Z"
+    },
+    {
+      "msgNum": 11,
+      "role": "client",
+      "content": "Ah, tá... Mas quantos clientes vc acha que eu consigo atender por dia com isso? E esse vídeo aí, mostra mesmo pra confeitaria ou é só genérico?\n\n(Observação: O vendedor não respondeu a pergunta sobre o número de clientes atendidos por dia, então insisto no assunto.)",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:33:19.055Z"
+    },
+    {
+      "msgNum": 12,
+      "role": "agent",
+      "content": "A AgenteZap pode ajudar você a atender quantos clientes quiser, sem limite! Ela trabalha 24/7, então enquanto você está ocupada ou até mesmo dormindo, ela está lá respondendo perguntas, tirando dúvidas e até fechando vendas.\n\nO vídeo que eu enviei é uma demonstração genérica, mas a AgenteZap pode ser personalizada para a sua confeitaria. Quer que eu mostre um exemplo de como ela pode responder perguntas específicas sobre seus bolos? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nQuantos clientes vocês atendem por dia no WhatsApp?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:33:20.261Z"
+    },
+    {
+      "msgNum": 13,
+      "role": "client",
+      "content": "Tá, mas como é que ela vai saber responder sobre os detalhes dos meus bolos? Tipo, se alguém perguntar sobre os sabores ou os preços? E quanto custa isso?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:33:21.763Z"
+    },
+    {
+      "msgNum": 14,
+      "role": "agent",
+      "content": "Já falei sobre isso! Você pode treinar a AgenteZap com todas as informações dos seus bolos, incluindo sabores, preços e detalhes de personalização. Ela vai aprender a responder perguntas específicas, como \"Qual o preço do bolo de chocolate com recheio de morango?\" ou \"Vocês têm bolo de aniversário com cobertura de chocolate branco?\".\n\nO valor da AgenteZap é R$ 99 por mês, e você ainda pode testar por 7 dias sem compromisso! Quer que eu mostre como funciona? [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nO que te impede de testar agora?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:33:24.021Z"
+    },
+    {
+      "msgNum": 15,
+      "role": "client",
+      "content": "R$ 99? Tá meio salgado pra mim... já vi outro mais barato. Mas e aí, como que essa AgenteZap vai me ajudar a vender mais bolos?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:33:25.592Z"
+    },
+    {
+      "msgNum": 16,
+      "role": "agent",
+      "content": "Entendo sua preocupação, Patrícia! A AgenteZap pode te ajudar a vender mais bolos de várias maneiras. Ela pode responder perguntas dos clientes 24/7, enviar fotos e informações dos seus bolos, agendar encomendas e até fechar vendas enquanto você está ocupada.\n\nAlém disso, ela pode enviar mensagens personalizadas para os clientes, como promoções e lembretes de datas especiais, o que pode aumentar suas vendas.\n\nQuer que eu mostre como funciona? [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nO que acha de testar por 7 dias sem compromisso?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:33:28.294Z"
+    },
+    {
+      "msgNum": 17,
+      "role": "client",
+      "content": "\"Tá, mas como é que ela vai entender os detalhes dos meus bolos? Tipo, se o cliente perguntar sobre recheios ou decorações personalizadas? Já tentei chatbot antes e foi um desastre.\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:33:29.915Z"
+    },
+    {
+      "msgNum": 18,
+      "role": "agent",
+      "content": "Já falei sobre isso! A AgenteZap é diferente porque ela aprende com você. Você pode treinar ela com todas as informações dos seus bolos, incluindo sabores, recheios, decorações e opções personalizadas.\n\nEla vai entender perguntas como \"Vocês fazem bolo de casamento com recheio de brigadeiro e cobertura de chocolate belga?\" ou \"Posso personalizar a decoração do bolo de aniversário?\".\n\nQuer que eu mostre um exemplo de como ela pode responder? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nQual sua maior dúvida ainda?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:33:31.094Z"
+    },
+    {
+      "msgNum": 19,
+      "role": "client",
+      "content": "Tá, mas como é que ela aprende? Tipo, eu vou ter que ficar ensinando ela o tempo todo? E se eu quiser mudar alguma coisa depois, tipo um novo sabor de bolo?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:33:32.997Z"
+    },
+    {
+      "msgNum": 20,
+      "role": "agent",
+      "content": "A AgenteZap é super fácil de treinar! Você só precisa ensinar ela uma vez com todas as informações dos seus bolos, e ela vai lembrar. Se você quiser adicionar um novo sabor ou fazer alguma mudança, é só atualizar as informações no sistema.\n\nEla aprende com cada interação, então quanto mais você usar, mais inteligente ela fica. E o melhor: você não precisa ficar ensinando ela o tempo todo. Quer que eu mostre como funciona? [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nO que te impede de testar agora?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:33:33.986Z"
+    },
+    {
+      "msgNum": 21,
+      "role": "client",
+      "content": "Tá, mas como é que ela vai me ajudar especificamente na minha confeitaria? Eu já tentei chatbot antes e não deu certo...",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:33:36.295Z"
+    },
+    {
+      "msgNum": 22,
+      "role": "agent",
+      "content": "Já falei sobre isso! A AgenteZap pode ajudar sua confeitaria de várias maneiras. Ela pode responder perguntas sobre os sabores dos seus bolos, tirar dúvidas sobre prazos de entrega, agendar encomendas e até fechar vendas.\n\nEla também pode enviar fotos dos seus bolos, informações sobre promoções e lembretes de datas especiais. Quer que eu mostre como funciona? [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nO que acha de testar por 7 dias sem compromisso?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:33:37.665Z"
+    },
+    {
+      "msgNum": 23,
+      "role": "client",
+      "content": "Tá, mas como que ela vai entender as perguntas dos clientes sobre os bolos? Já tentei chatbot antes e foi um desastre.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:33:39.154Z"
+    },
+    {
+      "msgNum": 24,
+      "role": "agent",
+      "content": "Já falei sobre isso! A AgenteZap é diferente porque ela aprende com você. Você pode treinar ela com todas as informações dos seus bolos, incluindo sabores, recheios, decorações e opções personalizadas.\n\nEla vai entender perguntas como \"Vocês fazem bolo de casamento com recheio de brigadeiro e cobertura de chocolate belga?\" ou \"Posso personalizar a decoração do bolo de aniversário?\".\n\nQuer que eu mostre um exemplo de como ela pode responder? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nQual sua maior dúvida ainda?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:33:40.402Z"
+    },
+    {
+      "msgNum": 25,
+      "role": "client",
+      "content": "Tá, mas como é que ela vai saber responder sobre os doces finos que a gente faz? Tem uns bem específicos, sabe? E esse vídeo aí, é igual no site ou é diferente?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:33:41.935Z"
+    },
+    {
+      "msgNum": 26,
+      "role": "agent",
+      "content": "Já falei sobre isso! A AgenteZap pode ser treinada com todas as informações dos seus doces finos, incluindo os mais específicos. Você pode incluir detalhes como ingredientes, preços, opções de personalização e até fotos.\n\nEla vai aprender a responder perguntas como \"Vocês têm brigadeiro de amendoim?\" ou \"Qual o preço do macaron de chocolate?\" e enviar fotos dos produtos.\n\nO vídeo que eu enviei é uma demonstração genérica, mas a AgenteZap pode ser personalizada para a sua confeitaria. Quer que eu mostre como funciona? [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nO que te impede de testar agora?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:33:43.151Z"
+    },
+    {
+      "msgNum": 27,
+      "role": "client",
+      "content": "Tá, mas como é que ela vai entender as perguntas mais específicas, tipo \"qual o tempo de validade do bolo de noiva com cobertura de chocolate belga\"? E o vídeo que você mandou não mostrou nada disso. Isso é só propaganda?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:33:44.809Z"
+    },
+    {
+      "msgNum": 28,
+      "role": "agent",
+      "content": "Já falei sobre isso! A AgenteZap pode ser treinada com todas as informações específicas dos seus bolos, incluindo tempo de validade, ingredientes e detalhes de preparo.\n\nVocê pode incluir todas essas informações no sistema, e ela vai aprender a responder perguntas como \"Qual o tempo de validade do bolo de noiva com cobertura de chocolate belga?\".\n\nO vídeo que eu enviei é uma demonstração genérica, mas a AgenteZap pode ser personalizada para a sua confeitaria. Quer que eu mostre um exemplo de como ela pode responder? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nO que acha de testar por 7 dias sem compromisso?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:33:46.350Z"
+    },
+    {
+      "msgNum": 29,
+      "role": "client",
+      "content": "\"Tá, mas como é que ela vai saber responder sobre os meus bolos específicos? Já tentei chatbot antes e não funcionou. E esse teste de 7 dias, como que funciona mesmo?\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:33:47.946Z"
+    },
+    {
+      "msgNum": 30,
+      "role": "agent",
+      "content": "Já falei sobre isso! A AgenteZap é diferente porque você pode treiná-la com todas as informações específicas dos seus bolos. Você pode incluir detalhes como sabores, recheios, tempo de validade, ingredientes e opções de personalização.\n\nQuanto ao teste de 7 dias, é super simples! Você pode usar a AgenteZap por uma semana sem compromisso, testar todas as funcionalidades e ver se ela atende às suas expectativas. Se não gostar, pode cancelar a qualquer momento.\n\nQuer que eu crie seu acesso agora mesmo? [AÇÃO:CRIAR_CONTA_TESTE]\n\nO que te impede de testar agora?",
+      "mediaTagsFound": [],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:33:50.285Z"
+    }
+  ],
+  "analysis": {
+    "totalMessages": 30,
+    "mediaTagsUsed": [
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+    ],
+    "actionsUsed": [
+      "[AÇÃO:CRIAR_CONTA_TESTE]"
+    ],
+    "potentialRepetitions": [],
+    "clientConvinced": false,
+    "observations": []
+  }
+}

@@ -1,0 +1,500 @@
+﻿   ­ƒæë Usu├írio precisa assinar plano
+[LLM] ­ƒÜÇ Mistral chatComplete - Modelo: mistral-medium-2312 (FALLBACK) [2/5]
+­ƒöä [LLM RETRY] Mistral chatComplete (mistral-medium-2312) - Tentativa 1/1...
+­ƒöô [AI AGENT] Conversa ce4be460-4a1e-4e16-8e19-33240e7590f6 liberada para pr├│ximo processamento
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: ce4be460-4a1e-4e16-8e19-33240e7590f6)
+Ignoring group/status message from: status@broadcast
+
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 126.2s | 1 mensagem(s) acumulada(s)
+   ­ƒô× Contato: 5511949672923
+   ÔÅ▒´©Å Aguardou 124.7s | 1 mensagem(s) acumulada(s)
+­ƒöÆ [AI AGENT] ÔÜá´©Å Conversa 5e9e5bda-53f8-45bd-a11d-39946fb9e096 j├í est├í sendo processada, IGNORANDO duplicata
+   ­ƒô× Contato: 559691494678
+­ƒöä [USER-FOLLOW-UP] Cliente respondeu. Ciclo pausado por 2h para 60012ec4-5d4e-4983-aa88-bd6e15982454 (dar espa├ºo ├á conversa)
+[LLM] Ô£à Mistral chatComplete (mistral-medium-2312) respondeu
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+ÔÅ│ [MISTRAL ROTATION] Modelo do admin mistral-medium-latest em cooldown por 30s, buscando fallback...
+­ƒöä [MISTRAL ROTATION] Usando fallback: mistral-medium-2312
+Ô£à [Calibra├º├úo LLM] Resposta em 775ms
+[LLM] ­ƒÜÇ Mistral chatComplete - Modelo: mistral-medium-2312 (FALLBACK) [1/5]
+­ƒöä [Calibra├º├úo LLM] Tentativa 1/2...
+­ƒöä [LLM RETRY] Mistral chatComplete (mistral-medium-2312) - Tentativa 1/1...
+[LLM] ­ƒÄ» chatComplete via Mistral - Modelo do admin: mistral-medium-latest
+­ƒÜ½ [AI AGENT] BLOQUEIO: Limite de 25 mensagens atingido
+   userId: 5a2e9f41-7ca3-41f8-80a8-653f72ffb764
+   contactNumber: 5511949672923
+   Mensagens usadas: 25/25
+   ­ƒæë Usu├írio precisa assinar plano
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+­ƒöä [DB] Resetando timer para retry: 5e9e5bda-53f8-45bd-a11d-39946fb9e096
+­ƒöÆ [AI AGENT] ÔÜá´©Å Conversa 7c6e0a16-7f33-4663-bed8-f424cf0895ba j├í est├í sendo processada, IGNORANDO duplicata
+­ƒÜ¿ [RECOVERY] Ô£à Mensagem 25A720F1D09CF8C1F7 marcada como processada
+[BROADCAST] No WebSocket clients found for user 5ecb6b0b-702b-4de5-b6eb-63976d64a1dd
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: 5e9e5bda-53f8-45bd-a11d-39946fb9e096)
+­ƒöô [AI AGENT] Conversa 5e9e5bda-53f8-45bd-a11d-39946fb9e096 liberada para pr├│ximo processamento
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 124.8s | 1 mensagem(s) acumulada(s)
+   ­ƒô× Contato: 5524999411839
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+­ƒÜ½ [AI AGENT] BLOQUEIO: Limite de 25 mensagens atingido
+   userId: 96b245f2-cee5-428c-b43a-9cdcda4442af
+­ƒöä [DB] Resetando timer para retry: 7c6e0a16-7f33-4663-bed8-f424cf0895ba
+?? [MSG CACHE] Armazenada mensagem 6A5D3CB6D6597B1FE71C para user 5ecb6b0b... (cache size: 11)
+?? [FROM ME] LID resolvido: 80445458936039@lid ? 554825000349@s.whatsapp.net
+­ƒøí´©Å [ANTI-BAN v5.0] ­ƒæñ Mensagem MANUAL do DONO detectada
+­ƒöô [AI AGENT] Conversa 7c6e0a16-7f33-4663-bed8-f424cf0895ba liberada para pr├│ximo processamento
+   ­ƒô▒ Contato: 554825000349
+­ƒöì [EXCLUSION] Verificando lista de exclus├úo para usu├írio 5ecb6b0b-702b-4de5-b6eb-63976d64a1dd (config=default, isEnabled=default=true)
+   ­ƒöä Contador de lote reiniciado
+­ƒô× [EXCLUSION] Normalizando n├║mero 554825000349 -> varia├º├Áes: [554825000349, 4825000349, 25000349]
+­ƒøí´©Å [ANTI-BAN v4.0] ­ƒæñ Mensagem MANUAL do DONO registrada - Bot aguardar├í antes de responder
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: 7c6e0a16-7f33-4663-bed8-f424cf0895ba)
+­ƒô× [EXCLUSION] Verificando 554825000349 (varia├º├Áes: 554825000349, 4825000349, 25000349) -> Ô£à Permitido
+[LLM] Ô£à Mistral chatComplete (mistral-medium-2312) respondeu
+   contactNumber: 559691494678
+   Mensagens usadas: 30/25
+   ­ƒæë Usu├írio precisa assinar plano
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+Ô£à [Calibra├º├úo LLM] Resposta em 2332ms
+ÔÜá´©Å [Calibra├º├úo LLM] Tentativa 1 falhou: JSON inv├ílido na resposta
+ÔÅ│ [Calibra├º├úo LLM] Aguardando 500ms...
+­ƒöÆ [AI AGENT] ÔÜá´©Å Conversa 2d17ef38-042a-494c-ab16-405a9a964570 j├í est├í sendo processada, IGNORANDO duplicata
+11:10:00 PM [express] GET /api/access-status 304 in 2155ms :: {"accessStatus":"active","shouldBlock":ÔÇª
+­ƒöä [Calibra├º├úo LLM] Tentativa 2/2...
+[LLM] ­ƒÄ» chatComplete via Mistral - Modelo do admin: mistral-medium-latest
+ÔÅ│ [MISTRAL ROTATION] Modelo do admin mistral-medium-latest em cooldown por 27s, buscando fallback...
+­ƒöä [MISTRAL ROTATION] Usando fallback: mistral-medium-2312
+[LLM] ­ƒÜÇ Mistral chatComplete - Modelo: mistral-medium-2312 (FALLBACK) [1/5]
+­ƒöä [LLM RETRY] Mistral chatComplete (mistral-medium-2312) - Tentativa 1/1...
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 126.0s | 1 mensagem(s) acumulada(s)
+   ­ƒô× Contato: 558198183169
+11:10:00 PM [express] GET /api/user/suspension-status 304 in 1199ms :: {"suspended":false}
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+­ƒÜ½ [AI AGENT] BLOQUEIO: Limite de 25 mensagens atingido
+   userId: 5eab7abe-41d4-4c09-9b1a-681aed2946b1
+[QR CODE] QR Code broadcasted to user 21b46cf1-7e50-4650-bbb5-829d4aed2678 (connection: 9ab8320b-82cd-472f-902a-12189f876a70)
+[WS] Cliente inativo, fechando conex├úo: 21051c36-debc-4d25-98dc-9339ff9573d3
+WebSocket client disconnected for user: 21051c36-debc-4d25-98dc-9339ff9573d3
+[QR CODE] QR Code saved to database for user 21b46cf1-7e50-4650-bbb5-829d4aed2678 (took 287ms)
+Ô£à [FOLLOW-UP] Agendado inicial para conversa 60012ec4-5d4e-4983-aa88-bd6e15982454 em 10 min
+­ƒöÆ [AI AGENT] ÔÜá´©Å Conversa bd14089e-d9f8-4aa5-8142-0d34e66ca022 j├í est├í sendo processada, IGNORANDO duplicata
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: 2d17ef38-042a-494c-ab16-405a9a964570)
+­ƒöô [AI AGENT] Conversa 2d17ef38-042a-494c-ab16-405a9a964570 liberada para pr├│ximo processamento
+   contactNumber: 5524999411839
+[CONNECTION UPDATE] User 21b46cf1... - connection: undefined, hasQR: true, statusCode: none
+   Mensagens usadas: 25/25
+   ­ƒæë Usu├írio precisa assinar plano
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+[QR CODE] Generating QR Code for user 21b46cf1-7e50-4650-bbb5-829d4aed2678...
+
+[QR CODE] QR Code generated successfully for user 21b46cf1-7e50-4650-bbb5-829d4aed2678, length: 6390
+­ƒöä [DB] Resetando timer para retry: 2d17ef38-042a-494c-ab16-405a9a964570
+[BROADCAST] No WebSocket clients found for user 21b46cf1-7e50-4650-bbb5-829d4aed2678
+   ­ƒæë IA PAUSADA para este cliente - precisa renovar assinatura
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+­ƒöä [DB] Resetando timer para retry: bd14089e-d9f8-4aa5-8142-0d34e66ca022
+   ­ƒô× Contato: 559691111534
+   ­ƒôè Mensagens usadas: 481/25
+[WS] Cliente inativo, fechando conex├úo: 21051c36-debc-4d25-98dc-9339ff9573d3
+WebSocket client disconnected for user: 21051c36-debc-4d25-98dc-9339ff9573d3
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+?? [MSG CACHE] Armazenada mensagem ACA7392FC11186D585CAD773FE86C067 para user eefedb8c... (cache size: 296)
+­ƒÜ½ [AI AGENT] BLOQUEIO: Plano vencido E limite de teste atingido
+
+   userId: 9ed708e8-b7cb-46c3-bad8-c25b74181d41
+   contactNumber: 558198183169
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   Mensagens usadas: 481/25
+   ÔÅ▒´©Å Aguardou 125.6s | 1 mensagem(s) acumulada(s)
+Ignoring group/status message from: status@broadcast
+­ƒÜ½ [AI AGENT] PLANO VENCIDO! data_fim: 2026-02-06T17:34:49.147Z < agora: 2026-02-19T23:10:02.012Z
+­ƒÜ½ [AI AGENT] Plano vencido! Cliente volta ao limite de 25 mensagens de teste.
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: bd14089e-d9f8-4aa5-8142-0d34e66ca022)
+[QR CODE] QR Code generated successfully for user de1112e5-8277-4438-94d7-5aacab30a951, length: 6286
+?? [FROM ME] Mensagem sincronizada: 554825000349 - "ALN SOUND agradece seu contato. 
+[BROADCAST] No WebSocket clients found for user de1112e5-8277-4438-94d7-5aacab30a951
+1 Insulfilm
+[QR CODE] QR Code broadcasted to user de1112e5-8277-4438-94d7-5aacab30a951 (connection: 2680816a-47b3-44eb-8900-2512bd6b2cc6)
+2 Ar condiciona automotivo
+­ƒñû [STORAGE] IA desativada para conversa 60012ec4-5d4e-4983-aa88-bd6e15982454 (follow-up permanece no estado atual)
+?? [AUTO-PAUSE] IA pausada automaticamente para conversa 60012ec4-5d4e-4983-aa88-bd6e15982454 - dono respondeu manualmente (reativa em 2min)
+3 Polimento e Higieniza├º├úo 
+[BROADCAST] No WebSocket clients found for user 5ecb6b0b-702b-4de5-b6eb-63976d64a1dd
+4 Som e Auto el├®trico
+[BROADCAST] No WebSocket clients found for user 5ecb6b0b-702b-4de5-b6eb-63976d64a1dd
+
+­ƒöô [AI AGENT] Conversa bd14089e-d9f8-4aa5-8142-0d34e66ca022 liberada para pr├│ximo processamento
+N├úo abriremos aos s├íbados e domingos obrigado pelo seu contato."
+[CONNECTION UPDATE] User de1112e5... - connection: undefined, hasQR: true, statusCode: none
+[QR CODE] QR Code saved to database for user de1112e5-8277-4438-94d7-5aacab30a951 (took 443ms)
+[QR CODE] Generating QR Code for user de1112e5-8277-4438-94d7-5aacab30a951...
+  Ô£à Cen├írio c1: 65/100
+­ƒöÆ [AI AGENT] ÔÜá´©Å Conversa 2e59073e-0986-4894-9bb6-77837f163cfa j├í est├í sendo processada, IGNORANDO duplicata
+­ƒôí [Calibra├º├úo] ÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöü
+[LLM] Ô£à Mistral chatComplete (mistral-medium-2312) respondeu
+­ƒôí [Calibra├º├úo] ­ƒº¬ TESTE 2/2
+Ô£à [Calibra├º├úo LLM] Resposta em 2621ms
+­ƒôí [Calibra├º├úo] ­ƒæñ CLIENTE PERGUNTA:
+­ƒöä [MISTRAL ROTATION] Usando fallback: mistral-medium-2312
+ÔÜá´©Å [Calibra├º├úo LLM] Tentativa 2 falhou: JSON inv├ílido na resposta
+­ƒôí [Calibra├º├úo]    "Como fa├ºo para agendar um pagamento recorrente?"
+[LLM] ­ƒÜÇ Mistral chatComplete - Modelo: mistral-medium-2312 (FALLBACK) [1/5]
+­ƒôí [Calibra├º├úo] ­ƒñû AGENTE RESPONDE:
+­ƒôí [Calibra├º├úo]    Atendemos apenas servi├ºos el├®tricos residenciais ou comerciais.
+­ƒôí [Calibra├º├úo] ­ƒôè AN├üLISE:
+­ƒöä [Calibra├º├úo LLM] Tentativa 1/2...
+­ƒôí [Calibra├º├úo]    Pode me informar qual servi├ºo el├®trico voc├¬ precisa?
+[LLM] ­ƒÄ» chatComplete via Mistral - Modelo do admin: mistral-medium-latest
+­ƒôí [Calibra├º├úo] Ô£à Nota: 65/100 - An├ílise autom├ítica (fallback)
+ÔÅ│ [MISTRAL ROTATION] Modelo do admin mistral-medium-latest em cooldown por 25s, buscando fallback...
+­ƒöä [LLM RETRY] Mistral chatComplete (mistral-medium-2312) - Tentativa 1/1...
+[WS] Cliente inativo, fechando conex├úo: 21051c36-debc-4d25-98dc-9339ff9573d3
+WebSocket client disconnected for user: 21051c36-debc-4d25-98dc-9339ff9573d3
+[CONNECTION UPDATE] User 1f2f40b5... - connection: undefined, hasQR: true, statusCode: none
+[QR CODE] Generating QR Code for user 1f2f40b5-fb3e-4d04-8136-611358c2283d...
+[QR CODE] QR Code generated successfully for user 1f2f40b5-fb3e-4d04-8136-611358c2283d, length: 6414
+[BROADCAST] No WebSocket clients found for user 1f2f40b5-fb3e-4d04-8136-611358c2283d
+[QR CODE] QR Code broadcasted to user 1f2f40b5-fb3e-4d04-8136-611358c2283d (connection: 6d395c0a-7221-44da-a5da-401931ae0bd5)
+[QR CODE] QR Code saved to database for user 1f2f40b5-fb3e-4d04-8136-611358c2283d (took 334ms)
+11:10:03 PM [express] GET /api/usage 304 in 1745ms :: {"agentMessagesCount":966,"limit":-1,"remainingÔÇª
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 125.4s | 1 mensagem(s) acumulada(s)
+   ­ƒô× Contato: 559181502121
+11:10:03 PM [express] GET /api/access-status 304 in 2850ms :: {"accessStatus":"active","shouldBlock":ÔÇª
+11:10:03 PM [express] GET /api/usage 304 in 2405ms :: {"agentMessagesCount":10077,"limit":-1,"remainiÔÇª
+[LLM] Ô£à Mistral chatComplete (mistral-medium-2312) respondeu
+   Mensagens usadas: 30/25
+   ­ƒæë Usu├írio precisa assinar plano
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+­ƒöä [DB] Resetando timer para retry: 2e59073e-0986-4894-9bb6-77837f163cfa
+­ƒöô [AI AGENT] Conversa 2e59073e-0986-4894-9bb6-77837f163cfa liberada para pr├│ximo processamento
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: 2e59073e-0986-4894-9bb6-77837f163cfa)
+Ô£à [AI AGENT] Usu├írio tem plano pago ativo e v├ílido: Plano Mensal
+Ô£à [Calibra├º├úo LLM] Resposta em 720ms
+­ƒöä [Calibra├º├úo LLM] Tentativa 1/2...
+[LLM] ­ƒÄ» chatComplete via Mistral - Modelo do admin: mistral-medium-latest
+ÔÅ│ [MISTRAL ROTATION] Modelo do admin mistral-medium-latest em cooldown por 24s, buscando fallback...
+­ƒöä [MISTRAL ROTATION] Usando fallback: mistral-medium-2312
+[LLM] ­ƒÜÇ Mistral chatComplete - Modelo: mistral-medium-2312 (FALLBACK) [1/5]
+­ƒöä [LLM RETRY] Mistral chatComplete (mistral-medium-2312) - Tentativa 1/1...
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+­ƒÜ½ [AI AGENT] BLOQUEIO: Limite de 25 mensagens atingido
+   userId: 96b245f2-cee5-428c-b43a-9cdcda4442af
+   contactNumber: 559691111534
+   ?? Texto combinado: "├ë, t├┤ ligado. S├│ que eu queria ver tamb├®m at├® onde ela ia. At├® que eu mandei ela se fuder pra ver o que ela ia falar. Se ela n├úo me revidou esse caral..."
+­ƒöÆ [AI AGENT] ÔÜá´©Å Conversa 8a967e63-a468-4fc3-bbb4-a8d433116314 j├í est├í sendo processada, IGNORANDO duplicata
+?? [AI AGENT] Nome do cliente: Jhonata Melo
+?? [AI AGENT] M´┐¢dias j´┐¢ enviadas: nenhuma
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 125.5s | 1 mensagem(s) acumulada(s)
+   ­ƒô× Contato: 5511954321829
+WebSocket client connected for user: 21051c36-debc-4d25-98dc-9339ff9573d3
+[LLM] Ô£à Mistral chatComplete (mistral-medium-latest) respondeu
+­ƒæñ [AI Agent] Nome do cliente: Jhonata Melo
+­ƒôü [AI Agent] M├¡dias j├í enviadas: nenhuma
+[LLM] Ô£à Mistral chatComplete (mistral-medium-2312) respondeu
+Ô£à [Calibra├º├úo LLM] Resposta em 1887ms
+­ƒôí [Calibra├º├úo] ­ƒñû AGENTE RESPONDE:
+­ƒôí [Calibra├º├úo]    Atendemos apenas servi├ºos el├®tricos residenciais ou comerciais.
+­ƒôí [Calibra├º├úo]    Pode me informar qual servi├ºo el├®trico voc├¬ precisa?
+­ƒôí [Calibra├º├úo] ­ƒôè AN├üLISE:
+­ƒôí [Calibra├º├úo] ÔØî Nota: 20/100 - A resposta **n├úo atende ├á edi├º├úo solicitada**: o problema era evitar mencionar o nome do cliente, mas a corre├º├úo do *prompt* n├úo foi aplicada (ex.: n├úo h├í instru├º├úo expl├¡cita para omitir o nome). Al├®m disso, a resposta **ignora as palavras esperadas** ('agendar', 'pagamento', 'instru├º├Áes'), que deveriam estar presentes para guiar a intera├º├úo. **Falta clareza na solu├º├úo do problema relatado**.
+  ÔØî Cen├írio c2: 20/100
+­ƒôí [Calibra├º├úo] ­ƒôè Score atual: 43/100 (meta: 70+)
+­ƒôè [Calibra├º├úo] Score geral: 42.5/100 (1/2 aprovados)
+­ƒôè [Calibra├º├úo] M├¡nimo para aprovar: 70/100
+­ƒôí [Calibra├º├úo] ÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöüÔöü
+­ƒôí [Calibra├º├úo] ­ƒöº INICIANDO AJUSTE 93/100
+­ƒöº [Calibra├º├úo] Tentando reparo (93/100)...
+­ƒôí [Calibra├º├úo] ÔØî Problema identificado:
+­ƒôí [Calibra├º├úo]    Pergunta: "Como fa├ºo para agendar um pagamento recorrente?"
+­ƒôí [Calibra├º├úo]    Score: 20/100
+ÔÅ│ [MISTRAL ROTATION] Modelo do admin mistral-medium-latest em cooldown por 22s, buscando fallback...
+­ƒöä [MISTRAL ROTATION] Usando fallback: mistral-medium-2312
+­ƒôí [Calibra├º├úo]    Motivo: A resposta **n├úo atende ├á edi├º├úo solicitada**: o problema era evitar mencionar o nome do cliente, mas a corre├º├úo do *prompt* n├úo foi aplicada (ex.: n├úo h├í instru├º├úo expl├¡cita para omitir o nome). Al├®m disso, a resposta **ignora as palavras esperadas** ('agendar', 'pagamento', 'instru├º├Áes'), que deveriam estar presentes para guiar a intera├º├úo. **Falta clareza na solu├º├úo do problema relatado**.
+­ƒôí [Calibra├º├úo] ­ƒÆí Ajustando prompt para corrigir...
+­ƒöä [Calibra├º├úo LLM] Tentativa 1/2...
+[LLM] ­ƒÄ» chatComplete via Mistral - Modelo do admin: mistral-medium-latest
+[LLM] ­ƒÜÇ Mistral chatComplete - Modelo: mistral-medium-2312 (FALLBACK) [1/5]
+­ƒöä [LLM RETRY] Mistral chatComplete (mistral-medium-2312) - Tentativa 1/1...
+
+­ƒöì [AI Agent] Verificando configura├º├Áes para user 30f45651-e216-4df5-8fcc-cd44cef3bb0e:
+   ­ƒôè Legacy (ai_agent_config): exists, isActive=true
+   ­ƒôè Business (business_agent_configs): exists, isActive=true
+   Ô£à [AI Agent] Agent ENABLED (legacy isActive=true), processing response...
+­ƒöÆ [AI AGENT] ÔÜá´©Å Conversa c85d8831-1bbe-49b1-bcc1-d8405a91b248 j├í est├í sendo processada, IGNORANDO duplicata
+WebSocket client connected for user: 21051c36-debc-4d25-98dc-9339ff9573d3
+
+­ƒöì [shouldUseFlowEngine] Verificando para user 30f45651-e216-4df5-8fcc-cd44cef3bb0e
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+­ƒÜ½ [AI AGENT] BLOQUEIO: Limite de 25 mensagens atingido
+   userId: 5a2e9f41-7ca3-41f8-80a8-653f72ffb764
+   contactNumber: 5511954321829
+   Mensagens usadas: 25/25
+   ­ƒæë Usu├írio precisa assinar plano
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+­ƒöä [DB] Resetando timer para retry: c85d8831-1bbe-49b1-bcc1-d8405a91b248
+­ƒöä [PENDING CRON] Encontrados 67 timers ├│rf├úos para processar
+­ƒöä [PENDING CRON] Sess├Áes ativas: 55
+ÔÅ¡´©Å [PENDING CRON] 556385010031 - Sess├úo indispon├¡vel, pulando
+­ƒÜÇ [PENDING CRON] Processando 5511954321829 (timer ├│rf├úo h├í 97s)
+­ƒÜÇ [PENDING CRON] Processando 559691524034 (timer ├│rf├úo h├í 78s)
+­ƒÜÇ [PENDING CRON] Processando 5521985193814 (timer ├│rf├úo h├í 77s)
+­ƒÜÇ [PENDING CRON] Processando 5521999503128 (timer ├│rf├úo h├í 74s)
+­ƒÜÇ [PENDING CRON] Processando 5511977656171 (timer ├│rf├úo h├í 76s)
+­ƒÜÇ [PENDING CRON] Processando 559185568545 (timer ├│rf├úo h├í 73s)
+­ƒÜÇ [PENDING CRON] Processando 5511988291016 (timer ├│rf├úo h├í 91s)
+ÔÅ©´©Å [PENDING CRON] 559181502121 - Filtrado: inMemory=false, beingProcessed=true
+­ƒÜÇ [PENDING CRON] Processando 553499728226 (timer ├│rf├úo h├í 75s)
+­ƒÜÇ [PENDING CRON] Processando 5521985193814 (timer ├│rf├úo h├í 82s)
+ÔÅ©´©Å [PENDING CRON] 559691891679 - Filtrado: inMemory=false, beingProcessed=true
+­ƒÜÇ [PENDING CRON] Processando 559192746156 (timer ├│rf├úo h├í 80s)
+
+­ƒöä [PENDING CRON] =========================================
+­ƒÜÇ [PENDING CRON] Processando 558681510236 (timer ├│rf├úo h├í 79s)
+­ƒÜÇ [PENDING CRON] Processando 5521985193814 (timer ├│rf├úo h├í 79s)
+­ƒÜÇ [PENDING CRON] Processando 553184825015 (timer ├│rf├úo h├í 67s)
+­ƒÜÇ [PENDING CRON] Processando 553497134233 (timer ├│rf├úo h├í 67s)
+­ƒÜÇ [PENDING CRON] Processando 5521980600759 (timer ├│rf├úo h├í 65s)
+­ƒÜÇ [PENDING CRON] Processando 554399081778 (timer ├│rf├úo h├í 59s)
+­ƒÜÇ [PENDING CRON] Processando 555199863031 (timer ├│rf├úo h├í 65s)
+­ƒÜÇ [PENDING CRON] Processando 558296142150 (timer ├│rf├úo h├í 73s)
+­ƒæë [USER-FOLLOW-UP] Processando 559184071885 (Est├ígio 1)
+­ƒÜÇ [PENDING CRON] Processando 555199863031 (timer ├│rf├úo h├í 64s)
+­ƒÜÇ [PENDING CRON] Processando 558688487234 (timer ├│rf├úo h├í 71s)
+­ƒöä [PENDING CRON] Limite de 25 por ciclo atingido, continuar├í no pr├│ximo ciclo
+­ƒÜÇ [PENDING CRON] Processando 5521985193814 (timer ├│rf├úo h├í 64s)
+­ƒÜÇ [PENDING CRON] Processando 5521985193814 (timer ├│rf├úo h├í 69s)
+­ƒÜÇ [PENDING CRON] Processando 556596872711 (timer ├│rf├úo h├í 63s)
+­ƒöä [PENDING CRON] Ciclo conclu├¡do: 25 processados, 1 pulados
+­ƒÜÇ [PENDING CRON] Processando 556192732835 (timer ├│rf├úo h├í 68s)
+­ƒÜÇ [PENDING CRON] Processando 559887296190 (timer ├│rf├úo h├í 60s)
+­ƒöä [PENDING CRON] =========================================
+   ÔåÆ chatbot_configs.is_active: false
+
+   ÔÜá´©Å FlowEngine DESATIVADO - Usando Agente IA (prompt)
+­ƒìò [AI Agent] Tentando processar com sistema de delivery...
+
+ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+­ƒìò [DeliveryAI] Processando mensagem: "├ë, t├┤ ligado. S├│ que eu queria ver tamb├®m at├® onde..."
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 124.7s | 1 mensagem(s) acumulada(s)
+   ­ƒô× Contato: 559691891679
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: c85d8831-1bbe-49b1-bcc1-d8405a91b248)
+­ƒöô [AI AGENT] Conversa c85d8831-1bbe-49b1-bcc1-d8405a91b248 liberada para pr├│ximo processamento
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 127.3s | 1 mensagem(s) acumulada(s)
+   ­ƒô× Contato: 5511954321829
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=30f45651-e216-4df5-8fcc-cd44cef3bb0e
+­ƒìò [DeliveryAI] DEBUG config: null
+­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
+­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)
+­ƒìò [DeliveryAI] Delivery n├úo ativo para user 30f45651-e216-4df5-8fcc-cd44cef3bb0e
+ÔÅ░ [FOLLOW-UP] Hor├írio atual: 20:10, Hor├írio comercial: 09:00-18:00, Aberto: false
+­ƒöì [EXCLUSION-FOLLOWUP] Verificando lista de exclus├úo para usu├írio 30f45651-e216-4df5-8fcc-cd44cef3bb0e (config=default, isEnabled=default=true, followupExclusionEnabled=default=true)
+ÔÅ░ [USER-FOLLOW-UP] Fora do hor├írio comercial para 559184071885
+­ƒô× [EXCLUSION] Normalizando n├║mero 559184071885 -> varia├º├Áes: [559184071885, 9184071885, 84071885]
+­ƒôà [FOLLOW-UP] Pr├│ximo hor├írio comercial: 20/02/2026, 09:00:00
+­ƒÆç [AI Agent] Sal├úo n├úo ativo ou sem resposta - continuando fluxo normal
+­ƒô× [EXCLUSION-FOLLOWUP] Verificando 559184071885 -> Ô£à Follow-up permitido
+­ƒìò [DeliveryAI] Motivo: configError=true, config=false, is_active=undefined
+WebSocket client connected for user: 21051c36-debc-4d25-98dc-9339ff9573d3
+
+­ƒìò [DeliveryAI] Delivery n├úo ativo para este usu├írio
+­ƒôü [AI Agent] Found 3 media items for user 30f45651-e216-4df5-8fcc-cd44cef3bb0e
+­ƒñû [AI Agent] ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+­ƒìò [AI Agent] Delivery n├úo ativo ou sem resposta - continuando fluxo normal
+­ƒôØ [AI Agent] Using LEGACY system (deterministic) for user 30f45651-e216-4df5-8fcc-cd44cef3bb0e
+­ƒÆç [AI Agent] Tentando processar com sistema de sal├úo...
+11:10:06 PM [express] GET /api/conversations-with-tags 304 in 2373ms :: [{"id":"f76c75e2-df74-42a5-b7ÔÇª
+   Prompt (primeiros 150 chars): Especialista em Bem-Estar ├ìntimo Feminino.** Tom respeitoso e objetivo. Use linguagem clara e direta, sem excessos.
+   Procurando "Ol├í! Tenho interesse e queria mais informa├º├Áes, por favor" ÔåÆ last:ÔØî | history:ÔØî
+
+
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+**REGRAS (incluindo t├®cnicas de v...
+­ƒöì [AI Agent] Verificando trigger phrases (2 configuradas)
+   Prompt (MD5 para debug): b5c406a7
+   Trigger phrases: Quero saber mais, Ol├í! Tenho interesse e queria mais informa├º├Áes, por favor
+­ƒñû [AI Agent] ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+   Procurando "Quero saber mais" ÔåÆ last:ÔØî | history:ÔØî
+ÔÅ©´©Å [AI Agent] RETURN NULL #4: Trigger phrases configuradas mas NENHUMA encontrada
+   userId: 30f45651-e216-4df5-8fcc-cd44cef3bb0e
+­ƒñû [AI Agent] Config para user 30f45651-e216-4df5-8fcc-cd44cef3bb0e respondendo cliente:
+   Model (legacy, ignorado): openai/gpt-oss-20b ÔåÆ real: system_config.openrouter_model
+   Trigger phrases configuradas: Quero saber mais, Ol├í! Tenho interesse e queria mais informa├º├Áes, por favor
+   Active: true
+   Trigger phrases: 2
+   Prompt length: 1852 chars
+­ƒöö [NOTIFICATION DEBUG] userId: 30f45651-e216-4df5-8fcc-cd44cef3bb0e
+­ƒöö [NOTIFICATION DEBUG] businessConfig exists: true
+­ƒöö [NOTIFICATION DEBUG] notificationEnabled: false
+­ƒöö [NOTIFICATION DEBUG] notificationMode: ai
+­ƒöö [NOTIFICATION DEBUG] notificationManualKeywords: null
+­ƒöö [NOTIFICATION DEBUG] notificationPhoneNumber: null
+­ƒöö [NOTIFICATION DEBUG] clientMessage (combinedText): "├ë, t├┤ ligado. S├│ que eu queria ver tamb├®m at├® onde ela ia. At├® que eu mandei ela se fuder pra ver o "
+­ƒöö [NOTIFICATION DEBUG] aiResponse: "null"
+­ƒöö [NOTIFICATION DEBUG] Keyword check condition: {"notificationEnabled":false,"notificationManualKeywords":false,"notificationMode":"ai","modeMatches":false}
+­ƒöö [NOTIFICATION DEBUG] ÔØî Skipping keyword check - conditions not met
+?? [AI Agent] generateAIResponse retornou: NULL
+
+   Mensagem atual: "├ë, t├┤ ligado. S├│ que eu queria ver tamb├®m at├® onde ela ia. At├® que eu mandei ela se fuder pra ver o "
+============================================================
+   ­ƒæë Para resolver: Remova as trigger phrases ou adicione uma que corresponda
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+ÔÜá´©Å [AI Agent] RESPOSTA NULL - Nenhuma resposta gerada!
+   conversationId: 8a967e63-a468-4fc3-bbb4-a8d433116314
+
+   contactNumber: 559181502121
+   Poss├¡veis causas (verifique logs acima para "RETURN NULL"):
+­ƒöô [AI AGENT] Conversa 8a967e63-a468-4fc3-bbb4-a8d433116314 liberada para pr├│ximo processamento
+   1. Usu├írio SUSPENSO
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: 8a967e63-a468-4fc3-bbb4-a8d433116314)
+   2. Mensagem de BOT detectada
+   3. agentConfig n├úo encontrado ou isActive=false
+   Mensagens usadas: 30/25
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+   4. Trigger phrases configuradas mas nenhuma encontrada
+   ­ƒæë Usu├írio precisa assinar plano
+   5. Erro na API de LLM (timeout, rate limit)
+============================================================
+
+   userId: 96b245f2-cee5-428c-b43a-9cdcda4442af
+­ƒöä [DB] Resetando timer para retry: 8a967e63-a468-4fc3-bbb4-a8d433116314
+   contactNumber: 559691891679
+
+­ƒöÆ [AI AGENT] ÔÜá´©Å Conversa 3db8e773-cf09-4e8e-bf2f-7cd4685fd3c1 j├í est├í sendo processada, IGNORANDO duplicata
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+­ƒÜ½ [AI AGENT] BLOQUEIO: Limite de 25 mensagens atingido
+   ­ƒô× Contato: 5511988291016
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: 3db8e773-cf09-4e8e-bf2f-7cd4685fd3c1)
+­ƒÜ½ [AI AGENT] BLOQUEIO: Limite de 25 mensagens atingido
+­ƒöô [AI AGENT] Conversa 3db8e773-cf09-4e8e-bf2f-7cd4685fd3c1 liberada para pr├│ximo processamento
+   userId: 5a2e9f41-7ca3-41f8-80a8-653f72ffb764
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   contactNumber: 5511954321829
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: c85d8831-1bbe-49b1-bcc1-d8405a91b248)
+
+   Mensagens usadas: 25/25
+­ƒöô [AI AGENT] Conversa c85d8831-1bbe-49b1-bcc1-d8405a91b248 liberada para pr├│ximo processamento
+   ­ƒæë Usu├írio precisa assinar plano
+­ƒöä [DB] Resetando timer para retry: 3db8e773-cf09-4e8e-bf2f-7cd4685fd3c1
+­ƒöä [DB] Resetando timer para retry: c85d8831-1bbe-49b1-bcc1-d8405a91b248
+­ƒöÆ [AI AGENT] ÔÜá´©Å Conversa e23fb35c-d38d-43c7-b32b-850edebd8dae j├í est├í sendo processada, IGNORANDO duplicata
+
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 122.6s | 1 mensagem(s) acumulada(s)
+[WS] Cliente inativo, fechando conex├úo: d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c
+WebSocket client disconnected for user: d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+­ƒÜ½ [AI AGENT] BLOQUEIO: Limite de 25 mensagens atingido
+   userId: 5a2e9f41-7ca3-41f8-80a8-653f72ffb764
+   contactNumber: 5511988291016
+   Mensagens usadas: 25/25
+   ­ƒæë Usu├írio precisa assinar plano
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+­ƒöä [DB] Resetando timer para retry: e23fb35c-d38d-43c7-b32b-850edebd8dae
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: e23fb35c-d38d-43c7-b32b-850edebd8dae)
+­ƒöô [AI AGENT] Conversa e23fb35c-d38d-43c7-b32b-850edebd8dae liberada para pr├│ximo processamento
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 124.0s | 1 mensagem(s) acumulada(s)
+   ­ƒô× Contato: 5511988291016
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 115.3s | 1 mensagem(s) acumulada(s)
+   ­ƒô× Contato: 5521985193814
+­ƒöÆ [AI AGENT] ÔÜá´©Å Conversa a2982197-9beb-4c10-ab2b-e166775e4351 j├í est├í sendo processada, IGNORANDO duplicata
+   userId: 5a2e9f41-7ca3-41f8-80a8-653f72ffb764
+?? [MSG CACHE] Armazenada mensagem A53E066D43F620E4BF4488052A62F9D4 para user 057f95ed... (cache size: 66)
+Ignoring group/status message from: status@broadcast
+?? [MSG CACHE] Armazenada mensagem AC1B92289E98D3D2B8112B8CBFDAA3CB para user eefedb8c... (cache size: 297)
+­ƒÜ½ [AI AGENT] PLANO VENCIDO! data_fim: 2026-02-14T14:44:17.225Z < agora: 2026-02-19T23:10:10.437Z
+Ignoring group/status message from: status@broadcast
+­ƒÜ½ [AI AGENT] Plano vencido! Cliente volta ao limite de 25 mensagens de teste.
+   ­ƒôè Mensagens usadas: 898/25
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+­ƒÜ½ [AI AGENT] BLOQUEIO: Plano vencido E limite de teste atingido
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   userId: d1575a1e-2cfe-46f5-8a8b-94091fb0c261
+
+   contactNumber: 5521985193814
+­ƒöä [DB] Resetando timer para retry: a2982197-9beb-4c10-ab2b-e166775e4351
+   Mensagens usadas: 898/25
+
+   ­ƒæë IA PAUSADA para este cliente - precisa renovar assinatura
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+­ƒÜ½ [AI AGENT] BLOQUEIO: Limite de 25 mensagens atingido
+­ƒöä [DB] Resetando timer para retry: e23fb35c-d38d-43c7-b32b-850edebd8dae
+­ƒöô [AI AGENT] Conversa a2982197-9beb-4c10-ab2b-e166775e4351 liberada para pr├│ximo processamento
+   contactNumber: 5511988291016
+   Mensagens usadas: 25/25
+   ­ƒæë Usu├írio precisa assinar plano
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: a2982197-9beb-4c10-ab2b-e166775e4351)
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: e23fb35c-d38d-43c7-b32b-850edebd8dae)
+­ƒöô [AI AGENT] Conversa e23fb35c-d38d-43c7-b32b-850edebd8dae liberada para pr├│ximo processamento
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 116.7s | 1 mensagem(s) acumulada(s)
+   ­ƒô× Contato: 5521985193814
+   ÔÅ▒´©Å Aguardou 114.7s | 1 mensagem(s) acumulada(s)
+   ­ƒô× Contato: 559192746156
+­ƒÜ½ [AI AGENT] PLANO VENCIDO! data_fim: 2026-02-14T14:44:17.225Z < agora: 2026-02-19T23:10:11.805Z
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+­ƒÜ½ [AI AGENT] Plano vencido! Cliente volta ao limite de 25 mensagens de teste.
+­ƒöÆ [AI AGENT] ÔÜá´©Å Conversa 99352254-9364-4e5f-b2ce-3c08d166973c j├í est├í sendo processada, IGNORANDO duplicata
+   ­ƒôè Mensagens usadas: 898/25
+­ƒÜ½ [AI AGENT] BLOQUEIO: Plano vencido E limite de teste atingido
+   userId: d1575a1e-2cfe-46f5-8a8b-94091fb0c261
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+
+   contactNumber: 5521985193814
+   Mensagens usadas: 898/25
+   ­ƒæë IA PAUSADA para este cliente - precisa renovar assinatura
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+­ƒöä [DB] Resetando timer para retry: a2982197-9beb-4c10-ab2b-e166775e4351
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+­ƒÜ½ [AI AGENT] BLOQUEIO: Limite de 25 mensagens atingido
+   userId: 751b57a6-fdc6-455e-8a20-d43f5866df63
+   contactNumber: 559192746156
+
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: a2982197-9beb-4c10-ab2b-e166775e4351)
+­ƒöô [AI AGENT] Conversa a2982197-9beb-4c10-ab2b-e166775e4351 liberada para pr├│ximo processamento
+
+   ÔÅ▒´©Å Aguardou 47.8s | 2 mensagem(s) acumulada(s)
+­ƒöô [AI AGENT] Conversa 99352254-9364-4e5f-b2ce-3c08d166973c liberada para pr├│ximo processamento
+?? [FROM ME] LID resolvido: 105961222054079@lid ? 557598673657@s.whatsapp.net
+­ƒøí´©Å [ANTI-BAN v4.0] ­ƒæñ Mensagem MANUAL do DONO registrada - Bot aguardar├í antes de responder

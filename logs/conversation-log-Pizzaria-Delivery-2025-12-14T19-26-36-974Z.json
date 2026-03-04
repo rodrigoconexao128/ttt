@@ -1,0 +1,294 @@
+{
+  "business": {
+    "name": "Sabor & Arte Pizzaria",
+    "type": "Pizzaria Delivery",
+    "owner": "João",
+    "description": "Pizzaria artesanal com delivery, cardápio muda semanalmente, muitas opções vegetarianas"
+  },
+  "startTime": "2025-12-14T19:25:52.799Z",
+  "messages": [
+    {
+      "msgNum": 1,
+      "role": "client",
+      "content": "Oi, vi um anúncio da AgenteZap. Como é que funciona esse negócio de IA pro WhatsApp?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:25:53.673Z"
+    },
+    {
+      "msgNum": 2,
+      "role": "agent",
+      "content": "Opa, João! Legal que você viu nosso anúncio! A AgenteZap é uma IA que atende seus clientes no WhatsApp 24/7, como se fosse um humano. Ela tira dúvidas, envia o cardápio da Sabor & Arte, agenda pedidos e até fecha vendas enquanto você está ocupado ou dormindo. Super prático pra quem tem um delivery, né?\n\nQuer que eu te mostre como funciona? [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nO que acha de testar por 7 dias sem compromisso?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:25:54.979Z"
+    },
+    {
+      "msgNum": 3,
+      "role": "client",
+      "content": "\"Tá, mas como que essa IA vai saber do meu cardápio que muda toda semana? E se o cliente pedir algo que não tem?\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:25:56.450Z"
+    },
+    {
+      "msgNum": 4,
+      "role": "agent",
+      "content": "Boa pergunta, João! A AgenteZap é super flexível. Você pode atualizar o cardápio no sistema sempre que quiser, e a IA vai refletir essas mudanças. Se um cliente pedir algo que não tem, a IA avisa educadamente e sugere opções similares. Ela também aprende com as interações, então fica cada vez mais eficiente.\n\nQuer que eu te mostre como funciona? [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nQual sua maior dúvida ainda?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:25:57.628Z"
+    },
+    {
+      "msgNum": 5,
+      "role": "client",
+      "content": "\"Ah, mas e se o cliente pedir algo super específico que não tem nada parecido no cardápio? A IA vai saber lidar? E quanto custa isso aí?\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:26:01.112Z"
+    },
+    {
+      "msgNum": 6,
+      "role": "agent",
+      "content": "João, a AgenteZap é treinada pra ser bem humana mesmo! Se o cliente pedir algo muito específico que não tem no cardápio, a IA pode sugerir alternativas ou encaminhar pra você. Ela é bem inteligente e sabe lidar com situações diferentes.\n\nO valor é R$ 99/mês, e tem um teste grátis de 7 dias pra você experimentar sem compromisso. O que te impede de testar agora? [ENVIAR_MIDIA:TABELA_PRECOS]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:TABELA_PRECOS]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:26:02.382Z"
+    },
+    {
+      "msgNum": 7,
+      "role": "client",
+      "content": "\"Tá, mas como é que ela vai saber que o cardápio muda toda semana? E se o cliente pedir uma pizza que não tem mais? Ela vai saber direitinho ou vai enrolar?\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:26:03.961Z"
+    },
+    {
+      "msgNum": 8,
+      "role": "agent",
+      "content": "João, a AgenteZap é super fácil de atualizar! Você só precisa entrar no sistema e atualizar o cardápio sempre que mudar. A IA fica sempre atualizada e sabe exatamente o que tem disponível. Se um cliente pedir algo que não tem mais, ela avisa educadamente e sugere outras opções.\n\nQuer que eu te mostre como funciona? [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nBora começar o teste?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:26:04.813Z"
+    },
+    {
+      "msgNum": 9,
+      "role": "client",
+      "content": "\"Tá, mas como é que funciona na prática? Se um cliente pedir uma pizza que não tem mais, tipo, ela sugere outra igual ou qualquer uma aleatória?\"\n\n(Observação: Ele não repetiu nada, então você demonstra interesse, mas ainda desconfiado, pedindo detalhes específicos do seu negócio)",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:26:06.737Z"
+    },
+    {
+      "msgNum": 10,
+      "role": "agent",
+      "content": "João, entendi sua preocupação! A AgenteZap não sugere nada aleatório, não. Ela é programada pra ser inteligente. Se um cliente pedir uma pizza que não tem mais, a IA avisa que aquela opção não está disponível e sugere outras similares, baseada no cardápio atualizado. Por exemplo, se o cliente pedir uma pizza de frango, e você não tem mais, ela pode sugerir uma pizza de frango com catupiry ou outra opção parecida.\n\nQuer que eu te mostre como funciona? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nQuantos pedidos vocês recebem por dia no WhatsApp?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:26:07.980Z"
+    },
+    {
+      "msgNum": 11,
+      "role": "client",
+      "content": "Tá, mas como que ela sabe que a pizza de frango não tem mais? Ela atualiza automaticamente ou eu tenho que fazer isso manualmente? E quanto custa isso tudo?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:26:09.570Z"
+    },
+    {
+      "msgNum": 12,
+      "role": "agent",
+      "content": "João, a AgenteZap é bem prática! Você atualiza o cardápio no sistema sempre que mudar, e a IA fica sempre com as informações certas. Se você tira uma pizza de frango do cardápio, a IA já sabe que não tem mais e sugere outras opções. Não é automático, mas é super rápido de atualizar.\n\nO valor é R$ 99/mês, e tem um teste grátis de 7 dias pra você experimentar sem compromisso. O que te impede de testar agora? [ENVIAR_MIDIA:TABELA_PRECOS]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:TABELA_PRECOS]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:26:10.952Z"
+    },
+    {
+      "msgNum": 13,
+      "role": "client",
+      "content": "Tá, mas e se eu quiser colocar uma promoção de pizza vegana? A IA vai entender que é temporário e não vai sugerir depois que a promoção acabar?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:26:12.720Z"
+    },
+    {
+      "msgNum": 14,
+      "role": "agent",
+      "content": "João, a AgenteZap é super flexível! Você pode criar promoções temporárias no sistema, e a IA sabe exatamente quando elas começam e terminam. Quando a promoção de pizza vegana acabar, a IA para de sugerir automaticamente. É só você configurar as datas e pronto!\n\nQuer que eu te mostre como funciona? [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nQual horário mais pega fogo aí na loja?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:26:14.027Z"
+    },
+    {
+      "msgNum": 15,
+      "role": "client",
+      "content": "Tá, mas como é que a IA entende que a promoção de pizza vegana acabou? Ela fica monitorando o estoque ou como? E o horário que mais pega fogo é entre 19h e 21h, mas ainda não vi como isso ajuda na minha pizzaria.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:26:15.834Z"
+    },
+    {
+      "msgNum": 16,
+      "role": "agent",
+      "content": "João, a AgenteZap não monitora estoque, mas você configura as datas da promoção no sistema. Quando a data acabar, a IA para de sugerir automaticamente. No horário de pico (19h-21h), a AgenteZap pode ajudar a atender mais clientes no WhatsApp, tirando dúvidas e fechando pedidos enquanto você e sua equipe focam na produção.\n\nFaz sentido pra você?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:26:16.961Z"
+    },
+    {
+      "msgNum": 17,
+      "role": "client",
+      "content": "Tá, mas e se eu quiser promover um sabor específico durante o horário de pico? A IA vai entender isso?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:26:18.415Z"
+    },
+    {
+      "msgNum": 18,
+      "role": "agent",
+      "content": "João, a AgenteZap pode ser programada pra promover sabores específicos em horários específicos! Você configura no sistema qual sabor quer destacar e em qual horário, e a IA faz a promoção automaticamente. Por exemplo, você pode destacar uma pizza especial entre 19h e 21h, que é o horário de pico da Sabor & Arte.\n\nFicou alguma dúvida?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:26:19.233Z"
+    },
+    {
+      "msgNum": 19,
+      "role": "client",
+      "content": "Ué, mas vc já tinha falado isso antes... tá repetindo ou eu não entendi mesmo?\n\nE como que eu sei que essa promoção vai vender mesmo? Já tentei fazer promoção no WhatsApp e não deu certo.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:26:20.877Z"
+    },
+    {
+      "msgNum": 20,
+      "role": "agent",
+      "content": "João, desculpa se pareceu repetição! O que eu quero dizer é que a AgenteZap pode ajudar a promover sabores específicos no horário de pico, mas o sucesso da promoção depende de vários fatores, como o sabor escolhido e como a promoção é comunicada.\n\nA diferença agora é que a IA pode ajudar a divulgar a promoção de forma mais eficiente, respondendo dúvidas e fechando pedidos. Quer que eu te mostre como funciona? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nO que te impede de testar agora?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:26:22.235Z"
+    },
+    {
+      "msgNum": 21,
+      "role": "client",
+      "content": "Tá, mas e se o sabor do dia não for popular? A IA vai conseguir vender mesmo assim?\n\nJá tentei chatbot antes e não deu certo, o que muda agora?\n\nE esse vídeo, tem alguma coisa específica pra pizzaria?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:26:23.816Z"
+    },
+    {
+      "msgNum": 22,
+      "role": "agent",
+      "content": "João, a AgenteZap é diferente de chatbots comuns! Ela é uma IA inteligente que entende o contexto e pode sugerir opções similares se o sabor do dia não for popular. Por exemplo, se o sabor do dia for uma pizza de abacaxi com presunto e o cliente não gostar, a IA pode sugerir outras opções de pizza doces ou salgadas.\n\nO vídeo que eu vou te enviar tem exemplos específicos pra pizzarias, mostrando como a AgenteZap pode ajudar no atendimento. Quer que eu te mostre? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nO que acha de testar por 7 dias sem compromisso?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:26:25.295Z"
+    },
+    {
+      "msgNum": 23,
+      "role": "client",
+      "content": "\"Ah, tá... mas como que ela sabe se o sabor do dia não é popular? Ela tem acesso a dados do meu cardápio ou algo assim? E esse teste de 7 dias, tem algum custo escondido?\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:26:26.984Z"
+    },
+    {
+      "msgNum": 24,
+      "role": "agent",
+      "content": "João, a AgenteZap não tem acesso a dados históricos do seu cardápio, mas você pode configurar as promoções com base no que você conhece do seu público. Se o sabor do dia não for popular, a IA pode sugerir outras opções.\n\nO teste de 7 dias é grátis, sem custo escondido! É só pra você experimentar e ver se funciona pra sua pizzaria.\n\nPosso criar seu acesso agora mesmo? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:26:28.226Z"
+    },
+    {
+      "msgNum": 25,
+      "role": "client",
+      "content": "\"Tá, mas como é que essa IA vai saber sugerir pizza se ela não conhece meu cardápio? E esse teste grátis, tem algum limite de pedidos?\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:26:29.773Z"
+    },
+    {
+      "msgNum": 26,
+      "role": "agent",
+      "content": "João, você configura o cardápio da Sabor & Arte na AgenteZap, e a IA usa essas informações pra sugerir pizzas. Se um cliente pedir algo que não tem, ela sugere opções similares.\n\nO teste grátis de 7 dias não tem limite de pedidos! É pra você testar sem preocupação.\n\nQuer que eu explique algum detalhe?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:26:30.662Z"
+    },
+    {
+      "msgNum": 27,
+      "role": "client",
+      "content": "\"Tá, mas como a IA entende que uma pizza é similar a outra? Se eu tenho uma de berinjela e outro de abobrinha, ela vai sugerir certo? E o preço, quanto custa?\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:26:32.238Z"
+    },
+    {
+      "msgNum": 28,
+      "role": "agent",
+      "content": "João, a AgenteZap é programada pra entender categorias e ingredientes. Se um cliente pedir uma pizza de berinjela e você só tem de abobrinha, a IA pode sugerir a de abobrinha como uma opção similar, já que ambas são vegetais.\n\nO valor é R$ 99/mês, e tem um teste grátis de 7 dias pra você experimentar sem compromisso.\n\nTá pronto pra dar esse passo? [ENVIAR_MIDIA:TABELA_PRECOS]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:TABELA_PRECOS]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:26:33.249Z"
+    },
+    {
+      "msgNum": 29,
+      "role": "client",
+      "content": "\"Ah, mas vc já tinha falado isso antes... e esse preço é fixo mesmo? Não tem desconto pra pizzaria pequena?\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:26:34.716Z"
+    },
+    {
+      "msgNum": 30,
+      "role": "agent",
+      "content": "João, desculpa se repeti! O preço é fixo, mas o teste de 7 dias é grátis e sem compromisso. Assim você pode testar e ver se a AgenteZap funciona pra sua pizzaria antes de decidir.\n\nMe conta mais sobre seu negócio... Quantos pedidos vocês atendem por dia no WhatsApp?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:26:35.971Z"
+    }
+  ],
+  "analysis": {
+    "totalMessages": 30,
+    "mediaTagsUsed": [
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:TABELA_PRECOS]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:TABELA_PRECOS]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:TABELA_PRECOS]"
+    ],
+    "actionsUsed": [
+      "[AÇÃO:CRIAR_CONTA_TESTE]"
+    ],
+    "potentialRepetitions": [],
+    "clientConvinced": false,
+    "observations": []
+  }
+}

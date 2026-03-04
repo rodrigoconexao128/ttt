@@ -1,0 +1,13 @@
+=== TESTE MISTRAL KEY ===
+
+🔍 Buscando chave Mistral do banco de dados...
+
+❌ ERRO ao testar chave Mistral:
+   Mensagem: 
+   Stack: AggregateError [ECONNREFUSED]: 
+    at C:\Users\Windows\Downloads\agentezap correto\vvvv\node_modules\pg-pool\index.js:45:11
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async <anonymous> (C:\Users\Windows\Downloads\agentezap correto\vvvv\node_modules\src\node-postgres\session.ts:104:19)
+    at async testMistralKey (C:\Users\Windows\Downloads\agentezap correto\vvvv\test-mistral-key.ts:23:20)
+
+=== FIM DO TESTE ===

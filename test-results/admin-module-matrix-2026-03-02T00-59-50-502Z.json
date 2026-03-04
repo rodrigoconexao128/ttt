@@ -1,0 +1,183 @@
+{
+  "validations": [
+    {
+      "label": "delivery_full_order",
+      "ok": true,
+      "company": "Sabor da Vila"
+    },
+    {
+      "label": "delivery_first_contact",
+      "ok": true,
+      "company": "Pizzaria Noite Boa"
+    },
+    {
+      "label": "scheduling_explicit_hours",
+      "ok": true,
+      "company": "Clínica Foco"
+    },
+    {
+      "label": "scheduling_natural_hours",
+      "ok": true,
+      "company": "Rota Certa"
+    }
+  ],
+  "success": true,
+  "results": [
+    {
+      "label": "delivery_full_order",
+      "phone": "551198882101",
+      "response": "Perfeito. Eu já criei seu agente gratuitamente para Sabor da Vila e deixei tudo pronto pra você conhecer agora.\n\nTeste público: https://agentezap.online/test/5515be04dc00462f\nPainel principal: https://agentezap.online/delivery-cardapio\nLogin: https://agentezap.online/login\nEmail: 551198882101@agentezap.online\nSenha temporária: AZ-VE5LFT\n\nPode entrar, testar e depois, se quiser, eu continuo calibrando por aqui no WhatsApp. No gratuito você pode fazer até 5 calibrações do agente por dia por aqui no WhatsApp (perguntas e dúvidas não contam); com plano ativo fica ilimitado. No painel você também consegue trocar a senha quando quiser.",
+      "transcript": [
+        {
+          "input": "oi",
+          "output": "Oi! Aqui é o Rodrigo, da AgenteZap. Eu consigo montar seu agente por aqui, sem você precisar configurar nada. Me conta sobre o seu negócio, nome, o que você vende ou faz, e como quer que o agente atenda seus clientes. Quanto mais detalhe, melhor eu deixo ele pra você 😉"
+        },
+        {
+          "input": "Restaurante Sabor da Vila. Vendo marmita, lanche e suco.",
+          "output": "Boa! Agora me explica melhor tudo que você quer que o agente tenha e faça, tipo de atendimento, se faz venda, agendamento, tira dúvida, cobra cliente... quanto mais detalhe, mais certeiro eu deixo."
+        },
+        {
+          "input": "Quero que ele atenda rapido, apresente cardapio, confirme os itens e feche o pedido.",
+          "output": "Entendi, delivery! Só preciso saber: você quer que ele conclua o pedido até o fim no WhatsApp ou só faça o primeiro atendimento e depois passe pra você?"
+        },
+        {
+          "input": "Quero que ele conclua o pedido ate o final no WhatsApp.",
+          "output": "Perfeito. Eu já criei seu agente gratuitamente para Sabor da Vila e deixei tudo pronto pra você conhecer agora.\n\nTeste público: https://agentezap.online/test/5515be04dc00462f\nPainel principal: https://agentezap.online/delivery-cardapio\nLogin: https://agentezap.online/login\nEmail: 551198882101@agentezap.online\nSenha temporária: AZ-VE5LFT\n\nPode entrar, testar e depois, se quiser, eu continuo calibrando por aqui no WhatsApp. No gratuito você pode fazer até 5 calibrações do agente por dia por aqui no WhatsApp (perguntas e dúvidas não contam); com plano ativo fica ilimitado. No painel você também consegue trocar a senha quando quiser."
+        }
+      ],
+      "userId": "c0651a23-25c6-42b7-b736-8c594e73319b",
+      "email": "551198882101@agentezap.online",
+      "businessType": "delivery",
+      "token": "5515be04dc00462f",
+      "tokenInfo": {
+        "token": "5515be04dc00462f",
+        "userId": "c0651a23-25c6-42b7-b736-8c594e73319b",
+        "agentName": "Atendimento",
+        "company": "Sabor da Vila",
+        "createdAt": "2026-03-02T00:59:15.768Z",
+        "expiresAt": "2026-03-03T00:59:15.768Z"
+      },
+      "promptPreview": "<identidade>\nVocê é *Atendimento*, atendente virtual da *Sabor da Vila*.\nCanal: WhatsApp.\nVocê fala como humano — experiente, carismático, confiante e direto.\nVocê NÃO é um chatbot. Você é Atendimento, uma pessoa real que atende clientes.\n</identidade>\n\n<objet",
+      "promptMentionsAgenteZap": false,
+      "promptHasCompany": true,
+      "hasExpectedPanelPath": true
+    },
+    {
+      "label": "delivery_first_contact",
+      "phone": "551198882102",
+      "response": "Perfeito. Eu já criei seu agente gratuitamente para Pizzaria Noite Boa e deixei tudo pronto pra você conhecer agora.\n\nTeste público: https://agentezap.online/test/b3a8c72ee323467a\nPainel principal: https://agentezap.online/delivery-cardapio\nLogin: https://agentezap.online/login\nEmail: 551198882102@agentezap.online\nSenha temporária: AZ-VDKA6W\n\nPode entrar, testar e depois, se quiser, eu continuo calibrando por aqui no WhatsApp. No gratuito você pode fazer até 5 calibrações do agente por dia por aqui no WhatsApp (perguntas e dúvidas não contam); com plano ativo fica ilimitado. No painel você também consegue trocar a senha quando quiser.",
+      "transcript": [
+        {
+          "input": "oi",
+          "output": "Oi! Aqui é o Rodrigo, da AgenteZap. Eu consigo montar seu agente por aqui, sem você precisar configurar nada. Me conta sobre o seu negócio, nome, o que você vende ou faz, e como quer que o agente atenda seus clientes. Quanto mais detalhe, melhor eu deixo ele pra você 😉"
+        },
+        {
+          "input": "Pizzaria Noite Boa. Vendo pizza e bebida.",
+          "output": "Boa! Agora me explica melhor tudo que você quer que o agente tenha e faça, tipo de atendimento, se faz venda, agendamento, tira dúvida, cobra cliente... quanto mais detalhe, mais certeiro eu deixo."
+        },
+        {
+          "input": "Quero que ele responda como atendente, mostre opcoes e deixe o cliente aquecido.",
+          "output": "Entendi, delivery! Só preciso saber: você quer que ele conclua o pedido até o fim no WhatsApp ou só faça o primeiro atendimento e depois passe pra você?"
+        },
+        {
+          "input": "Quero so o primeiro atendimento e depois eu assumo.",
+          "output": "Perfeito. Eu já criei seu agente gratuitamente para Pizzaria Noite Boa e deixei tudo pronto pra você conhecer agora.\n\nTeste público: https://agentezap.online/test/b3a8c72ee323467a\nPainel principal: https://agentezap.online/delivery-cardapio\nLogin: https://agentezap.online/login\nEmail: 551198882102@agentezap.online\nSenha temporária: AZ-VDKA6W\n\nPode entrar, testar e depois, se quiser, eu continuo calibrando por aqui no WhatsApp. No gratuito você pode fazer até 5 calibrações do agente por dia por aqui no WhatsApp (perguntas e dúvidas não contam); com plano ativo fica ilimitado. No painel você também consegue trocar a senha quando quiser."
+        }
+      ],
+      "userId": "b581851d-5787-4403-bc9a-410db9005777",
+      "email": "551198882102@agentezap.online",
+      "businessType": "delivery",
+      "token": "b3a8c72ee323467a",
+      "tokenInfo": {
+        "token": "b3a8c72ee323467a",
+        "userId": "b581851d-5787-4403-bc9a-410db9005777",
+        "agentName": "Atendimento",
+        "company": "Pizzaria Noite Boa",
+        "createdAt": "2026-03-02T00:59:29.903Z",
+        "expiresAt": "2026-03-03T00:59:29.903Z"
+      },
+      "promptPreview": "<identidade>\nVocê é *Atendimento*, atendente virtual da *Pizzaria Noite Boa*.\nCanal: WhatsApp.\nVocê fala como humano — experiente, carismático, confiante e direto.\nVocê NÃO é um chatbot. Você é Atendimento, uma pessoa real que atende clientes.\n</identidade>\n\n<",
+      "promptMentionsAgenteZap": false,
+      "promptHasCompany": true,
+      "hasExpectedPanelPath": true
+    },
+    {
+      "label": "scheduling_explicit_hours",
+      "phone": "551198882201",
+      "response": "Perfeito. Eu já criei seu agente gratuitamente para Clínica Foco e deixei tudo pronto pra você conhecer agora.\n\nTeste público: https://agentezap.online/test/4ce8444a4e0343e6\nPainel principal: https://agentezap.online/agendamentos\nLogin: https://agentezap.online/login\nEmail: 551198882201@agentezap.online\nSenha temporária: AZ-CSML58\n\nPode entrar, testar e depois, se quiser, eu continuo calibrando por aqui no WhatsApp. No gratuito você pode fazer até 5 calibrações do agente por dia por aqui no WhatsApp (perguntas e dúvidas não contam); com plano ativo fica ilimitado. No painel você também consegue trocar a senha quando quiser.",
+      "transcript": [
+        {
+          "input": "oi",
+          "output": "Oi! Aqui é o Rodrigo, da AgenteZap. Eu consigo montar seu agente por aqui, sem você precisar configurar nada. Me conta sobre o seu negócio, nome, o que você vende ou faz, e como quer que o agente atenda seus clientes. Quanto mais detalhe, melhor eu deixo ele pra você 😉"
+        },
+        {
+          "input": "Clinica Foco. Faço avaliacao e retorno.",
+          "output": "Boa! Agora me explica melhor tudo que você quer que o agente tenha e faça, tipo de atendimento, se faz venda, agendamento, tira dúvida, cobra cliente... quanto mais detalhe, mais certeiro eu deixo."
+        },
+        {
+          "input": "Quero que ele tire duvidas, confirme dados e agende so dentro do horario certo.",
+          "output": "Show! Esse atendimento vai trabalhar com agendamento? Se sim, já me manda os dias e horários de atendimento. Se não, eu configuro só pra comercial."
+        },
+        {
+          "input": "Sim, segunda a sexta das 08:00 as 17:00.",
+          "output": "Perfeito. Eu já criei seu agente gratuitamente para Clínica Foco e deixei tudo pronto pra você conhecer agora.\n\nTeste público: https://agentezap.online/test/4ce8444a4e0343e6\nPainel principal: https://agentezap.online/agendamentos\nLogin: https://agentezap.online/login\nEmail: 551198882201@agentezap.online\nSenha temporária: AZ-CSML58\n\nPode entrar, testar e depois, se quiser, eu continuo calibrando por aqui no WhatsApp. No gratuito você pode fazer até 5 calibrações do agente por dia por aqui no WhatsApp (perguntas e dúvidas não contam); com plano ativo fica ilimitado. No painel você também consegue trocar a senha quando quiser."
+        }
+      ],
+      "userId": "fab54f2f-0b4e-4300-a1ba-a6248e64c926",
+      "email": "551198882201@agentezap.online",
+      "businessType": "agendamento",
+      "token": "4ce8444a4e0343e6",
+      "tokenInfo": {
+        "token": "4ce8444a4e0343e6",
+        "userId": "fab54f2f-0b4e-4300-a1ba-a6248e64c926",
+        "agentName": "Agenda",
+        "company": "Clínica Foco",
+        "createdAt": "2026-03-02T00:59:40.390Z",
+        "expiresAt": "2026-03-03T00:59:40.390Z"
+      },
+      "promptPreview": "<identidade>\nVocê é *Agenda*, assistente de agendamentos da *Clínica Foco*.\nCanal: WhatsApp.\nVocê fala como humano — experiente, carismático, confiante e direto.\nVocê NÃO é um chatbot. Você é Agenda, uma pessoa real que atende clientes.\n</identidade>\n\n<objetiv",
+      "promptMentionsAgenteZap": false,
+      "promptHasCompany": true,
+      "hasExpectedPanelPath": true
+    },
+    {
+      "label": "scheduling_natural_hours",
+      "phone": "551198882202",
+      "response": "Perfeito. Eu já criei seu agente gratuitamente para Rota Certa e deixei tudo pronto pra você conhecer agora.\n\nTeste público: https://agentezap.online/test/b8d5d06a01f34158\nPainel principal: https://agentezap.online/agendamentos\nLogin: https://agentezap.online/login\nEmail: 551198882202@agentezap.online\nSenha temporária: AZ-7EGPDG\n\nPode entrar, testar e depois, se quiser, eu continuo calibrando por aqui no WhatsApp. No gratuito você pode fazer até 5 calibrações do agente por dia por aqui no WhatsApp (perguntas e dúvidas não contam); com plano ativo fica ilimitado. No painel você também consegue trocar a senha quando quiser.",
+      "transcript": [
+        {
+          "input": "oi",
+          "output": "Oi! Aqui é o Rodrigo, da AgenteZap. Eu consigo montar seu agente por aqui, sem você precisar configurar nada. Me conta sobre o seu negócio, nome, o que você vende ou faz, e como quer que o agente atenda seus clientes. Quanto mais detalhe, melhor eu deixo ele pra você 😉"
+        },
+        {
+          "input": "Consultoria Rota Certa. Faço diagnostico e reunioes.",
+          "output": "Boa! Agora me explica melhor tudo que você quer que o agente tenha e faça, tipo de atendimento, se faz venda, agendamento, tira dúvida, cobra cliente... quanto mais detalhe, mais certeiro eu deixo."
+        },
+        {
+          "input": "Quero que ele qualifique, responda objecoes e feche o agendamento.",
+          "output": "Show! Esse atendimento vai trabalhar com agendamento? Se sim, já me manda os dias e horários de atendimento. Se não, eu configuro só pra comercial."
+        },
+        {
+          "input": "Sim, de segunda a quinta das 13h as 18h.",
+          "output": "Perfeito. Eu já criei seu agente gratuitamente para Rota Certa e deixei tudo pronto pra você conhecer agora.\n\nTeste público: https://agentezap.online/test/b8d5d06a01f34158\nPainel principal: https://agentezap.online/agendamentos\nLogin: https://agentezap.online/login\nEmail: 551198882202@agentezap.online\nSenha temporária: AZ-7EGPDG\n\nPode entrar, testar e depois, se quiser, eu continuo calibrando por aqui no WhatsApp. No gratuito você pode fazer até 5 calibrações do agente por dia por aqui no WhatsApp (perguntas e dúvidas não contam); com plano ativo fica ilimitado. No painel você também consegue trocar a senha quando quiser."
+        }
+      ],
+      "userId": "e47eefac-d784-4222-b91c-f0393fcf5980",
+      "email": "551198882202@agentezap.online",
+      "businessType": "agendamento",
+      "token": "b8d5d06a01f34158",
+      "tokenInfo": {
+        "token": "b8d5d06a01f34158",
+        "userId": "e47eefac-d784-4222-b91c-f0393fcf5980",
+        "agentName": "Agenda",
+        "company": "Rota Certa",
+        "createdAt": "2026-03-02T00:59:50.457Z",
+        "expiresAt": "2026-03-03T00:59:50.457Z"
+      },
+      "promptPreview": "<identidade>\nVocê é *Agenda*, assistente de agendamentos da *Rota Certa*.\nCanal: WhatsApp.\nVocê fala como humano — experiente, carismático, confiante e direto.\nVocê NÃO é um chatbot. Você é Agenda, uma pessoa real que atende clientes.\n</identidade>\n\n<objetivo>",
+      "promptMentionsAgenteZap": false,
+      "promptHasCompany": true,
+      "hasExpectedPanelPath": true
+    }
+  ]
+}

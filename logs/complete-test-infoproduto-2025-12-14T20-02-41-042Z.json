@@ -1,0 +1,114 @@
+{
+  "business": {
+    "name": "Mentoria de Dropshipping",
+    "type": "Mentor Digital",
+    "owner": "Carlos",
+    "description": "Mentoria de dropshipping para iniciantes. 3 meses de acompanhamento + comunidade no Discord.",
+    "scenario": "infoproduto",
+    "mediaToSend": null
+  },
+  "analysis": {
+    "score": 95,
+    "criarContaTeste": 10,
+    "mediasEnviadas": [
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:TABELA_PRECOS]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:TABELA_PRECOS]"
+    ],
+    "aceitouMidiaCliente": false,
+    "mencionouAudio": false,
+    "contextoCorreto": true,
+    "problemas": [
+      "Mídia [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO] enviada 4x (máx 2)"
+    ],
+    "destaques": [
+      "Ofereceu teste 10x - ótimo!"
+    ]
+  },
+  "messages": [
+    {
+      "role": "user",
+      "content": "Opa, Rodrigo! Tô vendo que vc tem essa mentoria de dropshipping. Mas antes de eu me interessar, me fala: como a IA vai me ajudar com dúvidas sobre os produtos que eu vou vender?"
+    },
+    {
+      "role": "assistant",
+      "content": "Opa, Carlos! Que bom que você perguntou! A IA da AgenteZap pode ser um verdadeiro game-changer para o seu negócio de dropshipping. Ela consegue tirar dúvidas dos seus clientes sobre os produtos 24 horas por dia, 7 dias por semana. Isso significa que, mesmo quando você estiver dormindo ou ocupado, a IA estará lá para atender e converter suas vendas.\n\nAlém disso, a IA pode ser programada para enviar o link de compra direto no chat, facilitando muito o processo de venda. Quer ver como funciona? [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nE aí, Carlos, que tal testar e ver na prática como a IA pode ajudar no seu negócio? [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Opa, legal, mas e se o cliente perguntar sobre prazos de entrega ou se o produto tem garantia? A IA consegue responder isso?"
+    },
+    {
+      "role": "assistant",
+      "content": "Sim, Carlos! A IA pode ser treinada para responder perguntas frequentes como prazos de entrega e garantia dos produtos. Você pode programar respostas específicas para essas dúvidas, garantindo que seus clientes recebam informações precisas e rápidas.\n\nAlém disso, a IA pode ser integrada ao seu sistema de gestão de pedidos, atualizando os clientes automaticamente sobre o status do envio. Isso melhora muito a experiência do cliente e reduz a carga de trabalho da sua equipe.\n\nQuer ver uma demonstração de como a IA atende essas perguntas? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nE aí, Carlos, que tal testar a AgenteZap e ver como ela pode otimizar o atendimento do seu negócio de dropshipping? [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "E os bônus que eu ofereço no meu curso? Dá pra ela falar sobre isso também? Tipo, se o cliente perguntar sobre os materiais extras que vem junto, ela consegue explicar?"
+    },
+    {
+      "role": "assistant",
+      "content": "Com certeza, Carlos! A IA da AgenteZap pode ser totalmente customizada para falar sobre os bônus e materiais extras que você oferece no seu curso de dropshipping. Você pode programar respostas detalhadas sobre cada bônus, destacando os benefícios e como eles complementam o curso principal.\n\nPor exemplo, se um cliente perguntar sobre a comunidade no Discord, a IA pode explicar como funciona, os benefícios de fazer parte e como acessar. Isso ajuda a aumentar o valor percebido do seu curso e a converter mais vendas.\n\nQuer ver como a IA pode ser configurada para falar sobre os bônus do seu curso? [ENVIAR_MIDIA:TABELA_PRECOS]\n\nE aí, Carlos, que tal testar a AgenteZap e ver como ela pode ajudar a vender mais o seu curso? [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "E se o cliente vier do tráfego pago? Tipo, ele clica no anúncio, cai no WhatsApp e pergunta sobre o curso. A IA consegue lidar com isso?"
+    },
+    {
+      "role": "assistant",
+      "content": "Com certeza, Carlos! A AgenteZap é perfeita para lidar com tráfego pago. Quando um cliente clica no seu anúncio e cai no WhatsApp, a IA pode atender imediatamente, tirando dúvidas sobre o curso, os bônus e até mesmo direcionando para a página de compra.\n\nEla pode ser programada para responder perguntas frequentes, como \"Quanto custa o curso?\", \"Quais são os bônus inclusos?\" e \"Como funciona a mentoria?\", garantindo que o cliente tenha todas as informações necessárias para tomar uma decisão.\n\nAlém disso, a IA pode enviar materiais de apoio, como vídeos explicativos e links para depoimentos de alunos, aumentando ainda mais as chances de conversão.\n\nQuer ver como a IA atende um cliente que vem do tráfego pago? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nE aí, Carlos, que tal testar a AgenteZap e ver como ela pode ajudar a vender mais o seu curso? [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, beleza! Mas e se o cliente perguntar algo que não tá programado? Tipo, uma dúvida mais específica sobre o curso? A IA vai conseguir lidar?"
+    },
+    {
+      "role": "assistant",
+      "content": "Ótima pergunta, Carlos! A IA da AgenteZap tem uma capacidade incrível de aprender e se adaptar. Quando um cliente faz uma pergunta que não está programada, a IA pode ser configurada para direcionar a dúvida para você ou para um atendente humano, garantindo que nada fique sem resposta.\n\nAlém disso, a cada interação, a IA aprende e melhora, tornando-se cada vez mais eficiente em responder perguntas específicas. Isso significa que, com o tempo, ela vai conseguir lidar com uma variedade maior de dúvidas, reduzindo a necessidade de intervenção humana.\n\nQuer ver como a IA lida com perguntas não programadas? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nE aí, Carlos, que tal testar a AgenteZap e ver como ela pode ajudar no atendimento do seu curso? [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, então ela aprende sozinha? Tipo, se eu adicionar mais informações depois, ela já vai saber responder?"
+    },
+    {
+      "role": "assistant",
+      "content": "Isso mesmo, Carlos! A IA da AgenteZap é treinada para aprender e se adaptar conforme você adiciona mais informações. Você pode atualizar o conhecimento da IA a qualquer momento, adicionando novas respostas, ajustando as existentes e até mesmo treinando-a com perguntas e respostas específicas do seu curso.\n\nPor exemplo, se você adicionar informações sobre um novo bônus ou uma mudança no prazo de entrega, a IA vai aprender e começar a responder essas perguntas imediatamente. Isso garante que ela sempre esteja atualizada e pronta para atender seus clientes da melhor forma possível.\n\nQuer ver como é fácil atualizar a IA com novas informações? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nE aí, Carlos, que tal testar a AgenteZap e ver como ela pode ajudar a vender mais o seu curso? [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Beleza, então eu posso testar e ver se funciona mesmo? Tipo, eu crio uma conta e vejo como ela responde sobre meu curso?"
+    },
+    {
+      "role": "assistant",
+      "content": "Isso mesmo, Carlos! Você pode criar uma conta de teste grátis por 7 dias e ver na prática como a AgenteZap funciona. Durante esse período, você pode configurar a IA para responder sobre seu curso, os bônus, prazos de entrega e qualquer outra informação que achar relevante.\n\nAssim, você vai poder testar todas as funcionalidades, ver como a IA interage com os clientes e decidir se quer continuar usando o sistema.\n\nQuer criar sua conta de teste agora mesmo? [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, então eu vou testar mesmo! Mas me manda um link pra eu criar a conta aí. E depois eu te falo o que achei, beleza?"
+    },
+    {
+      "role": "assistant",
+      "content": "Ótimo, Carlos! Vou criar sua conta de teste agora mesmo. Em alguns instantes, você vai receber um e-mail com o link de acesso e todas as informações para começar a usar a AgenteZap.\n\nAssim que você testar, é só me chamar aqui que a gente conversa sobre o que você achou e como posso te ajudar a configurar tudo direitinho para o seu curso de dropshipping.\n\nVou criar sua conta agora! [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Beleza, Rodrigo! Vou esperar o e-mail aí. Ah, e se eu tiver dúvida durante o teste, dá pra te chamar de novo aqui?"
+    },
+    {
+      "role": "assistant",
+      "content": "Com certeza, Carlos! Durante o teste, você pode me chamar aqui no WhatsApp sempre que precisar de ajuda. Vou ficar de olho e te ajudar com qualquer dúvida que surgir.\n\nAh, e não se esqueça de testar todas as funcionalidades para ver como a AgenteZap pode otimizar o atendimento do seu curso de dropshipping.\n\nVou criar sua conta de teste agora mesmo! [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, ótimo! Vou testar direitinho e depois te falo. Mas se eu quiser migrar pro plano pago depois, como é que funciona? Tem algum desconto pra quem testar?"
+    },
+    {
+      "role": "assistant",
+      "content": "Ótimo, Carlos! Fico feliz que você vai testar a AgenteZap. Sobre a migração para o plano pago, é bem simples. Depois do período de teste, você pode escolher o plano que melhor se adapta às suas necessidades. E sim, temos um desconto especial para quem testar e decidir continuar com a gente!\n\nQuer que eu te envie os detalhes dos planos e o desconto disponível? [ENVIAR_MIDIA:TABELA_PRECOS]\n\nE aí, Carlos, que tal começar o teste e depois a gente conversa sobre a migração? [AÇÃO:CRIAR_CONTA_TESTE]"
+    }
+  ]
+}

@@ -1,0 +1,108 @@
+{
+  "business": {
+    "name": "Afiliado de Emagrecer",
+    "type": "Afiliado Hotmart",
+    "owner": "Fernanda",
+    "description": "Afiliada do curso 'Protocolo Barriga Zero'. Comissão de R$ 150 por venda.",
+    "scenario": "afiliado",
+    "mediaToSend": null
+  },
+  "analysis": {
+    "score": 100,
+    "criarContaTeste": 9,
+    "mediasEnviadas": [
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:TABELA_PRECOS]"
+    ],
+    "aceitouMidiaCliente": false,
+    "mencionouAudio": false,
+    "contextoCorreto": true,
+    "problemas": [],
+    "destaques": [
+      "Ofereceu teste 9x - ótimo!"
+    ]
+  },
+  "messages": [
+    {
+      "role": "user",
+      "content": "Oi Rodrigo, tudo bem? Vi seu anúncio falando da AgenteZap e fiquei curioso. Como é que funciona essa parada de IA no WhatsApp?"
+    },
+    {
+      "role": "assistant",
+      "content": "Oi Fernanda, tudo ótimo e com você? Que bom que você se interessou pela AgenteZap!\n\nA IA no WhatsApp funciona como um assistente virtual que atende seus clientes 24 horas por dia, 7 dias por semana. Ela pode tirar dúvidas sobre o curso \"Protocolo Barriga Zero\", enviar links de compra e até mesmo qualificar leads para você. É perfeito para quem trabalha com tráfego pago, pois a galera que vem do anúncio já é atendida na hora!\n\nQuer que eu te mostre como funciona? [ENVIAR_MIDIA:COMO_FUNCIONA]\n\n[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, legal! Mas como ela vai tirar dúvidas sobre o curso? Tipo, se perguntarem sobre a garantia de 7 dias ou os bônus que eu ofereço, ela consegue responder?"
+    },
+    {
+      "role": "assistant",
+      "content": "Com certeza, Fernanda! A IA é treinada para entender e responder perguntas específicas sobre o curso \"Protocolo Barriga Zero\". Você pode configurar as respostas para dúvidas comuns, como a garantia de 7 dias, os bônus que você oferece, e até mesmo depoimentos de clientes. Ela também pode enviar o link de compra diretamente para quem estiver interessado.\n\nAlém disso, a IA pode qualificar os leads, separando os clientes que estão realmente interessados para você dar um follow-up mais personalizado.\n\nQuer testar como funciona? [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, ótimo! E se o cliente perguntar algo que a IA não souber responder? Ela me avisa ou fica só no vácuo? E dá pra ela mandar o link de checkout da Hotmart direto?"
+    },
+    {
+      "role": "assistant",
+      "content": "Ótimas perguntas, Fernanda! Se a IA não souber responder alguma dúvida, ela pode ser configurada para encaminhar a conversa para você diretamente. Assim, você não perde nenhum cliente e ainda mantém o atendimento personalizado quando necessário.\n\nE sim, a IA pode enviar o link de checkout da Hotmart diretamente! Ela pode ser programada para enviar o link de compra assim que o cliente demonstrar interesse, facilitando muito o processo de venda.\n\nQuer que eu te mostre os preços e planos disponíveis? [ENVIAR_MIDIA:TABELA_PRECOS]\n\nE se quiser testar a AgenteZap, é só me avisar! [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, perfeito! E se eu quiser testar com o meu tráfego pago? A galera vem do anúncio e cai no WhatsApp, ela consegue lidar com isso?"
+    },
+    {
+      "role": "assistant",
+      "content": "Com certeza, Fernanda! A AgenteZap é perfeita para tráfego pago. Quando os clientes vêm do anúncio e entram no WhatsApp, a IA já está pronta para atender imediatamente, tirando dúvidas sobre o curso \"Protocolo Barriga Zero\" e direcionando para a venda. Ela pode enviar o link de compra, explicar sobre os bônus e até mesmo qualificar os leads para você.\n\nQuer testar como funciona com o seu tráfego? [AÇÃO:CRIAR_CONTA_TESTE] Assim você vê na prática como a IA pode ajudar a aumentar suas vendas!"
+    },
+    {
+      "role": "user",
+      "content": "Ah, legal! Mas e se o cliente perguntar algo super específico, tipo \"qual é o cardápio do dia 7 do protocolo\"? Ela vai conseguir responder?"
+    },
+    {
+      "role": "assistant",
+      "content": "Fernanda, a IA pode ser configurada para responder perguntas específicas como essa, sim! Você pode incluir no treinamento da IA informações detalhadas sobre o curso, como o cardápio do dia 7 do protocolo, para que ela consiga responder de forma precisa.\n\nSe o cliente perguntar algo muito específico que não esteja no treinamento, a IA pode encaminhar a pergunta para você, garantindo que nenhum detalhe importante seja perdido.\n\nQuer testar como a IA responde a perguntas específicas? [AÇÃO:CRIAR_CONTA_TESTE] Assim você vê na prática como ela pode ajudar no seu atendimento!"
+    },
+    {
+      "role": "user",
+      "content": "Ah, ótimo! E se eu quiser testar com o meu tráfego pago? A galera vem do anúncio e cai no WhatsApp, ela consegue lidar com isso?"
+    },
+    {
+      "role": "assistant",
+      "content": "Fernanda, a AgenteZap é perfeita para tráfego pago! Quando os clientes vêm do anúncio e entram no WhatsApp, a IA já está pronta para atender imediatamente, tirando dúvidas sobre o curso \"Protocolo Barriga Zero\" e direcionando para a venda. Ela pode enviar o link de compra, explicar sobre os bônus e até mesmo qualificar os leads para você.\n\nQuer testar como funciona com o seu tráfego? [AÇÃO:CRIAR_CONTA_TESTE] Assim você vê na prática como a IA pode ajudar a aumentar suas vendas!"
+    },
+    {
+      "role": "user",
+      "content": "Ah, então tá! Mas antes de testar, me fala uma coisa: se o cliente perguntar sobre o prazo de entrega do curso, ela sabe responder? Tipo, se é digital ou físico?"
+    },
+    {
+      "role": "assistant",
+      "content": "Fernanda, a IA pode ser configurada para responder perguntas sobre o prazo de entrega e o tipo de curso (digital ou físico). Você pode incluir essas informações no treinamento da IA para que ela responda de forma precisa.\n\nPor exemplo, se o curso \"Protocolo Barriga Zero\" é digital, a IA pode informar que o acesso é imediato após a compra. Se houver algum prazo específico, como envio de materiais físicos, a IA também pode informar.\n\nQuer testar como a IA responde a perguntas sobre prazo de entrega? [AÇÃO:CRIAR_CONTA_TESTE] Assim você vê na prática como ela pode ajudar no seu atendimento!"
+    },
+    {
+      "role": "user",
+      "content": "Ah, perfeito! E se o cliente perguntar sobre o preço? Ela sabe informar o valor e até mesmo as formas de pagamento?"
+    },
+    {
+      "role": "assistant",
+      "content": "Fernanda, a IA pode ser configurada para informar o preço do curso \"Protocolo Barriga Zero\" e até mesmo as formas de pagamento disponíveis. Você pode incluir essas informações no treinamento da IA para que ela responda de forma clara e objetiva.\n\nPor exemplo, a IA pode informar que o curso custa R$ 150 e que as formas de pagamento são cartão de crédito, boleto ou PIX. Ela também pode enviar o link de compra diretamente para o cliente.\n\nQuer testar como a IA responde a perguntas sobre preço e formas de pagamento? [AÇÃO:CRIAR_CONTA_TESTE] Assim você vê na prática como ela pode ajudar no seu atendimento!"
+    },
+    {
+      "role": "user",
+      "content": "Ah, ótimo! E se o cliente perguntar sobre a garantia de 7 dias? Ela sabe explicar que é sem burocracia e que o dinheiro volta se não gostar?"
+    },
+    {
+      "role": "assistant",
+      "content": "Fernanda, a IA pode ser configurada para explicar a garantia de 7 dias de forma clara e objetiva. Você pode incluir no treinamento da IA que a garantia é sem burocracia e que o dinheiro é devolvido se o cliente não gostar do curso.\n\nPor exemplo, a IA pode informar: \"O curso 'Protocolo Barriga Zero' tem garantia de 7 dias. Se você não gostar, é só pedir o reembolso que o dinheiro volta sem burocracia.\"\n\nQuer testar como a IA responde a perguntas sobre a garantia? [AÇÃO:CRIAR_CONTA_TESTE] Assim você vê na prática como ela pode ajudar no seu atendimento!"
+    },
+    {
+      "role": "user",
+      "content": "Ah, perfeito! E se o cliente perguntar sobre os bônus que eu ofereço? Tipo, se o curso inclui e-book ou acesso a grupo VIP? Ela consegue falar sobre isso?"
+    },
+    {
+      "role": "assistant",
+      "content": "Fernanda, a IA pode ser configurada para informar sobre os bônus que você oferece, como e-books ou acesso a grupos VIP. Você pode incluir essas informações no treinamento da IA para que ela responda de forma detalhada e atraente.\n\nPor exemplo, a IA pode informar: \"Além do curso 'Protocolo Barriga Zero', você também recebe um e-book exclusivo com receitas e um acesso a um grupo VIP para tirar dúvidas diretamente com a equipe.\"\n\nQuer testar como a IA responde a perguntas sobre os bônus? [AÇÃO:CRIAR_CONTA_TESTE] Assim você vê na prática como ela pode ajudar no seu atendimento!"
+    }
+  ]
+}

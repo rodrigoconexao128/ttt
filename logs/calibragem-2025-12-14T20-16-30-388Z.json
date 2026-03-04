@@ -1,0 +1,178 @@
+[
+  {
+    "scenario": {
+      "id": "hotmart-rapido",
+      "name": "Infoprodutor Hotmart (Rápido)",
+      "clientBehavior": "Cliente profissional que já sabe o que quer. Dá todas as informações logo.",
+      "firstMessage": "Oi! Eu tenho um curso de culinária fitness no Hotmart, R$ 197, quero um agente pra responder clientes 24h. Empresa: Fit Receitas, agente pode ser Bia, precisa saber preço, garantia de 7 dias e que entrega é imediata.",
+      "expectation": "Rodrigo deve criar conta IMEDIATAMENTE (1-2 mensagens)",
+      "agentName": "Bia",
+      "agentCompany": "Fit Receitas",
+      "agentInstructions": "Curso R$ 197, garantia 7 dias, entrega imediata"
+    },
+    "success": true,
+    "messages": 3,
+    "accountCreated": true,
+    "askedAllAtOnce": false,
+    "acceptedMedia": false,
+    "issues": [],
+    "conversation": [
+      {
+        "role": "user",
+        "content": "Oi! Eu tenho um curso de culinária fitness no Hotmart, R$ 197, quero um agente pra responder clientes 24h. Empresa: Fit Receitas, agente pode ser Bia, precisa saber preço, garantia de 7 dias e que entrega é imediata."
+      },
+      {
+        "role": "assistant",
+        "content": "Show! Já tenho tudo que preciso! 🚀\n\nVou criar seu agente agora...\n\n[AÇÃO:CRIAR_CONTA_TESTE]\n\nVocê vai receber um link com um SIMULADOR de WhatsApp!\nLá você conversa com SEU agente e vê como ele responde.\nTesta e me fala o que achou! 📱"
+      },
+      {
+        "role": "user",
+        "content": "Oba, recebi! Vou testar agora e te falo! 🚀"
+      }
+    ]
+  },
+  {
+    "scenario": {
+      "id": "restaurante-normal",
+      "name": "Restaurante (Normal)",
+      "clientBehavior": "Cliente comum que não sabe muito. Precisa de orientação.",
+      "firstMessage": "Oi, vi o anúncio de vocês. Tenho um restaurante aqui no bairro e tô cansado de responder WhatsApp, pode me ajudar?",
+      "expectation": "Rodrigo deve pedir infos de forma rápida (tudo junto) e criar conta em 3-4 mensagens",
+      "agentName": "Pedro",
+      "agentCompany": "Sabor do Bairro",
+      "agentInstructions": "Restaurante, prato do dia R$ 18, delivery grátis acima de R$ 30, aberto das 11h às 22h"
+    },
+    "success": true,
+    "messages": 7,
+    "accountCreated": true,
+    "askedAllAtOnce": true,
+    "acceptedMedia": false,
+    "issues": [],
+    "conversation": [
+      {
+        "role": "user",
+        "content": "Oi, vi o anúncio de vocês. Tenho um restaurante aqui no bairro e tô cansado de responder WhatsApp, pode me ajudar?"
+      },
+      {
+        "role": "assistant",
+        "content": "Me conta rapidinho: qual o nome do seu restaurante e o que ele oferece? Assim já crio seu agente! 🚀"
+      },
+      {
+        "role": "user",
+        "content": "Meu restaurante se chama Sabor do Bairro. Oferecemos prato do dia por R$ 18, delivery grátis pra pedidos acima de R$ 30 e a gente abre das 11h às 22h."
+      },
+      {
+        "role": "assistant",
+        "content": "Show! Pra criar seu agente agora, me manda (pode ser tudo junto ou num áudio 🎤):\n📍 Nome da empresa\n🤖 Nome do agente (ex: Bia, Pedro...)\n📝 Infos que ele precisa saber (preços, horários, produtos...)\n\nPode mandar foto do cardápio/catálogo também! 📸"
+      },
+      {
+        "role": "user",
+        "content": "Tá bom, então. A empresa se chama Sabor do Bairro. O nome do agente pode ser Pedro. É só ele saber que o prato do dia custa R$ 18, que o delivery é grátis pra pedidos acima de R$ 30 e que a gente abre das 11h às 22h."
+      },
+      {
+        "role": "assistant",
+        "content": "Show! Já tenho tudo que preciso! 🚀\n\nVou criar seu agente agora...\n\n[AÇÃO:CRIAR_CONTA_TESTE]\n\nVocê vai receber um link com um SIMULADOR de WhatsApp!\nLá você conversa com SEU agente e vê como ele responde.\nTesta e me fala o que achou! 📱"
+      },
+      {
+        "role": "user",
+        "content": "Oba, recebi! Vou testar agora e te falo! 🚀"
+      }
+    ]
+  },
+  {
+    "scenario": {
+      "id": "afiliado-audio",
+      "name": "Afiliado Hotmart (Manda Áudio)",
+      "clientBehavior": "Cliente que prefere mandar áudio. Quando pedido, simula que mandou um áudio.",
+      "firstMessage": "Ei, sou afiliado de um curso de dropshipping. Preciso de ajuda pra responder leads no zap.",
+      "expectation": "Rodrigo deve aceitar áudio e criar conta após receber",
+      "agentName": "Carol",
+      "agentCompany": "Drop Expert",
+      "agentInstructions": "Curso Dropshipping Passo a Passo, R$ 297, aprenda a vender sem estoque"
+    },
+    "success": true,
+    "messages": 7,
+    "accountCreated": true,
+    "askedAllAtOnce": true,
+    "acceptedMedia": true,
+    "issues": [],
+    "conversation": [
+      {
+        "role": "user",
+        "content": "Ei, sou afiliado de um curso de dropshipping. Preciso de ajuda pra responder leads no zap."
+      },
+      {
+        "role": "assistant",
+        "content": "Me conta rapidinho: qual seu negócio, o que vende, e sua maior dor hoje?"
+      },
+      {
+        "role": "user",
+        "content": "Vou mandar um áudio pra vc, é mais fácil\n\n[Áudio enviado: Curso Dropshipping Passo a Passo, R$ 297, aprenda a vender sem estoque]\n\nMinha maior dor hoje é conseguir mais vendas. E vc, qual sua maior dificuldade?"
+      },
+      {
+        "role": "assistant",
+        "content": "Recebi seu áudio! Deixa eu ouvir...\n\nShow! Pra criar seu agente agora, me manda (pode ser tudo junto ou num áudio 🎤):\n📍 Nome da empresa\n🤖 Nome do agente (ex: Bia, Pedro...)\n📝 Infos que ele precisa saber (preços, horários, produtos...)\n\nPode mandar foto do cardápio/catálogo também! 📸"
+      },
+      {
+        "role": "user",
+        "content": "Vou mandar um áudio pra vc, é mais fácil\n\n[Áudio enviado: Curso Dropshipping Passo a Passo, R$ 297, aprenda a vender sem estoque]\n\nTá bom, vou criar seu agente!"
+      },
+      {
+        "role": "assistant",
+        "content": "Recebi seu áudio! Deixa eu ouvir...\n\nShow! Já tenho tudo que preciso! 🚀\n\nVou criar seu agente agora...\n\n[AÇÃO:CRIAR_CONTA_TESTE]\n\nVocê vai receber um link com um SIMULADOR de WhatsApp!\nLá você conversa com SEU agente e vê como ele responde.\nTesta e me fala o que achou! 📱"
+      },
+      {
+        "role": "user",
+        "content": "Oba, recebi! Vou testar agora e te falo! 🚀"
+      }
+    ]
+  },
+  {
+    "scenario": {
+      "id": "loja-resistente",
+      "name": "Loja de Roupas (Resistente)",
+      "clientBehavior": "Cliente desconfiado que faz muitas perguntas antes de aceitar.",
+      "firstMessage": "Oi, queria entender melhor como funciona esse negócio de robô pra WhatsApp...",
+      "expectation": "Rodrigo deve explicar, convencer e então criar conta",
+      "agentName": "Luana",
+      "agentCompany": "Moda Bella",
+      "agentInstructions": "Loja de roupas femininas, tamanhos P ao GG, entrega em 3-5 dias, aceita PIX e cartão"
+    },
+    "success": true,
+    "messages": 7,
+    "accountCreated": true,
+    "askedAllAtOnce": true,
+    "acceptedMedia": false,
+    "issues": [],
+    "conversation": [
+      {
+        "role": "user",
+        "content": "Oi, queria entender melhor como funciona esse negócio de robô pra WhatsApp..."
+      },
+      {
+        "role": "assistant",
+        "content": "Oi! Tudo bem?\n\nVou te explicar rapidinho:\n\nA AgenteZap é um sistema de IA que atende seus clientes no WhatsApp 24 horas por dia, 7 dias por semana. Ele responde perguntas, tira dúvidas, faz agendamentos, vende produtos e muito mais!\n\nQuero te mostrar como é fácil e rápido de usar. Me conta rapidinho: qual seu negócio, o que vende, e sua maior dor hoje?"
+      },
+      {
+        "role": "user",
+        "content": "Oi, tudo. Meu negócio é a Moda Bella, vendo roupas femininas dos tamanhos P ao GG. Minha maior dor é não ter tempo pra atender todo mundo no WhatsApp.\n\nMas antes de continuar, quanto custa isso?"
+      },
+      {
+        "role": "assistant",
+        "content": "Oi! Tudo ótimo!\n\nA AgenteZap custa R$ 99/mês, mas você tem 7 dias de teste grátis para experimentar sem compromisso!\n\nPra criar seu agente agora, me manda (pode ser tudo junto ou num áudio 🎤):\n📍 Nome da empresa\n🤖 Nome do agente (ex: Bia, Pedro...)\n📝 Infos que ele precisa saber (preços, horários, produtos...)\n\nPode mandar foto do catálogo também! 📸\n\nAssim que você me enviar, já crio seu agente! 🚀"
+      },
+      {
+        "role": "user",
+        "content": "Tá, mas funciona mesmo? Como eu sei que não é golpe?"
+      },
+      {
+        "role": "assistant",
+        "content": "Entendo sua preocupação! A AgenteZap é uma empresa sério e confiável, com muitos clientes satisfeitos.\n\nPara te mostrar como funciona, vou criar um agente de teste pra você ver na prática!\n\nMe manda (pode ser tudo junto ou num áudio 🎤):\n📍 Nome da empresa\n🤖 Nome do agente (ex: Bia, Pedro...)\n📝 Infos que ele precisa saber (preços, horários, produtos...)\n\nPode mandar foto do catálogo também! 📸\n\nAssim que você me enviar, já crio seu agente de teste grátis por 7 dias! [AÇÃO:CRIAR_CONTA_TESTE]\n\nVocê vai receber um link com um SIMULADOR de WhatsApp! Lá você conversa com SEU agente e vê como ele responde.\n\nTesta e me fala o que achou! 📱"
+      },
+      {
+        "role": "user",
+        "content": "Oba, recebi! Vou testar agora e te falo! 🚀"
+      }
+    ]
+  }
+]

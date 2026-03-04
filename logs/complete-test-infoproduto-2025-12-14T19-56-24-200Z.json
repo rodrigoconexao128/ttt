@@ -1,0 +1,115 @@
+{
+  "business": {
+    "name": "Curso de Receitas Fit",
+    "type": "Infoprodutor Hotmart",
+    "owner": "Juliana",
+    "description": "Vende curso de receitas fitness na Hotmart. 47 receitas saudáveis, com bônus de cardápio semanal.",
+    "scenario": "infoproduto",
+    "mediaToSend": "audio"
+  },
+  "analysis": {
+    "score": 75,
+    "criarContaTeste": 9,
+    "mediasEnviadas": [
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:TABELA_PRECOS]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+    ],
+    "aceitouMidiaCliente": true,
+    "mencionouAudio": false,
+    "contextoCorreto": false,
+    "problemas": [
+      "Contexto errado: vendendo produto do cliente ao invés da AgenteZap",
+      "Mídia [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO] enviada 3x (máx 2)"
+    ],
+    "destaques": [
+      "Ofereceu teste 9x - ótimo!",
+      "Aceitou mídia do cliente corretamente"
+    ]
+  },
+  "messages": [
+    {
+      "role": "user",
+      "content": "Oi Rodrigo, vi seu anúncio sobre a AgenteZap. Tô com um curso de receitas fit pra vender e quero saber se vale a pena. Como é que a IA funciona mesmo? Ela entende sobre meu nicho?"
+    },
+    {
+      "role": "assistant",
+      "content": "Oi Juliana! Que legal que você está vendendo um curso de receitas fitness! A AgenteZap é perfeita pra você, porque a IA pode tirar dúvidas sobre as receitas, os benefícios do curso e até mandar o link de compra direto no WhatsApp! Ela funciona 24h, então enquanto você dorme ou está ocupada, a IA já está lá atendendo os clientes.\n\nPode mandar sim! Fica mais fácil de entender! [ENVIAR_MIDIA:COMO_FUNCIONA]"
+    },
+    {
+      "role": "user",
+      "content": "Opa, legal! Mas e se o cliente perguntar sobre a garantia de 7 dias? A IA sabe responder isso? E os bônus do curso, como cardápio semanal, ela consegue explicar?"
+    },
+    {
+      "role": "assistant",
+      "content": "Claro que sim, Juliana! A IA da AgenteZap é super inteligente e pode ser programada pra responder sobre a garantia de 7 dias, os bônus como o cardápio semanal e até mesmo as 47 receitas que você oferece no curso. A gente configura tudo junto com você pra deixar a IA do jeitinho que você precisa!\n\nE o melhor: ela funciona perfeitamente com tráfego pago! Imagina só: a galera clica no anúncio e já cai no WhatsApp com a IA pronta pra vender seu curso! [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, então tá ótimo! E se o cliente perguntar sobre o método de pagamento ou se o curso tem certificado? A IA sabe responder isso também? E se eu quiser que ela mande o link do checkout da Hotmart direto no WhatsApp?"
+    },
+    {
+      "role": "assistant",
+      "content": "Com certeza, Juliana! A IA pode ser programada pra responder sobre os métodos de pagamento, se o curso tem certificado e até mandar o link do checkout da Hotmart direto no WhatsApp! A gente configura tudo isso pra você, de acordo com as suas necessidades.\n\nE o melhor: você pode testar a AgenteZap por 7 dias grátis e ver como ela pode ajudar a vender seu curso de receitas fitness! [AÇÃO:CRIAR_CONTA_TESTE]\n\nPode mandar sim! Fica mais fácil de entender! [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, então tá ótimo! E se o cliente perguntar sobre o método de pagamento ou se o curso tem certificado? A IA sabe responder isso também? E se eu quiser que ela mande o link do checkout da Hotmart direto no WhatsApp?"
+    },
+    {
+      "role": "assistant",
+      "content": "Juliana, a IA da AgenteZap é super flexível e pode ser programada pra responder sobre os métodos de pagamento, se o curso tem certificado e até mandar o link do checkout da Hotmart direto no WhatsApp! A gente configura tudo isso junto com você, pra deixar a IA do jeitinho que você precisa!\n\nE o melhor: você pode testar a AgenteZap por 7 dias grátis e ver como ela pode ajudar a vender seu curso de receitas fitness! [AÇÃO:CRIAR_CONTA_TESTE]\n\nPode mandar sim! Fica mais fácil de entender! [ENVIAR_MIDIA:TABELA_PRECOS]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, então tá ótimo! E se o cliente perguntar sobre o método de pagamento ou se o curso tem certificado? A IA sabe responder isso também? E se eu quiser que ela mande o link do checkout da Hotmart direto no WhatsApp?\n\nE aí, Rodrigo, essa tabela de preços é pra qual plano? Tem algum que seja mais indicado pra quem tá começando?"
+    },
+    {
+      "role": "assistant",
+      "content": "Juliana, a IA da AgenteZap pode ser programada pra responder sobre os métodos de pagamento, se o curso tem certificado e até mandar o link do checkout da Hotmart direto no WhatsApp! A gente configura tudo isso junto com você, pra deixar a IA do jeitinho que você precisa!\n\nQuanto aos planos, a tabela que eu te mandei é do plano básico, que custa R$ 99/mês. Esse plano é perfeito pra quem tá começando, porque já inclui todas as funcionalidades que você precisa pra vender seu curso de receitas fitness!\n\nE o melhor: você pode testar a AgenteZap por 7 dias grátis e ver como ela pode ajudar a vender seu curso de receitas fitness! [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, então tá ótimo! E se o cliente perguntar sobre o método de pagamento ou se o curso tem certificado? A IA sabe responder isso também? E se eu quiser que ela mande o link do checkout da Hotmart direto no WhatsApp?\n\nE aí, Rodrigo, essa tabela de preços é pra qual plano? Tem algum que seja mais indicado pra quem tá começando?"
+    },
+    {
+      "role": "assistant",
+      "content": "Juliana, a IA da AgenteZap pode ser programada pra responder sobre os métodos de pagamento, se o curso tem certificado e até mandar o link do checkout da Hotmart direto no WhatsApp! A gente configura tudo isso junto com você, pra deixar a IA do jeitinho que você precisa!\n\nQuanto aos planos, a tabela que eu te mandei é do plano básico, que custa R$ 99/mês. Esse plano é perfeito pra quem tá começando, porque já inclui todas as funcionalidades que você precisa pra vender seu curso de receitas fitness!\n\nE o melhor: você pode testar a AgenteZap por 7 dias grátis e ver como ela pode ajudar a vender seu curso de receitas fitness! [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, então tá ótimo! E se o cliente perguntar sobre as receitas específicas do curso? A IA consegue mandar exemplos ou explicar como elas são? Tipo, se alguém perguntar sobre a receita de bolo de proteína, ela consegue detalhar?\n\nE aí, Rodrigo, esse teste grátis de 7 dias é mesmo de graça? Sem pegadinha?"
+    },
+    {
+      "role": "assistant",
+      "content": "Juliana, a IA da AgenteZap pode ser programada pra responder sobre as receitas específicas do seu curso, incluindo detalhes sobre a receita de bolo de proteína! A gente pode configurar a IA pra mandar exemplos, explicar como as receitas são feitas e até mesmo enviar fotos ou vídeos, se você quiser!\n\nE sim, o teste grátis de 7 dias é mesmo de graça, sem pegadinha! Você pode testar todas as funcionalidades da AgenteZap e ver como ela pode ajudar a vender seu curso de receitas fitness sem compromisso. [AÇÃO:CRIAR_CONTA_TESTE]\n\nPode mandar sim! Fica mais fácil de entender! [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, então tá ótimo! E se o cliente quiser saber se as receitas são veganas ou sem lactose? A IA consegue filtrar isso? Tipo, \"me manda só as receitas sem lactose\"?\n\nE aí, Rodrigo, esse vídeo de demonstração mostra como a IA atende um cliente que tá querendo comprar meu curso?"
+    },
+    {
+      "role": "assistant",
+      "content": "Juliana, a IA da AgenteZap pode ser programada pra filtrar as receitas veganas ou sem lactose e mandar só as que o cliente quiser! A gente configura tudo junto com você, pra deixar a IA do jeitinho que você precisa!\n\nE sim, o vídeo de demonstração mostra como a IA atende um cliente que tá querendo comprar seu curso! Você pode ver como ela tira dúvidas, explica sobre as receitas e até manda o link de compra. [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nE o melhor: você pode testar a AgenteZap por 7 dias grátis e ver como ela pode ajudar a vender seu curso de receitas fitness! [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, então tá ótimo! E se o cliente perguntar sobre o valor do curso ou se tem parcelamento? A IA consegue responder isso também? E se eu quiser que ela mande um vídeo explicando o curso antes de vender?\n\nE aí, Rodrigo, esse teste grátis de 7 dias é mesmo de graça? Sem pegadinha?"
+    },
+    {
+      "role": "assistant",
+      "content": "Juliana, a IA da AgenteZap pode ser programada pra responder sobre o valor do curso e as opções de parcelamento! A gente configura tudo junto com você, pra deixar a IA do jeitinho que você precisa!\n\nE sim, você pode configurar a IA pra mandar um vídeo explicando o curso antes de vender! A gente pode integrar o vídeo diretamente no atendimento, pra deixar tudo mais fácil e atraente pro cliente.\n\nE sim, o teste grátis de 7 dias é mesmo de graça, sem pegadinha! Você pode testar todas as funcionalidades da AgenteZap e ver como ela pode ajudar a vender seu curso de receitas fitness sem compromisso. [AÇÃO:CRIAR_CONTA_TESTE]\n\nPode mandar sim! Fica mais fácil de entender! [ENVIAR_MIDIA:COMO_FUNCIONA]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, então tá ótimo! E se o cliente perguntar sobre o valor do curso ou se tem parcelamento? A IA consegue responder isso também? E se eu quiser que ela mande um vídeo explicando o curso antes de vender?\n\nE aí, Rodrigo, esse teste grátis de 7 dias é mesmo de graça? Sem pegadinha?\n\nE aí, Rodrigo, essa sua AgenteZap funciona mesmo com o tráfego que eu tô usando? Eu uso Facebook Ads e Google Ads pra trazer gente pro meu curso."
+    },
+    {
+      "role": "assistant",
+      "content": "Juliana, a IA da AgenteZap pode ser programada pra responder sobre o valor do curso e as opções de parcelamento! A gente configura tudo junto com você, pra deixar a IA do jeitinho que você precisa!\n\nE sim, você pode configurar a IA pra mandar um vídeo explicando o curso antes de vender! A gente pode integrar o vídeo diretamente no atendimento, pra deixar tudo mais fácil e atraente pro cliente.\n\nE sim, o teste grátis de 7 dias é mesmo de graça, sem pegadinha! Você pode testar todas as funcionalidades da AgenteZap e ver como ela pode ajudar a vender seu curso de receitas fitness sem compromisso. [AÇÃO:CRIAR_CONTA_TESTE]\n\nE sim, a AgenteZap funciona super bem com Facebook Ads e Google Ads! A IA atende todos os clientes que vêm do tráfego pago, tirando dúvidas e mandando o link de compra. Ela é perfeita pra quem usa anúncios!"
+    }
+  ]
+}

@@ -1,0 +1,252 @@
+
+════════════════════════════════════════════════════════════════════════════════
+📋 LOG DE CONVERSA - Moda Fashion (Loja de Roupas Online)
+════════════════════════════════════════════════════════════════════════════════
+Data: 2025-12-14T19:20:26.161Z
+Cliente: Carlos
+Total de Mensagens: 30
+
+════════════════════════════════════════════════════════════════════════════════
+💬 CONVERSA COMPLETA
+════════════════════════════════════════════════════════════════════════════════
+
+👤 [1] Carlos:
+Opa, Rodrigo. Tô vendo essa AgenteZap aí. Mas como é que funciona mesmo?
+
+────────────────────────────────────────────────────────────
+
+🤖 [2] Rodrigo:
+Carlos, a AgenteZap é uma IA que atende seus clientes 24/7 pelo WhatsApp. Ela responde perguntas, envia fotos das roupas, tira dúvidas de tamanho e até fecha vendas por você. Você só precisa configurar uma vez e ela trabalha sozinha! [ENVIAR_MIDIA:COMO_FUNCIONA]
+
+Quer ver uma demonstração de como ela age no dia a dia? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+   📁 Mídias: [ENVIAR_MIDIA:COMO_FUNCIONA], [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+────────────────────────────────────────────────────────────
+
+👤 [3] Carlos:
+Tá, mas como que ela manda foto das roupas? Ela tem acesso ao meu catálogo? E se o cliente perguntar de um produto que não tenho?
+
+────────────────────────────────────────────────────────────
+
+🤖 [4] Rodrigo:
+A AgenteZap pode ser integrada ao seu catálogo digital. Você configura as fotos e descrições dos produtos uma vez, e ela usa essas informações para responder os clientes. Se um cliente perguntar por um produto que você não tem, a IA avisa educadamente que o item está indisponível e sugere alternativas do seu estoque.
+
+Já falei sobre isso! Quer ver como ela age na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+Você já tem um catálogo digital pronto para integrar?
+   📁 Mídias: [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+────────────────────────────────────────────────────────────
+
+👤 [5] Carlos:
+Tá, mas e se o cliente perguntar algo que não tem nada a ver com as roupas? A IA consegue lidar com isso?
+
+Já falei pra vc que já tentei chatbot antes e não deu certo. Como vc garante que vai ser diferente?
+
+────────────────────────────────────────────────────────────
+
+🤖 [6] Rodrigo:
+A AgenteZap é treinada para entender e responder a diversas perguntas, não só sobre roupas. Ela pode lidar com dúvidas sobre prazos de entrega, formas de pagamento e até mesmo perguntas mais genéricas. Se o cliente perguntar algo fora do escopo, a IA pode redirecionar para você ou oferecer ajuda em outro tema.
+
+Diferente de chatbots comuns, a AgenteZap aprende com as interações e melhora com o tempo. Além disso, você pode personalizar as respostas para que elas combinem com o tom da sua loja.
+
+Quer testar por 7 dias e ver a diferença na prática? [AÇÃO:CRIAR_CONTA_TESTE]
+   ⚡ Ações: [AÇÃO:CRIAR_CONTA_TESTE]
+
+────────────────────────────────────────────────────────────
+
+👤 [7] Carlos:
+Tá, mas como é que isso funciona na prática? Tipo, se um cliente perguntar sobre um vestido específico, ela vai saber responder?
+
+────────────────────────────────────────────────────────────
+
+🤖 [8] Rodrigo:
+Exatamente! Você configura as informações dos produtos no sistema, incluindo fotos, descrições e até mesmo promoções. Quando um cliente perguntar sobre um vestido específico, a AgenteZap vai responder com as informações que você cadastrou, como se fosse você atendendo pessoalmente.
+
+Quer ver um exemplo de como ela responde perguntas sobre produtos? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+Você já tem alguma dúvida específica sobre como configurar o sistema para o seu catálogo?
+   📁 Mídias: [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+────────────────────────────────────────────────────────────
+
+👤 [9] Carlos:
+Tá, mas e se o cliente perguntar algo que não tá no catálogo? A AgenteZap vai conseguir lidar? E o preço, quanto custa isso?
+
+────────────────────────────────────────────────────────────
+
+🤖 [10] Rodrigo:
+A AgenteZap é inteligente o suficiente para lidar com perguntas que não estão no catálogo. Ela pode direcionar o cliente para opções similares ou pedir para você entrar em contato. E o melhor: tudo isso de forma automática e sem perder a venda!
+
+O preço é R$ 99/mês, e você ainda tem 7 dias de teste grátis para experimentar todas as funcionalidades. [ENVIAR_MIDIA:TABELA_PRECOS]
+
+Quer começar o teste grátis e ver como ela se sai com perguntas fora do catálogo? [AÇÃO:CRIAR_CONTA_TESTE]
+   📁 Mídias: [ENVIAR_MIDIA:TABELA_PRECOS]
+   ⚡ Ações: [AÇÃO:CRIAR_CONTA_TESTE]
+
+────────────────────────────────────────────────────────────
+
+👤 [11] Carlos:
+Tá, mas como que isso funciona na prática? Se o cliente perguntar sobre um produto que eu não tenho, o que acontece? E se ele pedir um desconto?
+
+────────────────────────────────────────────────────────────
+
+🤖 [12] Rodrigo:
+Se o cliente perguntar sobre um produto que você não tem, a AgenteZap pode sugerir alternativas do seu estoque ou informar que o item está indisponível. Se ele pedir um desconto, você pode configurar a IA para oferecer promoções específicas ou redirecionar a pergunta para você.
+
+Quer ver como ela lida com essas situações na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+Você já tem alguma promoção ou desconto que gostaria de configurar na AgenteZap?
+   📁 Mídias: [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+────────────────────────────────────────────────────────────
+
+👤 [13] Carlos:
+Vou dar uma olhada no vídeo, mas explica de novo como funciona essa parte de promoção e desconto. Já tentei chatbot antes e não deu certo, então quero entender direito.
+
+────────────────────────────────────────────────────────────
+
+🤖 [14] Rodrigo:
+A AgenteZap permite que você configure promoções e descontos de forma fácil. Você pode programar a IA para oferecer descontos automáticos em produtos específicos ou em datas comemorativas. Se o cliente pedir um desconto que não está configurado, a IA pode redirecionar a pergunta para você.
+
+Diferente de chatbots comuns, a AgenteZap aprende com as interações e melhora com o tempo, garantindo que as respostas sejam sempre relevantes.
+
+Quer testar por 7 dias e ver a diferença na prática? [AÇÃO:CRIAR_CONTA_TESTE]
+   ⚡ Ações: [AÇÃO:CRIAR_CONTA_TESTE]
+
+────────────────────────────────────────────────────────────
+
+👤 [15] Carlos:
+Tá, mas como é que vc sabe que a IA vai entender direito o que o cliente quer? Já tentei chatbot antes e foi um desastre.
+
+────────────────────────────────────────────────────────────
+
+🤖 [16] Rodrigo:
+A AgenteZap é diferente dos chatbots comuns. Ela usa inteligência artificial avançada para entender o contexto das conversas e responder de forma natural, como um humano faria. Além disso, você pode treinar a IA com exemplos de perguntas e respostas específicas do seu negócio, garantindo que ela entenda exatamente o que seus clientes querem.
+
+Quer ver como ela se sai em uma demonstração ao vivo? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+Você já tem alguma dúvida específica que gostaria de testar com a AgenteZap?
+   📁 Mídias: [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+────────────────────────────────────────────────────────────
+
+👤 [17] Carlos:
+Tá, mas como é que isso vai ajudar minha loja de roupas online? Eu já tentei chatbot antes e não deu certo.
+
+────────────────────────────────────────────────────────────
+
+🤖 [18] Rodrigo:
+A AgenteZap vai ajudar sua loja de roupas online a atender clientes 24/7, respondendo perguntas sobre produtos, tirando dúvidas de tamanho e até fechando vendas. Diferente de chatbots comuns, ela aprende com as interações e melhora com o tempo, garantindo que as respostas sejam sempre relevantes.
+
+Quer ver como ela se sai em uma demonstração ao vivo? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+Você já tem alguma dúvida específica que gostaria de testar com a AgenteZap?
+   📁 Mídias: [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+────────────────────────────────────────────────────────────
+
+👤 [19] Carlos:
+Tá, mas como que ela fecha vendas mesmo? Ela só manda o link do produto ou ela faz o fechamento mesmo? E esse preço aí?
+
+────────────────────────────────────────────────────────────
+
+🤖 [20] Rodrigo:
+A AgenteZap não só manda o link do produto, mas também pode guiar o cliente pelo processo de compra, tirando dúvidas e até oferecendo promoções. Ela pode enviar fotos, descrições e até mesmo facilitar o fechamento da venda, pedindo os dados do cliente para finalizar a compra.
+
+O preço é R$ 99/mês, e você ainda tem 7 dias de teste grátis para experimentar todas as funcionalidades. [ENVIAR_MIDIA:TABELA_PRECOS]
+
+Quer começar o teste grátis e ver como ela fecha vendas na prática? [AÇÃO:CRIAR_CONTA_TESTE]
+   📁 Mídias: [ENVIAR_MIDIA:TABELA_PRECOS]
+   ⚡ Ações: [AÇÃO:CRIAR_CONTA_TESTE]
+
+────────────────────────────────────────────────────────────
+
+👤 [21] Carlos:
+"Tá, mas como é que ela vai saber responder sobre as roupas da minha loja? Já tentei chatbot antes e foi um fracasso. E esse preço de R$ 99 tá meio alto, não? Vou pensar."
+
+────────────────────────────────────────────────────────────
+
+🤖 [22] Rodrigo:
+A AgenteZap é diferente porque você configura as informações das roupas da sua loja no sistema. Ela usa essas informações para responder os clientes de forma personalizada. E sobre o preço, lembre-se que você tem 7 dias de teste grátis para ver se vale a pena.
+
+Quer criar uma conta de teste e ver como ela se sai com as roupas da sua loja? [AÇÃO:CRIAR_CONTA_TESTE]
+   ⚡ Ações: [AÇÃO:CRIAR_CONTA_TESTE]
+
+────────────────────────────────────────────────────────────
+
+👤 [23] Carlos:
+Tá, mas como é que a AgenteZap vai ajudar a vender mais roupas? Não tô vendo ainda...
+
+────────────────────────────────────────────────────────────
+
+🤖 [24] Rodrigo:
+A AgenteZap vai ajudar a vender mais roupas respondendo rapidamente aos clientes, tirando dúvidas sobre tamanhos, cores e promoções, e até fechando vendas enquanto você dorme. Ela pode enviar fotos e descrições dos produtos, além de oferecer promoções no momento certo.
+
+Quer ver como ela age na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+Você já tem alguma promoção ou desconto que gostaria de configurar na AgenteZap?
+   📁 Mídias: [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+────────────────────────────────────────────────────────────
+
+👤 [25] Carlos:
+Tá, mas como que ela fecha vendas enquanto eu tô dormindo? Isso é real mesmo? E se o cliente quiser um tamanho específico, ela sabe lidar?
+
+────────────────────────────────────────────────────────────
+
+🤖 [26] Rodrigo:
+A AgenteZap fecha vendas enquanto você dorme respondendo perguntas, enviando fotos e descrições dos produtos, e até mesmo guiando o cliente no processo de compra. Ela pode perguntar o tamanho preferido do cliente e sugerir opções disponíveis no seu estoque.
+
+Quer ver como ela lida com isso na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+Você já tem algum produto específico que gostaria de testar com a AgenteZap?
+   📁 Mídias: [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+────────────────────────────────────────────────────────────
+
+👤 [27] Carlos:
+Tá, mas como é que ela sabe qual tamanho o cliente quer? Ela já vem com isso ou eu tenho que configurar?
+
+(Observação: Ele já explicou isso antes, então se ele repetir igual, vou reclamar)
+
+────────────────────────────────────────────────────────────
+
+🤖 [28] Rodrigo:
+Já falei sobre isso! Você configura os tamanhos disponíveis no sistema, e a AgenteZap usa essas informações para responder os clientes. Ela pode perguntar o tamanho preferido do cliente e sugerir opções disponíveis no seu estoque.
+
+Quer ver como ela lida com isso na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+Você já tem algum produto específico que gostaria de testar com a AgenteZap?
+   📁 Mídias: [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+────────────────────────────────────────────────────────────
+
+👤 [29] Carlos:
+Tá, mas e se o cliente perguntar sobre um tamanho que não tem em estoque? A AgenteZap vai saber lidar?
+
+────────────────────────────────────────────────────────────
+
+🤖 [30] Rodrigo:
+A AgenteZap é inteligente o suficiente para informar educadamente quando um tamanho não está disponível e sugerir alternativas. Você pode configurar respostas personalizadas para essas situações, garantindo que o cliente sempre receba uma experiência positiva.
+
+Quer ver como ela lida com isso na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+Você já tem algum produto específico que gostaria de testar com a AgenteZap?
+   📁 Mídias: [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+────────────────────────────────────────────────────────────
+
+
+════════════════════════════════════════════════════════════════════════════════
+📊 ESTATÍSTICAS
+════════════════════════════════════════════════════════════════════════════════
+Mídias Usadas: [ENVIAR_MIDIA:COMO_FUNCIONA], [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO], [ENVIAR_MIDIA:TABELA_PRECOS]
+Ações Usadas: [AÇÃO:CRIAR_CONTA_TESTE]
+Total de Tags de Mídia: 13
+Total de Ações: 5
+
+════════════════════════════════════════════════════════════════════════════════
+🔍 ANÁLISE PENDENTE
+════════════════════════════════════════════════════════════════════════════════
+(Análise será feita pelo agente após revisão do log)

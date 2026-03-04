@@ -1,0 +1,51 @@
+
+═══════════════════════════════════════════════════════════════════════════════
+📊 RELATÓRIO DE CALIBRAÇÃO - RODRIGO (AGENTE VENDEDOR)
+═══════════════════════════════════════════════════════════════════════════════
+
+DATA: 15/12/2025, 00:35:05
+TESTE: IA vs IA SEM ROTEIRO (Cliente age naturalmente)
+
+═══════════════════════════════════════════════════════════════════════════════
+📈 RESULTADOS GERAIS
+═══════════════════════════════════════════════════════════════════════════════
+
+TAXA DE CONVERSÃO: 60% (3/5 nichos)
+❌ PRECISA CALIBRAR
+
+═══════════════════════════════════════════════════════════════════════════════
+📋 RESULTADOS POR NICHO
+═══════════════════════════════════════════════════════════════════════════════
+
+❌ BARGANHADOR: NÃO CONVERTEU 
+   📌 Motivo: Cliente não entendeu - Rodrigo explicou de forma confusa
+   💬 Última msg cliente: "Beleza, obrigado! Mas depois me explica direitinho como funciona essa configuração, porque eu não en..."
+
+❌ ENTUSIASTA: NÃO CONVERTEU 
+   📌 Motivo: Conversão demorou demais (15+ mensagens)
+   💬 Última msg cliente: "João: Show de bola! 😃
+Vou testar agora e já te falo!..."
+
+✅ COMPARADOR: CONVERTEU (6 mensagens)
+
+✅ CÉTICO/CHATO: CONVERTEU (6 mensagens)
+
+✅ INDECISO: CONVERTEU (12 mensagens)
+
+
+═══════════════════════════════════════════════════════════════════════════════
+🔧 SUGESTÕES DE AJUSTE
+═══════════════════════════════════════════════════════════════════════════════
+
+3. SIMPLIFICAR EXPLICAÇÃO:
+   - Usar linguagem mais simples
+   - Dar exemplos práticos logo
+   - Evitar jargão técnico
+
+
+═══════════════════════════════════════════════════════════════════════════════
+📁 LOGS DETALHADOS
+═══════════════════════════════════════════════════════════════════════════════
+
+Conversas completas salvas em: logs/calibration-{timestamp}.json
+

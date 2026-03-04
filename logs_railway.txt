@@ -1,0 +1,1000 @@
+﻿­ƒöä [AI AGENT] Retry: Tentando processar 5511953342846 novamente...
+   Mensagens usadas: 25/25
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+   ­ƒæë WhatsApp provavelmente desconectado
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 2419.3s | 1 mensagem(s) acumulada(s)
+
+   ­ƒô× Contato: 5511953342846
+­ƒöä [AI AGENT] Reagendando timer para 5511953342846 em 30s (sess├úo indispon├¡vel)...
+
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+ÔÜá´©Å [AI Agent] BLOQUEIO: Session/socket n├úo dispon├¡vel
+   userId: 4d0735aa-a656-4527-ab2a-a1031f314699
+   conversationId: da08bfe9-6fcc-4d2e-84e3-b5e5aa818b5e
+   contactNumber: 5511953342846
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒôØ [PERSISTENT TIMER] Atualizado para conversation da08bfe9-6fcc-4d2e-84e3-b5e5aa818b5e - 1 msgs
+­ƒÆ¥ [AI AGENT] Timer reagendado no banco para 2026-02-04T06:15:42.494Z
+­ƒöä [DB] Resetando timer para retry: da08bfe9-6fcc-4d2e-84e3-b5e5aa818b5e
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöÆ [AI AGENT] ÔÜá´©Å Conversa 857343c5-6c37-4fab-a64a-e75bc51ff11d j├í est├í sendo processada, IGNORANDO duplicata
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+   ­ƒæë Usu├írio precisa assinar plano
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+­ƒöä [DB] Resetando timer para retry: 4fe0bdae-0d21-4f5c-ad3b-c93a317a4a48
+
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöä [DB] Resetando timer para retry: 857343c5-6c37-4fab-a64a-e75bc51ff11d
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+­ƒÜ½ [AI AGENT] BLOQUEIO: Limite de 25 mensagens atingido
+
+   userId: ea5d2c8a-c81e-4449-8b28-58b794895d81
+   contactNumber: 557188290768
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   Mensagens usadas: 25/25
+   ÔÅ▒´©Å Aguardou 206.4s | 1 mensagem(s) acumulada(s)
+   ­ƒæë Usu├írio precisa assinar plano
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   ­ƒô× Contato: 557188290768
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöô [AI AGENT] Conversa da08bfe9-6fcc-4d2e-84e3-b5e5aa818b5e liberada para pr├│ximo processamento
+
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: da08bfe9-6fcc-4d2e-84e3-b5e5aa818b5e)
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+­ƒÜ½ [AI AGENT] BLOQUEIO: Limite de 25 mensagens atingido
+   userId: b8a9a57b-70c5-4bd9-b88f-5b98bc4b66d9
+   contactNumber: 551934226034
+   Mensagens usadas: 25/25
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 204.8s | 2 mensagem(s) acumulada(s)
+   ­ƒô× Contato: 551934226034
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+­ƒÜÇ [FULL SYNC] Iniciando sincroniza├º├úo para 3764a915-ef38-46a4-80fa-3ad97039ad45
+[FULL SYNC] ­ƒôÑ Coletando contatos para 3764a915-ef38-46a4-80fa-3ad97039ad45...
+[FULL SYNC] 1´©ÅÔâú Buscando contatos salvos do WhatsApp...
+[CONNECTION UPDATE] User 1f2f40b5-fb3e-4d04-8136-611358c2283d - connection: undefined, hasQR: true, hasLastDisconnect: false
+[QR CODE] Generating QR Code for user 1f2f40b5-fb3e-4d04-8136-611358c2283d...
+[QR CODE] QR Code generated successfully for user 1f2f40b5-fb3e-4d04-8136-611358c2283d, length: 6318
+[BROADCAST] No WebSocket clients found for user 1f2f40b5-fb3e-4d04-8136-611358c2283d
+[QR CODE] QR Code broadcasted to user 1f2f40b5-fb3e-4d04-8136-611358c2283d
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+[FULL SYNC]    ÔåÆ 270 contatos do WhatsApp
+[FULL SYNC] 2´©ÅÔâú Buscando contatos das conversas...
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: 4fe0bdae-0d21-4f5c-ad3b-c93a317a4a48)
+­ƒöô [AI AGENT] Conversa 4fe0bdae-0d21-4f5c-ad3b-c93a317a4a48 liberada para pr├│ximo processamento
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: 857343c5-6c37-4fab-a64a-e75bc51ff11d)
+­ƒöô [AI AGENT] Conversa 857343c5-6c37-4fab-a64a-e75bc51ff11d liberada para pr├│ximo processamento
+[QR CODE] QR Code saved to database for user 1f2f40b5-fb3e-4d04-8136-611358c2283d (took 184ms)
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+[FULL SYNC]    ÔåÆ 303 contatos de conversas
+[FULL SYNC] ­ƒôè Total de contatos ├║nicos: 303
+[FULL SYNC] ­ƒôñ Salvando contatos em batches de 50...
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöÆ [AI AGENT] ÔÜá´©Å Conversa 4fe0bdae-0d21-4f5c-ad3b-c93a317a4a48 j├í est├í sendo processada, IGNORANDO duplicata
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 206.3s | 2 mensagem(s) acumulada(s)
+   ­ƒô× Contato: 551934226034
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 206.3s | 2 mensagem(s) acumulada(s)
+   ­ƒô× Contato: 553199506196
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöä [AI AGENT] Retry: Tentando processar 447710173736 novamente...
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+   contactNumber: 447710173736
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   ­ƒæë WhatsApp provavelmente desconectado
+   ­ƒô× Contato: 447710173736
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+­ƒÜ½ [AI AGENT] BLOQUEIO: Limite de 25 mensagens atingido
+
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   userId: 5eab7abe-41d4-4c09-9b1a-681aed2946b1
+­ƒöä [AI AGENT] Reagendando timer para 447710173736 em 30s (sess├úo indispon├¡vel)...
+ÔÜá´©Å [AI Agent] BLOQUEIO: Session/socket n├úo dispon├¡vel
+   contactNumber: 553199506196
+   userId: 84170f76-0076-4878-a31d-28b58dfb2365
+   conversationId: d503831a-b136-467d-a69f-f4b5a3d9b1f5
+   Mensagens usadas: 25/25
+   ­ƒæë Usu├írio precisa assinar plano
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 2421.5s | 1 mensagem(s) acumulada(s)
+
+­ƒöä [DB] Resetando timer para retry: b90e896a-0b93-48cc-bd37-64081f46779e
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+­ƒÜ½ [AI AGENT] BLOQUEIO: Limite de 25 mensagens atingido
+   userId: b8a9a57b-70c5-4bd9-b88f-5b98bc4b66d9
+   contactNumber: 551934226034
+   Mensagens usadas: 25/25
+   ­ƒæë Usu├írio precisa assinar plano
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+­ƒöä [DB] Resetando timer para retry: 4fe0bdae-0d21-4f5c-ad3b-c93a317a4a48
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒôØ [PERSISTENT TIMER] Atualizado para conversation d503831a-b136-467d-a69f-f4b5a3d9b1f5 - 1 msgs
+­ƒÆ¥ [AI AGENT] Timer reagendado no banco para 2026-02-04T06:15:44.874Z
+­ƒöä [DB] Resetando timer para retry: d503831a-b136-467d-a69f-f4b5a3d9b1f5
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: b90e896a-0b93-48cc-bd37-64081f46779e)
+­ƒöô [AI AGENT] Conversa b90e896a-0b93-48cc-bd37-64081f46779e liberada para pr├│ximo processamento
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: 4fe0bdae-0d21-4f5c-ad3b-c93a317a4a48)
+­ƒöô [AI AGENT] Conversa 4fe0bdae-0d21-4f5c-ad3b-c93a317a4a48 liberada para pr├│ximo processamento
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: d503831a-b136-467d-a69f-f4b5a3d9b1f5)
+­ƒöô [AI AGENT] Conversa d503831a-b136-467d-a69f-f4b5a3d9b1f5 liberada para pr├│ximo processamento
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöÆ [AI AGENT] ÔÜá´©Å Conversa b90e896a-0b93-48cc-bd37-64081f46779e j├í est├í sendo processada, IGNORANDO duplicata
+   ÔÅ▒´©Å Aguardou 205.3s | 1 mensagem(s) acumulada(s)
+   ­ƒô× Contato: 5521973592149
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 2428.5s | 1 mensagem(s) acumulada(s)
+   ­ƒô× Contato: 5511912675288
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+ÔÜá´©Å [AI Agent] BLOQUEIO: Session/socket n├úo dispon├¡vel
+   userId: 4d0735aa-a656-4527-ab2a-a1031f314699
+   conversationId: 8cfd92f9-308a-47e7-8429-7bcc44abc29d
+­ƒöä [AI AGENT] Retry: Tentando processar 5511912675288 novamente...
+   contactNumber: 5511912675288
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+   ­ƒæë WhatsApp provavelmente desconectado
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 207.8s | 2 mensagem(s) acumulada(s)
+   ­ƒô× Contato: 553199506196
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+
+­ƒöä [AI AGENT] Reagendando timer para 5511912675288 em 30s (sess├úo indispon├¡vel)...
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒôØ [PERSISTENT TIMER] Atualizado para conversation 8cfd92f9-308a-47e7-8429-7bcc44abc29d - 1 msgs
+­ƒÆ¥ [AI AGENT] Timer reagendado no banco para 2026-02-04T06:15:45.935Z
+­ƒöä [DB] Resetando timer para retry: 8cfd92f9-308a-47e7-8429-7bcc44abc29d
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+Ô£à [AI AGENT] Usu├írio tem plano pago ativo e v├ílido: Plano Promo Ilimitado Mensal
+   ?? Texto combinado: "Ol├í! Tenho interesse e queria mais informa├º├Áes, por favor...."
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: 8cfd92f9-308a-47e7-8429-7bcc44abc29d)
+­ƒöô [AI AGENT] Conversa 8cfd92f9-308a-47e7-8429-7bcc44abc29d liberada para pr├│ximo processamento
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+­ƒÜ½ [AI AGENT] BLOQUEIO: Limite de 25 mensagens atingido
+   userId: 5eab7abe-41d4-4c09-9b1a-681aed2946b1
+   contactNumber: 553199506196
+   Mensagens usadas: 25/25
+   ­ƒæë Usu├írio precisa assinar plano
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+­ƒöä [DB] Resetando timer para retry: b90e896a-0b93-48cc-bd37-64081f46779e
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: b90e896a-0b93-48cc-bd37-64081f46779e)
+­ƒöô [AI AGENT] Conversa b90e896a-0b93-48cc-bd37-64081f46779e liberada para pr├│ximo processamento
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+?? [AI AGENT] Nome do cliente: Luciene
+?? [AI AGENT] M´┐¢dias j´┐¢ enviadas: nenhuma
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+[FULL SYNC] ­ƒôè Progresso: 50% (150/303)
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöä [AI AGENT] Retry: Tentando processar 5514996691186 novamente...
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒæñ [AI Agent] Nome do cliente: Luciene
+­ƒôü [AI Agent] M├¡dias j├í enviadas: nenhuma
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 2424.9s | 1 mensagem(s) acumulada(s)
+   ­ƒô× Contato: 5514996691186
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+ÔÜá´©Å [AI Agent] BLOQUEIO: Session/socket n├úo dispon├¡vel
+   userId: a38fc2ba-20d6-471a-b11c-1915d628b3d3
+   conversationId: 39a57b67-1ba6-4ddc-9ae4-c4c95fca16a4
+   contactNumber: 5514996691186
+   ­ƒæë WhatsApp provavelmente desconectado
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+­ƒöä [AI AGENT] Reagendando timer para 5514996691186 em 30s (sess├úo indispon├¡vel)...
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöÆ [AI AGENT] ÔÜá´©Å Conversa 4a3a7d5e-56f4-4544-b66c-82b2a3438b32 j├í est├í sendo processada, IGNORANDO duplicata
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöÆ [AI AGENT] ÔÜá´©Å Conversa 4a3a7d5e-56f4-4544-b66c-82b2a3438b32 j├í est├í sendo processada, IGNORANDO duplicata
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒôØ [PERSISTENT TIMER] Atualizado para conversation 39a57b67-1ba6-4ddc-9ae4-c4c95fca16a4 - 1 msgs
+­ƒÆ¥ [AI AGENT] Timer reagendado no banco para 2026-02-04T06:15:47.174Z
+­ƒöä [DB] Resetando timer para retry: 39a57b67-1ba6-4ddc-9ae4-c4c95fca16a4
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 206.4s | 1 mensagem(s) acumulada(s)
+   ­ƒô× Contato: 559185000707
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+­ƒöì [AI Agent] Verificando configura├º├Áes para user 8b88e9ac-9a56-4ca4-8470-3dede286e0c3:
+   ­ƒôè Legacy (ai_agent_config): exists, isActive=false
+   ­ƒôè Business (business_agent_configs): exists, isActive=true
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+ÔØî [AI Agent] RETURN NULL #3: agentConfig n├úo encontrado ou INATIVO
+   userId: 8b88e9ac-9a56-4ca4-8470-3dede286e0c3
+   agentConfig exists: true
+   agentConfig.isActive: false
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: 39a57b67-1ba6-4ddc-9ae4-c4c95fca16a4)
+­ƒöô [AI AGENT] Conversa 39a57b67-1ba6-4ddc-9ae4-c4c95fca16a4 liberada para pr├│ximo processamento
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöö [NOTIFICATION DEBUG] userId: 8b88e9ac-9a56-4ca4-8470-3dede286e0c3
+­ƒöö [NOTIFICATION DEBUG] businessConfig exists: true
+­ƒöö [NOTIFICATION DEBUG] notificationEnabled: false
+­ƒöö [NOTIFICATION DEBUG] notificationMode: ai
+­ƒöö [NOTIFICATION DEBUG] notificationManualKeywords: null
+­ƒöö [NOTIFICATION DEBUG] notificationPhoneNumber: null
+­ƒöö [NOTIFICATION DEBUG] clientMessage (combinedText): "Ol├í! Tenho interesse e queria mais informa├º├Áes, por favor."
+­ƒöö [NOTIFICATION DEBUG] aiResponse: "null"
+­ƒöö [NOTIFICATION DEBUG] Keyword check condition: {"notificationEnabled":false,"notificationManualKeywords":false,"notificationMode":"ai","modeMatches":false}
+­ƒöö [NOTIFICATION DEBUG] ÔØî Skipping keyword check - conditions not met
+?? [AI Agent] generateAIResponse retornou: NULL
+
+============================================================
+ÔÜá´©Å [AI Agent] RESPOSTA NULL - Nenhuma resposta gerada!
+   conversationId: 4a3a7d5e-56f4-4544-b66c-82b2a3438b32
+   contactNumber: 5521973592149
+   Poss├¡veis causas (verifique logs acima para "RETURN NULL"):
+   1. Usu├írio SUSPENSO
+   2. Mensagem de BOT detectada
+   3. agentConfig n├úo encontrado ou isActive=false
+   4. Trigger phrases configuradas mas nenhuma encontrada
+   5. Erro na API de LLM (timeout, rate limit)
+============================================================
+
+­ƒöä [DB] Resetando timer para retry: 4a3a7d5e-56f4-4544-b66c-82b2a3438b32
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: 4a3a7d5e-56f4-4544-b66c-82b2a3438b32)
+­ƒöô [AI AGENT] Conversa 4a3a7d5e-56f4-4544-b66c-82b2a3438b32 liberada para pr├│ximo processamento
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöä [AI AGENT] Retry: Tentando processar 5511998101554 novamente...
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+­ƒÜ½ [AI AGENT] BLOQUEIO: Limite de 25 mensagens atingido
+   userId: 30f45651-e216-4df5-8fcc-cd44cef3bb0e
+   contactNumber: 559185000707
+   Mensagens usadas: 25/25
+   ­ƒæë Usu├írio precisa assinar plano
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+­ƒöä [DB] Resetando timer para retry: c3c539fc-fdc3-499d-a975-6ae4eb1cc620
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: c3c539fc-fdc3-499d-a975-6ae4eb1cc620)
+­ƒöô [AI AGENT] Conversa c3c539fc-fdc3-499d-a975-6ae4eb1cc620 liberada para pr├│ximo processamento
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 2422.5s | 3 mensagem(s) acumulada(s)
+   ­ƒô× Contato: 5511998101554
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+ÔÜá´©Å [AI Agent] BLOQUEIO: Session/socket n├úo dispon├¡vel
+   userId: 4d0735aa-a656-4527-ab2a-a1031f314699
+   conversationId: 2214c153-2806-488e-8754-e63fbc8f14e1
+   contactNumber: 5511998101554
+   ­ƒæë WhatsApp provavelmente desconectado
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+­ƒöä [AI AGENT] Reagendando timer para 5511998101554 em 30s (sess├úo indispon├¡vel)...
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒôØ [PERSISTENT TIMER] Atualizado para conversation 2214c153-2806-488e-8754-e63fbc8f14e1 - 3 msgs
+­ƒÆ¥ [AI AGENT] Timer reagendado no banco para 2026-02-04T06:15:48.512Z
+­ƒöä [DB] Resetando timer para retry: 2214c153-2806-488e-8754-e63fbc8f14e1
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+Ô£à [AI AGENT] Usu├írio tem plano pago ativo e v├ílido: Plano Promo Ilimitado Mensal
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+   ?? Texto combinado: "Boa tarde, pode passar um ponto de refer├¬ncia..."
+
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 207.9s | 1 mensagem(s) acumulada(s)
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+­ƒöô [AI AGENT] Conversa 2214c153-2806-488e-8754-e63fbc8f14e1 liberada para pr├│ximo processamento
+   ­ƒô× Contato: 559185000707
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: 2214c153-2806-488e-8754-e63fbc8f14e1)
+   ÔÅ▒´©Å Aguardou 205.3s | 1 mensagem(s) acumulada(s)
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+   ­ƒô× Contato: 5521987596995
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+­ƒÜ½ [AI AGENT] BLOQUEIO: Limite de 25 mensagens atingido
+   userId: 30f45651-e216-4df5-8fcc-cd44cef3bb0e
+   contactNumber: 559185000707
+   Mensagens usadas: 25/25
+   ­ƒæë Usu├írio precisa assinar plano
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+­ƒöä [DB] Resetando timer para retry: c3c539fc-fdc3-499d-a975-6ae4eb1cc620
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöô [AI AGENT] Conversa c3c539fc-fdc3-499d-a975-6ae4eb1cc620 liberada para pr├│ximo processamento
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: c3c539fc-fdc3-499d-a975-6ae4eb1cc620)
+?? [AI AGENT] Nome do cliente: Maria Moema­ƒæÁ
+?? [AI AGENT] M´┐¢dias j´┐¢ enviadas: nenhuma
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒæñ [AI Agent] Nome do cliente: Maria Moema­ƒæÁ
+­ƒôü [AI Agent] M├¡dias j├í enviadas: nenhuma
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöÆ [AI AGENT] ÔÜá´©Å Conversa 711b69af-1ada-4b82-a064-4c724ad25bf4 j├í est├í sendo processada, IGNORANDO duplicata
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+   agentConfig.isActive: false
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+­ƒöì [AI Agent] Verificando configura├º├Áes para user 8b88e9ac-9a56-4ca4-8470-3dede286e0c3:
+   ­ƒôè Legacy (ai_agent_config): exists, isActive=false
+   ­ƒôè Business (business_agent_configs): exists, isActive=true
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+ÔØî [AI Agent] RETURN NULL #3: agentConfig n├úo encontrado ou INATIVO
+   userId: 8b88e9ac-9a56-4ca4-8470-3dede286e0c3
+   agentConfig exists: true
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 206.4s | 1 mensagem(s) acumulada(s)
+   ­ƒô× Contato: 5511993684484
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöö [NOTIFICATION DEBUG] userId: 8b88e9ac-9a56-4ca4-8470-3dede286e0c3
+­ƒöö [NOTIFICATION DEBUG] businessConfig exists: true
+­ƒöö [NOTIFICATION DEBUG] notificationEnabled: false
+­ƒöö [NOTIFICATION DEBUG] notificationMode: ai
+­ƒöö [NOTIFICATION DEBUG] notificationManualKeywords: null
+­ƒöö [NOTIFICATION DEBUG] notificationPhoneNumber: null
+­ƒöö [NOTIFICATION DEBUG] clientMessage (combinedText): "Boa tarde, pode passar um ponto de refer├¬ncia"
+­ƒöö [NOTIFICATION DEBUG] aiResponse: "null"
+­ƒöö [NOTIFICATION DEBUG] Keyword check condition: {"notificationEnabled":false,"notificationManualKeywords":false,"notificationMode":"ai","modeMatches":false}
+­ƒöö [NOTIFICATION DEBUG] ÔØî Skipping keyword check - conditions not met
+?? [AI Agent] generateAIResponse retornou: NULL
+
+============================================================
+ÔÜá´©Å [AI Agent] RESPOSTA NULL - Nenhuma resposta gerada!
+   conversationId: 711b69af-1ada-4b82-a064-4c724ad25bf4
+   contactNumber: 5521987596995
+   Poss├¡veis causas (verifique logs acima para "RETURN NULL"):
+   1. Usu├írio SUSPENSO
+   2. Mensagem de BOT detectada
+   3. agentConfig n├úo encontrado ou isActive=false
+   4. Trigger phrases configuradas mas nenhuma encontrada
+   5. Erro na API de LLM (timeout, rate limit)
+============================================================
+
+­ƒöä [DB] Resetando timer para retry: 711b69af-1ada-4b82-a064-4c724ad25bf4
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöô [AI AGENT] Conversa 711b69af-1ada-4b82-a064-4c724ad25bf4 liberada para pr├│ximo processamento
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: 711b69af-1ada-4b82-a064-4c724ad25bf4)
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒÜ½ [AI AGENT] PLANO VENCIDO! data_fim: 2026-01-22T18:20:57.454Z < agora: 2026-02-04T06:15:20.920Z
+­ƒÜ½ [AI AGENT] Plano vencido! Cliente volta ao limite de 25 mensagens de teste.
+   ­ƒôè Mensagens usadas: 179/25
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+­ƒÜ½ [AI AGENT] BLOQUEIO: Plano vencido E limite de teste atingido
+   userId: 63d9d064-0831-406d-8883-c51989683a1c
+   contactNumber: 5511993684484
+   Mensagens usadas: 179/25
+   ­ƒæë IA PAUSADA para este cliente - precisa renovar assinatura
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+­ƒöä [DB] Resetando timer para retry: 25b28f28-55f9-4421-9ac1-9fbdac2fb31a
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: 25b28f28-55f9-4421-9ac1-9fbdac2fb31a)
+­ƒöô [AI AGENT] Conversa 25b28f28-55f9-4421-9ac1-9fbdac2fb31a liberada para pr├│ximo processamento
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöä [AI AGENT] Retry: Tentando processar 5511970719345 novamente...
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+6:15:21 AM [express] GET /api/access-status 304 in 1020ms :: {"accessStatus":"active","shouldBlock":ÔÇª
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 2431.6s | 1 mensagem(s) acumulada(s)
+   ­ƒô× Contato: 5511970719345
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+ÔÜá´©Å [AI Agent] BLOQUEIO: Session/socket n├úo dispon├¡vel
+   userId: 4d0735aa-a656-4527-ab2a-a1031f314699
+   conversationId: 449cdc65-a234-46f1-8af4-71e2dd2d1d8b
+   contactNumber: 5511970719345
+   ­ƒæë WhatsApp provavelmente desconectado
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+­ƒöä [AI AGENT] Reagendando timer para 5511970719345 em 30s (sess├úo indispon├¡vel)...
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 205.1s | 1 mensagem(s) acumulada(s)
+   ­ƒô× Contato: 553190807027
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒôØ [PERSISTENT TIMER] Atualizado para conversation 449cdc65-a234-46f1-8af4-71e2dd2d1d8b - 1 msgs
+­ƒÆ¥ [AI AGENT] Timer reagendado no banco para 2026-02-04T06:15:51.690Z
+­ƒöä [DB] Resetando timer para retry: 449cdc65-a234-46f1-8af4-71e2dd2d1d8b
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: 449cdc65-a234-46f1-8af4-71e2dd2d1d8b)
+­ƒöô [AI AGENT] Conversa 449cdc65-a234-46f1-8af4-71e2dd2d1d8b liberada para pr├│ximo processamento
+[FULL SYNC] ­ƒôè Progresso: 100% (303/303)
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 207.9s | 1 mensagem(s) acumulada(s)
+   ­ƒô× Contato: 5511993684484
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+
+Ô£à [FULL SYNC] Conclu├¡do para 3764a915-ef38-46a4-80fa-3ad97039ad45!
+   ­ƒôè Total: 303 contatos
+   ­ƒô▒ WhatsApp: 270
+   ­ƒÆ¼ Conversas: 303
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+Ô£à [AI AGENT] Usu├írio tem plano pago ativo e v├ílido: Plano Promo Ilimitado Mensal
+   ?? Texto combinado: "Tenho interesse, como fa├ºo para contratar ?..."
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒÜ½ [AI AGENT] PLANO VENCIDO! data_fim: 2026-01-22T18:20:57.454Z < agora: 2026-02-04T06:15:22.428Z
+­ƒÜ½ [AI AGENT] Plano vencido! Cliente volta ao limite de 25 mensagens de teste.
+   ­ƒôè Mensagens usadas: 179/25
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+­ƒÜ½ [AI AGENT] BLOQUEIO: Plano vencido E limite de teste atingido
+   userId: 63d9d064-0831-406d-8883-c51989683a1c
+   contactNumber: 5511993684484
+   Mensagens usadas: 179/25
+   ­ƒæë IA PAUSADA para este cliente - precisa renovar assinatura
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+­ƒöä [DB] Resetando timer para retry: 25b28f28-55f9-4421-9ac1-9fbdac2fb31a
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+?? [AI AGENT] M´┐¢dias j´┐¢ enviadas: nenhuma
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: 25b28f28-55f9-4421-9ac1-9fbdac2fb31a)
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöô [AI AGENT] Conversa 25b28f28-55f9-4421-9ac1-9fbdac2fb31a liberada para pr├│ximo processamento
+?? [AI AGENT] Nome do cliente: Dilza Maria Santana
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+   conversationId: 2e64f435-5f7e-4bd0-8c72-97237d518f68
+   contactNumber: 5511993264949
+   ­ƒæë WhatsApp provavelmente desconectado
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+­ƒöä [AI AGENT] Reagendando timer para 5511993264949 em 30s (sess├úo indispon├¡vel)...
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöä [AI AGENT] Retry: Tentando processar 5511993264949 novamente...
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒôü [AI Agent] M├¡dias j├í enviadas: nenhuma
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒæñ [AI Agent] Nome do cliente: Dilza Maria Santana
+­ƒöÆ [AI AGENT] ÔÜá´©Å Conversa 201458f4-e8f6-455c-8da4-26073b3a229c j├í est├í sendo processada, IGNORANDO duplicata
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 2442.0s | 1 mensagem(s) acumulada(s)
+   ­ƒô× Contato: 5511993264949
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+ÔÜá´©Å [AI Agent] BLOQUEIO: Session/socket n├úo dispon├¡vel
+   userId: 4d0735aa-a656-4527-ab2a-a1031f314699
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒôØ [PERSISTENT TIMER] Atualizado para conversation 2e64f435-5f7e-4bd0-8c72-97237d518f68 - 1 msgs
+   ÔÅ▒´©Å Aguardou 206.4s | 3 mensagem(s) acumulada(s)
+­ƒÆ¥ [AI AGENT] Timer reagendado no banco para 2026-02-04T06:15:53.049Z
+   ­ƒô× Contato: 559192240081
+­ƒöä [DB] Resetando timer para retry: 2e64f435-5f7e-4bd0-8c72-97237d518f68
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: 2e64f435-5f7e-4bd0-8c72-97237d518f68)
+­ƒöô [AI AGENT] Conversa 2e64f435-5f7e-4bd0-8c72-97237d518f68 liberada para pr├│ximo processamento
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+[CONNECTION UPDATE] User de1112e5-8277-4438-94d7-5aacab30a951 - connection: undefined, hasQR: true, hasLastDisconnect: false
+[QR CODE] Generating QR Code for user de1112e5-8277-4438-94d7-5aacab30a951...
+[QR CODE] QR Code generated successfully for user de1112e5-8277-4438-94d7-5aacab30a951, length: 6374
+[BROADCAST] No WebSocket clients found for user de1112e5-8277-4438-94d7-5aacab30a951
+[QR CODE] QR Code broadcasted to user de1112e5-8277-4438-94d7-5aacab30a951
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+­ƒöì [AI Agent] Verificando configura├º├Áes para user 9ed708e8-b7cb-46c3-bad8-c25b74181d41:
+   ­ƒôè Legacy (ai_agent_config): exists, isActive=false
+   ­ƒôè Business (business_agent_configs): exists, isActive=true
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+ÔØî [AI Agent] RETURN NULL #3: agentConfig n├úo encontrado ou INATIVO
+   userId: 9ed708e8-b7cb-46c3-bad8-c25b74181d41
+   agentConfig exists: true
+   agentConfig.isActive: false
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+[QR CODE] QR Code saved to database for user de1112e5-8277-4438-94d7-5aacab30a951 (took 187ms)
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöö [NOTIFICATION DEBUG] userId: 9ed708e8-b7cb-46c3-bad8-c25b74181d41
+­ƒöö [NOTIFICATION DEBUG] businessConfig exists: true
+­ƒöö [NOTIFICATION DEBUG] notificationEnabled: false
+­ƒöö [NOTIFICATION DEBUG] notificationMode: ai
+­ƒöö [NOTIFICATION DEBUG] ÔØî Skipping keyword check - conditions not met
+­ƒöö [NOTIFICATION DEBUG] notificationManualKeywords: null
+­ƒöö [NOTIFICATION DEBUG] notificationPhoneNumber: null
+­ƒöö [NOTIFICATION DEBUG] clientMessage (combinedText): "Tenho interesse, como fa├ºo para contratar ?"
+?? [AI Agent] generateAIResponse retornou: NULL
+­ƒöö [NOTIFICATION DEBUG] aiResponse: "null"
+
+­ƒöö [NOTIFICATION DEBUG] Keyword check condition: {"notificationEnabled":false,"notificationManualKeywords":false,"notificationMode":"ai","modeMatches":false}
+============================================================
+ÔÜá´©Å [AI Agent] RESPOSTA NULL - Nenhuma resposta gerada!
+   conversationId: 201458f4-e8f6-455c-8da4-26073b3a229c
+   contactNumber: 553190807027
+   Poss├¡veis causas (verifique logs acima para "RETURN NULL"):
+   1. Usu├írio SUSPENSO
+   2. Mensagem de BOT detectada
+   3. agentConfig n├úo encontrado ou isActive=false
+   4. Trigger phrases configuradas mas nenhuma encontrada
+   5. Erro na API de LLM (timeout, rate limit)
+============================================================
+
+­ƒöä [DB] Resetando timer para retry: 201458f4-e8f6-455c-8da4-26073b3a229c
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+­ƒÜ½ [AI AGENT] BLOQUEIO: Limite de 25 mensagens atingido
+   userId: 30f45651-e216-4df5-8fcc-cd44cef3bb0e
+   contactNumber: 559192240081
+   Mensagens usadas: 25/25
+   ­ƒæë Usu├írio precisa assinar plano
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+­ƒöä [DB] Resetando timer para retry: bf2d0d71-1355-4e0c-a609-377ecea9b1da
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: 201458f4-e8f6-455c-8da4-26073b3a229c)
+­ƒöô [AI AGENT] Conversa 201458f4-e8f6-455c-8da4-26073b3a229c liberada para pr├│ximo processamento
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöô [AI AGENT] Conversa bf2d0d71-1355-4e0c-a609-377ecea9b1da liberada para pr├│ximo processamento
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: bf2d0d71-1355-4e0c-a609-377ecea9b1da)
+
+­ƒÜÇ [FULL SYNC] Iniciando sincroniza├º├úo para 69accd3f-bf8d-4e62-b792-938fd16b4915
+[FULL SYNC] ­ƒôÑ Coletando contatos para 69accd3f-bf8d-4e62-b792-938fd16b4915...
+[FULL SYNC] 1´©ÅÔâú Buscando contatos salvos do WhatsApp...
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+[FULL SYNC]    ÔåÆ 190 contatos do WhatsApp
+[FULL SYNC] 2´©ÅÔâú Buscando contatos das conversas...
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+[FULL SYNC]    ÔåÆ 180 contatos de conversas
+[FULL SYNC] ­ƒôè Total de contatos ├║nicos: 194
+[FULL SYNC] ­ƒôñ Salvando contatos em batches de 50...
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+   ÔÅ▒´©Å Aguardou 206.4s | 1 mensagem(s) acumulada(s)
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+   ­ƒô× Contato: 559198182660
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+6:15:25 AM [express] GET /api/daily-limits 304 in 406ms :: {"hasActiveSubscription":true,"calibratioÔÇª
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 207.9s | 3 mensagem(s) acumulada(s)
+   ­ƒô× Contato: 559192240081
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+­ƒÜ½ [AI AGENT] BLOQUEIO: Limite de 25 mensagens atingido
+   userId: 30f45651-e216-4df5-8fcc-cd44cef3bb0e
+   contactNumber: 559192240081
+   Mensagens usadas: 25/25
+   ­ƒæë Usu├írio precisa assinar plano
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+­ƒöä [DB] Resetando timer para retry: bf2d0d71-1355-4e0c-a609-377ecea9b1da
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+­ƒÜ½ [AI AGENT] BLOQUEIO: Limite de 25 mensagens atingido
+   userId: 30f45651-e216-4df5-8fcc-cd44cef3bb0e
+   contactNumber: 559198182660
+   Mensagens usadas: 25/25
+   ­ƒæë Usu├írio precisa assinar plano
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+­ƒöä [DB] Resetando timer para retry: 1dfdd432-6e4e-475e-a07c-1cd8a88a1c63
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: bf2d0d71-1355-4e0c-a609-377ecea9b1da)
+­ƒöô [AI AGENT] Conversa bf2d0d71-1355-4e0c-a609-377ecea9b1da liberada para pr├│ximo processamento
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: 1dfdd432-6e4e-475e-a07c-1cd8a88a1c63)
+­ƒöô [AI AGENT] Conversa 1dfdd432-6e4e-475e-a07c-1cd8a88a1c63 liberada para pr├│ximo processamento
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+­ƒöä [PENDING CRON] =========================================
+­ƒöä [PENDING CRON] Encontrados 122 timers ├│rf├úos para processar
+­ƒöä [PENDING CRON] Sess├Áes ativas: 48
+­ƒÜÇ [PENDING CRON] Processando 556299754246 (timer ├│rf├úo h├í 176s)
+­ƒÜÇ [PENDING CRON] Processando 559191117262 (timer ├│rf├úo h├í 175s)
+­ƒÜÇ [PENDING CRON] Processando 5511982129075 (timer ├│rf├úo h├í 173s)
+­ƒÜÇ [PENDING CRON] Processando 553384264855 (timer ├│rf├úo h├í 172s)
+­ƒÜÇ [PENDING CRON] Processando 5511912963924 (timer ├│rf├úo h├í 169s)
+­ƒÜÇ [PENDING CRON] Processando 559691327536 (timer ├│rf├úo h├í 169s)
+­ƒÜÇ [PENDING CRON] Processando 5521998721540 (timer ├│rf├úo h├í 166s)
+­ƒÜÇ [PENDING CRON] Processando 557799901020 (timer ├│rf├úo h├í 166s)
+­ƒÜÇ [PENDING CRON] Processando 5521989491208 (timer ├│rf├úo h├í 163s)
+­ƒÜÇ [PENDING CRON] Processando 559192145870 (timer ├│rf├úo h├í 163s)
+­ƒÜÇ [PENDING CRON] Processando 553198881300 (timer ├│rf├úo h├í 161s)
+­ƒÜÇ [PENDING CRON] Processando 5519974158828 (timer ├│rf├úo h├í 160s)
+­ƒÜÇ [PENDING CRON] Processando 559183636368 (timer ├│rf├úo h├í 158s)
+­ƒÜÇ [PENDING CRON] Processando 5521994546280 (timer ├│rf├úo h├í 157s)
+­ƒÜÇ [PENDING CRON] Processando 558007070398 (timer ├│rf├úo h├í 154s)
+­ƒÜÇ [PENDING CRON] Processando 5511973719496 (timer ├│rf├úo h├í 154s)
+­ƒÜÇ [PENDING CRON] Processando 559188619987 (timer ├│rf├úo h├í 152s)
+­ƒÜÇ [PENDING CRON] Processando 559691111769 (timer ├│rf├úo h├í 151s)
+­ƒÜÇ [PENDING CRON] Processando 558499088689 (timer ├│rf├úo h├í 150s)
+­ƒÜÇ [PENDING CRON] Processando 559692010721 (timer ├│rf├úo h├í 148s)
+­ƒÜÇ [PENDING CRON] Processando 559180422940 (timer ├│rf├úo h├í 146s)
+­ƒÜÇ [PENDING CRON] Processando 555184629469 (timer ├│rf├úo h├í 144s)
+­ƒÜÇ [PENDING CRON] Processando 553140420177 (timer ├│rf├úo h├í 144s)
+­ƒÜÇ [PENDING CRON] Processando 5521982705366 (timer ├│rf├úo h├í 144s)
+­ƒÜÇ [PENDING CRON] Processando 5521987706426 (timer ├│rf├úo h├í 142s)
+­ƒöä [PENDING CRON] Limite de 25 por ciclo atingido, continuar├í no pr├│ximo ciclo
+­ƒöä [PENDING CRON] Ciclo conclu├¡do: 25 processados, 0 pulados
+­ƒöä [PENDING CRON] =========================================
+
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöÆ [AI AGENT] ÔÜá´©Å Conversa 47365336-05e4-4214-96e5-a9ce6a438b96 j├í est├í sendo processada, IGNORANDO duplicata
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 207.8s | 1 mensagem(s) acumulada(s)
+   ­ƒô× Contato: 559198182660
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 206.4s | 1 mensagem(s) acumulada(s)
+   ­ƒô× Contato: 556299754246
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+   Mensagens usadas: 179/25
+   ­ƒæë IA PAUSADA para este cliente - precisa renovar assinatura
+   ­ƒæë Usu├írio precisa assinar plano
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+­ƒöä [DB] Resetando timer para retry: 1dfdd432-6e4e-475e-a07c-1cd8a88a1c63
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒÜ½ [AI AGENT] PLANO VENCIDO! data_fim: 2026-01-22T18:20:57.454Z < agora: 2026-02-04T06:15:26.927Z
+­ƒÜ½ [AI AGENT] Plano vencido! Cliente volta ao limite de 25 mensagens de teste.
+   ­ƒôè Mensagens usadas: 179/25
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒÜ½ [AI AGENT] BLOQUEIO: Plano vencido E limite de teste atingido
+
+   userId: 63d9d064-0831-406d-8883-c51989683a1c
+   contactNumber: 556299754246
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+­ƒÜ½ [AI AGENT] BLOQUEIO: Limite de 25 mensagens atingido
+   userId: 30f45651-e216-4df5-8fcc-cd44cef3bb0e
+   contactNumber: 559198182660
+   Mensagens usadas: 25/25
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+­ƒöä [DB] Resetando timer para retry: 47365336-05e4-4214-96e5-a9ce6a438b96
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöô [AI AGENT] Conversa 1dfdd432-6e4e-475e-a07c-1cd8a88a1c63 liberada para pr├│ximo processamento
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: 1dfdd432-6e4e-475e-a07c-1cd8a88a1c63)
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: 47365336-05e4-4214-96e5-a9ce6a438b96)
+­ƒöô [AI AGENT] Conversa 47365336-05e4-4214-96e5-a9ce6a438b96 liberada para pr├│ximo processamento
+6:15:27 AM [express] GET /api/usage 304 in 591ms :: {"agentMessagesCount":7157,"limit":-1,"remainingÔÇª
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+?? [MSG CACHE] Armazenada mensagem AC4198D7814D095CD40D746FE24F69D5 para user 3e724ad7... (cache size: 4)
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+ÔÅ░ [AUTO-REACTIVATE] Processando 10 conversas
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöä [AI AGENT] Retry: Tentando processar 5511970304966 novamente...
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöÆ [AI AGENT] ÔÜá´©Å Conversa 7206b031-7c10-47b4-bc80-8a5280b14e86 j├í est├í sendo processada, IGNORANDO duplicata
+Ignoring group/status message from: status@broadcast
+­ƒöä [DB] Resetando timer para retry: b355bb18-d2a8-43b8-90b2-2e5835d230e1
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒôØ [PERSISTENT TIMER] Atualizado para conversation b355bb18-d2a8-43b8-90b2-2e5835d230e1 - 1 msgs
+­ƒÆ¥ [AI AGENT] Timer reagendado no banco para 2026-02-04T06:15:57.849Z
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒÜ½ [AUTO-REACTIVATE] Agente IA desativado em ai_agent_config para user a09fd2f2-37bb-41d6-83ad-d574bd9175a3 - N├âO reativando
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒÜ½ [AI AGENT] PLANO VENCIDO! data_fim: 2026-01-22T18:20:57.454Z < agora: 2026-02-04T06:15:28.410Z
+   ­ƒô× Contato: 559191117262
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: b355bb18-d2a8-43b8-90b2-2e5835d230e1)
+­ƒöô [AI AGENT] Conversa b355bb18-d2a8-43b8-90b2-2e5835d230e1 liberada para pr├│ximo processamento
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 2437.4s | 1 mensagem(s) acumulada(s)
+   ­ƒô× Contato: 5511970304966
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+ÔÜá´©Å [AI Agent] BLOQUEIO: Session/socket n├úo dispon├¡vel
+   userId: 4d0735aa-a656-4527-ab2a-a1031f314699
+   conversationId: b355bb18-d2a8-43b8-90b2-2e5835d230e1
+   contactNumber: 5511970304966
+   ­ƒæë WhatsApp provavelmente desconectado
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+­ƒöä [AI AGENT] Reagendando timer para 5511970304966 em 30s (sess├úo indispon├¡vel)...
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 207.9s | 1 mensagem(s) acumulada(s)
+­ƒöä [DB] Resetando timer para retry: 47365336-05e4-4214-96e5-a9ce6a438b96
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   ­ƒô× Contato: 556299754246
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+­ƒöä [DB] Resetando timer para retry: 7206b031-7c10-47b4-bc80-8a5280b14e86
+­ƒÜ½ [AI AGENT] Plano vencido! Cliente volta ao limite de 25 mensagens de teste.
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+   ­ƒôè Mensagens usadas: 179/25
+­ƒÜ½ [AI AGENT] BLOQUEIO: Limite de 25 mensagens atingido
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+
+   userId: 30f45651-e216-4df5-8fcc-cd44cef3bb0e
+   ÔÅ▒´©Å Aguardou 206.4s | 1 mensagem(s) acumulada(s)
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+   contactNumber: 559191117262
+­ƒÜ½ [AI AGENT] BLOQUEIO: Plano vencido E limite de teste atingido
+   Mensagens usadas: 25/25
+   ­ƒæë Usu├írio precisa assinar plano
+   userId: 63d9d064-0831-406d-8883-c51989683a1c
+   contactNumber: 556299754246
+   Mensagens usadas: 179/25
+   ­ƒæë IA PAUSADA para este cliente - precisa renovar assinatura
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: 47365336-05e4-4214-96e5-a9ce6a438b96)
+­ƒöô [AI AGENT] Conversa 47365336-05e4-4214-96e5-a9ce6a438b96 liberada para pr├│ximo processamento
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: 7206b031-7c10-47b4-bc80-8a5280b14e86)
+­ƒöô [AI AGENT] Conversa 7206b031-7c10-47b4-bc80-8a5280b14e86 liberada para pr├│ximo processamento
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+   ­ƒô▒ WhatsApp: 190
+   ­ƒÆ¼ Conversas: 180
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒÜ½ [AUTO-REACTIVATE] Agente IA desativado em ai_agent_config para user a09fd2f2-37bb-41d6-83ad-d574bd9175a3 - N├âO reativando
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöÆ [AI AGENT] ÔÜá´©Å Conversa 49bd7b22-3cfb-4097-9e0e-ed2f76f000f0 j├í est├í sendo processada, IGNORANDO duplicata
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 207.9s | 1 mensagem(s) acumulada(s)
+   ­ƒô× Contato: 559191117262
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+
+­ƒöä [AI AGENT] =========== PROCESSANDO RESPOSTA ===========
+   ÔÅ▒´©Å Aguardou 206.4s | 2 mensagem(s) acumulada(s)
+[FULL SYNC] ­ƒôè Progresso: 100% (194/194)
+
+Ô£à [FULL SYNC] Conclu├¡do para 69accd3f-bf8d-4e62-b792-938fd16b4915!
+   ­ƒôè Total: 194 contatos
+   ­ƒô× Contato: 5511982129075
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+   userId: 30f45651-e216-4df5-8fcc-cd44cef3bb0e
+   contactNumber: 559191117262
+   Mensagens usadas: 25/25
+   ­ƒæë Usu├írio precisa assinar plano
+
+­ƒöä [DB] Resetando timer para retry: 7206b031-7c10-47b4-bc80-8a5280b14e86
+­ƒöä [DB] Resetando timer para retry: 49bd7b22-3cfb-4097-9e0e-ed2f76f000f0
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+   contactNumber: 5511982129075
+­ƒÜ½ [AUTO-REACTIVATE] Agente IA desativado em ai_agent_config para user a09fd2f2-37bb-41d6-83ad-d574bd9175a3 - N├âO reativando
+
+   Mensagens usadas: 25/25
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+   ­ƒæë Usu├írio precisa assinar plano
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+­ƒÜ½ [AI AGENT] BLOQUEIO: Limite de 25 mensagens atingido
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
+   userId: 5eab7abe-41d4-4c09-9b1a-681aed2946b1
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+­ƒÜ½ [AI AGENT] BLOQUEIO: Limite de 25 mensagens atingido
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöô [AI AGENT] Conversa 7206b031-7c10-47b4-bc80-8a5280b14e86 liberada para pr├│ximo processamento
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: 7206b031-7c10-47b4-bc80-8a5280b14e86)
+­ƒöä [AI AGENT] Timer reagendado para retry em 30s - resposta falhou (conversationId: 49bd7b22-3cfb-4097-9e0e-ed2f76f000f0)
+­ƒöô [AI AGENT] Conversa 49bd7b22-3cfb-4097-9e0e-ed2f76f000f0 liberada para pr├│ximo processamento
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒÜ½ [AUTO-REACTIVATE] Agente IA desativado em ai_agent_config para user a09fd2f2-37bb-41d6-83ad-d574bd9175a3 - N├âO reativando
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöÆ [AI AGENT] ÔÜá´©Å Conversa 2125579c-9830-4c0a-81fc-0de53a98dedd j├í est├í sendo processada, IGNORANDO duplicata
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
+­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool

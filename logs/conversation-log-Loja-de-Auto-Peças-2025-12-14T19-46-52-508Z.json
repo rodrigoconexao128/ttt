@@ -1,0 +1,336 @@
+{
+  "business": {
+    "name": "Auto Peças Silva",
+    "type": "Loja de Auto Peças",
+    "owner": "Seu Silva",
+    "description": "Loja de auto peças com peças para carros nacionais e importados. Entrega rápida na região."
+  },
+  "startTime": "2025-12-14T19:46:08.592Z",
+  "messages": [
+    {
+      "msgNum": 1,
+      "role": "client",
+      "content": "Opa, tô aqui porque vi propaganda da AgenteZap. Mas já fui enganado por chatbot antes, então me explica direito como funciona.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:46:09.422Z"
+    },
+    {
+      "msgNum": 2,
+      "role": "agent",
+      "content": "Entendo sua preocupação, Seu Silva! A AgenteZap é diferente, ela atende como um humano, sem respostas robóticas. Ela tira dúvidas sobre peças, agenda entregas e até fecha vendas no WhatsApp 24/7. Quer que eu explique mais algum detalhe? [ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:46:10.318Z"
+    },
+    {
+      "msgNum": 3,
+      "role": "client",
+      "content": "\"Tá, mas como é que ela sabe sobre peças de carro? Já tentei chatbot antes e era só enrolação. E esse preço aí é fixo ou tem desconto?\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:46:11.874Z"
+    },
+    {
+      "msgNum": 4,
+      "role": "agent",
+      "content": "A AgenteZap é treinada para entender o seu negócio e as peças que você vende. Ela aprende com cada interação e pode até sugerir peças complementares! O preço é fixo em R$ 99/mês, sem surpresas. Quer que eu mostre um vídeo de como ela funciona na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO] [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:46:12.863Z"
+    },
+    {
+      "msgNum": 5,
+      "role": "client",
+      "content": "Tá, mas como que ela vai saber diferenciar um amortecedor pra Palio do pra Gol? Já vi outro mais barato...",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:46:14.306Z"
+    },
+    {
+      "msgNum": 6,
+      "role": "agent",
+      "content": "A AgenteZap é treinada para entender as especificações técnicas e diferenciar peças como amortecedores para Palio e Gol. Ela pode até perguntar detalhes do carro para garantir a peça certa! Quer que eu mostre um vídeo de como ela funciona na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO] [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:46:15.296Z"
+    },
+    {
+      "msgNum": 7,
+      "role": "client",
+      "content": "Tá, mas como que ela sabe a diferença entre um amortecedor pra Fiat e um pra VW? É só o nome que ela pega?\n\nJá tentei chatbot antes e era uma porcaria. Como que a AgenteZap é diferente?\n\nE esse vídeo aí, mostra mesmo um exemplo de loja de auto peças?\n\nÉ caro pra caramba, não sei se vale a pena.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:46:17.152Z"
+    },
+    {
+      "msgNum": 8,
+      "role": "agent",
+      "content": "A AgenteZap vai além do nome, Seu Silva! Ela entende as especificações técnicas e pode até perguntar detalhes do carro para garantir a peça certa. Ela é diferente porque aprende com cada interação e atende como um humano, sem respostas robóticas.\n\nO vídeo mostra exatamente como a AgenteZap funciona em uma loja de auto peças, respondendo dúvidas técnicas e fechando vendas. Quer que eu mostre? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nO investimento é de R$ 99/mês, mas a AgenteZap trabalha 24/7, aumentando suas vendas e reduzindo seu trabalho. O que acha de testar por 7 dias sem compromisso? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:46:18.915Z"
+    },
+    {
+      "msgNum": 9,
+      "role": "client",
+      "content": "Tá, mas 99 reais por mês é caro pra mim. Já tentei chatbot antes e não deu certo. Como que eu sei que essa daqui vai funcionar?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:46:20.517Z"
+    },
+    {
+      "msgNum": 10,
+      "role": "agent",
+      "content": "Entendo sua preocupação, Seu Silva. A AgenteZap é diferente porque ela aprende com cada interação e atende como um humano, sem respostas robóticas. Ela pode tirar dúvidas técnicas, sugerir peças complementares e até fechar vendas no WhatsApp, 24/7.\n\nO teste grátis de 7 dias é justamente para você ver na prática como ela funciona na sua loja. O que acha de testar sem compromisso? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:46:21.445Z"
+    },
+    {
+      "msgNum": 11,
+      "role": "client",
+      "content": "\"Tá, mas como ela vai saber das peças específicas da minha loja? Eu vendo peças pra carro nacional e importado, não é qualquer coisa não...\"\n\n\"E esse teste grátis, tem algum custo escondido? Porque já me prometeram coisa boa e no fim saía mais caro que o combinado...\"\n\n\"E se eu quiser cancelar depois do teste, como é que faz?\"\n\n\"E se eu não gostar, o que acontece? Vou ter que pagar mesmo assim?\"\n\n\"Já tentei chatbot antes e não deu certo, por que agora ia ser diferente?\"\n\n\"E se eu quiser mais de um teste? Vocês deixam?\"\n\n\"E se eu quiser testar só pra ver se funciona mesmo? Sem compromisso mesmo?\"\n\n\"E se eu quiser testar só 3 dias? Em vez de 7?\"\n\n\"E se eu quiser testar só pra ver se funciona mesmo? Sem compromisso mesmo?\"\n\n\"E se eu quiser testar só pra ver se funciona mesmo? Sem compromisso mesmo?\"\n\n\"E se eu quiser testar só pra ver se funciona mesmo? Sem compromisso mesmo?\"\n\n\"E se eu quiser testar só pra ver se funciona mesmo? Sem compromisso mesmo?\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:46:24.465Z"
+    },
+    {
+      "msgNum": 12,
+      "role": "agent",
+      "content": "Seu Silva, a AgenteZap é treinada para entender o catálogo da sua loja e aprender com cada interação. Ela vai saber das peças específicas que você vende, seja para carros nacionais ou importados.\n\nO teste grátis de 7 dias é mesmo sem compromisso! Se não gostar, é só cancelar sem pagar nada. E se quiser testar por menos dias, sem problema também. Quer que eu crie seu acesso agora mesmo? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:46:25.652Z"
+    },
+    {
+      "msgNum": 13,
+      "role": "client",
+      "content": "\"Ah, mas como é que ela vai saber das peças específicas da minha loja? Eu vendo peças pra carro antigo também, sabe? E como que ela vai me ajudar a vender mais?\"\n\n(Se ele repetir algo que já disse antes, eu reclamo: \"Pô, vc já falou isso antes, me explica de outro jeito!\")",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:46:27.445Z"
+    },
+    {
+      "msgNum": 14,
+      "role": "agent",
+      "content": "Entendi, Seu Silva! A AgenteZap vai aprender com o seu catálogo e com as interações dos clientes. Ela pode até sugerir peças para carros antigos, como se fosse um vendedor experiente.\n\nEla vai ajudar a vender mais tirando dúvidas técnicas, enviando fotos das peças e até fechando vendas enquanto você está ocupado. Quer que eu mostre um vídeo de como ela funciona na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO] [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:46:28.446Z"
+    },
+    {
+      "msgNum": 15,
+      "role": "client",
+      "content": "Tá, mas como que ela vai saber das peças mais específicas? Tipo, se o cliente perguntar sobre uma peça pra Fusca 72, ela vai saber responder?\n\nE esse vídeo, é de uma loja de auto peças igual a minha ou é de qualquer negócio?\n\nE aí, quanto que custa essa AgenteZap?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:46:30.359Z"
+    },
+    {
+      "msgNum": 16,
+      "role": "agent",
+      "content": "A AgenteZap pode ser treinada para entender peças específicas, como as do Fusca 72. Ela aprende com o seu catálogo e com as interações dos clientes, respondendo como um vendedor experiente.\n\nO vídeo mostra exatamente como a AgenteZap funciona em uma loja de auto peças, respondendo dúvidas técnicas e fechando vendas. O investimento é de R$ 99/mês, mas a AgenteZap trabalha 24/7, aumentando suas vendas e reduzindo seu trabalho. O que acha de testar por 7 dias sem compromisso? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:46:31.605Z"
+    },
+    {
+      "msgNum": 17,
+      "role": "client",
+      "content": "Hmm, mas como que ela vai saber se o cliente quer peça pra Fusca 72 ou pra Gol 98? Já tentei chatbot antes e foi um fracasso, não quero gastar dinheiro à toa.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:46:33.205Z"
+    },
+    {
+      "msgNum": 18,
+      "role": "agent",
+      "content": "A AgenteZap pergunta detalhes específicos do carro para garantir a peça certa, seja para um Fusca 72 ou um Gol 98. Ela aprende com cada interação e atende como um humano, sem respostas robóticas.\n\nQuer que eu mostre um vídeo de como ela funciona na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO] [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:46:34.159Z"
+    },
+    {
+      "msgNum": 19,
+      "role": "client",
+      "content": "Entendi, mas como que ela sabe se a peça é pra carro nacional ou importado? E como ela lida com peças que são parecidas mas não são iguais?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:46:36.520Z"
+    },
+    {
+      "msgNum": 20,
+      "role": "agent",
+      "content": "A AgenteZap é treinada para entender as especificações técnicas e diferenciar peças, mesmo que sejam parecidas. Ela pode perguntar detalhes do carro para garantir a peça certa, seja nacional ou importada.\n\nQuer que eu mostre um vídeo de como ela funciona na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO] [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:46:37.498Z"
+    },
+    {
+      "msgNum": 21,
+      "role": "client",
+      "content": "Tá, mas como é que ela sabe se a peça é pra um carro nacional ou importado? Já tentei um chatbot antes e ele só confundia tudo.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:46:38.986Z"
+    },
+    {
+      "msgNum": 22,
+      "role": "agent",
+      "content": "A AgenteZap pergunta detalhes específicos do carro, como marca, modelo e ano, para garantir a peça certa. Ela aprende com cada interação e diferencia peças, mesmo que sejam parecidas.\n\nQuer que eu mostre um vídeo de como ela funciona na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO] [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:46:40.310Z"
+    },
+    {
+      "msgNum": 23,
+      "role": "client",
+      "content": "Tá, mas como que isso ajuda na minha loja de auto peças? Eu já vi chatbot que só confunde o cliente...\n\nE esse vídeo, mostra mesmo pra loja de peças?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:46:41.868Z"
+    },
+    {
+      "msgNum": 24,
+      "role": "agent",
+      "content": "A AgenteZap ajuda sua loja tirando dúvidas técnicas, enviando fotos das peças e até fechando vendas no WhatsApp, 24/7. Ela atende como um humano, sem respostas robóticas.\n\nO vídeo mostra exatamente como a AgenteZap funciona em uma loja de auto peças, respondendo dúvidas e fechando vendas. Quer que eu mostre? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO] [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:46:42.970Z"
+    },
+    {
+      "msgNum": 25,
+      "role": "client",
+      "content": "Eu já vi esse vídeo antes, vc tá só repetindo coisa. Me fala uma coisa que eu ainda não sei sobre a AgenteZap. E esse negócio de criar conta teste, é só pra me enrolar ou tem algo de concreto?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:46:44.648Z"
+    },
+    {
+      "msgNum": 26,
+      "role": "agent",
+      "content": "A AgenteZap pode ser integrada ao seu sistema de gestão, sincronizando estoque e pedidos em tempo real. O teste grátis de 7 dias é concreto: você testa todas as funcionalidades sem pagar nada. Se não gostar, é só cancelar.\n\nO que acha de testar por 7 dias sem compromisso? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:46:45.659Z"
+    },
+    {
+      "msgNum": 27,
+      "role": "client",
+      "content": "\"Ah, mas como que funciona essa integração com o sistema de gestão? Meu estoque é complexo, tem peças nacionais e importadas... Não quero que fique tudo bagunçado\"\n\n(Se ele repetir algo que já disse antes)\n\"Pô, vc tá repetindo coisa que já disse! Me explica direito como que a AgenteZap vai ajudar na minha loja de auto peças, não fala geral não\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:46:47.545Z"
+    },
+    {
+      "msgNum": 28,
+      "role": "agent",
+      "content": "A AgenteZap se integra ao seu sistema de gestão, sincronizando estoque e pedidos em tempo real. Ela entende a complexidade do seu catálogo, diferenciando peças nacionais e importadas.\n\nEla ajuda sua loja tirando dúvidas técnicas, enviando fotos das peças e até fechando vendas no WhatsApp, 24/7. Quer que eu mostre como ela funciona na prática? [ENVIAR_MIDIA:COMO_FUNCIONA] [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:46:48.790Z"
+    },
+    {
+      "msgNum": 29,
+      "role": "client",
+      "content": "Tá, mas como é que ela sabe a diferença entre uma peça nacional e uma importada? E como ela manda foto? É automático mesmo?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:46:50.310Z"
+    },
+    {
+      "msgNum": 30,
+      "role": "agent",
+      "content": "A AgenteZap aprende com o seu catálogo e entende as especificações técnicas para diferenciar peças nacionais e importadas. Ela envia fotos automaticamente, tirando dúvidas e fechando vendas no WhatsApp.\n\nQuer que eu mostre um vídeo de como ela funciona na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO] [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:46:51.500Z"
+    }
+  ],
+  "analysis": {
+    "totalMessages": 30,
+    "mediaTagsUsed": [
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+    ],
+    "actionsUsed": [
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]"
+    ],
+    "potentialRepetitions": [],
+    "clientConvinced": false,
+    "observations": []
+  }
+}

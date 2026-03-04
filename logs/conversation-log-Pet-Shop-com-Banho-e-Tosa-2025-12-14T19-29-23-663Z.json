@@ -1,0 +1,297 @@
+{
+  "business": {
+    "name": "Pet Love",
+    "type": "Pet Shop com Banho e Tosa",
+    "owner": "Maria",
+    "description": "Pet shop com banho, tosa, veterinário e venda de produtos. Muito carinho com os animais."
+  },
+  "startTime": "2025-12-14T19:28:38.388Z",
+  "messages": [
+    {
+      "msgNum": 1,
+      "role": "client",
+      "content": "Oi, tô aqui porque vi propaganda da AgenteZap. Mas já me queimei com chatbot antes, então me explica direito como funciona.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:28:39.089Z"
+    },
+    {
+      "msgNum": 2,
+      "role": "agent",
+      "content": "Oi Maria! Entendo sua preocupação, mas a AgenteZap é diferente. Ela usa IA avançada para entender e responder seus clientes como se fosse um humano, 24/7. Pode agendar banhos e tosa, tirar dúvidas sobre produtos e até enviar fotos dos serviços que oferecem. Quer ver como funciona? [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nQual seu maior medo em relação a chatbots?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:28:40.149Z"
+    },
+    {
+      "msgNum": 3,
+      "role": "client",
+      "content": "\"Tá, mas como isso ajuda na minha pet shop específica? Banho e tosa é diferente de outras lojas, vc entende?\"\n\n(Observação: Ele não respondeu sobre seu medo em relação a chatbots, então insisto nesse ponto)",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:28:41.847Z"
+    },
+    {
+      "msgNum": 4,
+      "role": "agent",
+      "content": "Entendo perfeitamente, Maria! A AgenteZap foi treinada para entender o seu negócio específico. Ela pode agendar banhos e tosa, tirar dúvidas sobre os produtos que você vende, enviar fotos dos serviços e até ajudar na venda de rações e acessórios. E o melhor: tudo isso 24/7, sem você precisar ficar grudada no celular.\n\nMas me conta, o que te assusta mais em chatbots? Já te queimaram de que forma antes?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:28:42.783Z"
+    },
+    {
+      "msgNum": 5,
+      "role": "client",
+      "content": "Ah, tá... mas como é que ela entende especificamente sobre pet shop? Já tentei chatbot antes e foi um desastre, só respondia besteira. E aí, quanto custa esse negócio?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:28:44.571Z"
+    },
+    {
+      "msgNum": 6,
+      "role": "agent",
+      "content": "Maria, a AgenteZap é diferente porque usa IA avançada que aprende com o seu negócio. Você treina ela com as perguntas mais comuns da sua pet shop, como horários de banho e tosa, tipos de cortes, produtos específicos para pets, e ela responde de forma natural. E se ela não souber a resposta, ela te avisa e você pode responder ao cliente depois.\n\nO valor é R$ 99/mês, mas você pode testar por 7 dias sem compromisso e ver se funciona pra você. [ENVIAR_MIDIA:TABELA_PRECOS]\n\nO que te impede de testar agora?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:TABELA_PRECOS]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:28:46.034Z"
+    },
+    {
+      "msgNum": 7,
+      "role": "client",
+      "content": "Tá, mas como que eu vou treinar essa IA? É difícil? E se ela não aprender direito?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:28:47.488Z"
+    },
+    {
+      "msgNum": 8,
+      "role": "agent",
+      "content": "Maria, treinar a AgenteZap é super simples! Você só precisa me passar as perguntas mais comuns que seus clientes fazem e as respostas que você quer que a IA dê. Por exemplo: \"Quais os horários de banho e tosa?\", \"Quanto custa um corte social?\", \"Vocês vendem ração para gatos?\".\n\nA AgenteZap aprende rápido e, se por acaso ela errar, você pode corrigir no momento e ela aprende na hora. E o melhor: você pode testar por 7 dias sem compromisso e ver se funciona pra você.\n\nO que acha de testar por 7 dias sem compromisso?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:28:48.841Z"
+    },
+    {
+      "msgNum": 9,
+      "role": "client",
+      "content": "\"Ah, mas como é que funciona isso de corrigir na hora? Se eu tô no meio de um atendimento e a IA errar, como que eu faço? E o preço, quanto custa mesmo?\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:28:50.466Z"
+    },
+    {
+      "msgNum": 10,
+      "role": "agent",
+      "content": "Maria, quando a AgenteZap não souber responder ou errar, ela te avisa no WhatsApp e você pode entrar na conversa e responder ao cliente. Depois, você pode corrigir a resposta dela no painel da AgenteZap e ela aprende na hora para não errar de novo.\n\nO valor é R$ 99/mês, mas você pode testar por 7 dias sem compromisso e ver se funciona pra você. [ENVIAR_MIDIA:TABELA_PRECOS]\n\nQuantos clientes você atende por dia no WhatsApp?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:TABELA_PRECOS]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:28:51.661Z"
+    },
+    {
+      "msgNum": 11,
+      "role": "client",
+      "content": "Tá, mas como é que ela avisa quando erra? E como eu corro a conversa? Já tentei chatbot antes e foi um desastre.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:28:53.157Z"
+    },
+    {
+      "msgNum": 12,
+      "role": "agent",
+      "content": "Maria, quando a AgenteZap não souber responder ou errar, ela te avisa no WhatsApp com uma mensagem tipo \"Oi, preciso da sua ajuda aqui!\". Você clica no link que ela envia e entra na conversa para ajudar o cliente. Depois, você pode corrigir a resposta dela no painel da AgenteZap e ela aprende na hora.\n\nQuer que eu explique algum detalhe?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:28:54.025Z"
+    },
+    {
+      "msgNum": 13,
+      "role": "client",
+      "content": "\"Ah, mas e se ela errar muito? Já tentei chatbot antes e era um desastre. Tipo, ela vai aprender mesmo ou só repete erro?\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:28:55.578Z"
+    },
+    {
+      "msgNum": 14,
+      "role": "agent",
+      "content": "Maria, a AgenteZap aprende de verdade! Cada vez que você corrigir uma resposta dela, ela melhora e não repete o mesmo erro. Além disso, ela tem um sistema de aprendizado contínuo, então quanto mais você interagir, mais inteligente ela fica.\n\nQuer que eu crie seu acesso agora mesmo para você testar? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:28:56.617Z"
+    },
+    {
+      "msgNum": 15,
+      "role": "client",
+      "content": "\"Tá, mas como isso vai ajudar no meu pet shop? Eu preciso de agendamento de banho e tosa, vendas de ração e atendimento ao cliente. Como a AgenteZap faz isso?\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:28:58.250Z"
+    },
+    {
+      "msgNum": 16,
+      "role": "agent",
+      "content": "Maria, a AgenteZap pode fazer tudo isso e muito mais! Ela pode:\n\n- Agendar banhos e tosa diretamente no WhatsApp, com horários e disponibilidade\n- Vender ração e outros produtos, enviando fotos e descrições para o cliente\n- Atender dúvidas sobre serviços e produtos, como tipos de cortes, preços, etc.\n- Enviar lembretes de agendamentos e promoções\n\nQuer que eu crie seu acesso agora mesmo para você testar? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:28:59.318Z"
+    },
+    {
+      "msgNum": 17,
+      "role": "client",
+      "content": "\"Tá, mas como é que o chatbot vai saber os horários disponíveis pra banho e tosa? E se o cliente pedir um corte que a gente não faz? Já tentei chatbot antes e não deu certo...\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:29:01.015Z"
+    },
+    {
+      "msgNum": 18,
+      "role": "agent",
+      "content": "Maria, a AgenteZap se integra com sua agenda e atualiza os horários disponíveis em tempo real. Você cadastra os serviços que oferece, como os tipos de cortes, e se um cliente pedir algo que não tem, a AgenteZap avisa que não disponibiliza e sugere outras opções.\n\nQuer que eu crie seu acesso agora mesmo para você testar? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:29:02.149Z"
+    },
+    {
+      "msgNum": 19,
+      "role": "client",
+      "content": "\"Ah, mas e se o cliente quiser um banho com tosa e a gente só tiver disponível pra amanhã? Como a AgenteZap lida com isso? Já tentei chatbot antes e não rolou, tô meio cético.\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:29:03.876Z"
+    },
+    {
+      "msgNum": 20,
+      "role": "agent",
+      "content": "Maria, a AgenteZap verifica sua agenda em tempo real e informa ao cliente os horários disponíveis. Se não tiver vaga no dia solicitado, ela sugere os próximos disponíveis e até pergunta se o cliente quer agendar para aquele horário.\n\nQuer que eu crie seu acesso agora mesmo para você testar? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:29:06.361Z"
+    },
+    {
+      "msgNum": 21,
+      "role": "client",
+      "content": "\"Ah, mas como é que ela sabe os horários disponíveis? Meu sistema de agendamento é bem específico, sabe? E se ela marcar errado?\"\n\n(Se ele responder bem, mas ainda desconfiada)\n\n\"Tá, mas e se o cliente quiser um serviço específico, tipo banho e tosa? Ela consegue lidar com isso?\"\n\n(Se ele insistir em criar conta teste)\n\n\"Vou pensar... Mas antes me fala, isso aqui tem algum custo escondido?\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:29:08.359Z"
+    },
+    {
+      "msgNum": 22,
+      "role": "agent",
+      "content": "Maria, a AgenteZap se integra com sua agenda e atualiza os horários disponíveis em tempo real. Se um cliente pedir um serviço específico, como banho e tosa, ela verifica a disponibilidade e agenda corretamente. E não, não tem custo escondido! O valor é fixo de R$ 99/mês, sem surpresas. [ENVIAR_MIDIA:TABELA_PRECOS]\n\nQual sua maior dúvida ainda?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:TABELA_PRECOS]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:29:09.461Z"
+    },
+    {
+      "msgNum": 23,
+      "role": "client",
+      "content": "Tá, mas e se o cliente pedir um serviço que eu não ofereço? Como a AgenteZap vai lidar com isso?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:29:11.000Z"
+    },
+    {
+      "msgNum": 24,
+      "role": "agent",
+      "content": "Maria, se o cliente pedir um serviço que você não oferece, a AgenteZap vai informar isso educadamente e sugerir opções similares que você tem disponível. Por exemplo, se o cliente pedir um corte que você não faz, a AgenteZap pode sugerir outros tipos de cortes ou serviços que você oferece.\n\nQuer que eu crie seu acesso agora mesmo para você testar? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:29:11.961Z"
+    },
+    {
+      "msgNum": 25,
+      "role": "client",
+      "content": "\"Ah, mas como é que ele vai saber o que eu ofereço? Meu pet shop é bem específico, sabe? Banho e tosa pra cachorro, gatinho, e uns bichinhos mais diferentes. E se o cliente pedir um serviço que eu não faço, como é que ele vai sugerir algo similar? Explica melhor, por favor.\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:29:14.229Z"
+    },
+    {
+      "msgNum": 26,
+      "role": "agent",
+      "content": "Maria, você cadastra no sistema os serviços que oferece, como banho e tosa para cachorro, gatinho e outros bichinhos. Se um cliente pedir algo que você não faz, a AgenteZap avisa e sugere os serviços similares que você oferece. Por exemplo, se o cliente pedir um corte específico que você não faz, a AgenteZap pode sugerir outros tipos de cortes ou serviços que você tem disponível.\n\nQuer que eu crie seu acesso agora mesmo para você testar? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:29:15.486Z"
+    },
+    {
+      "msgNum": 27,
+      "role": "client",
+      "content": "\"Ah, mas como é que eu cadastro esses serviços? É complicado? E se eu quiser mudar depois, como faz?\"\n\n(Se ele repetir a explicação anterior, você reclama: \"Nossa, vc tá repetindo a mesma coisa!\")",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:29:19.031Z"
+    },
+    {
+      "msgNum": 28,
+      "role": "agent",
+      "content": "Maria, cadastar os serviços é super simples! Você só precisa me passar a lista dos serviços que oferece, como banho e tosa para cachorro, gatinho e outros bichinhos, e os horários disponíveis. Depois, você pode editar ou adicionar novos serviços a qualquer momento no painel da AgenteZap.\n\nQuer que eu crie seu acesso agora mesmo para você testar? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:29:19.880Z"
+    },
+    {
+      "msgNum": 29,
+      "role": "client",
+      "content": "Hmm, mas como que isso vai me ajudar a vender mais banho e tosa? Você só tá falando de cadastrar serviços, mas e o resto?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:29:21.374Z"
+    },
+    {
+      "msgNum": 30,
+      "role": "agent",
+      "content": "Maria, a AgenteZap não só cadastra os serviços, mas também ajuda a vender mais! Ela pode enviar fotos dos serviços, descrever os benefícios de cada tipo de corte, e até oferecer promoções especiais. Além disso, ela pode enviar lembretes para clientes que já agendaram, aumentando a chance de eles voltarem.\n\nQuer que eu crie seu acesso agora mesmo para você testar? [AÇÃO:CRIAR_CONTA_TESTE]",
+      "mediaTagsFound": [],
+      "actionsFound": [
+        "[AÇÃO:CRIAR_CONTA_TESTE]"
+      ],
+      "timestamp": "2025-12-14T19:29:22.648Z"
+    }
+  ],
+  "analysis": {
+    "totalMessages": 30,
+    "mediaTagsUsed": [
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:TABELA_PRECOS]",
+      "[ENVIAR_MIDIA:TABELA_PRECOS]",
+      "[ENVIAR_MIDIA:TABELA_PRECOS]"
+    ],
+    "actionsUsed": [
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]",
+      "[AÇÃO:CRIAR_CONTA_TESTE]"
+    ],
+    "potentialRepetitions": [],
+    "clientConvinced": false,
+    "observations": []
+  }
+}

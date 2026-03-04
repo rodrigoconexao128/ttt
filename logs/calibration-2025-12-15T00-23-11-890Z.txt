@@ -1,0 +1,44 @@
+
+═══════════════════════════════════════════════════════════════════════════════
+📊 RELATÓRIO DE CALIBRAÇÃO - RODRIGO (AGENTE VENDEDOR)
+═══════════════════════════════════════════════════════════════════════════════
+
+DATA: 14/12/2025, 21:23:11
+TESTE: IA vs IA SEM ROTEIRO (Cliente age naturalmente)
+
+═══════════════════════════════════════════════════════════════════════════════
+📈 RESULTADOS GERAIS
+═══════════════════════════════════════════════════════════════════════════════
+
+TAXA DE CONVERSÃO: 100% (4/4 nichos)
+🎉 PERFEITO!
+
+═══════════════════════════════════════════════════════════════════════════════
+📋 RESULTADOS POR NICHO
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ Restaurante: CONVERTEU (3 mensagens)
+
+✅ Hotmart/Infoprodutor: CONVERTEU (1 mensagens)
+
+✅ Loja de Roupas Online: CONVERTEU (1 mensagens)
+
+✅ Clínica Médica: CONVERTEU (6 mensagens)
+
+
+═══════════════════════════════════════════════════════════════════════════════
+🎉 CALIBRAÇÃO PERFEITA!
+═══════════════════════════════════════════════════════════════════════════════
+
+Rodrigo conseguiu converter TODOS os nichos!
+Nenhum ajuste necessário no momento.
+
+MÉDIA DE MENSAGENS ATÉ CONVERSÃO: 3
+
+
+═══════════════════════════════════════════════════════════════════════════════
+📁 LOGS DETALHADOS
+═══════════════════════════════════════════════════════════════════════════════
+
+Conversas completas salvas em: logs/calibration-{timestamp}.json
+

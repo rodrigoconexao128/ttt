@@ -1,0 +1,278 @@
+
+════════════════════════════════════════════════════════════════════════════════
+📋 LOG DE CONVERSA - Moda Fashion (Loja de Roupas Online)
+════════════════════════════════════════════════════════════════════════════════
+Data: 2025-12-14T19:22:22.392Z
+Cliente: Carlos
+Total de Mensagens: 30
+
+════════════════════════════════════════════════════════════════════════════════
+💬 CONVERSA COMPLETA
+════════════════════════════════════════════════════════════════════════════════
+
+👤 [1] Carlos:
+Opa, tudo bem? Eu sou o Carlos, dono da Moda Fashion. Vi falando da AgenteZap aí, mas confesso que tô meio na dúvida se vale a pena. Como é que funciona essa parada?
+
+────────────────────────────────────────────────────────────
+
+🤖 [2] Rodrigo:
+Opa, Carlos! Tudo ótimo! Imagina a AgenteZap como uma vendedora 24/7 para a sua Moda Fashion. Ela responde clientes, mostra as roupas, tira dúvidas de tamanho e até fecha vendas pelo WhatsApp, mesmo quando você não está online. Quer ver como é? [ENVIAR_MIDIA:COMO_FUNCIONA]
+
+E aí, o que achou? Quer testar grátis por 7 dias? [AÇÃO:CRIAR_CONTA_TESTE]
+   📁 Mídias: [ENVIAR_MIDIA:COMO_FUNCIONA]
+   ⚡ Ações: [AÇÃO:CRIAR_CONTA_TESTE]
+
+────────────────────────────────────────────────────────────
+
+👤 [3] Carlos:
+"Tá, mas como que ela mostra as roupas? Manda foto sozinha? E se o cliente perguntar sobre promoção, ela sabe responder?"
+
+(Se ele repetir a explicação inicial, você fala: "Pô, você só repete a mesma coisa, não tá entendendo minha dúvida!")
+
+────────────────────────────────────────────────────────────
+
+🤖 [4] Rodrigo:
+Entendi sua dúvida, Carlos! A AgenteZap não só manda fotos das roupas, mas também pode criar catálogos interativos com os produtos da Moda Fashion. Se o cliente perguntar sobre promoções, ela responde com as ofertas atuais, igual um vendedor humano faria. Quer ver uma demonstração de como isso funciona? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+E aí, o que achou? Quer testar grátis por 7 dias? [AÇÃO:CRIAR_CONTA_TESTE]
+   📁 Mídias: [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+   ⚡ Ações: [AÇÃO:CRIAR_CONTA_TESTE]
+
+────────────────────────────────────────────────────────────
+
+👤 [5] Carlos:
+Tá, mas como que funciona isso de catálogo interativo? Já vi outros sistemas que falam que fazem isso mas não entregam. E esse vídeo aí, mostra mesmo como funciona na prática?
+
+────────────────────────────────────────────────────────────
+
+🤖 [6] Rodrigo:
+Carlos, entendo sua preocupação! O catálogo interativo da AgenteZap é personalizado para a Moda Fashion. A IA mostra as roupas, os preços e até as promoções em tempo real, tudo integrado ao WhatsApp. O vídeo que te enviei mostra exatamente como funciona na prática, com exemplos reais de lojas como a sua. Quer ver a tabela de preços? [ENVIAR_MIDIA:TABELA_PRECOS]
+
+E aí, o que achou? Quer testar grátis por 7 dias? [AÇÃO:CRIAR_CONTA_TESTE]
+   📁 Mídias: [ENVIAR_MIDIA:TABELA_PRECOS]
+   ⚡ Ações: [AÇÃO:CRIAR_CONTA_TESTE]
+
+────────────────────────────────────────────────────────────
+
+👤 [7] Carlos:
+Tá, mas como é que esse catálogo interativo funciona na prática? Tipo, se um cliente perguntar sobre uma calça jeans específica, como a IA vai responder?
+
+Já vi outros sistemas que só mandam links ou fotos genéricas, não quero isso pra minha loja.
+
+E esse preço tá alto, viu? Tem alguma promoção ou desconto?
+
+────────────────────────────────────────────────────────────
+
+🤖 [8] Rodrigo:
+Carlos, entendi perfeitamente! A AgenteZap não manda links ou fotos genéricas. Se um cliente perguntar sobre uma calça jeans específica, a IA envia a foto exata do produto, com descrição, preço e opções de tamanho. Tudo personalizado para a Moda Fashion.
+
+Sobre o preço, infelizmente não temos promoções no momento, mas o valor de R$ 99/mês já inclui tudo: atendimento 24/7, catálogo interativo e suporte. Quer ver como é na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+E aí, o que achou? Quer testar grátis por 7 dias? [AÇÃO:CRIAR_CONTA_TESTE]
+   📁 Mídias: [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+   ⚡ Ações: [AÇÃO:CRIAR_CONTA_TESTE]
+
+────────────────────────────────────────────────────────────
+
+👤 [9] Carlos:
+Tá, mas como é que vc garante que a IA não vai mandar a foto errada? Já vi isso acontecer antes...
+
+E esse vídeo que vc mandou, é um caso real ou é só demonstração?
+
+────────────────────────────────────────────────────────────
+
+🤖 [10] Rodrigo:
+Carlos, a AgenteZap usa inteligência artificial avançada para garantir que as respostas sejam precisas. Ela é treinada para entender o contexto e enviar sempre a foto correta do produto. O vídeo que te enviei é um caso real de uma loja de roupas que usa o sistema. Quer ver como é na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+E aí, o que achou? Quer testar grátis por 7 dias? [AÇÃO:CRIAR_CONTA_TESTE]
+   📁 Mídias: [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+   ⚡ Ações: [AÇÃO:CRIAR_CONTA_TESTE]
+
+────────────────────────────────────────────────────────────
+
+👤 [11] Carlos:
+Tá, mas como é que essa IA sabe exatamente qual produto a cliente quer? Já vi chatbot que manda foto errada e ainda piora a situação.
+
+E esse teste grátis, tem algum compromisso depois?
+
+────────────────────────────────────────────────────────────
+
+🤖 [12] Rodrigo:
+Carlos, a AgenteZap é treinada para entender o contexto da conversa. Se o cliente perguntar sobre uma calça jeans, por exemplo, a IA envia apenas as opções de calças jeans disponíveis na Moda Fashion. E não, o teste grátis de 7 dias não tem compromisso. Você pode cancelar a qualquer momento sem pagar nada.
+
+Quer testar e ver como funciona na prática? [AÇÃO:CRIAR_CONTA_TESTE]
+   ⚡ Ações: [AÇÃO:CRIAR_CONTA_TESTE]
+
+────────────────────────────────────────────────────────────
+
+👤 [13] Carlos:
+"Tá, mas e se o cliente perguntar sobre um tamanho específico ou cor? A IA consegue filtrar isso também? E o que acontece se o cliente quiser um desconto? A IA sabe negociar?"
+
+(Observação: Ele não repetiu nada, respondeu a dúvida sobre o teste grátis e mostrou interesse em me convencer. Vou testar mais um pouco antes de decidir.)
+
+────────────────────────────────────────────────────────────
+
+🤖 [14] Rodrigo:
+Carlos, a AgenteZap consegue filtrar tamanho e cor também! Se o cliente perguntar sobre um tamanho específico ou cor, a IA mostra apenas as opções disponíveis na Moda Fashion. Sobre descontos, a IA pode oferecer promoções pré-definidas por você, mas não negocia valores. Quer ver como é na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+E aí, o que achou? Quer testar grátis por 7 dias? [AÇÃO:CRIAR_CONTA_TESTE]
+   📁 Mídias: [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+   ⚡ Ações: [AÇÃO:CRIAR_CONTA_TESTE]
+
+────────────────────────────────────────────────────────────
+
+👤 [15] Carlos:
+Tá, mas como é que vc garante que a IA vai entender direito as perguntas dos clientes? Já tentei chatbot antes e era um desastre.
+
+────────────────────────────────────────────────────────────
+
+🤖 [16] Rodrigo:
+Carlos, entendo sua preocupação! A AgenteZap é diferente porque usa IA avançada para entender o contexto das perguntas. Ela foi treinada para atender lojas de roupas como a sua, então entende termos como "tamanho", "cor", "promoção" e muito mais. Quer ver como é na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+E aí, o que achou? Quer testar grátis por 7 dias? [AÇÃO:CRIAR_CONTA_TESTE]
+   📁 Mídias: [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+   ⚡ Ações: [AÇÃO:CRIAR_CONTA_TESTE]
+
+────────────────────────────────────────────────────────────
+
+👤 [17] Carlos:
+Tá, mas como que isso vai ajudar minha loja de roupas? Quero ver exemplo prático, não só um vídeo.
+
+────────────────────────────────────────────────────────────
+
+🤖 [18] Rodrigo:
+Carlos, imagina só: um cliente manda uma mensagem no WhatsApp perguntando sobre uma calça jeans azul tamanho 42. A AgenteZap responde imediatamente mostrando a foto exata da calça, com a descrição, o preço e a opção de compra. Tudo isso enquanto você está ocupado ou até dormindo!
+
+Quer ver um exemplo real de como isso funciona? [ENVIAR_MIDIA:COMO_FUNCIONA]
+
+E aí, o que achou? Quer testar grátis por 7 dias? [AÇÃO:CRIAR_CONTA_TESTE]
+   📁 Mídias: [ENVIAR_MIDIA:COMO_FUNCIONA]
+   ⚡ Ações: [AÇÃO:CRIAR_CONTA_TESTE]
+
+────────────────────────────────────────────────────────────
+
+👤 [19] Carlos:
+"Tá, mas e se o cliente perguntar algo que não tá no sistema? Como a IA vai lidar com isso?"
+
+(Observação: Ele não repetiu nada, então não reclamei. Fiz uma objeção específica para testar o conhecimento dele sobre limites da IA)
+
+────────────────────────────────────────────────────────────
+
+🤖 [20] Rodrigo:
+Carlos, ótima pergunta! Se o cliente perguntar algo que não está no sistema, a AgenteZap tem duas opções: ela pode pedir para o cliente esclarecer melhor a dúvida ou encaminhar a mensagem para você. Assim, nada fica sem resposta.
+
+Quer ver como é na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+E aí, o que achou? Quer testar grátis por 7 dias? [AÇÃO:CRIAR_CONTA_TESTE]
+   📁 Mídias: [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+   ⚡ Ações: [AÇÃO:CRIAR_CONTA_TESTE]
+
+────────────────────────────────────────────────────────────
+
+👤 [21] Carlos:
+Tá, mas e se o cliente perguntar algo super específico sobre um produto? Tipo, "qual o tamanho exato do decote dessa blusa"? A IA vai saber responder ou vai só me encaminhar?
+
+E esse vídeo de demonstração, é de uma loja de roupas igual a minha? Quero ver algo real, não só um exemplo genérico.
+
+E aí, quanto custa mesmo? Você ainda não me passou o preço.
+
+────────────────────────────────────────────────────────────
+
+🤖 [22] Rodrigo:
+Carlos, a AgenteZap foi treinada para entender detalhes específicos de produtos, como tamanho de decote, composição do tecido e outras características. Se a informação estiver no catálogo da Moda Fashion, ela responde na hora. Caso contrário, encaminha para você.
+
+O preço é R$ 99/mês, mas você pode testar grátis por 7 dias. Quer ver um vídeo real de uma loja de roupas? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+E aí, o que achou? Quer testar grátis por 7 dias? [AÇÃO:CRIAR_CONTA_TESTE]
+   📁 Mídias: [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+   ⚡ Ações: [AÇÃO:CRIAR_CONTA_TESTE]
+
+────────────────────────────────────────────────────────────
+
+👤 [23] Carlos:
+"Tá, mas como é que ela sabe se a roupa é pra festa ou pra dia a dia? Já tentei chatbot antes e não funcionou. E esse preço de R$ 99 tá um pouco salgado, não acha?"
+
+────────────────────────────────────────────────────────────
+
+🤖 [24] Rodrigo:
+Carlos, a AgenteZap entende o contexto da conversa. Se o cliente perguntar sobre uma roupa para festa, a IA mostra opções mais formais do catálogo da Moda Fashion. Para dia a dia, ela prioriza peças casuais. Sobre o preço, entendo que R$ 99/mês pode parecer um investimento, mas pense na economia de tempo e no aumento de vendas que você terá com um atendimento 24/7.
+
+Quer ver como é na prática? [ENVIAR_MIDIA:COMO_FUNCIONA]
+
+E aí, o que achou? Quer testar grátis por 7 dias? [AÇÃO:CRIAR_CONTA_TESTE]
+   📁 Mídias: [ENVIAR_MIDIA:COMO_FUNCIONA]
+   ⚡ Ações: [AÇÃO:CRIAR_CONTA_TESTE]
+
+────────────────────────────────────────────────────────────
+
+👤 [25] Carlos:
+Tá, mas como é que ela sabe se a roupa é pra festa ou dia a dia? O cliente vai ter que falar isso?
+
+E esse preço de R$ 99, é fixo ou tem desconto se eu pagar anual?
+
+Já tentei chatbot antes e não funcionou, por que seria diferente agora?
+
+────────────────────────────────────────────────────────────
+
+🤖 [26] Rodrigo:
+Carlos, a AgenteZap entende o contexto da conversa. Se o cliente mencionar "festa" ou "casamento", a IA já sabe que é para uma ocasião especial e mostra as opções adequadas. Para dia a dia, ela prioriza peças casuais. Sobre o preço, infelizmente não temos desconto anual, mas o valor é fixo em R$ 99/mês.
+
+E sobre os chatbots que você já testou, a AgenteZap é diferente porque usa IA avançada e é treinada especificamente para lojas de roupas como a sua. Quer ver como é na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+E aí, o que achou? Quer testar grátis por 7 dias? [AÇÃO:CRIAR_CONTA_TESTE]
+   📁 Mídias: [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+   ⚡ Ações: [AÇÃO:CRIAR_CONTA_TESTE]
+
+────────────────────────────────────────────────────────────
+
+👤 [27] Carlos:
+Tá, mas como que ela entende se o cliente não fala nada específico? Tipo, se ele só manda "oi"?
+
+E esse preço de R$ 99 é só pra começar ou tem outros custos escondidos?
+
+Já tentei chatbot antes e foi um fracasso, como que vou saber que esse aqui é diferente?
+
+Vou pensar, mas tá caro pra mim.
+
+────────────────────────────────────────────────────────────
+
+🤖 [28] Rodrigo:
+Carlos, se o cliente mandar só "oi", a AgenteZap responde com uma mensagem de boas-vindas e mostra as opções de catálogo da Moda Fashion. Sobre o preço, R$ 99/mês já inclui tudo: atendimento 24/7, catálogo interativo e suporte. Não tem custos escondidos!
+
+E sobre os chatbots que você já testou, a AgenteZap é diferente porque usa IA avançada e é treinada especificamente para lojas de roupas como a sua. Quer ver como é na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+E aí, o que achou? Quer testar grátis por 7 dias? [AÇÃO:CRIAR_CONTA_TESTE]
+   📁 Mídias: [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+   ⚡ Ações: [AÇÃO:CRIAR_CONTA_TESTE]
+
+────────────────────────────────────────────────────────────
+
+👤 [29] Carlos:
+"Tá, mas e se o cliente quiser um tamanho específico ou cor? A AgenteZap consegue entender isso?"
+
+(Espero que ele explique como a IA lida com detalhes de produtos)
+
+────────────────────────────────────────────────────────────
+
+🤖 [30] Rodrigo:
+Carlos, a AgenteZap entende perfeitamente quando o cliente pede um tamanho específico ou cor. Por exemplo, se ele perguntar sobre uma blusa azul tamanho P, a IA mostra apenas as opções disponíveis no catálogo da Moda Fashion que atendem a essa solicitação. Quer ver como é na prática? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+
+E aí, o que achou? Quer testar grátis por 7 dias? [AÇÃO:CRIAR_CONTA_TESTE]
+   📁 Mídias: [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]
+   ⚡ Ações: [AÇÃO:CRIAR_CONTA_TESTE]
+
+────────────────────────────────────────────────────────────
+
+
+════════════════════════════════════════════════════════════════════════════════
+📊 ESTATÍSTICAS
+════════════════════════════════════════════════════════════════════════════════
+Mídias Usadas: [ENVIAR_MIDIA:COMO_FUNCIONA], [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO], [ENVIAR_MIDIA:TABELA_PRECOS]
+Ações Usadas: [AÇÃO:CRIAR_CONTA_TESTE]
+Total de Tags de Mídia: 14
+Total de Ações: 15
+
+════════════════════════════════════════════════════════════════════════════════
+🔍 ANÁLISE PENDENTE
+════════════════════════════════════════════════════════════════════════════════
+(Análise será feita pelo agente após revisão do log)

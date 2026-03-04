@@ -1,0 +1,58 @@
+{
+  "salon": {
+    "phone": "551199771001",
+    "response": "Segui atÃ© a criaÃ§Ã£o, mas deu um erro tÃ©cnico nessa conta. Me manda mais uma mensagem que eu tento de novo agora mesmo.",
+    "userId": null,
+    "deliveryOk": false,
+    "state": null,
+    "businessType": null
+  },
+  "delivery": {
+    "phone": "551199771002",
+    "response": "Segui atÃ© a criaÃ§Ã£o, mas deu um erro tÃ©cnico nessa conta. Me manda mais uma mensagem que eu tento de novo agora mesmo.",
+    "userId": null,
+    "deliveryOk": false,
+    "state": null,
+    "businessType": null
+  },
+  "scheduling": {
+    "phone": "551199771003",
+    "response": "Segui atÃ© a criaÃ§Ã£o, mas deu um erro tÃ©cnico nessa conta. Me manda mais uma mensagem que eu tento de novo agora mesmo.",
+    "userId": null,
+    "deliveryOk": false,
+    "editResults": [
+      {
+        "input": "agora eu trabalho de segunda a sexta das 10:00 as 16:00",
+        "output": "Segui atÃ© a criaÃ§Ã£o, mas deu um erro tÃ©cnico nessa conta. Me manda mais uma mensagem que eu tento de novo agora mesmo."
+      },
+      {
+        "input": "agora eu trabalho de segunda a sexta das 10:30 as 16:30",
+        "output": "Segui atÃ© a criaÃ§Ã£o, mas deu um erro tÃ©cnico nessa conta. Me manda mais uma mensagem que eu tento de novo agora mesmo."
+      },
+      {
+        "input": "agora eu trabalho de segunda a sexta das 11:00 as 17:00",
+        "output": "Segui atÃ© a criaÃ§Ã£o, mas deu um erro tÃ©cnico nessa conta. Me manda mais uma mensagem que eu tento de novo agora mesmo."
+      },
+      {
+        "input": "agora eu trabalho de segunda a sexta das 11:30 as 17:30",
+        "output": "Segui atÃ© a criaÃ§Ã£o, mas deu um erro tÃ©cnico nessa conta. Me manda mais uma mensagem que eu tento de novo agora mesmo."
+      },
+      {
+        "input": "agora eu trabalho de segunda a sexta das 12:00 as 18:00",
+        "output": "Segui atÃ© a criaÃ§Ã£o, mas deu um erro tÃ©cnico nessa conta. Me manda mais uma mensagem que eu tento de novo agora mesmo."
+      },
+      {
+        "input": "agora eu trabalho de segunda a sexta das 12:30 as 18:30",
+        "output": "Segui atÃ© a criaÃ§Ã£o, mas deu um erro tÃ©cnico nessa conta. Me manda mais uma mensagem que eu tento de novo agora mesmo."
+      }
+    ],
+    "state": null,
+    "businessType": null
+  },
+  "summary": {
+    "salonOk": false,
+    "deliveryOk": false,
+    "schedulingOk": false,
+    "success": false
+  }
+}

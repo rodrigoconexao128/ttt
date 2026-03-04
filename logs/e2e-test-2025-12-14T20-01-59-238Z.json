@@ -1,0 +1,62 @@
+{
+  "scenario": "Afiliado Digital - Emagrecer",
+  "success": true,
+  "conversation": [
+    {
+      "role": "user",
+      "content": "Oi! Sou afiliado na Hotmart, promovo um curso de emagrecimento. A AgenteZap serve pra mim?"
+    },
+    {
+      "role": "assistant",
+      "content": "Oi! Tudo bem? Sim, a AgenteZap pode ser uma ótima aliada para você como afiliado na Hotmart! Ela ajuda a vender infoprodutos 24 horas por dia, inclusive durante a noite, finais de semana e feriados. Você pode configurar respostas automáticas para tirar dúvidas dos seus leads e até mesmo direcionar o tráfego pago para um atendimento automatizado, aumentando suas conversões. Quer que eu explique melhor como funciona? Pode mandar áudio se preferir! [ENVIAR_MIDIA:COMO_FUNCIONA]"
+    },
+    {
+      "role": "user",
+      "content": "E como a IA vai saber responder as dúvidas sobre o produto que eu promovo?"
+    },
+    {
+      "role": "assistant",
+      "content": "Ótima pergunta! A AgenteZap usa inteligência artificial para aprender com as suas interações e com as informações que você configura. Você pode treinar a IA com perguntas e respostas frequentes sobre o curso de emagrecimento que você promove, como benefícios, depoimentos, preço, bônus, etc. Além disso, a IA pode ser integrada ao checkout da Hotmart, facilitando o processo de venda e aumentando a conversão. Quer ver um vídeo demonstrando como funciona? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO] [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ela consegue mandar o link de checkout da Hotmart?"
+    },
+    {
+      "role": "assistant",
+      "content": "Sim, a AgenteZap consegue enviar o link de checkout da Hotmart automaticamente! Você pode configurar a IA para enviar o link no momento certo da conversa, por exemplo, quando o lead demonstrar interesse no curso de emagrecimento. Além disso, a AgenteZap pode ser integrada ao seu tráfego pago, como anúncios no Facebook ou Google, para que os leads que clicarem sejam atendidos imediatamente por um chatbot, aumentando suas chances de venda. Quer testar como funciona? [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "E se perguntarem sobre depoimentos? A IA mostra?"
+    },
+    {
+      "role": "assistant",
+      "content": "Sim, a IA pode ser treinada para mostrar depoimentos dos alunos que já compraram o curso de emagrecimento. Você pode configurar a AgenteZap para enviar mensagens com depoimentos em texto, imagens ou até mesmo vídeos, dependendo do que você preferir. Isso ajuda a aumentar a confiança do lead e a converter mais vendas. Quer ver um exemplo de como isso funciona? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO] [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Funciona pra quem usa tráfego pago? Tipo, o cliente clica no anúncio e já cai na IA?"
+    },
+    {
+      "role": "assistant",
+      "content": "Sim, a AgenteZap funciona perfeitamente para quem usa tráfego pago! Quando o cliente clica no anúncio, ele pode ser direcionado para um link de WhatsApp que já inicia uma conversa com a IA. A AgenteZap pode ser programada para atender esses leads imediatamente, tirando dúvidas, mostrando depoimentos e até mesmo enviando o link de checkout da Hotmart. Isso aumenta muito a conversão do tráfego pago, pois o lead recebe atendimento instantâneo, mesmo fora do horário comercial. Quer testar como funciona? [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Posso testar? Como funciona o teste grátis?"
+    },
+    {
+      "role": "assistant",
+      "content": "Claro que pode testar! O teste grátis da AgenteZap é de 7 dias, sem compromisso. Durante esse período, você pode configurar a IA para atender seus leads, treinar respostas, integrar com o checkout da Hotmart e até mesmo testar o atendimento de tráfego pago. Assim que você criar sua conta, eu te ajudo a configurar tudo, combinado? [AÇÃO:CRIAR_CONTA_TESTE]"
+    }
+  ],
+  "accountCreated": true,
+  "credentials": {
+    "email": "teste_5511742489783@agentezap.test",
+    "password": "AZ-VX02KT",
+    "loginUrl": "https://app.agentezap.com"
+  },
+  "issues": [],
+  "score": 100
+}

@@ -1,0 +1,39 @@
+// ============================================================================
+// RESELLER CLIENT PAYMENT RECEIPTS - Comprovantes de pagamento para clientes de revenda
+// Usado quando o cliente de um revendedor paga via PIX (chave do revendedor)
+// ============================================================================
+export const resellerClientPaymentReceipts = pgTable("reseller_client_payment_receipts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  // Referências
+  resellerClientId: varchar("reseller_client_id").notNull().references(() => resellerClients.id, { onDelete: 'cascade' }),
+  resellerId: varchar("reseller_id").notNull().references(() => resellers.id, { onDelete: 'cascade' }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }), // O usuário que é cliente do revendedor
+  
+  // Informações do pagamento
+  amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
+  referenceMonth: varchar("reference_month", { length: 7 }).notNull(), // YYYY-MM
+  
+  // URL e informações do arquivo do comprovante
+  receiptUrl: varchar("receipt_url").notNull(),
+  receiptFilename: varchar("receipt_filename"),
+  receiptMimeType: varchar("receipt_mime_type"),
+  
+  // Status: pending, approved, rejected
+  status: varchar("status", { length: 50 }).default("pending").notNull(),
+  
+  // Dias de acesso concedidos quando aprovado (geralmente 30)
+  daysGranted: integer("days_granted").default(30),
+  
+  // IDs do admin que aprovou/rejeitou
+  reviewedBy: varchar("reviewed_by"),
+  reviewedAt: timestamp("reviewed_at"),
+  reviewNotes: text("review_notes"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_reseller_receipts_client").on(table.resellerClientId),
+  index("idx_reseller_receipts_reseller").on(table.resellerId),
+  index("idx_reseller_receipts_user").on(table.userId),
+  index("idx_reseller_receipts_status").on(table.status),
+]);

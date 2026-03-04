@@ -1,0 +1,238 @@
+﻿Mounting volume on: /var/lib/containers/railwayapp/bind-mounts/8e422a26-276a-4e76-ae94-e922ddd0efe4/vol_eg1nu9j50zria2sv
+Starting Container
+
+> rest-express@1.0.0 start
+> cross-env NODE_ENV=production node dist/index.js
+
+­ƒÜÇ [BOOT] node=v20.6.1 env=production port=8080
+[DB] Modo de conex├úo: Supabase Pooler (PgBouncer)
+­ƒøí´©Å [ANTI-BAN v5.0] Sistema SIMPLIFICADO inicializado
+   ­ƒôè Delay entre msgs: 5-15s
+   ­ƒôè Ap├│s msg do dono: +5s
+   ­ƒôè Lote: 10 msgs ÔåÆ pausa 60s
+­ƒÜÇ [CENTRALIZED-SENDER v3.0] Sistema com ENQUETES inicializado
+   ­ƒù│´©Å Polls: DESATIVADO
+   ÔÅ▒´©Å Delays: 5s - 15s
+   Ôî¿´©Å Typing: ATIVADO
+   ­ƒôª Batch: 10 msgs, pausa 60s
+­ƒøí´©Å [ANTI-REENVIO] MessageDeduplicationService inicializado
+­ƒøí´©Å [ANTI-BLOCK v5.0] MessageQueueService SIMPLIFICADO iniciado
+   ­ƒôè Config: 5-15s delay, 10 msgs/lote, 60s pausa
+­ƒÜ¿ [RECOVERY] PendingMessageRecoveryService inicializado
+­ƒöä [MISSED MSG] Polling de mensagens n├úo processadas iniciado (a cada 45s)
+­ƒøí´©Å [ANTI-BLOCK] Callback de envio registrado
+[WHATSAPP] Using SESSIONS_DIR=/data/whatsapp-sessions
+­ƒô▓ [FOLLOW-UP] Callback registrado
+­ƒô▓ [AGENDAMENTO] Callback registrado
+[dotenv@17.2.3] injecting env (0) from dist/.env -- tip: ÔÜÖ´©Å  load multiple .env files with { path: ['.env.local', '.env'] }
+­ƒÜÇ [BOOT] Starting server (bootId=2026-02-19T23:27:22.564Z)
+­ƒÜÇ [BOOT] railwayCommit=6e9d8a7d8343aa8c1807c5ea3c5c37e1be511897
+Ô£à [FOLLOW-UP] Rotas registradas
+Ô£à [ADMIN FOLLOW-UP] Rotas registradas
+Ô£à [NOTAPAYERS] Rotas de follow-up para n├úo pagantes registradas
+Ô£à [AI ROUTES] Rotas de IA registradas
+­ƒÄñ [AUDIO-CONFIG] Registrando rotas de configura├º├úo de ├íudio TTS...
+Ô£à [AUDIO-CONFIG] Rotas de ├íudio TTS registradas!
+­ƒôª [CHATBOT_FLOW] Registrando rotas do construtor de fluxo de chatbot...
+Ô£à [CHATBOT_FLOW] Rotas registradas com sucesso!
+­ƒÆç [Salon] Registrando rotas de sal├úo...
+Ô£à [Salon] Rotas de sal├úo registradas com sucesso!
+­ƒÄ½ [DEBUG] About to call registerTicketRoutes...
+­ƒÄ½ [Tickets] Registrando rotas de chamados...
+Ô£à [Tickets] Rotas registradas com sucesso!
+Ô£à [DEBUG] registerTicketRoutes called successfully
+[Sectors] Registrando rotas de setores...
+[Sectors] Rotas registradas com sucesso!
+­ƒöÆ [Fase 4.2] Registrando rotas de encerramento de chamados...
+Ô£à [Fase 4.2] Rotas de encerramento registradas com sucesso!
+Ô£à [STATUS] Admin status routes registered successfully
+­ƒÜÇ [USER-FOLLOW-UP] Servi├ºo iniciado
+­ƒô▓ [USER-FOLLOW-UP] Callback registrado
+11:27:22 PM [express] serving on port 8080
+WebSocket client connected for user: 21051c36-debc-4d25-98dc-9339ff9573d3
+­ƒÜ¿ [RECOVERY] Message processor registrado
+­ƒÜ¿ [RECOVERY] Ô£à Message processor registrado com sucesso!
+WebSocket client connected for user: 21051c36-debc-4d25-98dc-9339ff9573d3
+­ƒî▒ Seeding database...
+Ô£à [DB Pool] Nova conex├úo ESTABELECIDA
+Ô£à [DB] Autentica├º├úo OK em 1327ms | User: postgres | DB: postgres
+WebSocket client connected for user: 21051c36-debc-4d25-98dc-9339ff9573d3
+Ô£à [DB Pool] Nova conex├úo ESTABELECIDA
+Ôä╣´©Å Admin owner already exists
+Ôä╣´©Å Mistral API Key already exists
+Ôä╣´©Å Z.AI API Key already exists
+Ôä╣´©Å PIX key already exists
+[DB] Verificando tabelas necess├írias...
+Ôä╣´©Å Admin auto-atendimento enabled already exists
+Ô£à [DB] Tabela contact_lists j├í existe
+Ôä╣´©Å Owner notification number already exists
+Ôä╣´©Å Admin auto-atendimento prompt already exists
+Ôä╣´©Å Plans already exist
+[MIGRATION] ai_enabled column ensured on whatsapp_connections
+Ôä╣´©Å Admin user role updated to owner
+­ƒÄë Database seeded successfully
+WebSocket client connected for user: d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c
+11:27:37 PM [express] GET /api/auth/user 200 in 617ms :: {"id":"cb9213c3-fde3-479e-a4aa-344171c59735"ÔÇª
+11:27:37 PM [express] GET /api/user/branding 304 in 411ms :: {"isWhiteLabel":false,"companyName":"AgeÔÇª
+11:27:37 PM [express] GET /api/whatsapp/connection 200 in 418ms :: {"id":"0d3994c3-017a-4860-b3fa-4e6ÔÇª
+11:27:38 PM [express] GET /api/user/suspension-status 304 in 600ms :: {"suspended":false}
+11:27:38 PM [express] GET /api/reseller/status 304 in 887ms :: {"hasResellerPlan":true,"reseller":{"iÔÇª
+Ô£à [DB Pool] Nova conex├úo ESTABELECIDA
+11:27:38 PM [express] GET /api/subscriptions/current 304 in 1560ms :: {"id":"c7ee20d9-0486-48e4-b21b-ÔÇª
+11:27:39 PM [express] GET /api/stats 200 in 970ms :: {"totalConversations":1,"unreadMessages":1,"todaÔÇª
+WebSocket client connected for user: d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c
+11:27:39 PM [express] GET /api/access-status 401 in 2ms :: {"message":"Unauthorized"}
+­ƒöî [DB Pool] Conex├úo REMOVIDA
+­ƒöî [DB Pool] Conex├úo REMOVIDA
+­ƒöî [DB Pool] Conex├úo REMOVIDA
+11:28:10 PM [express] GET /api/access-status 401 in 2ms :: {"message":"Unauthorized"}
+Ô£à [DB Pool] Nova conex├úo ESTABELECIDA
+ÔÜá´©Å [USER-FOLLOW-UP] Conversa 64ff4604-8fe7-434e-8bbe-4cfeedb2ffea sem userId
+ÔÜá´©Å [USER-FOLLOW-UP] Conversa e7f0d4d1-521b-4acb-aa82-7e717eac1847 sem userId
+ÔÜá´©Å [USER-FOLLOW-UP] Conversa 7deedf3e-a2ce-4d63-9cd5-22c0f4dfbab1 sem userId
+ÔÜá´©Å [USER-FOLLOW-UP] Conversa 5fc25153-c4b4-40cf-91df-cab319e3f290 sem userId
+ÔÜá´©Å [USER-FOLLOW-UP] Conversa b4857475-6df3-45f1-9c70-3d3707c243a6 sem userId
+ÔÜá´©Å [USER-FOLLOW-UP] Conversa 1d897f3e-72ce-4ae4-8cdb-7a4695ee71d9 sem userId
+­ƒöì [USER-FOLLOW-UP] Encontradas 63 conversas para processar
+ÔÜá´©Å [USER-FOLLOW-UP] Conversa 4f1fdcd2-64a5-4098-b7e5-5aa762a5bd38 sem userId
+ÔÜá´©Å [USER-FOLLOW-UP] Conversa 48fd0ebd-75bc-4bee-9f2b-bc19984b3e51 sem userId
+ÔÜá´©Å [USER-FOLLOW-UP] Conversa 2ff4c12d-fde3-4916-b974-5437caa7407e sem userId
+ÔÜá´©Å [USER-FOLLOW-UP] Conversa 72561322-e490-4631-ab07-50240e470e50 sem userId
+ÔÜá´©Å [USER-FOLLOW-UP] Conversa d67649a9-7211-4515-b226-f9d21550b523 sem userId
+ÔÜá´©Å [USER-FOLLOW-UP] Conversa 0595334f-2001-46bc-93b8-aa64898d4507 sem userId
+ÔÜá´©Å [USER-FOLLOW-UP] Conversa ff724739-6c46-4a56-83ed-9d9c8634899f sem userId
+ÔÜá´©Å [USER-FOLLOW-UP] Conversa ee1fa636-b1a5-4683-b934-ef203369d1e5 sem userId
+[WS] Cliente inativo, fechando conex├úo: 21051c36-debc-4d25-98dc-9339ff9573d3
+WebSocket client disconnected for user: 21051c36-debc-4d25-98dc-9339ff9573d3
+[WS] Cliente inativo, fechando conex├úo: 21051c36-debc-4d25-98dc-9339ff9573d3
+WebSocket client disconnected for user: 21051c36-debc-4d25-98dc-9339ff9573d3
+11:28:40 PM [express] GET /api/access-status 401 in 1ms :: {"message":"Unauthorized"}
+[WS] Cliente inativo, fechando conex├úo: 21051c36-debc-4d25-98dc-9339ff9573d3
+WebSocket client disconnected for user: 21051c36-debc-4d25-98dc-9339ff9573d3
+WebSocket client connected for user: 21051c36-debc-4d25-98dc-9339ff9573d3
+WebSocket client connected for user: 21051c36-debc-4d25-98dc-9339ff9573d3
+WebSocket client connected for user: 21051c36-debc-4d25-98dc-9339ff9573d3
+Ô£à [DB Pool] Nova conex├úo ESTABELECIDA
+Ô£à [DB Pool] Nova conex├úo ESTABELECIDA
+11:28:45 PM [express] GET /api/auth/user 200 in 1960ms :: {"id":"d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1cÔÇª
+11:28:46 PM [express] GET /api/user/assigned-plan 304 in 422ms :: {"hasAssignedPlan":false}
+11:28:46 PM [express] GET /api/subscriptions/current 304 in 453ms :: {"id":"b52efa57-276a-47bf-999f-eÔÇª
+11:28:46 PM [express] GET /api/agent/media 304 in 616ms :: []
+11:28:46 PM [express] GET /api/user/branding 304 in 717ms :: {"isWhiteLabel":false,"companyName":"AgeÔÇª
+11:28:47 PM [express] GET /api/agent/config 200 in 1113ms :: {"id":"5e559c34-28d6-495e-b221-a098372daÔÇª
+11:28:47 PM [express] GET /api/user/suspension-status 304 in 1179ms :: {"suspended":false}
+11:28:48 PM [express] GET /api/reseller/status 304 in 1955ms :: {"hasResellerPlan":false,"reseller":nÔÇª
+11:28:47 PM [express] GET /api/whatsapp/connection 200 in 1472ms :: {"id":"51d97d77-c90e-4b12-b405-c1ÔÇª
+[PROMPT VERSIONS] ?? Listando vers├Áes para user d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c
+11:28:47 PM [express] GET /api/access-status 200 in 3998ms :: {"accessStatus":"active","shouldBlock":ÔÇª
+[HistoryService] ­ƒô£ Buscando chat history para user d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c, limite 100
+11:28:48 PM [express] GET /api/usage 200 in 2046ms :: {"agentMessagesCount":970,"limit":-1,"remainingÔÇª
+11:28:48 PM [express] GET /api/agent/media 304 in 965ms :: []
+[HistoryService] Ô£à Retornando 100 mensagens
+[HistoryService] Primeira: "Quero que voc├¬ REESCREVA o PROMPT INTEIRO do Agent..."
+[HistoryService] ├Ültima: "Reforcei explicitamente a proibi├º├úo de uso do nome..."
+[PROMPT VERSIONS] Encontradas 50 vers├Áes
+[PROMPT VERSIONS] Vers├úo atual: v640
+11:28:48 PM [express] GET /api/agent/prompt-versions 304 in 1266ms :: {"success":true,"versions":[{"iÔÇª
+11:28:49 PM [express] GET /api/daily-limits 304 in 1375ms :: {"hasActiveSubscription":true,"calibratiÔÇª
+11:28:49 PM [express] GET /api/agent/prompt-chat 200 in 1402ms :: {"success":true,"messages":[{"id":2ÔÇª
+[WS] Cliente inativo, fechando conex├úo: d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c
+WebSocket client disconnected for user: d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c
+[WS] Cliente inativo, fechando conex├úo: d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c
+WebSocket client disconnected for user: d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c
+WebSocket client connected for user: d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c
+11:28:56 PM [express] GET /api/admin/session 200 in 3ms :: {"authenticated":false,"isAdmin":false}
+WebSocket client connected for user: d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c
+11:29:00 PM [express] GET /api/logout 302 in 3ms
+11:29:03 PM [express] GET /api/agent/config 304 in 6706ms :: {"id":"f672ea78-7261-4b8d-a69f-f59a22d30ÔÇª
+11:29:03 PM [express] GET /api/user/assigned-plan 304 in 6741ms :: {"hasAssignedPlan":false}
+11:29:04 PM [express] GET /api/auth/user 200 in 1576ms :: {"id":"cb9213c3-fde3-479e-a4aa-344171c59735ÔÇª
+11:29:04 PM [express] GET /api/usage 200 in 8144ms :: {"agentMessagesCount":10084,"limit":-1,"remainiÔÇª
+11:29:04 PM [express] GET /api/usage 304 in 6103ms :: {"agentMessagesCount":970,"limit":-1,"remainingÔÇª
+11:29:04 PM [express] GET /api/agent/config 304 in 410ms :: {"id":"f672ea78-7261-4b8d-a69f-f59a22d300ÔÇª
+11:29:04 PM [express] GET /api/user/branding 304 in 433ms :: {"isWhiteLabel":false,"companyName":"AgeÔÇª
+11:29:06 PM [express] GET /api/usage 304 in 1431ms :: {"agentMessagesCount":10084,"limit":-1,"remainiÔÇª
+11:29:05 PM [express] GET /api/subscriptions/current 304 in 590ms :: {"id":"c7ee20d9-0486-48e4-b21b-dÔÇª
+11:29:05 PM [express] GET /api/access-status 200 in 14723ms :: {"accessStatus":"active","shouldBlock"ÔÇª
+11:29:05 PM [express] GET /api/user/assigned-plan 304 in 703ms :: {"hasAssignedPlan":false}
+11:29:05 PM [express] GET /api/user/suspension-status 304 in 734ms :: {"suspended":false}
+11:29:05 PM [express] GET /api/whatsapp/connection 200 in 969ms :: {"id":"8eb70fe1-f689-47ca-989f-c00ÔÇª
+11:29:05 PM [express] GET /api/access-status 401 in 543ms :: {"message":"Unauthorized"}
+11:29:05 PM [express] GET /api/reseller/status 304 in 1305ms :: {"hasResellerPlan":true,"reseller":{"ÔÇª
+11:29:07 PM [express] GET /api/access-status 304 in 1367ms :: {"accessStatus":"active","shouldBlock":ÔÇª
+­ƒöî [DB Pool] Conex├úo REMOVIDA
+11:29:16 PM [express] POST /api/admin/login 200 in 900ms :: {"success":true,"admin":{"id":"81fc109f-3ÔÇª
+11:29:16 PM [express] GET /api/admin/session 200 in 382ms :: {"authenticated":true,"isAdmin":true,"adÔÇª
+11:29:17 PM [express] GET /api/usage 304 in 980ms :: {"agentMessagesCount":10084,"limit":-1,"remaininÔÇª
+11:29:17 PM [express] GET /api/admin/session 304 in 379ms :: {"authenticated":true,"isAdmin":true,"adÔÇª
+WebSocket client connected for user: cb9213c3-fde3-479e-a4aa-344171c59735
+Ô£à [DB Pool] Nova conex├úo ESTABELECIDA
+11:29:18 PM [express] GET /api/admin/session 304 in 922ms :: {"authenticated":true,"isAdmin":true,"adÔÇª
+11:29:21 PM [express] GET /api/admin/subscriptions 200 in 3425ms :: [{"id":"4944700c-c15d-4802-bff4-1ÔÇª
+11:29:21 PM [express] GET /api/admin/plans 304 in 3240ms :: [{"id":"a137a0db-7b23-4b8f-9e7c-9cd107204ÔÇª
+11:29:21 PM [express] GET /api/admin/stats 304 in 3386ms :: {"totalUsers":400,"totalRevenue":0,"activÔÇª
+11:29:21 PM [express] GET /api/admin/payment-receipts 200 in 3378ms :: {"receipts":[{"id":"9e487d6f-8ÔÇª
+11:29:21 PM [express] GET /api/admin/config 304 in 3503ms :: {"mistral_api_key":"q1Mcn8efOkltCDfggA7NÔÇª
+11:29:21 PM [express] GET /api/whatsapp/connections 200 in 3980ms :: [{"id":"0d3994c3-017a-4860-b3fa-ÔÇª
+11:29:21 PM [express] GET /api/admin/payments/pending 304 in 3693ms :: [{"id":"33f2cc2a-5c03-4137-a3cÔÇª
+11:29:22 PM [express] GET /api/admin/users 200 in 4448ms :: [{"id":"84d239b2-d81f-4ede-96df-6a224af5bÔÇª
+­ƒöî [DB Pool] Conex├úo REMOVIDA
+­ƒöî [DB Pool] Conex├úo REMOVIDA
+­ƒöî [DB Pool] Conex├úo REMOVIDA
+Ô£à [DB Pool] Nova conex├úo ESTABELECIDA
+Ô£à [DB Pool] Nova conex├úo ESTABELECIDA
+11:29:40 PM [express] GET /api/usage 304 in 2478ms :: {"agentMessagesCount":10084,"limit":-1,"remainiÔÇª
+11:29:40 PM [express] GET /api/access-status 304 in 2870ms :: {"accessStatus":"active","shouldBlock":ÔÇª
+Ô£à [DB Pool] Nova conex├úo ESTABELECIDA
+11:29:46 PM [express] GET /api/auth/user 200 in 1000ms :: {"id":"cb9213c3-fde3-479e-a4aa-344171c59735ÔÇª
+11:29:47 PM [express] GET /api/admin/session 304 in 378ms :: {"authenticated":true,"isAdmin":true,"adÔÇª
+11:29:47 PM [express] GET /api/access-status 304 in 1955ms :: {"accessStatus":"active","shouldBlock":ÔÇª
+11:29:47 PM [express] GET /api/user/assigned-plan 304 in 788ms :: {"hasAssignedPlan":false}
+11:29:48 PM [express] GET /api/subscriptions/current 304 in 934ms :: {"id":"c7ee20d9-0486-48e4-b21b-dÔÇª
+11:29:48 PM [express] GET /api/admin/session 304 in 755ms :: {"authenticated":true,"isAdmin":true,"adÔÇª
+11:29:50 PM [express] GET /api/admin/plans 304 in 3071ms :: [{"id":"a137a0db-7b23-4b8f-9e7c-9cd107204ÔÇª
+11:29:50 PM [express] GET /api/admin/payment-receipts 304 in 3113ms :: {"receipts":[{"id":"9e487d6f-8ÔÇª
+11:29:50 PM [express] GET /api/admin/stats 304 in 3163ms :: {"totalUsers":400,"totalRevenue":0,"activÔÇª
+11:29:51 PM [express] GET /api/admin/payments/pending 304 in 3302ms :: [{"id":"33f2cc2a-5c03-4137-a3cÔÇª
+11:29:51 PM [express] GET /api/admin/subscriptions 200 in 3329ms :: [{"id":"4944700c-c15d-4802-bff4-1ÔÇª
+11:29:51 PM [express] GET /api/admin/config 304 in 3374ms :: {"mistral_api_key":"q1Mcn8efOkltCDfggA7NÔÇª
+11:29:53 PM [express] GET /api/admin/users 200 in 5331ms :: [{"id":"84d239b2-d81f-4ede-96df-6a224af5bÔÇª
+[WS] Cliente inativo, fechando conex├úo: 21051c36-debc-4d25-98dc-9339ff9573d3
+WebSocket client disconnected for user: 21051c36-debc-4d25-98dc-9339ff9573d3
+[WS] Cliente inativo, fechando conex├úo: 21051c36-debc-4d25-98dc-9339ff9573d3
+WebSocket client disconnected for user: 21051c36-debc-4d25-98dc-9339ff9573d3
+[WS] Cliente inativo, fechando conex├úo: 21051c36-debc-4d25-98dc-9339ff9573d3
+WebSocket client disconnected for user: 21051c36-debc-4d25-98dc-9339ff9573d3
+WebSocket client connected for user: 21051c36-debc-4d25-98dc-9339ff9573d3
+­ƒöî [DB Pool] Conex├úo REMOVIDA
+­ƒöî [DB Pool] Conex├úo REMOVIDA
+­ƒöî [DB Pool] Conex├úo REMOVIDA
+WebSocket client connected for user: 21051c36-debc-4d25-98dc-9339ff9573d3
+WebSocket client connected for user: 21051c36-debc-4d25-98dc-9339ff9573d3
+[WS] Cliente inativo, fechando conex├úo: d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c
+WebSocket client disconnected for user: d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c
+WebSocket client connected for user: d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c
+[WS] Cliente inativo, fechando conex├úo: d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c
+WebSocket client disconnected for user: d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c
+WebSocket client disconnected for user: cb9213c3-fde3-479e-a4aa-344171c59735
+Ô£à [DB Pool] Nova conex├úo ESTABELECIDA
+Ô£à [DB Pool] Nova conex├úo ESTABELECIDA
+Ô£à [DB Pool] Nova conex├úo ESTABELECIDA
+WebSocket client connected for user: d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c
+11:30:22 PM [express] GET /api/auth/user 200 in 1028ms :: {"id":"cb9213c3-fde3-479e-a4aa-344171c59735ÔÇª
+WebSocket client connected for user: cb9213c3-fde3-479e-a4aa-344171c59735
+11:30:23 PM [express] GET /api/subscriptions/current 304 in 1140ms :: {"id":"c7ee20d9-0486-48e4-b21b-ÔÇª
+11:30:23 PM [express] GET /api/user/assigned-plan 304 in 1332ms :: {"hasAssignedPlan":false}
+11:30:24 PM [express] GET /api/agent/config 304 in 1966ms :: {"id":"f672ea78-7261-4b8d-a69f-f59a22d30ÔÇª
+11:30:24 PM [express] GET /api/access-status 304 in 2982ms :: {"accessStatus":"active","shouldBlock":ÔÇª
+11:30:24 PM [express] GET /api/user/suspension-status 304 in 1629ms :: {"suspended":false}
+11:30:24 PM [express] GET /api/user/branding 304 in 1641ms :: {"isWhiteLabel":false,"companyName":"AgÔÇª
+11:30:24 PM [express] GET /api/whatsapp/connection 304 in 1830ms :: {"id":"8eb70fe1-f689-47ca-989f-c0ÔÇª
+11:30:24 PM [express] GET /api/reseller/status 304 in 2194ms :: {"hasResellerPlan":true,"reseller":{"ÔÇª
+11:30:24 PM [express] GET /api/usage 304 in 2206ms :: {"agentMessagesCount":10084,"limit":-1,"remainiÔÇª
+11:30:25 PM [express] GET /api/whatsapp/connections 304 in 1173ms :: [{"id":"0d3994c3-017a-4860-b3fa-ÔÇª
+­ƒöî [DB Pool] Conex├úo REMOVIDA
+­ƒöî [DB Pool] Conex├úo REMOVIDA
+­ƒöî [DB Pool] Conex├úo REMOVIDA
+WebSocket client disconnected for user: d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c
+WebSocket client disconnected for user: d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c

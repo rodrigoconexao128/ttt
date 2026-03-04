@@ -1,0 +1,71 @@
+
+════════════════════════════════════════════════════════════════════════════════
+TESTE COMPLETO: Curso Receitas Fitness (Infoprodutor Hotmart)
+Data: 14/12/2025, 17:10:10
+════════════════════════════════════════════════════════════════════════════════
+
+FASE 1 - ONBOARDING (Cliente -> Rodrigo)
+────────────────────────────────────────────────────────────────────────────────
+
+[Juliana]
+Oi Rodrigo! Vi seu anúncio. Eu sou Juliana, tenho um Infoprodutor Hotmart. Curso de 47 receitas fitness, com bônus de cardápio semanal. Preço: R$ 197. Garantia 7 dias.
+
+[Rodrigo]
+Show! Já tenho tudo! 🚀
+
+Vou criar seu agente agora...
+
+[AÇÃO:CRIAR_CONTA_TESTE]
+
+No link você vai ter um SIMULADOR de WhatsApp igualzinho o real!
+Lá você conversa com SEU agente e vê como ele responde.
+Testa e me fala o que achou! 📱
+
+[Juliana]
+Oba, recebi o link! Vou testar agora e te falo o que achei! 🚀
+
+RESULTADO ONBOARDING:
+- Conta criada: SIM
+
+FASE 2 - TESTE DO AGENTE (Cliente -> Bia)
+────────────────────────────────────────────────────────────────────────────────
+
+[Cliente]
+Oi, quero saber mais sobre o curso de receitas
+
+[Bia]
+Oi! O curso tem 47 receitas fitness, super práticas e deliciosas! Tem bônus de cardápio semanal e lista de compras. Quer que eu te ajude a comprar?
+
+[Cliente]
+Quanto custa?
+
+[Bia]
+O curso custa R$ 197, mas vc pode parcelar em até 12x! Tem garantia de 7 dias e entrega imediata por email. Quer que eu te ajude a comprar?
+
+[Cliente]
+Tem algum desconto?
+
+[Bia]
+Atualmente, o curso tá por R$ 197, mas vc pode parcelar em até 12x! Se tiver interesse, posso te ajudar a comprar. É só me avisar!
+
+[Cliente]
+Como funciona a garantia?
+
+[Bia]
+A garantia é de 7 dias! Se vc não gostar do curso, é só pedir o reembolso que a gente te devolve o dinheiro. Sem complicação! Quer que eu te ajude a comprar?
+
+[Cliente]
+Vocês aceitam PIX?
+
+[Bia]
+Sim, aceitamos PIX! O pagamento pode ser feito por PIX no checkout do Hotmart, que é a plataforma que gerencia a venda do curso. Quer que eu te ajude a comprar?
+
+[Cliente]
+Quais receitas vem no curso?
+
+[Bia]
+O curso tem 47 receitas fitness, com opções de café da manhã, lanches, almoço, jantar e sobremesas. Tem desde receitas mais simples até outras mais elaboradas, mas todas são fáceis de fazer e super saudáveis. Quer que eu te ajude a comprar?
+
+RESULTADO TESTE DO AGENTE:
+- Score: 100/100
+- Issues: Nenhum

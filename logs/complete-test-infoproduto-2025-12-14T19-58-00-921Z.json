@@ -1,0 +1,107 @@
+{
+  "business": {
+    "name": "Ebook de Investimentos",
+    "type": "Infoprodutor",
+    "owner": "Rafael",
+    "description": "Vende ebook 'Primeiros Passos nos Investimentos' por R$ 47. Público iniciante.",
+    "scenario": "infoproduto",
+    "mediaToSend": null
+  },
+  "analysis": {
+    "score": 100,
+    "criarContaTeste": 8,
+    "mediasEnviadas": [
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+    ],
+    "aceitouMidiaCliente": false,
+    "mencionouAudio": false,
+    "contextoCorreto": true,
+    "problemas": [],
+    "destaques": [
+      "Ofereceu teste 8x - ótimo!"
+    ]
+  },
+  "messages": [
+    {
+      "role": "user",
+      "content": "Opa, Rodrigo! Vi seu anúncio sobre a AgenteZap e fiquei interessado. Como a IA vai tirar dúvidas sobre meu ebook de investimentos?"
+    },
+    {
+      "role": "assistant",
+      "content": "Opa Rafael! Que bom que você se interessou! A AgenteZap é um sistema de IA que pode ser programado para tirar dúvidas específicas sobre o seu ebook \"Primeiros Passos nos Investimentos\". Por exemplo, se um cliente perguntar sobre o conteúdo do ebook ou como fazer a compra, a IA já responde automaticamente com as informações que você programar. Isso libera seu tempo para focar em outras tarefas enquanto a IA atende 24 horas por dia! [ENVIAR_MIDIA:COMO_FUNCIONA]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, legal! E se o cliente perguntar sobre a garantia de 7 dias? A IA consegue responder isso também?"
+    },
+    {
+      "role": "assistant",
+      "content": "Sim, Rafael! A IA pode ser programada para responder sobre a garantia de 7 dias do seu ebook. Você pode configurar respostas padrão para perguntas frequentes, como \"Como funciona a garantia?\" ou \"Posso testar o ebook antes de comprar?\". A IA também pode enviar o link de compra diretamente para o cliente, facilitando o processo de venda. Além disso, a AgenteZap funciona perfeitamente com tráfego pago, pois atende os clientes que vêm do anúncio no mesmo instante! [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+    },
+    {
+      "role": "user",
+      "content": "E se o cliente perguntar sobre os bônus que venho junto com o ebook? A IA consegue explicar isso também?"
+    },
+    {
+      "role": "assistant",
+      "content": "Com certeza, Rafael! A IA pode ser programada para explicar todos os bônus que acompanham o seu ebook. Você pode configurar respostas detalhadas sobre cada bônus, como planilhas, vídeos extras ou acessos a grupos exclusivos. A AgenteZap vai deixar tudo bem claro para o cliente, aumentando as chances de conversão. Quer testar como funciona? [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "E se o cliente pedir um desconto? A IA consegue negociar pra mim?"
+    },
+    {
+      "role": "assistant",
+      "content": "A IA pode ser programada para oferecer descontos ou direcionar o cliente para uma página de promoção, mas a negociação em si ainda é feita por você, Rafael. A AgenteZap pode ser configurada para responder perguntas como \"Tem desconto?\" com uma mensagem padrão, como \"Nosso ebook já está com o melhor preço, mas você pode aproveitar a garantia de 7 dias para testar o conteúdo!\" ou \"Acesse [link] para ver nossas promoções!\". Quer testar como a IA pode ajudar no seu atendimento? [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, entendi! E se o cliente perguntar sobre o valor do ebook ou como é a entrega? A IA consegue responder isso também?"
+    },
+    {
+      "role": "assistant",
+      "content": "Sim, Rafael! A IA pode responder todas essas perguntas. Você pode programar respostas como:\n\n- \"O valor do ebook 'Primeiros Passos nos Investimentos' é R$ 47.\"\n- \"A entrega é imediata! Assim que você comprar, recebe o link de download por e-mail.\"\n\nA AgenteZap pode ser configurada para responder todas essas perguntas automaticamente, garantindo um atendimento rápido e eficiente. Quer testar como funciona? [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, beleza! E se o cliente perguntar sobre o que tem dentro do ebook? A IA consegue listar o conteúdo?"
+    },
+    {
+      "role": "assistant",
+      "content": "Claro, Rafael! A IA pode ser programada para listar o conteúdo do seu ebook, como:\n\n- \"Nosso ebook 'Primeiros Passos nos Investimentos' inclui:\n  - Introdução ao mundo dos investimentos\n  - Tipos de investimentos para iniciantes\n  - Como começar a investir com pouco dinheiro\n  - Estratégias para multiplicar seu capital\"\n\nA AgenteZap pode ser configurada para responder essas perguntas de forma detalhada, ajudando a converter mais clientes. Quer ver como funciona na prática? [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, perfeito! E se o cliente perguntar sobre o meu perfil, tipo \"quem é você, Rafael?\"? A IA consegue responder isso também?"
+    },
+    {
+      "role": "assistant",
+      "content": "Sim, Rafael! A IA pode ser programada para responder perguntas sobre você e sua expertise. Você pode incluir uma bio ou uma breve apresentação, como:\n\n- \"Olá! Sou Rafael, criador do ebook 'Primeiros Passos nos Investimentos'. Tenho mais de 5 anos de experiência no mercado financeiro e ajudo iniciantes a começar seus investimentos com segurança.\"\n\nA AgenteZap pode ser configurada para responder essas perguntas, humanizando o atendimento e aumentando a confiança do cliente. Quer testar como a IA pode ajudar no seu atendimento? [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, então tá. E se o cliente perguntar sobre o meu método de ensino? A IA consegue explicar como eu ensino no ebook?"
+    },
+    {
+      "role": "assistant",
+      "content": "Claro, Rafael! A IA pode ser programada para explicar seu método de ensino de forma clara e objetiva. Por exemplo:\n\n- \"No ebook 'Primeiros Passos nos Investimentos', ensino de forma prática e direta, com exemplos reais e linguagem acessível. Meu método é focado em ajudar iniciantes a entenderem os conceitos básicos e começarem a investir com segurança.\"\n\nA AgenteZap pode ser configurada para responder essas perguntas, destacando seu diferencial e convertendo mais clientes. Quer testar como funciona? [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, legal! E se o cliente perguntar sobre o tempo de entrega do ebook? A IA consegue responder isso também?"
+    },
+    {
+      "role": "assistant",
+      "content": "Sim, Rafael! A IA pode informar que a entrega do ebook é imediata, assim que o pagamento for confirmado. Por exemplo:\n\n- \"Assim que você finalizar a compra, recebe o link de download do ebook 'Primeiros Passos nos Investimentos' por e-mail. Tudo de forma rápida e segura!\"\n\nA AgenteZap pode ser programada para responder essas perguntas, garantindo um atendimento eficiente e aumentando a satisfação do cliente. Quer testar como a IA pode ajudar no seu atendimento? [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, então tá! E se o cliente quiser saber sobre o suporte pós-venda? A IA consegue responder isso também?"
+    },
+    {
+      "role": "assistant",
+      "content": "Claro, Rafael! A IA pode ser programada para informar sobre o suporte pós-venda, como:\n\n- \"Oferecemos suporte pós-venda via e-mail ou WhatsApp. Caso tenha dúvidas sobre o conteúdo do ebook, é só entrar em contato que respondemos em até 24 horas!\"\n\nA AgenteZap pode ser configurada para responder essas perguntas, garantindo um atendimento completo e eficiente. Quer testar como a IA pode ajudar no seu atendimento? [AÇÃO:CRIAR_CONTA_TESTE]"
+    }
+  ]
+}

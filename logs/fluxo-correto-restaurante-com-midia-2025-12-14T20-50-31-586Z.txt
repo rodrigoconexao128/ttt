@@ -1,0 +1,84 @@
+
+════════════════════════════════════════════════════════════════════════════════
+TESTE FLUXO CORRETO: Sabor Caseiro (Restaurante)
+Data: 14/12/2025, 17:50:31
+════════════════════════════════════════════════════════════════════════════════
+
+CONVERSA:
+────────────────────────────────────────────────────────────────────────────────
+
+[CLIENTE]
+Oi Carlos, tudo bem? Me chamo Rodrigo e sou da AgenteZap, vamos conversar um pouco sobre como podemos ajudar o seu restaurante a vender mais?
+
+Como funciona?
+
+[RODRIGO]
+Oi Carlos! Tudo ótimo por aqui, e contigo? 😊
+
+A AgenteZap é um sistema de IA que cria um agente virtual para o seu restaurante no WhatsApp. Ele atende seus clientes 24 horas por dia, 7 dias por semana, respondendo dúvidas, tirando pedidos e até fechando vendas! Tudo isso sem você precisar ficar grudado no celular.
+
+Quer ver como é fácil? Posso te mostrar um exemplo rápido! 🚀
+
+Pode mandar foto do cardápio/catálogo! 📸
+
+[CLIENTE]
+[Foto enviada: cardápio com pratos do dia - Feijoada R$ 25, Frango R$ 18, Marmitex R$ 15]
+
+Ok, mas quanto custa esse serviço?
+
+[RODRIGO]
+Recebi a foto! Vou usar pra configurar seu agente! 📸
+
+Nosso plano custa R$ 99/mês, mas você pode testar 7 dias grátis para ver como funciona! 😊
+
+Quer que eu crie um agente de teste pra você? Assim você vê na prática como ele atende seus clientes!
+
+Pra criar seu agente, me manda (pode ser tudo junto ou num áudio 🎤):
+📍 Nome da empresa
+🤖 Nome do agente (ex: Bia, Pedro...)
+📝 Infos que ele precisa saber (preços, horários, produtos...)
+
+Pode mandar foto do cardápio/catálogo também! 📸
+
+O que acha? 😃
+
+[CLIENTE]
+Ótimo! O nome do restaurante é Sabor Caseiro.
+
+O agente pode se chamar "Maria".
+
+As informações que ele precisa saber:
+- Prato do dia R$ 18
+- Marmitex R$ 15
+- Funcionamos das 11h às 22h
+- Delivery grátis acima de R$ 30
+
+[Foto enviada: cardápio com pratos do dia - Feijoada R$ 25, Frango R$ 18, Marmitex R$ 15]
+
+Vamos lá!
+
+[RODRIGO]
+Pronto! Criei seu agente! 🚀
+
+[AÇÃO:CRIAR_CONTA_TESTE]
+
+Vou te mandar o LINK agora!
+
+Quando você abrir, vai ver um SIMULADOR de WhatsApp igualzinho o real!
+Lá você conversa com SEU AGENTE e vê como ele responde.
+
+Testa lá e me fala o que achou! Se precisar ajustar algo, a gente faz na hora! 📱
+
+[CLIENTE]
+Obrigado pelo link! Vou testar e depois te falo o que achei.
+
+────────────────────────────────────────────────────────────────────────────────
+NOTA FINAL: 100/100
+
+CRITÉRIOS:
+✅ Conta criada com [AÇÃO:CRIAR_CONTA_TESTE] (+20)
+✅ Mídia do cliente foi aceita (+20)
+✅ Mencionou LINK (não email!) (+20)
+✅ Explicou que é um SIMULADOR de WhatsApp (+15)
+✅ Explicou que cliente conversa com SEU AGENTE (+15)
+✅ Não mencionou email (correto!) (+10)

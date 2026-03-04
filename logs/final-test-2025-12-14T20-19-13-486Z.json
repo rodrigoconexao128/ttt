@@ -1,0 +1,271 @@
+{
+  "timestamp": "2025-12-14T20:19:13.487Z",
+  "summary": {
+    "approved": 5,
+    "total": 5,
+    "avgOnboarding": 100,
+    "avgAgent": 100
+  },
+  "results": [
+    {
+      "business": "Curso de Receitas Fit",
+      "success": true,
+      "onboardingScore": 100,
+      "agentScore": 100,
+      "onboardingMessages": 3,
+      "agentMessages": 6,
+      "accountCreated": true,
+      "issues": [],
+      "logs": {
+        "onboarding": [
+          {
+            "role": "user",
+            "content": "Oi! Tenho um curso de receitas fitness no Hotmart, R$ 197, 47 receitas com bônus. Empresa: Fit Receitas by Ju, agente: Bia. Quero 24h de atendimento!"
+          },
+          {
+            "role": "assistant",
+            "content": "Show! Já tenho tudo! 🚀\n\n[AÇÃO:CRIAR_CONTA_TESTE]\n\nVocê vai receber um link com SIMULADOR de WhatsApp!\nLá você conversa com SEU agente e vê como ele responde.\nTesta e me fala! 📱"
+          },
+          {
+            "role": "user",
+            "content": "Oba, recebi! Vou testar! 🚀"
+          }
+        ],
+        "agent": [
+          {
+            "role": "user",
+            "content": "Quanto custa o curso?"
+          },
+          {
+            "role": "assistant",
+            "content": "O curso custa R$ 197,00. Tá barato, né? E ainda tem 47 receitas fitness e um monte de bônus!"
+          },
+          {
+            "role": "user",
+            "content": "Tem garantia?"
+          },
+          {
+            "role": "assistant",
+            "content": "Tá sim! Você tem 7 dias pra testar o curso e se não gostar, é só pedir o reembolso. Sem enrolação!"
+          },
+          {
+            "role": "user",
+            "content": "Aceita PIX?"
+          },
+          {
+            "role": "assistant",
+            "content": "Sim, a gente aceita PIX! É só escolher a opção de pagamento no site e seguir as instruções. Super fácil e rápido!"
+          }
+        ]
+      }
+    },
+    {
+      "business": "Restaurante Sabor do Bairro",
+      "success": true,
+      "onboardingScore": 100,
+      "agentScore": 100,
+      "onboardingMessages": 3,
+      "agentMessages": 6,
+      "accountCreated": true,
+      "issues": [],
+      "logs": {
+        "onboarding": [
+          {
+            "role": "user",
+            "content": "Oi, tenho um restaurante aqui no bairro, prato do dia R$ 18, delivery grátis acima de R$ 30. Preciso de ajuda pra responder pedidos 24h!"
+          },
+          {
+            "role": "assistant",
+            "content": "Show! Já tenho tudo! 🚀\n\n[AÇÃO:CRIAR_CONTA_TESTE]\n\nVocê vai receber um link com SIMULADOR de WhatsApp!\nLá você conversa com SEU agente e vê como ele responde.\nTesta e me fala! 📱"
+          },
+          {
+            "role": "user",
+            "content": "Oba, recebi! Vou testar! 🚀"
+          }
+        ],
+        "agent": [
+          {
+            "role": "user",
+            "content": "Qual o prato de hoje?"
+          },
+          {
+            "role": "assistant",
+            "content": "O prato do dia tá uma delícia: tem um macarrão à bolonhesa especial! Tá saindo por R$ 18. Quer pedir?"
+          },
+          {
+            "role": "user",
+            "content": "Vocês fazem delivery?"
+          },
+          {
+            "role": "assistant",
+            "content": "Sim, a gente faz delivery! E se o pedido for acima de R$ 30, a entrega é grátis. Bora pedir?"
+          },
+          {
+            "role": "user",
+            "content": "Até que horas vocês ficam abertos?"
+          },
+          {
+            "role": "assistant",
+            "content": "A gente fica aberto das 11h às 22h. Se precisar de algo, é só chamar!"
+          }
+        ]
+      }
+    },
+    {
+      "business": "Afiliado Drop Expert",
+      "success": true,
+      "onboardingScore": 100,
+      "agentScore": 100,
+      "onboardingMessages": 3,
+      "agentMessages": 6,
+      "accountCreated": true,
+      "issues": [],
+      "logs": {
+        "onboarding": [
+          {
+            "role": "user",
+            "content": "E aí! Sou afiliado de um curso de dropshipping, R$ 297. Empresa: Drop Expert, agente: Carol. Preciso de IA pra converter leads!"
+          },
+          {
+            "role": "assistant",
+            "content": "Show! Já tenho tudo! 🚀\n\n[AÇÃO:CRIAR_CONTA_TESTE]\n\nVocê vai receber um link com SIMULADOR de WhatsApp!\nLá você conversa com SEU agente e vê como ele responde.\nTesta e me fala! 📱"
+          },
+          {
+            "role": "user",
+            "content": "Oba, recebi! Vou testar! 🚀"
+          }
+        ],
+        "agent": [
+          {
+            "role": "user",
+            "content": "Como funciona o curso?"
+          },
+          {
+            "role": "assistant",
+            "content": "O curso Dropshipping Passo a Passo ensina vc a vender sem estoque, direto do fornecedor pro cliente. É tudo online, com aulas práticas e suporte por WhatsApp. Em 7 dias vc já tá pronto pra começar!"
+          },
+          {
+            "role": "user",
+            "content": "Posso parcelar?"
+          },
+          {
+            "role": "assistant",
+            "content": "Sim, pode! O curso custa R$ 297 e pode ser parcelado em até 12x no cartão. Se preferir, também aceitamos pagamento à vista por transferência. Qualquer dúvida, é só perguntar!"
+          },
+          {
+            "role": "user",
+            "content": "Funciona mesmo?"
+          },
+          {
+            "role": "assistant",
+            "content": "Sim, funciona! O curso já ajudou muitas pessoas a começarem no dropshipping. Você aprende do básico ao avançado, com suporte direto por WhatsApp e garantia de 7 dias. Se não gostar, devolve o dinheiro!"
+          }
+        ]
+      }
+    },
+    {
+      "business": "Moda Bella",
+      "success": true,
+      "onboardingScore": 100,
+      "agentScore": 100,
+      "onboardingMessages": 3,
+      "agentMessages": 6,
+      "accountCreated": true,
+      "issues": [],
+      "logs": {
+        "onboarding": [
+          {
+            "role": "user",
+            "content": "Oi, tenho uma loja de roupas femininas, P ao GG. Empresa: Moda Bella, agente: Luana. Entrega 3-5 dias, aceito PIX e cartão."
+          },
+          {
+            "role": "assistant",
+            "content": "Show! Já tenho tudo! 🚀\n\n[AÇÃO:CRIAR_CONTA_TESTE]\n\nVocê vai receber um link com SIMULADOR de WhatsApp!\nLá você conversa com SEU agente e vê como ele responde.\nTesta e me fala! 📱"
+          },
+          {
+            "role": "user",
+            "content": "Oba, recebi! Vou testar! 🚀"
+          }
+        ],
+        "agent": [
+          {
+            "role": "user",
+            "content": "Quais tamanhos vocês têm?"
+          },
+          {
+            "role": "assistant",
+            "content": "Na Moda Bella a gente tem de P ao GG, pra garantir que todas as mulheres se sintam lindas e confortáveis! 😊"
+          },
+          {
+            "role": "user",
+            "content": "Quanto tempo pra entregar?"
+          },
+          {
+            "role": "assistant",
+            "content": "A entrega da Moda Bella é rápida! Em geral, leva entre 3 a 5 dias úteis pra chegar na sua casa. 😊"
+          },
+          {
+            "role": "user",
+            "content": "Posso trocar se não servir?"
+          },
+          {
+            "role": "assistant",
+            "content": "Claro que pode! Na Moda Bella, você tem até 7 dias pra trocar se o produto não servir ou não agradar. É só nos avisar! 😊"
+          }
+        ]
+      }
+    },
+    {
+      "business": "Clínica Bela Vida",
+      "success": true,
+      "onboardingScore": 100,
+      "agentScore": 100,
+      "onboardingMessages": 3,
+      "agentMessages": 6,
+      "accountCreated": true,
+      "issues": [],
+      "logs": {
+        "onboarding": [
+          {
+            "role": "user",
+            "content": "Olá! Sou a Dra. Mariana da Clínica Bela Vida. Fazemos botox, preenchimento, limpeza de pele. Preciso de agente pra agendar consultas!"
+          },
+          {
+            "role": "assistant",
+            "content": "Show! Já tenho tudo! 🚀\n\n[AÇÃO:CRIAR_CONTA_TESTE]\n\nVocê vai receber um link com SIMULADOR de WhatsApp!\nLá você conversa com SEU agente e vê como ele responde.\nTesta e me fala! 📱"
+          },
+          {
+            "role": "user",
+            "content": "Oba, recebi! Vou testar! 🚀"
+          }
+        ],
+        "agent": [
+          {
+            "role": "user",
+            "content": "Quanto custa botox?"
+          },
+          {
+            "role": "assistant",
+            "content": "O botox na Clínica Bela Vida começa a partir de R$ 800. Quer agendar um horário pra conversar com um dos nossos especialistas?"
+          },
+          {
+            "role": "user",
+            "content": "Vocês fazem preenchimento?"
+          },
+          {
+            "role": "assistant",
+            "content": "Sim, a gente faz preenchimento! O valor é a partir de R$ 1.200. Quer agendar um horário pra tirar suas dúvidas?"
+          },
+          {
+            "role": "user",
+            "content": "Como faço pra agendar?"
+          },
+          {
+            "role": "assistant",
+            "content": "Você pode agendar pelo telefone ou WhatsApp. A gente atende de segunda a sexta, das 9h às 18h. Qualquer dúvida é só chamar!"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -1,0 +1,46 @@
+
+═══════════════════════════════════════════════════════════════════════════════
+📊 RELATÓRIO DE CALIBRAÇÃO - RODRIGO (AGENTE VENDEDOR)
+═══════════════════════════════════════════════════════════════════════════════
+
+DATA: 14/12/2025, 21:07:40
+TESTE: IA vs IA SEM ROTEIRO (Cliente age naturalmente)
+
+═══════════════════════════════════════════════════════════════════════════════
+📈 RESULTADOS GERAIS
+═══════════════════════════════════════════════════════════════════════════════
+
+TAXA DE CONVERSÃO: 75% (3/4 nichos)
+⚠️ BOM, MAS PODE MELHORAR
+
+═══════════════════════════════════════════════════════════════════════════════
+📋 RESULTADOS POR NICHO
+═══════════════════════════════════════════════════════════════════════════════
+
+✅ Restaurante: CONVERTEU (8 mensagens)
+
+❌ Hotmart/Infoprodutor: NÃO CONVERTEU 
+   📌 Motivo: Cliente achou caro - Rodrigo não demonstrou ROI suficiente
+   💬 Última msg cliente: "Tá, mas R$99 é um pouco caro pra mim. E se eu quiser cancelar depois do teste, como é que funciona? ..."
+
+✅ Loja de Roupas Online: CONVERTEU (3 mensagens)
+
+✅ Clínica Médica: CONVERTEU (5 mensagens)
+
+
+═══════════════════════════════════════════════════════════════════════════════
+🔧 SUGESTÕES DE AJUSTE
+═══════════════════════════════════════════════════════════════════════════════
+
+1. MELHORAR DEMONSTRAÇÃO DE ROI:
+   - Adicionar comparação com custo de funcionário
+   - Enfatizar economia de tempo
+   - Dar exemplos de quanto cliente pode ganhar
+
+
+═══════════════════════════════════════════════════════════════════════════════
+📁 LOGS DETALHADOS
+═══════════════════════════════════════════════════════════════════════════════
+
+Conversas completas salvas em: logs/calibration-{timestamp}.json
+

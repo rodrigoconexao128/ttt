@@ -1,0 +1,305 @@
+{
+  "business": {
+    "name": "Tech Solutions",
+    "type": "Suporte de TI",
+    "owner": "Ricardo",
+    "description": "Empresa de suporte técnico e TI para pequenas empresas. Manutenção de computadores, redes, backup em nuvem."
+  },
+  "startTime": "2025-12-14T19:41:51.295Z",
+  "messages": [
+    {
+      "msgNum": 1,
+      "role": "client",
+      "content": "Opa, Ricardo! Tô aqui porque vi propaganda da AgenteZap. Mas já fui enganado por chatbot antes, então vou perguntar tudo. Como é que funciona essa parada?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:41:52.074Z"
+    },
+    {
+      "msgNum": 2,
+      "role": "agent",
+      "content": "Entendo sua preocupação, Ricardo! A AgenteZap é diferente. Ela usa IA avançada para responder seus clientes de Suporte de TI como se fosse um humano, 24/7. Pode agendar serviços, tirar dúvidas técnicas básicas e até enviar orçamentos automáticos. Quer ver como funciona? [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nO que você acha de testar por 7 dias sem compromisso?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:41:52.984Z"
+    },
+    {
+      "msgNum": 3,
+      "role": "client",
+      "content": "\"Tá, mas como que ela entende perguntas técnicas de TI? Tipo, se um cliente perguntar sobre backup em nuvem, ela sabe responder direito? E esse teste de 7 dias é grátis mesmo?\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:41:54.530Z"
+    },
+    {
+      "msgNum": 4,
+      "role": "agent",
+      "content": "A AgenteZap é treinada para entender perguntas técnicas básicas de TI, como backup em nuvem, manutenção de redes e suporte remoto. Ela pode responder dúvidas comuns e, se necessário, encaminhar para um humano quando a questão for muito específica. Sim, o teste de 7 dias é grátis mesmo, sem cartão de crédito! [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nQual sua maior dúvida ainda sobre como a AgenteZap pode ajudar na sua Suporte de TI?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:41:55.747Z"
+    },
+    {
+      "msgNum": 5,
+      "role": "client",
+      "content": "Hmm, mas como ela vai lidar com perguntas mais complexas? Tipo se um cliente perguntar sobre configuração de VPN ou resolução de problemas de rede? Já tentei chatbot antes e não funcionou, então tô na dúvida...",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:41:57.388Z"
+    },
+    {
+      "msgNum": 6,
+      "role": "agent",
+      "content": "Entendo sua preocupação, Ricardo. A AgenteZap é projetada para lidar com perguntas técnicas básicas, mas quando a questão é muito específica, como configuração de VPN ou resolução de problemas de rede complexos, ela encaminha automaticamente para um humano. Isso garante que seus clientes recebam a ajuda certa no momento certo.\n\nJá falei sobre isso! Bora começar o teste? [ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:41:58.507Z"
+    },
+    {
+      "msgNum": 7,
+      "role": "client",
+      "content": "Tá, mas como é que isso funciona na prática? Se um cliente perguntar sobre backup em nuvem, por exemplo, como a AgenteZap sabe quando encaminhar pra mim? E se ela errar e mandar um caso simples pra mim e um complexo pro chatbot?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:42:00.631Z"
+    },
+    {
+      "msgNum": 8,
+      "role": "agent",
+      "content": "Ótima pergunta, Ricardo! A AgenteZap usa inteligência artificial para analisar a complexidade da pergunta. Se for algo básico, como \"como faço backup em nuvem?\", ela responde diretamente. Se for algo mais complexo, como \"meu backup em nuvem parou de funcionar e está dando erro XYZ\", ela encaminha automaticamente para você.\n\nQuer que eu explique algum detalhe específico? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:42:01.661Z"
+    },
+    {
+      "msgNum": 9,
+      "role": "client",
+      "content": "Tá, mas como é que ela sabe se é básico ou complexo? Já tentei chatbot antes e era uma porcaria...",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:42:03.119Z"
+    },
+    {
+      "msgNum": 10,
+      "role": "agent",
+      "content": "Ricardo, a AgenteZap usa algoritmos avançados de processamento de linguagem natural para analisar a complexidade das perguntas. Ela é treinada para identificar termos técnicos e a estrutura da pergunta, garantindo que só encaminhe para você quando realmente necessário.\n\nJá falei sobre isso! O que te impede de testar agora? [ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:42:04.251Z"
+    },
+    {
+      "msgNum": 11,
+      "role": "client",
+      "content": "Tá, mas e aí? Como que isso vai ajudar no meu negócio de suporte de TI? Já tentei chatbot antes e foi um desastre.",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:42:05.850Z"
+    },
+    {
+      "msgNum": 12,
+      "role": "agent",
+      "content": "Ricardo, a AgenteZap pode ser um grande aliado para sua Suporte de TI. Ela pode atender clientes 24/7, tirar dúvidas básicas, agendar serviços e até enviar orçamentos automáticos. Isso libera sua equipe para focar nos problemas mais complexos, aumentando a eficiência e a satisfação do cliente.\n\nQuantos clientes vocês atendem por dia no WhatsApp? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:42:07.035Z"
+    },
+    {
+      "msgNum": 13,
+      "role": "client",
+      "content": "Tá, mas como exatamente ela tira dúvidas de suporte técnico? Me dá um exemplo prático pra minha área.\n\nE esse vídeo aí, é só propaganda ou tem algo concreto?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:42:08.713Z"
+    },
+    {
+      "msgNum": 14,
+      "role": "agent",
+      "content": "Ricardo, a AgenteZap pode responder perguntas como \"Como faço para resetar minha senha de e-mail?\" ou \"Meu computador está lento, o que posso fazer?\". Ela também pode enviar tutoriais em PDF ou links úteis. O vídeo que te enviei mostra casos reais de clientes que usam a AgenteZap no suporte técnico. [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nO que acha de testar por 7 dias sem compromisso?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:42:10.364Z"
+    },
+    {
+      "msgNum": 15,
+      "role": "client",
+      "content": "\"Tá, mas como é que ela sabe responder essas perguntas do suporte técnico? Tem alguma base de conhecimento específica pra TI? E esse teste de 7 dias, tem algum custo?\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:42:11.950Z"
+    },
+    {
+      "msgNum": 16,
+      "role": "agent",
+      "content": "Ricardo, a AgenteZap tem uma base de conhecimento específica para suporte técnico, treinada com perguntas comuns de TI. Ela usa essa base para responder dúvidas básicas e encaminhar as mais complexas para você. O teste de 7 dias é totalmente grátis, sem custo algum! [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nQual horário mais pega fogo aí na sua Suporte de TI?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:42:12.939Z"
+    },
+    {
+      "msgNum": 17,
+      "role": "client",
+      "content": "\"Ah, tá. Mas como é que isso vai ajudar especificamente na minha loja de suporte técnico? Tipo, vc já viu um caso parecido com o meu?\"\n\n(Se ele responder bem, mas com desconfiança)\n\"Hmm, interessante. Mas e se o cliente perguntar algo que a IA não sabe? Não vai dar trabalho pra mim depois?\"\n\n(Se ele mencionar o teste grátis)\n\"Tá, mas o que acontece depois dos 7 dias? Se eu não gostar, vou ter que pagar mesmo assim?\"\n\n(Se ele não responder algo importante)\n\"Ó, vc não respondeu minha pergunta sobre o horário que mais pega fogo aqui. Isso é importante pra saber se o chatbot vai ajudar mesmo.\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:42:15.404Z"
+    },
+    {
+      "msgNum": 18,
+      "role": "agent",
+      "content": "Ricardo, a AgenteZap pode ajudar sua Suporte de TI a atender clientes 24/7, agendar serviços e responder perguntas básicas, liberando sua equipe para focar nos problemas mais complexos. Já ajudamos várias empresas de TI a aumentar sua eficiência e satisfação do cliente.\n\nSe o cliente perguntar algo que a IA não sabe, ela encaminha automaticamente para você. É como ter um assistente virtual que sabe quando chamar o especialista.\n\nO teste de 7 dias é grátis e sem compromisso. Se não gostar, basta cancelar antes do final do período e não pagará nada.\n\nQual horário mais pega fogo aí na sua Suporte de TI? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:42:16.804Z"
+    },
+    {
+      "msgNum": 19,
+      "role": "client",
+      "content": "Tá, mas como é que funciona na prática? Tipo, se um cliente perguntar sobre um problema de rede, o chatbot vai conseguir ajudar mesmo? Já tentei um chatbot antes e foi um desastre...",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:42:18.427Z"
+    },
+    {
+      "msgNum": 20,
+      "role": "agent",
+      "content": "Ricardo, a AgenteZap é diferente. Ela pode responder dúvidas básicas sobre problemas de rede, como \"Como faço para resetar meu roteador?\" ou \"Por que minha internet está lenta?\". Se a pergunta for muito específica, ela encaminha para você. Quer ver um exemplo prático? [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nO que acha de testar por 7 dias sem compromisso?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:42:19.295Z"
+    },
+    {
+      "msgNum": 21,
+      "role": "client",
+      "content": "\"Tá, mas como é que ela sabe quando encaminhar pra mim e quando responder sozinha? E esse teste de 7 dias tem algum custo?\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:42:20.756Z"
+    },
+    {
+      "msgNum": 22,
+      "role": "agent",
+      "content": "Ricardo, a AgenteZap usa inteligência artificial para analisar a complexidade da pergunta. Se for algo básico, ela responde sozinha. Se for algo muito específico, ela encaminha para você. O teste de 7 dias é totalmente grátis, sem custo algum! [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nPosso criar seu acesso agora mesmo?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:42:21.742Z"
+    },
+    {
+      "msgNum": 23,
+      "role": "client",
+      "content": "\"Tá, mas como é que ela sabe se é pra responder sozinha ou encaminhar? E se ela errar e mandar um cliente pra mim que ela poderia responder sozinha? Já vi chatbot fazer isso e deu merda.\"\n\n(Se ele responder bem, talvez você mude um pouco o tom)\n\n\"Ah, e esse teste grátis... tem algum limite de uso? Porque se for só pra testar com 3 mensagens, não adianta nada, né?\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:42:23.688Z"
+    },
+    {
+      "msgNum": 24,
+      "role": "agent",
+      "content": "Ricardo, a AgenteZap é treinada para identificar a complexidade das perguntas. Ela usa algoritmos avançados para decidir quando responder sozinha e quando encaminhar para você. Se ela errar, você pode ajustar as regras facilmente.\n\nO teste de 7 dias não tem limite de uso. Você pode testar com quantos clientes quiser, sem restrições! [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nMe conta mais sobre seu negócio de Suporte de TI...",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:42:24.884Z"
+    },
+    {
+      "msgNum": 25,
+      "role": "client",
+      "content": "\"Tá, mas como isso vai ajudar no meu suporte técnico? Meus clientes sempre têm problemas diferentes. E esse vídeo é só um teste básico, né? Quero ver algo mais real.\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:42:26.568Z"
+    },
+    {
+      "msgNum": 26,
+      "role": "agent",
+      "content": "Ricardo, a AgenteZap pode ajudar sua Suporte de TI a atender clientes 24/7, agendar serviços e responder perguntas básicas, liberando sua equipe para focar nos problemas mais complexos. O vídeo que te enviei mostra casos reais de clientes que usam a AgenteZap no suporte técnico. [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nQuantos clientes vocês atendem por dia no WhatsApp?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:42:27.533Z"
+    },
+    {
+      "msgNum": 27,
+      "role": "client",
+      "content": "\"Tá, mas quantos clientes atendem por dia? Tipo, 10, 100? Quero ver se vale a pena. E esse vídeo aí, é só propaganda ou tem coisa real mesmo? Já tentei chatbot antes e foi um lixo.\"",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:42:29.193Z"
+    },
+    {
+      "msgNum": 28,
+      "role": "agent",
+      "content": "Ricardo, a AgenteZap pode atender quantos clientes você precisar, desde 10 até 100 ou mais por dia. O vídeo que te enviei mostra casos reais de clientes que usam a AgenteZap no suporte técnico. [ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]\n\nO que te impede de testar agora?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:42:30.080Z"
+    },
+    {
+      "msgNum": 29,
+      "role": "client",
+      "content": "Tá, mas como é que esse negócio funciona PRA MIM? Eu não vendo produtos, eu dou suporte técnico. Como que o chatbot vai me ajudar nisso?",
+      "mediaTagsFound": [],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:42:31.579Z"
+    },
+    {
+      "msgNum": 30,
+      "role": "agent",
+      "content": "Ricardo, a AgenteZap pode ajudar sua Suporte de TI a atender clientes 24/7, agendar serviços e responder perguntas básicas, liberando sua equipe para focar nos problemas mais complexos. Ela pode responder dúvidas como \"Como faço para resetar minha senha de e-mail?\" ou \"Meu computador está lento, o que posso fazer?\". [ENVIAR_MIDIA:COMO_FUNCIONA]\n\nFaz sentido pra você?",
+      "mediaTagsFound": [
+        "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+      ],
+      "actionsFound": [],
+      "timestamp": "2025-12-14T19:42:32.548Z"
+    }
+  ],
+  "analysis": {
+    "totalMessages": 30,
+    "mediaTagsUsed": [
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:VIDEO_DEMONSTRACAO]",
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+    ],
+    "actionsUsed": [],
+    "potentialRepetitions": [],
+    "clientConvinced": false,
+    "observations": []
+  }
+}

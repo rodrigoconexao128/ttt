@@ -1,0 +1,55 @@
+{
+  "business": {
+    "name": "Curso de Receitas Fit",
+    "type": "Infoprodutor Hotmart",
+    "owner": "Juliana",
+    "description": "Vende curso de receitas fitness na Hotmart. 47 receitas saudáveis, com bônus de cardápio semanal.",
+    "scenario": "infoproduto",
+    "mediaToSend": "audio"
+  },
+  "analysis": {
+    "score": 75,
+    "criarContaTeste": 2,
+    "mediasEnviadas": [
+      "[ENVIAR_MIDIA:COMO_FUNCIONA]"
+    ],
+    "aceitouMidiaCliente": false,
+    "mencionouAudio": false,
+    "contextoCorreto": true,
+    "problemas": [
+      "Ofereceu teste apenas 2x",
+      "Não demonstrou aceitar mídia do cliente"
+    ],
+    "destaques": []
+  },
+  "messages": [
+    {
+      "role": "user",
+      "content": "Opa, Rodrigo! Vi seu anúncio falando da AgenteZap e fiquei curioso. Você tem experiência com cursos de receitas fitness?"
+    },
+    {
+      "role": "assistant",
+      "content": "Opa, Juliana! Que bom que você entrou em contato! Tenho experiência em ajudar diversos infoprodutores, especialmente no nicho de cursos fitness e alimentação saudável. A AgenteZap é perfeita para o seu curso de receitas fitness, pois pode tirar dúvidas dos seus alunos 24 horas por dia, 7 dias por semana, e ainda direcionar os interessados para a compra do curso. [ENVIAR_MIDIA:COMO_FUNCIONA]"
+    },
+    {
+      "role": "user",
+      "content": "Ah, legal! Mas como a IA vai tirar dúvidas sobre meu curso? Tipo, se o cliente perguntar sobre as 47 receitas ou o cardápio semanal que eu dou de bônus?"
+    },
+    {
+      "role": "assistant",
+      "content": "Ótima pergunta, Juliana! A AgenteZap é treinada para entender o contexto do seu curso e responder de forma personalizada. Por exemplo, se um cliente perguntar sobre as receitas, a IA pode explicar que são 47 opções saudáveis e variadas, e até mesmo destacar o bônus do cardápio semanal. Além disso, ela pode direcionar o cliente para a página de vendas do seu curso na Hotmart, aumentando suas conversões. [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Interessante... mas e se o cliente perguntar sobre a garantia de 7 dias? Ela consegue responder sobre isso também?"
+    },
+    {
+      "role": "assistant",
+      "content": "Sim, Juliana! A AgenteZap pode ser configurada para responder sobre a garantia de 7 dias do seu curso. Você pode programar as respostas para que a IA informe sobre a política de reembolso e até mesmo direcionar o cliente para a página de vendas onde essas informações estão detalhadas. Quer testar como funciona? Posso criar uma conta de teste para você experimentar a AgenteZap no seu negócio. [AÇÃO:CRIAR_CONTA_TESTE]"
+    },
+    {
+      "role": "user",
+      "content": "Tá, mas e se a galera vier do anúncio e cair no WhatsApp? Dá pra ela direcionar pra compra mesmo assim?"
+    }
+  ]
+}

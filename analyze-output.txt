@@ -1,0 +1,24 @@
+Lendo arquivo: C:\Users\Windows\Downloads\agentezap correto\vvvv\LISTA IA.xlsx
+Sheets: [ 'Planilha' ]
+
+=== HEADERS (linha 1) ===
+[
+  "Código",
+  "Descrição",
+  "Preço 1"
+]
+
+=== TOTAL DE LINHAS ===
+1545 produtos
+
+=== PRIMEIRAS 5 LINHAS DE DADOS ===
+Linha 1: [1,"PACOCA DANI 20UN","29,90"]
+Linha 2: [2,"PACOCA DANI 2,2KG 50UN","29,90"]
+Linha 3: [3,"PACOCA DANI 1,2 KG 50UN","18,00"]
+Linha 4: [4,"PACOCA DANI 1,5 KG 50UN","21,00"]
+Linha 5: [5,"PACOCA DANI 30UN","29,90"]
+
+=== ANÁLISE DE ESTRUTURA ===
+Coluna 0: "Código"
+Coluna 1: "Descrição"
+Coluna 2: "Preço 1"

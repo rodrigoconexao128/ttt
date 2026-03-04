@@ -1,0 +1,56 @@
+{
+  "timestamp": "2025-12-14T20:50:31.587Z",
+  "scenario": {
+    "id": "restaurante-com-midia",
+    "businessType": "Restaurante",
+    "businessName": "Sabor Caseiro",
+    "owner": "Carlos"
+  },
+  "conversation": [
+    {
+      "speaker": "Cliente",
+      "content": "Oi Carlos, tudo bem? Me chamo Rodrigo e sou da AgenteZap, vamos conversar um pouco sobre como podemos ajudar o seu restaurante a vender mais?\n\nComo funciona?"
+    },
+    {
+      "speaker": "Rodrigo",
+      "content": "Oi Carlos! Tudo ótimo por aqui, e contigo? 😊\n\nA AgenteZap é um sistema de IA que cria um agente virtual para o seu restaurante no WhatsApp. Ele atende seus clientes 24 horas por dia, 7 dias por semana, respondendo dúvidas, tirando pedidos e até fechando vendas! Tudo isso sem você precisar ficar grudado no celular.\n\nQuer ver como é fácil? Posso te mostrar um exemplo rápido! 🚀\n\nPode mandar foto do cardápio/catálogo! 📸"
+    },
+    {
+      "speaker": "Cliente",
+      "content": "[Foto enviada: cardápio com pratos do dia - Feijoada R$ 25, Frango R$ 18, Marmitex R$ 15]\n\nOk, mas quanto custa esse serviço?"
+    },
+    {
+      "speaker": "Rodrigo",
+      "content": "Recebi a foto! Vou usar pra configurar seu agente! 📸\n\nNosso plano custa R$ 99/mês, mas você pode testar 7 dias grátis para ver como funciona! 😊\n\nQuer que eu crie um agente de teste pra você? Assim você vê na prática como ele atende seus clientes!\n\nPra criar seu agente, me manda (pode ser tudo junto ou num áudio 🎤):\n📍 Nome da empresa\n🤖 Nome do agente (ex: Bia, Pedro...)\n📝 Infos que ele precisa saber (preços, horários, produtos...)\n\nPode mandar foto do cardápio/catálogo também! 📸\n\nO que acha? 😃"
+    },
+    {
+      "speaker": "Cliente",
+      "content": "Ótimo! O nome do restaurante é Sabor Caseiro.\n\nO agente pode se chamar \"Maria\".\n\nAs informações que ele precisa saber:\n- Prato do dia R$ 18\n- Marmitex R$ 15\n- Funcionamos das 11h às 22h\n- Delivery grátis acima de R$ 30\n\n[Foto enviada: cardápio com pratos do dia - Feijoada R$ 25, Frango R$ 18, Marmitex R$ 15]\n\nVamos lá!"
+    },
+    {
+      "speaker": "Rodrigo",
+      "content": "Pronto! Criei seu agente! 🚀\n\n[AÇÃO:CRIAR_CONTA_TESTE]\n\nVou te mandar o LINK agora!\n\nQuando você abrir, vai ver um SIMULADOR de WhatsApp igualzinho o real!\nLá você conversa com SEU AGENTE e vê como ele responde.\n\nTesta lá e me fala o que achou! Se precisar ajustar algo, a gente faz na hora! 📱"
+    },
+    {
+      "speaker": "Cliente",
+      "content": "Obrigado pelo link! Vou testar e depois te falo o que achei."
+    }
+  ],
+  "metrics": {
+    "accountCreated": true,
+    "mediaAccepted": true,
+    "linkMentioned": true,
+    "simulatorExplained": true,
+    "ownAgentExplained": true,
+    "noEmailMentioned": true
+  },
+  "score": 100,
+  "details": [
+    "✅ Conta criada com [AÇÃO:CRIAR_CONTA_TESTE] (+20)",
+    "✅ Mídia do cliente foi aceita (+20)",
+    "✅ Mencionou LINK (não email!) (+20)",
+    "✅ Explicou que é um SIMULADOR de WhatsApp (+15)",
+    "✅ Explicou que cliente conversa com SEU AGENTE (+15)",
+    "✅ Não mencionou email (correto!) (+10)"
+  ]
+}

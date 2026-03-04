@@ -1,0 +1,289 @@
+{
+  "summary": {
+    "adminEmail": "rodrigoconexao128@gmail.com",
+    "baseUrl": "https://agentezap.online",
+    "total": 6,
+    "successCount": 6,
+    "failCount": 0,
+    "successRate": 100,
+    "requiredPhone": "5517991956944",
+    "requiredPhonePassed": true
+  },
+  "results": [
+    {
+      "id": "real-phone-5517991956944",
+      "phone": "5517991956944",
+      "profile": "cliente real solicitado",
+      "resetResult": {
+        "conversationDeleted": true,
+        "messagesDeleted": 8,
+        "userDeleted": true,
+        "connectionDeleted": false,
+        "subscriptionDeleted": false,
+        "agentConfigDeleted": false
+      },
+      "turns": [
+        {
+          "turn": 1,
+          "clientMessage": "oi, vim de anuncio e quero automatizar meu whatsapp",
+          "agentReply": "Boa! Agora me explica melhor tudo que você quer que o agente tenha e faça, tipo de atendimento, se faz venda, agendamento, tira dúvida, cobra cliente... quanto mais detalhe, mais certeiro eu deixo.",
+          "savedClientMessageId": "manual-client-1772413003870-347b9z",
+          "savedAgentMessageId": "manual-agent-1772413004678-lk800l"
+        },
+        {
+          "turn": 2,
+          "clientMessage": "minha empresa e studio rota digital e eu vendo servicos de marketing",
+          "agentReply": "Perfeito! Agora me manda os dias e horários de atendimento do seu negócio (exemplo: segunda a sexta das 9h às 18h) que eu configuro tudo.",
+          "savedClientMessageId": "manual-client-1772413004695-0y67gi",
+          "savedAgentMessageId": "manual-agent-1772413004808-fm51hf"
+        },
+        {
+          "turn": 3,
+          "clientMessage": "quero que o agente responda natural, tire duvidas e faça follow-up sem parecer robo",
+          "agentReply": "Perfeito. Eu já criei seu agente gratuitamente para vim de anuncio e quero automatizar meu whatsapp e deixei tudo pronto pra você conhecer agora.\n\nTeste público: https://agentezap.online/test/3cd7403fd6354de7\nPainel principal: https://agentezap.online/meu-agente-ia\nLogin: https://agentezap.online/login\nEmail: 5517991956944@agentezap.online\nComo você já voltou com esse mesmo número, mantive a conta existente.\n\nPode entrar, testar e depois, se quiser, eu continuo calibrando por aqui no WhatsApp. No gratuito você pode fazer até 5 calibrações do agente por dia por aqui no WhatsApp (perguntas e dúvidas não contam); com plano ativo fica ilimitado. No painel você também consegue trocar a senha quando quiser.",
+          "savedClientMessageId": "manual-client-1772413004827-oe61zw",
+          "savedAgentMessageId": "manual-agent-1772413013214-dx8xjg"
+        }
+      ],
+      "deterministicDelivery": true,
+      "expectedEmail": "5517991956944@agentezap.online",
+      "finalReply": "Perfeito. Eu já criei seu agente gratuitamente para vim de anuncio e quero automatizar meu whatsapp e deixei tudo pronto pra você conhecer agora.\n\nTeste público: https://agentezap.online/test/3cd7403fd6354de7\nPainel principal: https://agentezap.online/meu-agente-ia\nLogin: https://agentezap.online/login\nEmail: 5517991956944@agentezap.online\nComo você já voltou com esse mesmo número, mantive a conta existente.\n\nPode entrar, testar e depois, se quiser, eu continuo calibrando por aqui no WhatsApp. No gratuito você pode fazer até 5 calibrações do agente por dia por aqui no WhatsApp (perguntas e dúvidas não contam); com plano ativo fica ilimitado. No painel você também consegue trocar a senha quando quiser.",
+      "success": true
+    },
+    {
+      "id": "curioso-meta",
+      "phone": "5511998801001",
+      "profile": "curioso vindo de anuncio",
+      "resetResult": {
+        "conversationDeleted": true,
+        "messagesDeleted": 8,
+        "userDeleted": true,
+        "connectionDeleted": false,
+        "subscriptionDeleted": false,
+        "agentConfigDeleted": true
+      },
+      "turns": [
+        {
+          "turn": 1,
+          "clientMessage": "oi, vi no meta e queria entender como funciona",
+          "agentReply": "Boa! Agora me explica melhor tudo que você quer que o agente tenha e faça, tipo de atendimento, se faz venda, agendamento, tira dúvida, cobra cliente... quanto mais detalhe, mais certeiro eu deixo.",
+          "savedClientMessageId": "manual-client-1772413013558-dqk8n1",
+          "savedAgentMessageId": "manual-agent-1772413014337-43x01e"
+        },
+        {
+          "turn": 2,
+          "clientMessage": "sou da loja prisma moda e vendo roupa feminina",
+          "agentReply": "Perfeito! Agora me manda os dias e horários de atendimento do seu negócio (exemplo: segunda a sexta das 9h às 18h) que eu configuro tudo.",
+          "savedClientMessageId": "manual-client-1772413014355-xec075",
+          "savedAgentMessageId": "manual-agent-1772413014457-x6lser"
+        },
+        {
+          "turn": 3,
+          "clientMessage": "quero atendimento humano e que faça acompanhamento depois",
+          "agentReply": "Oi Maria! Tive uma lentidao aqui, mas sigo com voce. Me fala seu negocio e o que voce quer que o agente faca que eu continuo a configuracao e respondo qualquer duvida no caminho. Perfeito! Agora me manda os dias e horários de atendimento do seu negócio (exemplo: segunda a sexta das 9h às 18h) que eu configuro tudo.",
+          "savedClientMessageId": "manual-client-1772413014474-sfykwu",
+          "savedAgentMessageId": "manual-agent-1772413014580-9oqquh"
+        },
+        {
+          "turn": 4,
+          "clientMessage": "nao uso agenda, só comercial",
+          "agentReply": "Perfeito. Eu já criei seu agente gratuitamente para vi no meta e queria entender como funciona e deixei tudo pronto pra você conhecer agora.\n\nTeste público: https://agentezap.online/test/c10e5d40685a4707\nPainel principal: https://agentezap.online/meu-agente-ia\nLogin: https://agentezap.online/login\nEmail: 5511998801001@agentezap.online\nSenha temporária: AZ-CLXP3F\n\nPode entrar, testar e depois, se quiser, eu continuo calibrando por aqui no WhatsApp. No gratuito você pode fazer até 5 calibrações do agente por dia por aqui no WhatsApp (perguntas e dúvidas não contam); com plano ativo fica ilimitado. No painel você também consegue trocar a senha quando quiser.",
+          "savedClientMessageId": "manual-client-1772413014597-uudmql",
+          "savedAgentMessageId": "manual-agent-1772413023131-jw7ehm"
+        }
+      ],
+      "deterministicDelivery": true,
+      "expectedEmail": "5511998801001@agentezap.online",
+      "finalReply": "Perfeito. Eu já criei seu agente gratuitamente para vi no meta e queria entender como funciona e deixei tudo pronto pra você conhecer agora.\n\nTeste público: https://agentezap.online/test/c10e5d40685a4707\nPainel principal: https://agentezap.online/meu-agente-ia\nLogin: https://agentezap.online/login\nEmail: 5511998801001@agentezap.online\nSenha temporária: AZ-CLXP3F\n\nPode entrar, testar e depois, se quiser, eu continuo calibrando por aqui no WhatsApp. No gratuito você pode fazer até 5 calibrações do agente por dia por aqui no WhatsApp (perguntas e dúvidas não contam); com plano ativo fica ilimitado. No painel você também consegue trocar a senha quando quiser.",
+      "success": true
+    },
+    {
+      "id": "muito-interessado",
+      "phone": "5511998801002",
+      "profile": "muito interessado",
+      "resetResult": {
+        "conversationDeleted": true,
+        "messagesDeleted": 8,
+        "userDeleted": true,
+        "connectionDeleted": false,
+        "subscriptionDeleted": false,
+        "agentConfigDeleted": true
+      },
+      "turns": [
+        {
+          "turn": 1,
+          "clientMessage": "quero criar agora meu agente no whatsapp",
+          "agentReply": "Carlos, entendi! O plano ilimitado hoje e *R$99/mes* e inclui tudo. Mas antes de falar de plano, eu monto seu agente grátis. Me conta: qual o nome do seu negócio e o que você faz/vende?",
+          "savedClientMessageId": "manual-client-1772413023495-30txfr",
+          "savedAgentMessageId": "manual-agent-1772413023640-sdlcr7"
+        },
+        {
+          "turn": 2,
+          "clientMessage": "meu negocio e clinica foco e faço avaliacao e retorno",
+          "agentReply": "Boa! Agora me explica melhor tudo que você quer que o agente tenha e faça, tipo de atendimento, se faz venda, agendamento, tira dúvida, cobra cliente... quanto mais detalhe, mais certeiro eu deixo.",
+          "savedClientMessageId": "manual-client-1772413023657-irej4k",
+          "savedAgentMessageId": "manual-agent-1772413025533-0w01fo"
+        },
+        {
+          "turn": 3,
+          "clientMessage": "quero que confirme dados e agende somente no horario certo",
+          "agentReply": "Show! Esse atendimento vai trabalhar com agendamento? Se sim, já me manda os dias e horários de atendimento. Se não, eu configuro só pra comercial.",
+          "savedClientMessageId": "manual-client-1772413025554-8g2e7m",
+          "savedAgentMessageId": "manual-agent-1772413025639-w04kgs"
+        },
+        {
+          "turn": 4,
+          "clientMessage": "sim, segunda a sexta das 08:00 as 17:00",
+          "agentReply": "Perfeito. Eu já criei seu agente gratuitamente para clinica foco e e deixei tudo pronto pra você conhecer agora.\n\nTeste público: https://agentezap.online/test/f5275536e5654cf1\nPainel principal: https://agentezap.online/agendamentos\nLogin: https://agentezap.online/login\nEmail: 5511998801002@agentezap.online\nSenha temporária: AZ-S33YQB\n\nPode entrar, testar e depois, se quiser, eu continuo calibrando por aqui no WhatsApp. No gratuito você pode fazer até 5 calibrações do agente por dia por aqui no WhatsApp (perguntas e dúvidas não contam); com plano ativo fica ilimitado. No painel você também consegue trocar a senha quando quiser.",
+          "savedClientMessageId": "manual-client-1772413025655-aa6wu5",
+          "savedAgentMessageId": "manual-agent-1772413034158-tl4n79"
+        }
+      ],
+      "deterministicDelivery": true,
+      "expectedEmail": "5511998801002@agentezap.online",
+      "finalReply": "Perfeito. Eu já criei seu agente gratuitamente para clinica foco e e deixei tudo pronto pra você conhecer agora.\n\nTeste público: https://agentezap.online/test/f5275536e5654cf1\nPainel principal: https://agentezap.online/agendamentos\nLogin: https://agentezap.online/login\nEmail: 5511998801002@agentezap.online\nSenha temporária: AZ-S33YQB\n\nPode entrar, testar e depois, se quiser, eu continuo calibrando por aqui no WhatsApp. No gratuito você pode fazer até 5 calibrações do agente por dia por aqui no WhatsApp (perguntas e dúvidas não contam); com plano ativo fica ilimitado. No painel você também consegue trocar a senha quando quiser.",
+      "success": true
+    },
+    {
+      "id": "sem-grana",
+      "phone": "5511998801003",
+      "profile": "sem dinheiro",
+      "resetResult": {
+        "conversationDeleted": true,
+        "messagesDeleted": 8,
+        "userDeleted": true,
+        "connectionDeleted": false,
+        "subscriptionDeleted": false,
+        "agentConfigDeleted": true
+      },
+      "turns": [
+        {
+          "turn": 1,
+          "clientMessage": "oi, to sem grana mas quero testar primeiro",
+          "agentReply": "Boa! Agora me explica melhor tudo que você quer que o agente tenha e faça, tipo de atendimento, se faz venda, agendamento, tira dúvida, cobra cliente... quanto mais detalhe, mais certeiro eu deixo.",
+          "savedClientMessageId": "manual-client-1772413034517-q7rzbz",
+          "savedAgentMessageId": "manual-agent-1772413035387-yv5ces"
+        },
+        {
+          "turn": 2,
+          "clientMessage": "minha empresa e lanches da vila e vendo lanche e marmita",
+          "agentReply": "Perfeito! Agora me manda os dias e horários de atendimento do seu negócio (exemplo: segunda a sexta das 9h às 18h) que eu configuro tudo.",
+          "savedClientMessageId": "manual-client-1772413035404-a5ft6d",
+          "savedAgentMessageId": "manual-agent-1772413035495-sppca9"
+        },
+        {
+          "turn": 3,
+          "clientMessage": "quero que responda rapido e feche pedido no whatsapp",
+          "agentReply": "Oi Joao! Tive uma lentidao aqui, mas sigo com voce. Me fala seu negocio e o que voce quer que o agente faca que eu continuo a configuracao e respondo qualquer duvida no caminho. Perfeito! Agora me manda os dias e horários de atendimento do seu negócio (exemplo: segunda a sexta das 9h às 18h) que eu configuro tudo.",
+          "savedClientMessageId": "manual-client-1772413035515-8y19h2",
+          "savedAgentMessageId": "manual-agent-1772413035602-1uk235"
+        },
+        {
+          "turn": 4,
+          "clientMessage": "nao uso agendamento. delivery funciona de segunda a sabado das 09:00 as 22:00 e quero pedido completo ate o final",
+          "agentReply": "Perfeito. Eu já criei seu agente gratuitamente para to sem grana mas quero testar primeiro e deixei tudo pronto pra você conhecer agora.\n\nTeste público: https://agentezap.online/test/253712c8130b4ce3\nPainel principal: https://agentezap.online/agendamentos\nLogin: https://agentezap.online/login\nEmail: 5511998801003@agentezap.online\nSenha temporária: AZ-V2S765\n\nPode entrar, testar e depois, se quiser, eu continuo calibrando por aqui no WhatsApp. No gratuito você pode fazer até 5 calibrações do agente por dia por aqui no WhatsApp (perguntas e dúvidas não contam); com plano ativo fica ilimitado. No painel você também consegue trocar a senha quando quiser.",
+          "savedClientMessageId": "manual-client-1772413035620-2v688o",
+          "savedAgentMessageId": "manual-agent-1772413044184-ktlaey"
+        }
+      ],
+      "deterministicDelivery": true,
+      "expectedEmail": "5511998801003@agentezap.online",
+      "finalReply": "Perfeito. Eu já criei seu agente gratuitamente para to sem grana mas quero testar primeiro e deixei tudo pronto pra você conhecer agora.\n\nTeste público: https://agentezap.online/test/253712c8130b4ce3\nPainel principal: https://agentezap.online/agendamentos\nLogin: https://agentezap.online/login\nEmail: 5511998801003@agentezap.online\nSenha temporária: AZ-V2S765\n\nPode entrar, testar e depois, se quiser, eu continuo calibrando por aqui no WhatsApp. No gratuito você pode fazer até 5 calibrações do agente por dia por aqui no WhatsApp (perguntas e dúvidas não contam); com plano ativo fica ilimitado. No painel você também consegue trocar a senha quando quiser.",
+      "success": true
+    },
+    {
+      "id": "desconfiado",
+      "phone": "5511998801004",
+      "profile": "desconfiado",
+      "resetResult": {
+        "conversationDeleted": true,
+        "messagesDeleted": 8,
+        "userDeleted": true,
+        "connectionDeleted": false,
+        "subscriptionDeleted": false,
+        "agentConfigDeleted": true
+      },
+      "turns": [
+        {
+          "turn": 1,
+          "clientMessage": "isso funciona mesmo? nao quero cair em promessa",
+          "agentReply": "Boa! Agora me explica melhor tudo que você quer que o agente tenha e faça, tipo de atendimento, se faz venda, agendamento, tira dúvida, cobra cliente... quanto mais detalhe, mais certeiro eu deixo.",
+          "savedClientMessageId": "manual-client-1772413044515-4xrcbf",
+          "savedAgentMessageId": "manual-agent-1772413045201-h8ztqh"
+        },
+        {
+          "turn": 2,
+          "clientMessage": "tenho uma barbearia alfa com corte e barba",
+          "agentReply": "Perfeito! Agora me manda os dias e horários de atendimento do seu negócio (exemplo: segunda a sexta das 9h às 18h) que eu configuro tudo.",
+          "savedClientMessageId": "manual-client-1772413045218-rrd77q",
+          "savedAgentMessageId": "manual-agent-1772413045305-l0wgm8"
+        },
+        {
+          "turn": 3,
+          "clientMessage": "quero atendimento de recepcao, confirmar horario e vender barba",
+          "agentReply": "Me passa os dias e horários reais de atendimento, por exemplo: segunda a sexta das 08:00 às 18:00. Eu vou gravar isso no módulo de agendamentos e no agente.",
+          "savedClientMessageId": "manual-client-1772413045321-lmcb2x",
+          "savedAgentMessageId": "manual-agent-1772413045409-yyypus"
+        },
+        {
+          "turn": 4,
+          "clientMessage": "sim, segunda a sabado das 09:00 as 19:00",
+          "agentReply": "Perfeito. Eu já criei seu agente gratuitamente para funciona mesmo e deixei tudo pronto pra você conhecer agora.\n\nTeste público: https://agentezap.online/test/1584ec3b3a334ba0\nPainel principal: https://agentezap.online/agendamentos\nLogin: https://agentezap.online/login\nEmail: 5511998801004@agentezap.online\nSenha temporária: AZ-MYNXSN\n\nPode entrar, testar e depois, se quiser, eu continuo calibrando por aqui no WhatsApp. No gratuito você pode fazer até 5 calibrações do agente por dia por aqui no WhatsApp (perguntas e dúvidas não contam); com plano ativo fica ilimitado. No painel você também consegue trocar a senha quando quiser.",
+          "savedClientMessageId": "manual-client-1772413045430-m3zxqa",
+          "savedAgentMessageId": "manual-agent-1772413053969-98qjap"
+        }
+      ],
+      "deterministicDelivery": true,
+      "expectedEmail": "5511998801004@agentezap.online",
+      "finalReply": "Perfeito. Eu já criei seu agente gratuitamente para funciona mesmo e deixei tudo pronto pra você conhecer agora.\n\nTeste público: https://agentezap.online/test/1584ec3b3a334ba0\nPainel principal: https://agentezap.online/agendamentos\nLogin: https://agentezap.online/login\nEmail: 5511998801004@agentezap.online\nSenha temporária: AZ-MYNXSN\n\nPode entrar, testar e depois, se quiser, eu continuo calibrando por aqui no WhatsApp. No gratuito você pode fazer até 5 calibrações do agente por dia por aqui no WhatsApp (perguntas e dúvidas não contam); com plano ativo fica ilimitado. No painel você também consegue trocar a senha quando quiser.",
+      "success": true
+    },
+    {
+      "id": "apressado",
+      "phone": "5511998801005",
+      "profile": "apressado",
+      "resetResult": {
+        "conversationDeleted": true,
+        "messagesDeleted": 8,
+        "userDeleted": true,
+        "connectionDeleted": false,
+        "subscriptionDeleted": false,
+        "agentConfigDeleted": true
+      },
+      "turns": [
+        {
+          "turn": 1,
+          "clientMessage": "to com pressa, cria meu agente e manda link",
+          "agentReply": "Boa! Agora me explica melhor tudo que você quer que o agente tenha e faça, tipo de atendimento, se faz venda, agendamento, tira dúvida, cobra cliente... quanto mais detalhe, mais certeiro eu deixo.",
+          "savedClientMessageId": "manual-client-1772413054316-k2fc8x",
+          "savedAgentMessageId": "manual-agent-1772413055793-ubks7i"
+        },
+        {
+          "turn": 2,
+          "clientMessage": "minha empresa e rota certa consultoria",
+          "agentReply": "Perfeito! Agora me manda os dias e horários de atendimento do seu negócio (exemplo: segunda a sexta das 9h às 18h) que eu configuro tudo.",
+          "savedClientMessageId": "manual-client-1772413055812-hcw1uh",
+          "savedAgentMessageId": "manual-agent-1772413055894-kfmrjj"
+        },
+        {
+          "turn": 3,
+          "clientMessage": "quero que qualifique lead e feche agendamento",
+          "agentReply": "Me passa os dias e horários reais de atendimento, por exemplo: segunda a sexta das 08:00 às 18:00. Eu vou gravar isso no módulo de agendamentos e no agente.",
+          "savedClientMessageId": "manual-client-1772413055911-68zv8l",
+          "savedAgentMessageId": "manual-agent-1772413055993-fx7i8f"
+        },
+        {
+          "turn": 4,
+          "clientMessage": "sim, segunda a quinta das 13:00 as 18:00",
+          "agentReply": "Perfeito. Eu já criei seu agente gratuitamente para to com pressa e deixei tudo pronto pra você conhecer agora.\n\nTeste público: https://agentezap.online/test/9773b178935b4e0d\nPainel principal: https://agentezap.online/agendamentos\nLogin: https://agentezap.online/login\nEmail: 5511998801005@agentezap.online\nSenha temporária: AZ-MTVGM5\n\nPode entrar, testar e depois, se quiser, eu continuo calibrando por aqui no WhatsApp. No gratuito você pode fazer até 5 calibrações do agente por dia por aqui no WhatsApp (perguntas e dúvidas não contam); com plano ativo fica ilimitado. No painel você também consegue trocar a senha quando quiser.",
+          "savedClientMessageId": "manual-client-1772413056011-kub0at",
+          "savedAgentMessageId": "manual-agent-1772413064516-ymtwcj"
+        }
+      ],
+      "deterministicDelivery": true,
+      "expectedEmail": "5511998801005@agentezap.online",
+      "finalReply": "Perfeito. Eu já criei seu agente gratuitamente para to com pressa e deixei tudo pronto pra você conhecer agora.\n\nTeste público: https://agentezap.online/test/9773b178935b4e0d\nPainel principal: https://agentezap.online/agendamentos\nLogin: https://agentezap.online/login\nEmail: 5511998801005@agentezap.online\nSenha temporária: AZ-MTVGM5\n\nPode entrar, testar e depois, se quiser, eu continuo calibrando por aqui no WhatsApp. No gratuito você pode fazer até 5 calibrações do agente por dia por aqui no WhatsApp (perguntas e dúvidas não contam); com plano ativo fica ilimitado. No painel você também consegue trocar a senha quando quiser.",
+      "success": true
+    }
+  ]
+}

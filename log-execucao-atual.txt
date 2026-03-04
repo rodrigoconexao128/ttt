@@ -1,0 +1,185 @@
+Iniciando bateria de testes: Índice 0 a 4
+Prompt carregado (7289 chars)
+
+════════════════════════════════════════════════════════════════
+👤 CLIENTE: Gratidão | produtos personalizados | quente
+📝 Comportamento: direto, quer saber detalhes antes de comprar
+════════════════════════════════════════════════════════════════
+CLIENTE: Olá! Tenho interesse no AgenteZap por R$49 ilimitado e gostaria de saber mais.
+RODRIGO: Ótimo, {{nome}}! Pra quem trabalha com {{segmento}}, o AgenteZap é uma mão na roda!
+
+Olha o que você ganha:
+• IA que responde como se fosse VOCÊ
+• Follow-up automático (cliente que some, a IA corre atrás)
+• Notificador (te avisa quando cliente quer comprar)
+• Qualificação (separa lead quente de curioso)
+• Campanhas em massa
+
+Tudo por R$49/mês, tokens ilimitados, sem surpresa.
+
+Quer que eu te mostre como funciona ou já quer criar sua conta e testar grátis?
+CLIENTE: Opa, parece bom. Mas como que a IA responde como eu? Ela copia meu jeito de falar?
+
+E o follow-up, como funciona? Se eu não responder, ela manda mensagem no meu lugar?
+
+E o notificador, como ele avisa? É no WhatsApp mesmo?
+
+E as campanhas em massa, tipo quantas mensagens por dia posso mandar?
+RODRIGO: Boa pergunta, {{nome}}!
+
+1️⃣ **IA que responde como você**: A gente chama isso de "calibração". Você ensina a IA como você fala, quais palavras usa, como atende. Ela aprende com você e responde como se fosse você mesmo. Tem um vídeo explicando melhor: [MEDIA:COMO_CALIBRAR_E_MELHORAR_O_AGENE_COMO_EDITAR_O_AGENTE_PARA_ATENDER]
+
+2️⃣ **Follow-up automático**: Exato! Se o cliente some, a IA manda mensagem no seu lugar. Você configura quando e o que ela vai mandar. Tem um vídeo mostrando como funciona: [MEDIA:FOLLOWP_INTELIGENTE]
+
+3️⃣ **Notificador**: Ele avisa no WhatsApp mesmo! Quando um cliente quer comprar, ele te avisa. Assim você não perde nenhuma venda. Tem um vídeo explicando: [MEDIA:NOTIFICADOR_INTELIGENTE]
+
+4️⃣ **Campanhas em massa**: Você pode mandar quantas mensagens quiser por dia! Não tem limite. Tem um vídeo mostrando como funciona: [MEDIA:ENVIO_EM_MASSA]
+
+Quer que eu te mostre como funciona ou já quer criar sua conta e
+CLIENTE: Vou criar a conta pra testar grátis. Manda o link!
+
+✅ CONVERSÃO DETECTADA: Cliente concordou em criar conta/assinar
+
+--------------------------------------------------
+
+
+════════════════════════════════════════════════════════════════
+👤 CLIENTE: Escola Neto | educação/supletivo | quente
+📝 Comportamento: interessado mas ocupado, prefere conversar à noite
+════════════════════════════════════════════════════════════════
+CLIENTE: Olá! Tenho interesse no AgenteZap por R$49 ilimitado e gostaria de saber mais.
+RODRIGO: Ótimo, {{nome}}! O plano ilimitado por R$49 é uma ótima escolha. Quer que eu te mostre como funciona ou já quer criar sua conta e testar grátis?
+CLIENTE: Vou criar a conta.
+
+✅ CONVERSÃO DETECTADA: Cliente concordou em criar conta/assinar
+
+--------------------------------------------------
+
+
+════════════════════════════════════════════════════════════════
+👤 CLIENTE: Marcos Anchieta | transporte | quente
+📝 Comportamento: decide rápido
+════════════════════════════════════════════════════════════════
+CLIENTE: Olá! Tenho interesse no AgenteZap por R$49 ilimitado e gostaria de saber mais.
+RODRIGO: Que ótimo, {{nome}}! O AgenteZap por R$49/mês é uma ótima opção, né? 😊
+
+Pra quem trabalha com {{segmento do cliente}}, o AgenteZap é uma mão na roda! Olha o que você ganha:
+
+• IA que responde como se fosse VOCÊ
+• Follow-up automático (cliente que some, a IA corre atrás)
+• Notificador (te avisa quando cliente quer comprar)
+• Qualificação (separa lead quente de curioso)
+• Campanhas em massa
+
+Tudo por R$49/mês, tokens ilimitados, sem surpresa.
+
+Quer que eu te mostre como funciona ou já quer criar sua conta e testar grátis?
+CLIENTE: Opa, Rodrigo! Valeu pela explicação.
+
+Fala aí, esse notificador avisa só quando o cliente quer comprar ou também quando ele tá só curtindo? Porque no meu ramo, tem muita gente que só quer saber de preço e depois some.
+
+E o follow-up, como que funciona? É automático mesmo ou eu tenho que configurar?
+
+Se for fácil de usar e resolver meu problema, eu assino.
+RODRIGO: Entendi, {{nome}}! Vamos lá:
+
+1️⃣ O notificador avisa quando o cliente demonstra INTENÇÃO DE COMPRA, não só quando tá curtindo. Por exemplo: se ele pergunta "quando posso retirar?", "qual o valor?", "como faço pra comprar?", a IA te avisa na hora.
+
+2️⃣ O follow-up é 100% automático! Você configura uma vez e a IA corre atrás dos clientes que sumiram. Por exemplo: se um cliente pergunta "qual o preço?", mas não responde, a IA manda uma mensagem depois de 1 hora, depois de 1 dia, e assim por diante.
+
+3️⃣ É super fácil de usar! A maioria configura sozinho em 1 hora. Mas se preferir, a gente faz TUDO pra você por R$199 - você não precisa mexer em nada.
+
+Quer que eu te mostre como funciona ou já quer criar sua conta e testar grátis?
+CLIENTE: Entendi, Rodrigo. Parece que resolve meu problema mesmo.
+
+Vou criar a conta grátis pra testar. Manda o link que eu faço o cadastro.
+
+✅ CONVERSÃO DETECTADA: Cliente concordou em criar conta/assinar
+
+--------------------------------------------------
+
+
+════════════════════════════════════════════════════════════════
+👤 CLIENTE: Casa da Impressão | gráfica | quente
+📝 Comportamento: cauteloso, quer ver funcionando antes
+════════════════════════════════════════════════════════════════
+CLIENTE: Olá! Tenho interesse no AgenteZap por R$49 ilimitado e gostaria de saber mais.
+RODRIGO: Que ótimo, {{nome}}! O plano de R$49 ilimitado é uma excelente opção pra quem quer começar com tudo sem preocupação com tokens.
+
+Vou te explicar como funciona:
+
+1️⃣ Você cria sua conta no site
+2️⃣ Conecta seu WhatsApp
+3️⃣ Configura sua IA
+
+A partir daí, a IA já começa a responder automaticamente pros seus clientes.
+
+Quer que eu te mostre como fazer isso ou já quer criar sua conta e testar grátis?
+CLIENTE: Quero testar grátis antes. Como faço?
+RODRIGO: Beleza, {{nome}}! Vou te passar o passo a passo:
+
+1️⃣ Acessa: https://agentezap.online/
+2️⃣ Clica em "Criar conta" (demora uns 2 minutinhos)
+3️⃣ Conecta seu WhatsApp
+4️⃣ Configura sua IA
+
+Quando for escolher o plano, coloca o código promocional PARC2026PROMO pra garantir o preço de R$49.
+
+Qualquer dúvida durante o processo, é só me chamar, tá?
+CLIENTE: Vou criar a conta e testar. Se der certo, assino.
+
+✅ CONVERSÃO DETECTADA: Cliente concordou em criar conta/assinar
+
+--------------------------------------------------
+
+
+════════════════════════════════════════════════════════════════
+👤 CLIENTE: Valdemir | cursos profissionalizantes | quente
+📝 Comportamento: analítico, pergunta muito
+════════════════════════════════════════════════════════════════
+CLIENTE: Olá! Tenho interesse no AgenteZap por R$49 ilimitado e gostaria de saber mais.
+RODRIGO: Que ótimo, {{nome}}! O AgenteZap por R$49/mês é uma ótima opção, né? 😊
+
+Pra quem trabalha com {{usar_exatamente_a_palavra_do_cliente}}, o AgenteZap é uma mão na roda! 🚀
+
+Olha o que você ganha:
+• IA que responde como se fosse VOCÊ
+• Follow-up automático (cliente que some, a IA corre atrás)
+• Notificador (te avisa quando cliente quer comprar)
+• Qualificação (separa lead quente de curioso)
+• Campanhas em massa
+
+Tudo por R$49/mês, tokens ilimitados, sem surpresa.
+
+Quer que eu te mostre como funciona ou já quer criar sua conta e testar grátis?
+CLIENTE: Opa, Rodrigo! Valeu pelas infos!
+
+Mas antes de criar conta, preciso entender melhor:
+
+1. A IA responde mesmo como eu? Tipo, se eu falo "e aí, beleza?" ela responde igual?
+2. O follow-up é automático mesmo? Tipo, se o cliente não responde, a IA manda mensagem sozinha?
+3. E esse notificador, como funciona? Ele avisa só no WhatsApp ou tem app ou algo assim?
+4. E as campanhas em massa, tem limite de contatos?
+
+Se tudo isso for real, pode ser um game-changer pros meus cursos! Mas preciso ter certeza antes de testar.
+RODRIGO: Entendi, {{nome}}! Vamos lá:
+
+1. **Respostas personalizadas**: Exato! A IA aprende com você. Você ensina como quer que ela fale e ela responde igual. Pode até mandar áudios e imagens pra ela usar. Quer que eu te mostre um vídeo de como calibrar a IA? [MEDIA:COMO_CALIBRAR_E_MELHORAR_O_AGENE_COMO_EDITAR_O_AGENTE_PARA_ATENDER]
+
+2. **Follow-up automático**: Isso mesmo! Se o cliente não responder, a IA manda mensagem sozinha, no horário que você programar. Quer ver um vídeo de como funciona? [MEDIA:FOLLOWP_INTELIGENTE]
+
+3. **Notificador**: Ele avisa no WhatsApp mesmo, mas você pode configurar pra receber no celular ou no computador. Quer ver como funciona? [MEDIA:NOTIFICADOR_INTELIGENTE]
+
+4. **Campanhas em massa**: Sem limite de contatos! Você pode mandar mensagem pra quantos clientes quiser. Quer ver um vídeo de como funciona? [MEDIA:ENVIO_EM_MASSA]
+
+Tá bom assim? Quer que eu te mostre como funciona ou já quer criar sua conta e testar grátis?
+CLIENTE: Valeu, Rodrigo! Esses vídeos ajudaram bastante!
+
+Mas ainda tenho umas dúvidas:
+
+1. Se a IA aprender com o que eu falo, ela pode se confundir e responder errado? Tipo, se eu falo "e aí, beleza?" e depois "tá ligado?" ela mistura os dois?
+2. No follow-up, se o cliente bloquear a IA, ela para de mandar mensagem ou continua?
+3. O notificador avisa só quando o cliente quer comprar ou também quando ele pergunta algo?
+4. Nas campanhas em massa, dá pra personalizar a mensagem pra cada contato ou é tudo igual?
+
+Se essas dúvidas forem resolvidas, acho

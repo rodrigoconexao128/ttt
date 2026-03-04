@@ -1,0 +1,202 @@
+{
+  "timestamp": "2025-12-15T00:23:11.891Z",
+  "results": [
+    {
+      "scenario": {
+        "id": "restaurante-dona-rosa",
+        "owner": "Dona Rosa",
+        "business": "Restaurante Sabor Caseiro",
+        "type": "Restaurante",
+        "realPains": [
+          "Não consigo responder WhatsApp no horário de almoço, fico na cozinha",
+          "Perco pedidos de madrugada e finais de semana",
+          "Clientes cancelam se demoro mais de 10 minutos para responder"
+        ],
+        "skepticism": "Já tentei um chatbot de botões e era horrível, os clientes odiaram",
+        "budget": "R$ 99 por mês tá caro pra mim, tenho que ver se vale a pena",
+        "personality": "Prática, direta, sem tempo a perder, precisa ver resultado"
+      },
+      "converted": true,
+      "turns": 3,
+      "conversation": [
+        {
+          "speaker": "Cliente",
+          "content": "Oi, vi que vc oferece um serviço de IA pra restaurantes. Como funciona?"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Oi! Tudo bem?\n\nA AgenteZap é a sua assistente virtual que trabalha 24h por dia pra você. Ela atende seus clientes no WhatsApp, responde perguntas, faz reservas, mostra o cardápio e até fecha pedidos enquanto você dorme.\n\nPra você, dono de restaurante, significa:\n✅ Agenda cheia sem você precisar ficar no celular\n✅ Mais vendas, inclusive fora do horário de funcionamento\n✅ Atendimento rápido que faz o cliente pedir mais\n✅ Você só aparece quando ela não consegue resolver (situações complexas)\n\nQuer ver como funciona na prática? Vou criar um teste grátis pra você. Só me diz: qual o nome do seu restaurante?"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Oi, tudo! Sabor Caseiro.\n\nMas antes de criar o teste, me explica melhor como que essa IA funciona. A última que usei era só de botões e os clientes odiavam. Isso aqui é diferente?\n\nE quanto custa? Vi que tem planos a partir de R$ 99, mas pra mim tá caro se não resolver meu problema."
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Entendi! Vou explicar direitinho como a AgenteZap funciona e porque é diferente daqueles chatbots de botões que os clientes odeiam.\n\nA AgenteZap não é um robô de botões! Ela é uma IA que entende linguagem natural, igual a gente. Ela lê as mensagens dos seus clientes e responde como se fosse você, com naturalidade. Você ensina ela a responder como você quer, e ela aprende!\n\nPra restaurante, ela faz coisas como:\n• Mostrar o cardápio completo com fotos\n• Fazer reservas e lembrar os clientes\n• Receber pedidos de delivery ou retirada\n• Responder perguntas sobre pratos, preços e horários\n\nE o melhor: ela NUNCA inventa respostas. Ela só fala o que VOCÊ ensinou!\n\nSobre o preço: eu entendo que R$ 99 pode parecer caro à primeira vista, mas vamos calcular o ROI (retorno sobre investimento):\n\nImagina que você investe R$ 300 em tráfego por mês. Se você perder só 5 pedidos por mês porque demorou pra responder, quanto isso custa? Se seu prato médio é R$ 40, são R$ 200 perdidos! O R$ 99 da IA se paga sozinho e ainda sobra!\n\nAlém disso, com a AgenteZap você:\n• Vende 24h por dia, inclusive fora do horário de funcionamento\n• Atende vários clientes ao mesmo tempo sem precisar contratar mais ninguém\n• Reduz o tempo de resposta e aumenta a satisfação do cliente\n\nQuer que eu mostre na prática como funciona? Vou criar um teste grátis pra você no plano básico. Assim você vê como é e depois a gente ajusta o plano conforme sua necessidade. O que acha?"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Entendi melhor agora. Mas ainda tô com um pé atrás. Como que eu ensino ela a responder? É complicado?\n\nE se ela não entender alguma pergunta? O cliente vai ficar esperando e desistir?\n\nE sobre os R$ 99, você disse que se paga sozinho, mas eu preciso ver isso acontecendo. Como que eu tenho certeza que vai valer a pena?\n\nVou aceitar o teste, mas só se for mesmo grátis e sem compromisso. E se eu não gostar, não vou pagar nada, certo?"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Entendi suas preocupações! Vou explicar tudo direitinho pra você ficar tranquilo.\n\n**Como você ensina a IA?**\nÉ super simples! Você me diz como quer que ela responda pra cada pergunta comum. Por exemplo:\n- \"Qual o horário de funcionamento?\" → \"Funcionamos de terça a domingo, das 11h às 23h.\"\n- \"Vocês entregam em [bairro]?\" → \"Sim, entregamos em [bairro]! O valor da entrega é R$ X.\"\n\nA gente monta um guia de respostas junto, e a IA aprende com isso. Se aparecer uma pergunta que ela não sabe responder, ela te avisa e você ensina ela na hora. É como treinar um funcionário novo!\n\n**E se ela não entender alguma pergunta?**\nA AgenteZap é bem inteligente, mas se ela não souber responder alguma coisa, ela faz o seguinte:\n1. Pergunta pro cliente: \"Posso te ajudar com algo mais?\" ou \"Quer que eu te encaminhe pro atendimento humano?\"\n2. Se o cliente quiser, ela te avisa e transfere a conversa pra você.\n\nAssim, seu cliente NUNCA fica esperando sem resposta. E você só aparece quando é realmente necessário.\n\n**Sobre o ROI e o teste grátis:**\nO teste é mesmo grátis e sem compromisso! Você vai poder usar a AgenteZap por 7 dias e ver se ela realmente traz resultados pro seu restaurante. Se você não gostar, não paga nada!\n\nMas pra você ter uma ideia de como ela pode te ajudar, vamos supor que ela:\n- Consegue fechar 10 pedidos a mais por mês (R$ 400)\n- Reduz o tempo de resposta e aumenta a satisfação do cliente\n- Te dá mais tempo pra focar no que realmente importa: a qualidade da comida\n\nSe em 7 dias você ver que ela está trazendo mais vendas e economizando seu tempo, a gente conversa sobre o plano que melhor se adapta ao seu negócio. Se não, você não paga nada!\n\nEntão, bora colocar essa IA pra trabalhar pro Sabor Caseiro hoje mesmo? Vou criar seu teste grátis agora mesmo!\n\n[AÇÃO:CRIAR_CONTA_TESTE]"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Beleza, entendi melhor agora. Vou aceitar o teste, mas com uma condição: se em 7 dias eu não ver resultado, eu não pago nada e cancelo sem dor de cabeça.\n\nE outra coisa: como que eu faço pra monitorar os pedidos e as mensagens? Preciso ficar de olho o tempo todo?\n\nE se eu quiser mudar alguma coisa durante o teste, dá pra fazer?"
+        }
+      ],
+      "failureReason": "",
+      "lastClientMessage": "Entendi melhor agora. Mas ainda tô com um pé atrás. Como que eu ensino ela a responder? É complicado?\n\nE se ela não entender alguma pergunta? O cliente vai ficar esperando e desistir?\n\nE sobre os R$ 99, você disse que se paga sozinho, mas eu preciso ver isso acontecendo. Como que eu tenho certeza que vai valer a pena?\n\nVou aceitar o teste, mas só se for mesmo grátis e sem compromisso. E se eu não gostar, não vou pagar nada, certo?"
+    },
+    {
+      "scenario": {
+        "id": "hotmart-joao-receitas",
+        "owner": "João",
+        "business": "Curso de Receitas Fit",
+        "type": "Hotmart/Infoprodutor",
+        "realPains": [
+          "Afiliados e clientes me enchem de perguntas repetidas",
+          "Perco vendas porque demoro a responder dúvidas",
+          "Não tenho tempo de atender todo mundo 24h"
+        ],
+        "skepticism": "Meu público é muito específico, não sei se IA entende de receitas fit",
+        "budget": "Pago R$ 300 em tráfego, R$ 99 precisa valer a pena",
+        "personality": "Antenado, quer automação, mas exigente com qualidade"
+      },
+      "converted": true,
+      "turns": 1,
+      "conversation": [
+        {
+          "speaker": "Cliente",
+          "content": "João, tudo bem? Vi que vc tem um chatbot de IA pra negócios. Me conta como funciona?"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Opa, tudo ótimo! E com você?\n\nVou te explicar de um jeito bem direto: a AgenteZap é uma IA que trabalha 24h por dia pra você. Ela atende seus clientes no WhatsApp, responde perguntas, agenda consultas, vende seus produtos e ainda faz o pré-venda dos seus infoprodutos!\n\nQuer um exemplo? Se você vende um curso, ela pode explicar pra pessoa o que o curso ensina, mandar o link de compra e até fechar a venda enquanto você dorme!\n\nO melhor é que você não precisa saber programar nada - é só me dizer o que você quer e eu configuro pra você!\n\nO que acha de testar e ver como ela pode te ajudar a vender mais sem você precisar ficar grudado no celular? [AÇÃO:CRIAR_CONTA_TESTE]"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Opa, interessante!\n\nMas meu público é bem específico, receitas fit. Acha que a IA vai entender do assunto?\n\nQuero algo que realmente me ajude a vender mais, sem eu ficar respondendo todo mundo.\n\nE esse teste, como funciona? Tem algum custo?"
+        }
+      ],
+      "failureReason": "",
+      "lastClientMessage": "João, tudo bem? Vi que vc tem um chatbot de IA pra negócios. Me conta como funciona?"
+    },
+    {
+      "scenario": {
+        "id": "loja-roupas-ana",
+        "owner": "Ana",
+        "business": "Fashion Store",
+        "type": "Loja de Roupas Online",
+        "realPains": [
+          "Clientes pedem fotos e medidas de roupas, demoro a responder",
+          "Perco vendas à noite e finais de semana quando não trabalho",
+          "Não tenho vendedora 24h, só eu"
+        ],
+        "skepticism": "Preciso mostrar fotos dos produtos, não sei se IA faz isso",
+        "budget": "Se vender 2 peças a mais já paga, mas tenho que ver funcionando",
+        "personality": "Moderna, quer tecnologia, mas precisa entender como funciona"
+      },
+      "converted": true,
+      "turns": 1,
+      "conversation": [
+        {
+          "speaker": "Cliente",
+          "content": "Oi! Tô vendo que vc ajuda lojas de roupa com IA. Como funciona?"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Oi! Exato! A AgenteZap é perfeita pra lojas de roupa!\n\nEla atende seus clientes 24h por dia, responde perguntas sobre preços, tamanhos, cores e até manda fotos dos produtos. O melhor? Ela fecha pedidos enquanto você dorme!\n\nQuer ver como funciona? Bora colocar essa IA pra trabalhar pra você hoje mesmo? [AÇÃO:CRIAR_CONTA_TESTE]"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Opa, interessante! Mas como ela manda fotos? Eu preciso mostrar as roupas certinho, não pode errar. E se o cliente pedir uma foto que não tem?"
+        }
+      ],
+      "failureReason": "",
+      "lastClientMessage": "Oi! Tô vendo que vc ajuda lojas de roupa com IA. Como funciona?"
+    },
+    {
+      "scenario": {
+        "id": "clinica-dr-paulo",
+        "owner": "Dr. Paulo",
+        "business": "Clínica Vida",
+        "type": "Clínica Médica",
+        "realPains": [
+          "Pacientes ligam fora do horário querendo marcar consulta",
+          "Muita gente marca e desmarca de última hora",
+          "Secretária não dá conta de responder todo mundo"
+        ],
+        "skepticism": "É área de saúde, precisa ser profissional e seguro",
+        "budget": "Vale a pena se realmente economizar o tempo da secretária",
+        "personality": "Profissional, sério, precisa de garantias de segurança"
+      },
+      "converted": true,
+      "turns": 6,
+      "conversation": [
+        {
+          "speaker": "Cliente",
+          "content": "Dr. Paulo, tudo bem? Sou dono da Clínica Vida e tô com uns problemas com agendamento de consultas. Me disseram que vc tem uma solução com IA. Como funciona?"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Dr. Paulo, tudo certo? Entendo perfeitamente os desafios com agendamento de consultas. A AgenteZap foi criada justamente para resolver isso!\n\nEla funciona como uma recepcionista 24h que nunca falha: atende seus pacientes, agenda consultas SOMENTE nos horários livres e ainda transfere urgências direto para você. O melhor? Ela nunca esquece de confirmar o horário e ainda lembra os pacientes de suas consultas.\n\nQuer ver como ela pode ajudar na sua clínica? Bora colocar essa IA pra trabalhar pra você hoje mesmo? Posso criar um teste grátis pra você agora mesmo!"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Dr. Paulo: \"Tá, parece interessante, mas como é que ela sabe os horários livres? E se o paciente marcar errado? Tá caro pra mim, quanto custa?\"\n\n(Observação: Dr. Paulo está cético, quer entender como funciona e se é viável financeiramente)"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Dr. Paulo, entendo suas preocupações. Vamos lá:\n\n1. **Horários livres**: Você configura os horários disponíveis no sistema, e a AgenteZap só agenda dentro desses horários. Se não tiver vaga, ela já avisa o paciente.\n\n2. **Erros de marcação**: A IA é treinada para entender datas e horários. Se o paciente marcar errado, ela pede confirmação antes de fechar. E se ainda assim der algo errado, você pode ajustar manualmente.\n\n3. **Custo**: O plano básico custa R$ 99/mês. Mas vamos fazer as contas: se você perder só 3 consultas por mês por não atender rápido, e cada consulta custa R$ 200, são R$ 600 perdidos! A IA se paga sozinha e ainda sobra.\n\nQuer testar pra ver como funciona na prática? Posso criar um acesso grátis pra você agora mesmo, sem compromisso. O que acha?"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Dr. Paulo: \"Tá, parece que faz sentido. Mas e se o paciente quiser marcar fora do horário de atendimento? E se a IA der problema? Tem garantia?\"\n\n(Observação: Dr. Paulo ainda tem dúvidas sobre a confiabilidade e o suporte)"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Dr. Paulo, ótimas perguntas! Vamos esclarecer:\n\n1. **Marcação fora do horário**: Se o paciente tentar marcar fora do horário disponível, a AgenteZap avisa imediatamente que não tem vaga e sugere os próximos horários livres. Ela nunca marca fora do que você definiu.\n\n2. **Problemas com a IA**: Nós oferecemos suporte 24h pra qualquer problema. Se der algo errado, a gente resolve rapidinho. E tem garantia de 7 dias: se não gostar, cancelamos sem custo.\n\n3. **Confiança**: A AgenteZap já ajuda mais de 5.000 médicos e clínicas a agendarem consultas sem dor de cabeça. Ela é treinada pra entender a linguagem médica e nunca marca algo que não deveria.\n\nQuer dar uma chance? Posso criar um teste grátis pra você agora mesmo, sem compromisso. Assim você vê na prática como funciona e decide depois. O que acha?"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Dr. Paulo: \"Tá, parece que resolve mesmo. Mas como é que eu vou configurar os horários? É complicado? E se eu quiser mudar depois?\"\n\n(Observação: Dr. Paulo está quase convencido, mas quer saber sobre a facilidade de uso e flexibilidade)"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Dr. Paulo, fico feliz que esteja vendo o valor! Vamos lá:\n\n1. **Configuração**: É super simples! Você acessa o painel fácil, marca seus horários disponíveis e pronto. Não precisa de conhecimento técnico, é igual a configurar um calendário.\n\n2. **Mudanças**: Se precisar ajustar os horários, é rapidinho! Você entra no sistema e altera quando quiser. A AgenteZap atualiza tudo automaticamente.\n\n3. **Flexibilidade**: Você pode configurar horários diferentes para cada dia, adicionar feriados, férias, e até bloquear horários específicos. Tudo no seu ritmo.\n\nQuer testar pra ver como é fácil? Posso criar um acesso grátis pra você agora mesmo, sem compromisso. Assim você vê na prática como é simples e decide depois. O que acha?"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Dr. Paulo: \"Tá, vou aceitar o teste. Mas vou querer um relatório depois pra ver se vale a pena mesmo. E se não der certo, cancelo sem pagar nada?\"\n\n(Observação: Dr. Paulo está convencido e quer garantir que o teste seja realmente sem compromisso e com resultados claros)"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Dr. Paulo, ótimo! Vamos lá:\n\n1. **Teste grátis**: Você pode testar a AgenteZap por 7 dias sem pagar nada. Se não gostar, é só cancelar e não cobramos nada.\n\n2. **Relatório**: No final do teste, você recebe um relatório detalhado mostrando quantas consultas foram agendadas, quantas confirmadas, e até o tempo médio de resposta. Assim você vê claramente se vale a pena.\n\n3. **Cancelamento**: Se resolver que não é pra você, é só avisar dentro dos 7 dias e não cobramos nada. Sem burocracia.\n\nVamos começar? Posso criar seu acesso de teste agora mesmo. É só me dar um ok que eu já faço tudo pra você!"
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Dr. Paulo: \"Tá bom, então vamos de teste. Mas me manda o passo a passo de como configurar depois que você criar o acesso. E me avisa quando o relatório ficar pronto.\"\n\n(Observação: Dr. Paulo está pronto para o teste, mas quer garantir que terá suporte e informações claras durante o processo)"
+        },
+        {
+          "speaker": "Rodrigo",
+          "content": "Dr. Paulo, ótimo! Vamos começar então.\n\n[AÇÃO:CRIAR_CONTA_TESTE]\n\nAgora, vou te mandar um passo a passo rápido de como configurar os horários depois que você receber o e-mail de acesso:\n\n1. Acesse o link que vai chegar no seu e-mail.\n2. Clique em \"Configurar Horários\".\n3. Marque os dias e horários que você quer disponíveis.\n4. Salve e pronto! A AgenteZap já começa a trabalhar pra você.\n\nAssim que o teste terminar, eu mesmo te mando o relatório detalhado. Se precisar de ajuda durante o teste, é só chamar!\n\nVamos lá? Seu acesso de teste já está sendo criado. Assim que estiver pronto, eu te mando o e-mail com o link e o passo a passo completo."
+        },
+        {
+          "speaker": "Cliente",
+          "content": "Dr. Paulo: \"Beleza, então. Vou esperar o e-mail. Mas se a IA marcar errado alguma consulta, eu posso corrigir depois?\"\n\n(Observação: Dr. Paulo está preocupado com a possibilidade de erros e quer garantir que pode corrigir manualmente se necessário)"
+        }
+      ],
+      "failureReason": "",
+      "lastClientMessage": "Dr. Paulo: \"Tá bom, então vamos de teste. Mas me manda o passo a passo de como configurar depois que você criar o acesso. E me avisa quando o relatório ficar pronto.\"\n\n(Observação: Dr. Paulo está pronto para o teste, mas quer garantir que terá suporte e informações claras durante o processo)"
+    }
+  ],
+  "summary": {
+    "total": 4,
+    "converted": 4,
+    "conversionRate": 100
+  }
+}
