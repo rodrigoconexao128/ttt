@@ -1,0 +1,107 @@
+{
+  "timestamp": "2026-02-28T04:23:42.133Z",
+  "total": 14,
+  "passed": 14,
+  "failed": 0,
+  "pct": "100.0",
+  "results": [
+    {
+      "id": "C1",
+      "name": "Novo cliente 'oi' → Q1 onboarding",
+      "pass": true,
+      "detail": "Não iniciou onboarding",
+      "responsePreview": "Oi! Aqui e o Rodrigo, da AgenteZap. Eu consigo montar seu agente por aqui, sem voce precisar configurar nada sozinho agora. Pra eu criar do jeito cert"
+    },
+    {
+      "id": "C2",
+      "name": "Onboarding Q1-Q4 sem fallback",
+      "pass": true,
+      "detail": "Caiu no fallback durante onboarding!",
+      "responsePreview": "Fechou. Já atualizei os dias e horários reais no módulo de agendamentos e também alinhei o agente. Agora ele só deve trabalhar dentro de segunda, terç"
+    },
+    {
+      "id": "C3",
+      "name": "Edit CASO REAL (Rodrigo/Drielle) → aplicar",
+      "pass": true,
+      "detail": "",
+      "responsePreview": "Fechado. Já atualizei o prompt real do seu agente para ele se apresentar como Rodrigo da Drielle calçados Rodrigo. Testa no mesmo link do simulador ag"
+    },
+    {
+      "id": "C4",
+      "name": "Edit sem detalhes → pedir especificação",
+      "pass": true,
+      "detail": "Não pediu especificação",
+      "responsePreview": "Consigo sim. Esse mesmo numero ja esta ligado ao seu agente. Me fala exatamente o que voce quer ajustar, que eu aplico por aqui."
+    },
+    {
+      "id": "C5",
+      "name": "Edit 'meu agente seja a Ana da Clínica Bela Saúde'",
+      "pass": true,
+      "detail": "",
+      "responsePreview": "Fechado. Já atualizei o prompt real do seu agente para ele se apresentar como a Ana da Clínica Bela Saúde. Testa no mesmo link do simulador agora e, s"
+    },
+    {
+      "id": "C6",
+      "name": "Edit 'troca nome para Carlos da Elétrica Luz'",
+      "pass": true,
+      "detail": "",
+      "responsePreview": "Fechado. Já atualizei o prompt real do seu agente para ele se apresentar como Carlos da Elétrica Luz. Testa no mesmo link do simulador agora e, se qui"
+    },
+    {
+      "id": "C7",
+      "name": "Novo cliente 'Quem é você?' → apresentação",
+      "pass": true,
+      "detail": "Não se apresentou",
+      "responsePreview": "Oi! Aqui e o Rodrigo, da AgenteZap. Eu consigo montar seu agente por aqui, sem voce precisar configurar nada sozinho agora. Pra eu criar do jeito cert"
+    },
+    {
+      "id": "C8",
+      "name": "Dados PIX corretos",
+      "pass": true,
+      "detail": "Não mencionou PIX nesta fase (normal no onboarding)",
+      "responsePreview": "Oi! Tive uma lentidao aqui, mas sigo com voce. Me fala seu negocio e o que voce quer que o agente faca que eu continuo a configuracao e respondo qualq"
+    },
+    {
+      "id": "C9",
+      "name": "Off-topic no onboarding → não reseta",
+      "pass": true,
+      "detail": "",
+      "responsePreview": "Oi! Tive uma lentidao aqui, mas sigo com voce. Me fala seu negocio e o que voce quer que o agente faca que eu continuo a configuracao e respondo qualq"
+    },
+    {
+      "id": "C10",
+      "name": "Onboarding detalhado → avança Q2",
+      "pass": true,
+      "detail": "Não avançou",
+      "responsePreview": "Fechado. 3) Como é salão/barbearia, ele vai realmente fechar agendamentos no WhatsApp? Se sim, já me manda também os dias e horários de atendimento. S"
+    },
+    {
+      "id": "C11",
+      "name": "Existente 'oi' → reconhecimento",
+      "pass": true,
+      "detail": "",
+      "responsePreview": "Oi! Aqui é o Rodrigo, da AgenteZap 😊\n\nVocê já testou seu agente da *Padaria Pão Quente* no link que te enviei? Ele já está configurado para:\n✅ Tirar "
+    },
+    {
+      "id": "C12",
+      "name": "FRASE DO BUG ORIGINAL → não fallback",
+      "pass": true,
+      "detail": "",
+      "responsePreview": "Fechado. Já atualizei o prompt real do seu agente para ele se apresentar como Rodrigo da Drielle calçados Rodrigo. Testa no mesmo link do simulador ag"
+    },
+    {
+      "id": "C13",
+      "name": "Setup não consome quota",
+      "pass": true,
+      "detail": "",
+      "responsePreview": "Fechou. Já atualizei os dias e horários reais no módulo de agendamentos e também alinhei o agente. Agora ele só deve trabalhar dentro de segunda, terç"
+    },
+    {
+      "id": "C14",
+      "name": "Edit não-padrão → LLM classifier",
+      "pass": true,
+      "detail": "",
+      "responsePreview": "João, seu novo agente da *Bolos da Vovó* já está pronto! Agora ele se chama *João* e vai atender com o tom da sua padaria, especializada em bolos.\n\n🔹"
+    }
+  ]
+}

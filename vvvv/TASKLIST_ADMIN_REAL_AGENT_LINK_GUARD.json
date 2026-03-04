@@ -1,0 +1,22 @@
+{
+  "title": "Admin Agent Real Link Guard",
+  "updatedAt": "2026-02-27",
+  "items": [
+    {
+      "step": "Bloquear fallback para demo quando /test recebe token invalido ou expirado",
+      "status": "done"
+    },
+    {
+      "step": "Impedir que o admin confirme criacao sem token real persistido",
+      "status": "done"
+    },
+    {
+      "step": "Validar por simulacao que um cliente novo gera token real e agente do proprio negocio",
+      "status": "done"
+    },
+    {
+      "step": "Publicar na VPS e validar o endpoint publico /api/test-agent/info",
+      "status": "done"
+    }
+  ]
+}

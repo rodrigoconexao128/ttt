@@ -1,0 +1,78 @@
+{
+  "data": "2026-01-16T03:29:38.344Z",
+  "resultados": [
+    {
+      "id": 1,
+      "nome": "Cliente perguntando valor de implante",
+      "pontuacao": 4,
+      "maxima": 4,
+      "percentual": 100
+    },
+    {
+      "id": 2,
+      "nome": "Cliente querendo agendar sábado",
+      "pontuacao": 4,
+      "maxima": 4,
+      "percentual": 100
+    },
+    {
+      "id": 3,
+      "nome": "Primeiro contato (menu)",
+      "pontuacao": 5,
+      "maxima": 5,
+      "percentual": 100
+    },
+    {
+      "id": 4,
+      "nome": "Cliente quer enviar currículo",
+      "pontuacao": 4,
+      "maxima": 4,
+      "percentual": 100
+    },
+    {
+      "id": 5,
+      "nome": "Cliente quer ser paciente modelo",
+      "pontuacao": 5,
+      "maxima": 5,
+      "percentual": 100
+    },
+    {
+      "id": 6,
+      "nome": "Cliente tentando marcar horário direto",
+      "pontuacao": 4,
+      "maxima": 4,
+      "percentual": 100
+    },
+    {
+      "id": 7,
+      "nome": "Cliente confunde curso com tratamento",
+      "pontuacao": 4,
+      "maxima": 4,
+      "percentual": 100
+    },
+    {
+      "id": 8,
+      "nome": "Cliente insistente com valores",
+      "pontuacao": 4,
+      "maxima": 4,
+      "percentual": 100
+    },
+    {
+      "id": 9,
+      "nome": "Cliente interessado em curso",
+      "pontuacao": 4,
+      "maxima": 4,
+      "percentual": 100
+    },
+    {
+      "id": 10,
+      "nome": "Cliente com dúvida sobre horários",
+      "pontuacao": 4,
+      "maxima": 4,
+      "percentual": 100
+    }
+  ],
+  "pontuacaoTotal": 42,
+  "pontuacaoMaxima": 42,
+  "percentualGeral": 100
+}

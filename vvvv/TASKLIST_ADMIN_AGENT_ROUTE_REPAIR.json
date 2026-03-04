@@ -1,0 +1,11 @@
+{
+  "task": "repair-admin-agent-route-and-simulator",
+  "updatedAt": "2026-02-27",
+  "items": [
+    { "step": "Reproduzir falha em /admin#agent/atendimento", "status": "done" },
+    { "step": "Corrigir renderizacao da aba Agente IA no admin", "status": "done" },
+    { "step": "Exibir simulador tambem em /admin#agent/atendimento", "status": "done" },
+    { "step": "Reduzir latencia do fluxo (oi rapido e auto-criacao mais rapida)", "status": "done" },
+    { "step": "Validar no navegador e publicar", "status": "done" }
+  ]
+}

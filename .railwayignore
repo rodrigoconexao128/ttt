@@ -1,0 +1,10 @@
+node_modules
+.venv
+*.md
+*.txt
+*.json.bak
+logs.*.json
+benchmark-*.json
+.git
+__pycache__
+*.pyc

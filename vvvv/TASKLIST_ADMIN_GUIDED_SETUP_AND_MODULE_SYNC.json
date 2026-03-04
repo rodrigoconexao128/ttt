@@ -1,0 +1,44 @@
+{
+  "title": "Admin WhatsApp Guided Setup And Module Sync",
+  "date": "2026-02-27",
+  "status": "completed",
+  "items": [
+    {
+      "step": "Implementar onboarding guiado com 3 perguntas antes de criar a conta",
+      "status": "completed"
+    },
+    {
+      "step": "Mapear o fluxo correto por nicho (salao, delivery, agendamento, generico)",
+      "status": "completed"
+    },
+    {
+      "step": "Persistir configuracao real dos modulos (salon_config, delivery_config, scheduling_config) em vez de ajustar so o prompt",
+      "status": "completed"
+    },
+    {
+      "step": "Sincronizar edicoes de dias/horarios no WhatsApp com o modulo real e limitar a 5 edicoes no plano gratuito",
+      "status": "completed"
+    },
+    {
+      "step": "Evitar conta orfa no Supabase Auth quando resetar e recriar o mesmo numero",
+      "status": "completed"
+    },
+    {
+      "step": "Bloquear pedido de print/video antes de existir informacao minima do negocio para nao prometer demo sem base",
+      "status": "completed"
+    },
+    {
+      "step": "Adicionar simulacao automatizada especifica do fluxo guiado",
+      "status": "completed",
+      "evidence": {
+        "command": "npm run simulate:admin-guided-flow",
+        "report": "C:\\Users\\Windows\\Downloads\\agentezap correto\\vvvv\\test-results\\admin-guided-flow-2026-02-27T22-13-05-858Z.json",
+        "result": "salon=true, delivery=true, scheduling=true"
+      }
+    }
+  ],
+  "notes": [
+    "Os scripts antigos simulate:admin-factory e simulate:admin-ia-vs-ia continuam instaveis porque ainda dependem de conversa livre com LLM e do fluxo antigo.",
+    "O teste de regressao recomendado para este fluxo novo e o simulate:admin-guided-flow."
+  ]
+}

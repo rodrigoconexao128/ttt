@@ -1,0 +1,556 @@
+{
+  "timestamp": "2026-02-21T14:01:27.535Z",
+  "promptFile": "C:\\Users\\Windows\\Downloads\\agentezap correto\\vvvv\\prompt-mania-calibrado-v1.txt",
+  "model": "mistral-small-latest",
+  "totalPersonas": 5,
+  "passedPersonas": 5,
+  "totalViolations": 0,
+  "passedAll": true,
+  "results": [
+    {
+      "persona": "Cliente Objetivo",
+      "passed": true,
+      "violations": [],
+      "transcript": [
+        {
+          "turn": 1,
+          "speaker": "cliente",
+          "message": "Oi, quero saber preço agora."
+        },
+        {
+          "turn": 1,
+          "speaker": "agente",
+          "message": "{nome}, para não te passar valor incorreto, vou confirmar agora e já volto com o preço exato 😊"
+        },
+        {
+          "turn": 2,
+          "speaker": "cliente",
+          "message": "É de cabeceira queen."
+        },
+        {
+          "turn": 2,
+          "speaker": "agente",
+          "message": "{nome}, qual modelo você deseja?"
+        },
+        {
+          "turn": 3,
+          "speaker": "cliente",
+          "message": "Modelo itália."
+        },
+        {
+          "turn": 3,
+          "speaker": "agente",
+          "message": "Olá! Você procura cabeceira, colchão, cama ou box baú? 😊"
+        },
+        {
+          "turn": 4,
+          "speaker": "cliente",
+          "message": "Pode mandar imagem?"
+        },
+        {
+          "turn": 4,
+          "speaker": "agente",
+          "message": "{nome}, antes de enviar mídia preciso confirmar tamanho e modelo certinho 😊"
+        },
+        {
+          "turn": 5,
+          "speaker": "cliente",
+          "message": "Agora me manda o link."
+        },
+        {
+          "turn": 5,
+          "speaker": "agente",
+          "message": "{nome}, te envio sim 😊 Antes preciso só confirmar produto, tamanho e modelo para mandar o link certo."
+        },
+        {
+          "turn": 6,
+          "speaker": "cliente",
+          "message": "Agora me manda o link."
+        },
+        {
+          "turn": 6,
+          "speaker": "agente",
+          "message": "{nome}, te envio sim 😊 Antes preciso só confirmar produto, tamanho e modelo para mandar o link certo."
+        },
+        {
+          "turn": 7,
+          "speaker": "cliente",
+          "message": "Agora me manda o link."
+        },
+        {
+          "turn": 7,
+          "speaker": "agente",
+          "message": "{nome}, te envio sim 😊 Antes preciso só confirmar produto, tamanho e modelo para mandar o link certo."
+        },
+        {
+          "turn": 8,
+          "speaker": "cliente",
+          "message": "Agora me manda o link."
+        },
+        {
+          "turn": 8,
+          "speaker": "agente",
+          "message": "{nome}, te envio sim 😊 Antes preciso só confirmar produto, tamanho e modelo para mandar o link certo."
+        },
+        {
+          "turn": 9,
+          "speaker": "cliente",
+          "message": "Agora me manda o link."
+        },
+        {
+          "turn": 9,
+          "speaker": "agente",
+          "message": "{nome}, te envio sim 😊 Antes preciso só confirmar produto, tamanho e modelo para mandar o link certo."
+        },
+        {
+          "turn": 10,
+          "speaker": "cliente",
+          "message": "Agora me manda o link."
+        },
+        {
+          "turn": 10,
+          "speaker": "agente",
+          "message": "{nome}, te envio sim 😊 Antes preciso só confirmar produto, tamanho e modelo para mandar o link certo."
+        }
+      ],
+      "attempts": 1,
+      "infraError": null
+    },
+    {
+      "persona": "Cliente de Cabeceira",
+      "passed": true,
+      "violations": [],
+      "transcript": [
+        {
+          "turn": 1,
+          "speaker": "cliente",
+          "message": "Boa tarde, quero cabeceira."
+        },
+        {
+          "turn": 1,
+          "speaker": "agente",
+          "message": "{nome}, qual tamanho você procura?"
+        },
+        {
+          "turn": 2,
+          "speaker": "cliente",
+          "message": "Tamanho casal."
+        },
+        {
+          "turn": 2,
+          "speaker": "agente",
+          "message": "Olá! Você procura cabeceira, colchão, cama ou box baú? 😊"
+        },
+        {
+          "turn": 3,
+          "speaker": "cliente",
+          "message": "Modelo dubai."
+        },
+        {
+          "turn": 3,
+          "speaker": "agente",
+          "message": "Olá! Você procura cabeceira, colchão, cama ou box baú? 😊"
+        },
+        {
+          "turn": 4,
+          "speaker": "cliente",
+          "message": "Pode enviar a foto?"
+        },
+        {
+          "turn": 4,
+          "speaker": "agente",
+          "message": "{nome}, antes de enviar mídia preciso confirmar tamanho e modelo certinho 😊"
+        },
+        {
+          "turn": 5,
+          "speaker": "cliente",
+          "message": "Tem link?"
+        },
+        {
+          "turn": 5,
+          "speaker": "agente",
+          "message": "{nome}, te envio sim 😊 Antes preciso só confirmar produto, tamanho e modelo para mandar o link certo."
+        },
+        {
+          "turn": 6,
+          "speaker": "cliente",
+          "message": "Tem link?"
+        },
+        {
+          "turn": 6,
+          "speaker": "agente",
+          "message": "{nome}, te envio sim 😊 Antes preciso só confirmar produto, tamanho e modelo para mandar o link certo."
+        },
+        {
+          "turn": 7,
+          "speaker": "cliente",
+          "message": "Tem link?"
+        },
+        {
+          "turn": 7,
+          "speaker": "agente",
+          "message": "{nome}, te envio sim 😊 Antes preciso só confirmar produto, tamanho e modelo para mandar o link certo."
+        },
+        {
+          "turn": 8,
+          "speaker": "cliente",
+          "message": "Tem link?"
+        },
+        {
+          "turn": 8,
+          "speaker": "agente",
+          "message": "{nome}, te envio sim 😊 Antes preciso só confirmar produto, tamanho e modelo para mandar o link certo."
+        },
+        {
+          "turn": 9,
+          "speaker": "cliente",
+          "message": "Tem link?"
+        },
+        {
+          "turn": 9,
+          "speaker": "agente",
+          "message": "{nome}, te envio sim 😊 Antes preciso só confirmar produto, tamanho e modelo para mandar o link certo."
+        },
+        {
+          "turn": 10,
+          "speaker": "cliente",
+          "message": "Tem link?"
+        },
+        {
+          "turn": 10,
+          "speaker": "agente",
+          "message": "{nome}, te envio sim 😊 Antes preciso só confirmar produto, tamanho e modelo para mandar o link certo."
+        }
+      ],
+      "attempts": 1,
+      "infraError": null
+    },
+    {
+      "persona": "Cliente Link Rápido",
+      "passed": true,
+      "violations": [],
+      "transcript": [
+        {
+          "turn": 1,
+          "speaker": "cliente",
+          "message": "Me manda o link aí."
+        },
+        {
+          "turn": 1,
+          "speaker": "agente",
+          "message": "{nome}, te envio sim 😊 Antes preciso só confirmar produto, tamanho e modelo para mandar o link certo."
+        },
+        {
+          "turn": 2,
+          "speaker": "cliente",
+          "message": "É cabeceira."
+        },
+        {
+          "turn": 2,
+          "speaker": "agente",
+          "message": "{nome}, qual tamanho você procura?"
+        },
+        {
+          "turn": 3,
+          "speaker": "cliente",
+          "message": "Queen."
+        },
+        {
+          "turn": 3,
+          "speaker": "agente",
+          "message": "Olá! Você procura cabeceira, colchão, cama ou box baú? 😊"
+        },
+        {
+          "turn": 4,
+          "speaker": "cliente",
+          "message": "Modelo malta."
+        },
+        {
+          "turn": 4,
+          "speaker": "agente",
+          "message": "Olá! Você procura cabeceira, colchão, cama ou box baú? 😊"
+        },
+        {
+          "turn": 5,
+          "speaker": "cliente",
+          "message": "Agora pode mandar o link."
+        },
+        {
+          "turn": 5,
+          "speaker": "agente",
+          "message": "{nome}, te envio sim 😊 Antes preciso só confirmar produto, tamanho e modelo para mandar o link certo."
+        },
+        {
+          "turn": 6,
+          "speaker": "cliente",
+          "message": "Agora pode mandar o link."
+        },
+        {
+          "turn": 6,
+          "speaker": "agente",
+          "message": "{nome}, te envio sim 😊 Antes preciso só confirmar produto, tamanho e modelo para mandar o link certo."
+        },
+        {
+          "turn": 7,
+          "speaker": "cliente",
+          "message": "Agora pode mandar o link."
+        },
+        {
+          "turn": 7,
+          "speaker": "agente",
+          "message": "{nome}, te envio sim 😊 Antes preciso só confirmar produto, tamanho e modelo para mandar o link certo."
+        },
+        {
+          "turn": 8,
+          "speaker": "cliente",
+          "message": "Agora pode mandar o link."
+        },
+        {
+          "turn": 8,
+          "speaker": "agente",
+          "message": "{nome}, te envio sim 😊 Antes preciso só confirmar produto, tamanho e modelo para mandar o link certo."
+        },
+        {
+          "turn": 9,
+          "speaker": "cliente",
+          "message": "Agora pode mandar o link."
+        },
+        {
+          "turn": 9,
+          "speaker": "agente",
+          "message": "{nome}, te envio sim 😊 Antes preciso só confirmar produto, tamanho e modelo para mandar o link certo."
+        },
+        {
+          "turn": 10,
+          "speaker": "cliente",
+          "message": "Agora pode mandar o link."
+        },
+        {
+          "turn": 10,
+          "speaker": "agente",
+          "message": "{nome}, te envio sim 😊 Antes preciso só confirmar produto, tamanho e modelo para mandar o link certo."
+        }
+      ],
+      "attempts": 1,
+      "infraError": null
+    },
+    {
+      "persona": "Cliente Confuso",
+      "passed": true,
+      "violations": [],
+      "transcript": [
+        {
+          "turn": 1,
+          "speaker": "cliente",
+          "message": "Quero cabeceira."
+        },
+        {
+          "turn": 1,
+          "speaker": "agente",
+          "message": "{nome}, qual tamanho você procura?"
+        },
+        {
+          "turn": 2,
+          "speaker": "cliente",
+          "message": "Na verdade colchão também, tô confuso."
+        },
+        {
+          "turn": 2,
+          "speaker": "agente",
+          "message": "{nome}, qual tamanho você procura?"
+        },
+        {
+          "turn": 3,
+          "speaker": "cliente",
+          "message": "Voltei pra cabeceira king."
+        },
+        {
+          "turn": 3,
+          "speaker": "agente",
+          "message": "{nome}, qual modelo você deseja?"
+        },
+        {
+          "turn": 4,
+          "speaker": "cliente",
+          "message": "Modelo alfa slim."
+        },
+        {
+          "turn": 4,
+          "speaker": "agente",
+          "message": "Olá! Você procura cabeceira, colchão, cama ou box baú? 😊"
+        },
+        {
+          "turn": 5,
+          "speaker": "cliente",
+          "message": "Pode mandar imagem e link?"
+        },
+        {
+          "turn": 5,
+          "speaker": "agente",
+          "message": "{nome}, te envio sim 😊 Antes preciso só confirmar produto, tamanho e modelo para mandar o link certo."
+        },
+        {
+          "turn": 6,
+          "speaker": "cliente",
+          "message": "Pode mandar imagem e link?"
+        },
+        {
+          "turn": 6,
+          "speaker": "agente",
+          "message": "{nome}, te envio sim 😊 Antes preciso só confirmar produto, tamanho e modelo para mandar o link certo."
+        },
+        {
+          "turn": 7,
+          "speaker": "cliente",
+          "message": "Pode mandar imagem e link?"
+        },
+        {
+          "turn": 7,
+          "speaker": "agente",
+          "message": "{nome}, te envio sim 😊 Antes preciso só confirmar produto, tamanho e modelo para mandar o link certo."
+        },
+        {
+          "turn": 8,
+          "speaker": "cliente",
+          "message": "Pode mandar imagem e link?"
+        },
+        {
+          "turn": 8,
+          "speaker": "agente",
+          "message": "{nome}, te envio sim 😊 Antes preciso só confirmar produto, tamanho e modelo para mandar o link certo."
+        },
+        {
+          "turn": 9,
+          "speaker": "cliente",
+          "message": "Pode mandar imagem e link?"
+        },
+        {
+          "turn": 9,
+          "speaker": "agente",
+          "message": "{nome}, te envio sim 😊 Antes preciso só confirmar produto, tamanho e modelo para mandar o link certo."
+        },
+        {
+          "turn": 10,
+          "speaker": "cliente",
+          "message": "Pode mandar imagem e link?"
+        },
+        {
+          "turn": 10,
+          "speaker": "agente",
+          "message": "{nome}, te envio sim 😊 Antes preciso só confirmar produto, tamanho e modelo para mandar o link certo."
+        }
+      ],
+      "attempts": 1,
+      "infraError": null
+    },
+    {
+      "persona": "Cliente Detalhista",
+      "passed": true,
+      "violations": [],
+      "transcript": [
+        {
+          "turn": 1,
+          "speaker": "cliente",
+          "message": "Preciso de preço exato."
+        },
+        {
+          "turn": 1,
+          "speaker": "agente",
+          "message": "{nome}, para não te passar valor incorreto, vou confirmar agora e já volto com o preço exato 😊"
+        },
+        {
+          "turn": 2,
+          "speaker": "cliente",
+          "message": "Cabeceira casal."
+        },
+        {
+          "turn": 2,
+          "speaker": "agente",
+          "message": "{nome}, qual modelo você deseja?"
+        },
+        {
+          "turn": 3,
+          "speaker": "cliente",
+          "message": "Modelo itália."
+        },
+        {
+          "turn": 3,
+          "speaker": "agente",
+          "message": "Olá! Você procura cabeceira, colchão, cama ou box baú? 😊"
+        },
+        {
+          "turn": 4,
+          "speaker": "cliente",
+          "message": "Pode enviar mídia?"
+        },
+        {
+          "turn": 4,
+          "speaker": "agente",
+          "message": "{nome}, antes de enviar mídia preciso confirmar tamanho e modelo certinho 😊"
+        },
+        {
+          "turn": 5,
+          "speaker": "cliente",
+          "message": "Quero o link final."
+        },
+        {
+          "turn": 5,
+          "speaker": "agente",
+          "message": "{nome}, te envio sim 😊 Antes preciso só confirmar produto, tamanho e modelo para mandar o link certo."
+        },
+        {
+          "turn": 6,
+          "speaker": "cliente",
+          "message": "Quero o link final."
+        },
+        {
+          "turn": 6,
+          "speaker": "agente",
+          "message": "{nome}, te envio sim 😊 Antes preciso só confirmar produto, tamanho e modelo para mandar o link certo."
+        },
+        {
+          "turn": 7,
+          "speaker": "cliente",
+          "message": "Quero o link final."
+        },
+        {
+          "turn": 7,
+          "speaker": "agente",
+          "message": "{nome}, te envio sim 😊 Antes preciso só confirmar produto, tamanho e modelo para mandar o link certo."
+        },
+        {
+          "turn": 8,
+          "speaker": "cliente",
+          "message": "Quero o link final."
+        },
+        {
+          "turn": 8,
+          "speaker": "agente",
+          "message": "{nome}, te envio sim 😊 Antes preciso só confirmar produto, tamanho e modelo para mandar o link certo."
+        },
+        {
+          "turn": 9,
+          "speaker": "cliente",
+          "message": "Quero o link final."
+        },
+        {
+          "turn": 9,
+          "speaker": "agente",
+          "message": "{nome}, te envio sim 😊 Antes preciso só confirmar produto, tamanho e modelo para mandar o link certo."
+        },
+        {
+          "turn": 10,
+          "speaker": "cliente",
+          "message": "Quero o link final."
+        },
+        {
+          "turn": 10,
+          "speaker": "agente",
+          "message": "{nome}, te envio sim 😊 Antes preciso só confirmar produto, tamanho e modelo para mandar o link certo."
+        }
+      ],
+      "attempts": 1,
+      "infraError": null
+    }
+  ]
+}

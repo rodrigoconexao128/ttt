@@ -1,0 +1,26 @@
+{
+  "title": "Admin Module Matrix And Reset Fix",
+  "updatedAt": "2026-02-27",
+  "items": [
+    {
+      "step": "Reproduzir o reset quebrado e identificar as tabelas que ainda bloqueiam a exclusao",
+      "status": "done"
+    },
+    {
+      "step": "Limpar dependencias de agendamentos e delivery no reset forcado",
+      "status": "done"
+    },
+    {
+      "step": "Permitir reset por numero quando a conversa estiver stale no cache do admin",
+      "status": "done"
+    },
+    {
+      "step": "Rodar matriz de simulacao para delivery e agendamentos com varios perfis",
+      "status": "done"
+    },
+    {
+      "step": "Publicar na VPS e validar em producao",
+      "status": "done"
+    }
+  ]
+}

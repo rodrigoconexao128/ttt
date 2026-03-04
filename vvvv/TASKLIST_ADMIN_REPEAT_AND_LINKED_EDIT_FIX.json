@@ -1,0 +1,29 @@
+{
+  "task": "Corrigir repeticao de resposta e garantir que a edicao de agente aconteca no usuario certo quando existem multiplas contas com o mesmo telefone",
+  "steps": [
+    {
+      "step": "Reproduzir a conversa real 075c0e70-df29-4422-b1fe-20eaac30e41b e confirmar o bug",
+      "status": "completed"
+    },
+    {
+      "step": "Validar criacao + edicao + simulador com numero sintetico",
+      "status": "completed"
+    },
+    {
+      "step": "Corrigir a consistencia da resposta para nao reescrever como 'nao finalizei' apos ja existir link entregue",
+      "status": "completed"
+    },
+    {
+      "step": "Corrigir a resolucao do usuario vinculado priorizando token entregue na conversa, depois whatsappNumber, depois phone",
+      "status": "completed"
+    },
+    {
+      "step": "Aplicar a edicao correta no caso real e validar o link publico /test",
+      "status": "completed"
+    },
+    {
+      "step": "Buildar e publicar na VPS com PM2",
+      "status": "completed"
+    }
+  ]
+}

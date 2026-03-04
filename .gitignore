@@ -1,0 +1,107 @@
+# ─── Playwright MCP artefatos ────────────────────────────────────────────────
+.playwright-mcp/
+
+# ─── Screenshots e imagens locais (root) ─────────────────────────────────────
+*.png
+*.jpg
+*.jpeg
+*.mp4
+
+# ─── Scripts utilitários (TODOS - podem conter credenciais) ──────────────────
+*.py
+*.mjs
+*.cjs
+*.ps1
+
+# ─── Arquivos temporários e de teste ─────────────────────────────────────────
+tmp_*.js
+check-status.js
+teste-*.ts
+session-*.txt
+*.jsonl
+
+# ─── Build artifacts ─────────────────────────────────────────────────────────
+dist/
+
+# ─── E2E tests (contêm credenciais hardcoded) ────────────────────────────────
+e2e/
+
+# ─── Backups ──────────────────────────────────────────────────────────────────
+_backup_openclaw/
+
+# ─── Claude/AI settings ──────────────────────────────────────────────────────
+.claude/
+
+# ─── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+
+# ─── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+
+# ─── OS ───────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ─── Traycer runtime artifacts ────────────────────────────────────────────────
+.traycer/
+.git_backup/
+*/.git_backup/
+
+# ─── Credenciais e Segurança (NUNCA commitar) ──────────────────────────────────
+*credentials*
+*CREDENTIALS*
+SUPABASE_*.md
+*secret*
+*SECRET*
+.env
+.env.*
+.env.*.local
+auth_*.json
+SECURITY_AUDIT_*.md
+CHAVES_*.md
+VPS_*.md
+RELATORIO_*.md
+IMPLEMENTACAO_*.md
+RESUMO_*.md
+
+# ─── Dados de clientes e assets ──────────────────────────────────────────────
+agentecurso completo/
+clienterodirgo/
+NathanedaTrilhaMundo/
+cardapio pizzaria/
+saferoute/
+tutorial_assets/
+openclaw-policy/
+vps-setup/
+
+# ─── VSCode settings com credenciais ─────────────────────────────────────────
+.vscode/mcp.json
+
+# ─── Media e binários ────────────────────────────────────────────────────────
+*.mp3
+*.webm
+*.xlsx
+*.pdf
+*.bat
+*.cmd
+*.sql
+
+# ─── Dados sensíveis ─────────────────────────────────────────────────────────
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!tsconfig.*.json
+!.railway/config.json
+!vvvv/**/*.json
+
+# ─── Outros ──────────────────────────────────────────────────────────────────
+cookies.txt
+*.txt
+!README.txt
+node_modules/
+railway_*.log
+test-results/
