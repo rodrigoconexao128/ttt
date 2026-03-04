@@ -1,0 +1,513 @@
+- generic [ref=e2]:
+  - region "Notifications (F8)":
+    - list
+  - generic [ref=e3]:
+    - generic [ref=e6]:
+      - button "Toggle Sidebar" [ref=e9] [cursor=pointer]:
+        - img
+        - generic [ref=e10]: Toggle Sidebar
+      - generic [ref=e12]:
+        - generic [ref=e13]: Menu Principal
+        - list [ref=e14]:
+          - listitem [ref=e15]:
+            - button "Dashboard" [ref=e16] [cursor=pointer]:
+              - img [ref=e17]
+              - generic: Dashboard
+          - listitem [ref=e23]:
+            - button "Conversas" [ref=e24] [cursor=pointer]:
+              - img [ref=e25]
+              - generic: Conversas
+          - listitem [ref=e28]:
+            - button "Conexão" [ref=e29] [cursor=pointer]:
+              - img [ref=e30]
+              - generic: Conexão
+          - listitem [ref=e33]:
+            - button "Meu Agente IA" [ref=e34] [cursor=pointer]:
+              - img [ref=e35]
+              - generic: Meu Agente IA
+          - listitem [ref=e39]:
+            - link "Central de Ajuda" [ref=e40] [cursor=pointer]:
+              - /url: /ajuda
+              - img [ref=e41]
+              - generic: Central de Ajuda
+          - listitem [ref=e46]:
+            - generic [ref=e47]:
+              - button "Ferramentas" [expanded] [ref=e48] [cursor=pointer]:
+                - img [ref=e49]
+                - generic [ref=e51]: Ferramentas
+                - img [ref=e52]
+              - generic [ref=e54]:
+                - button "Inteligência Artificial" [ref=e56] [cursor=pointer]:
+                  - generic:
+                    - img
+                    - generic [ref=e61]: Inteligência Artificial
+                - link "🏪 Ferramentas por Segmento" [ref=e63] [cursor=pointer]:
+                  - /url: /ferramentas
+                  - generic:
+                    - img
+                    - generic [ref=e66]: 🏪 Ferramentas por Segmento
+                - generic [ref=e67]:
+                  - generic:
+                    - button "🍕 Delivery" [expanded] [ref=e69] [cursor=pointer]:
+                      - generic:
+                        - img
+                        - generic [ref=e76]: 🍕 Delivery
+                        - img
+                    - generic [ref=e79]:
+                      - link "📦 Cardápio" [ref=e80] [cursor=pointer]:
+                        - /url: /delivery-cardapio
+                        - generic:
+                          - img
+                          - generic [ref=e87]: 📦 Cardápio
+                      - link "Pedidos" [ref=e88] [cursor=pointer]:
+                        - /url: /delivery-pedidos
+                        - generic:
+                          - img
+                          - generic [ref=e93]: Pedidos
+                      - link "📊 Relatórios" [ref=e94] [cursor=pointer]:
+                        - /url: /delivery-relatorios
+                        - generic:
+                          - img
+                          - generic [ref=e99]: 📊 Relatórios
+                - button "💇 Salão de Beleza" [ref=e102] [cursor=pointer]:
+                  - generic:
+                    - img
+                    - generic [ref=e108]: 💇 Salão de Beleza
+                    - img
+                - link "📅 Agendamentos" [ref=e112] [cursor=pointer]:
+                  - /url: /agendamentos
+                  - generic:
+                    - img
+                    - generic [ref=e118]: 📅 Agendamentos
+                - link "Follow-up Inteligente" [ref=e120] [cursor=pointer]:
+                  - /url: /followup
+                  - generic:
+                    - img
+                    - generic [ref=e124]: Follow-up Inteligente
+                - link "Lista de Exclusão" [ref=e126] [cursor=pointer]:
+                  - /url: /lista-exclusao
+                  - generic:
+                    - img
+                    - generic [ref=e131]: Lista de Exclusão
+                - link "Falar por Áudio" [ref=e133] [cursor=pointer]:
+                  - /url: /falar-por-audio
+                  - generic:
+                    - img
+                    - generic [ref=e138]: Falar por Áudio
+                - link "Notificador Inteligente" [ref=e140] [cursor=pointer]:
+                  - /url: /notificador
+                  - generic:
+                    - img
+                    - generic [ref=e145]: Notificador Inteligente
+                - link "Biblioteca de Mídias" [ref=e147] [cursor=pointer]:
+                  - /url: /biblioteca-midias
+                  - generic:
+                    - img
+                    - generic [ref=e152]: Biblioteca de Mídias
+                - link "Envio em Massa" [ref=e154] [cursor=pointer]:
+                  - /url: /envio-em-massa
+                  - generic:
+                    - img
+                    - generic [ref=e159]: Envio em Massa
+                - link "Listas de Contatos" [ref=e161] [cursor=pointer]:
+                  - /url: /listas-contatos
+                  - generic:
+                    - img
+                    - generic [ref=e167]: Listas de Contatos
+                - link "Campanhas" [ref=e169] [cursor=pointer]:
+                  - /url: /campanhas
+                  - generic:
+                    - img
+                    - generic [ref=e174]: Campanhas
+                - link "Kanban" [ref=e176] [cursor=pointer]:
+                  - /url: /kanban
+                  - generic:
+                    - img
+                    - generic [ref=e179]: Kanban
+                - link "Contatos Sincronizados" [ref=e181] [cursor=pointer]:
+                  - /url: /contatos-sincronizados
+                  - generic:
+                    - img
+                    - generic [ref=e185]: Contatos Sincronizados
+                - link "Etiquetas" [ref=e187] [cursor=pointer]:
+                  - /url: /etiquetas
+                  - generic:
+                    - img
+                    - generic [ref=e193]: Etiquetas
+                - link "Campos Personalizados" [ref=e195] [cursor=pointer]:
+                  - /url: /campos-personalizados
+                  - generic:
+                    - img
+                    - generic [ref=e199]: Campos Personalizados
+                - link "Catálogo de Produtos" [ref=e201] [cursor=pointer]:
+                  - /url: /produtos
+                  - generic:
+                    - img
+                    - generic [ref=e207]: Catálogo de Produtos
+                - link "Funil" [ref=e209] [cursor=pointer]:
+                  - /url: /funil
+                  - generic:
+                    - img
+                    - generic [ref=e213]: Funil
+                - link "Reservas" [ref=e215] [cursor=pointer]:
+                  - /url: /reservas
+                  - generic:
+                    - img
+                    - generic [ref=e220]: Reservas
+          - listitem [ref=e221]:
+            - button "Configurações" [ref=e223] [cursor=pointer]:
+              - img [ref=e224]
+              - generic [ref=e227]: Configurações
+              - img [ref=e228]
+      - list [ref=e231]:
+        - listitem [ref=e232]:
+          - button "Sair" [ref=e233] [cursor=pointer]:
+            - generic [ref=e234]:
+              - img
+              - generic [ref=e238]: Sair
+        - listitem [ref=e239]:
+          - link "Upgrade → Anual" [ref=e240] [cursor=pointer]:
+            - /url: https://agentezap.online/plans
+            - img [ref=e241]
+            - generic: Upgrade → Anual
+        - listitem [ref=e247]:
+          - link "Implementação VIP" [ref=e248] [cursor=pointer]:
+            - /url: https://agentezap.online/plans
+            - img [ref=e249]
+            - generic: Implementação VIP
+    - main [ref=e252]:
+      - generic [ref=e1217]:
+        - generic [ref=e1218]:
+          - generic [ref=e1219]:
+            - generic [ref=e1220]:
+              - img [ref=e1222]
+              - generic [ref=e1225]:
+                - heading "Editor de Agente" [level=3] [ref=e1226]
+                - paragraph [ref=e1227]: Configurações
+            - generic [ref=e1231]:
+              - generic [ref=e1232]:
+                - switch [checked] [ref=e1233] [cursor=pointer]
+                - generic [ref=e1234]: IA ON
+              - button "Chat" [ref=e1235] [cursor=pointer]:
+                - img
+                - text: Chat
+              - button "Editar" [ref=e1236] [cursor=pointer]:
+                - img
+                - text: Editar
+              - button "Mídias" [ref=e1237] [cursor=pointer]:
+                - img
+                - text: Mídias
+              - button "Config" [ref=e1238] [cursor=pointer]:
+                - img
+                - text: Config
+              - button "Corrigir" [ref=e1239] [cursor=pointer]:
+                - img
+                - text: Corrigir
+              - button "Fluxo" [ref=e1240] [cursor=pointer]:
+                - img
+                - text: Fluxo
+          - generic [ref=e1277]:
+            - heading "Configurações do Agente" [level=2] [ref=e1278]
+            - generic [ref=e1279]:
+              - generic [ref=e1280]:
+                - generic [ref=e1281]:
+                  - img [ref=e1282]
+                  - text: Tempo de Resposta
+                - generic [ref=e1285]: Delay antes de enviar resposta
+              - generic [ref=e1286]:
+                - generic [ref=e1287]:
+                  - button "Rápido (10s)" [ref=e1288] [cursor=pointer]:
+                    - img
+                    - text: Rápido (10s)
+                  - button "Normal (30s)" [ref=e1289] [cursor=pointer]
+                  - button "Lento (60s)" [ref=e1290] [cursor=pointer]
+                - generic [ref=e1291]:
+                  - slider [ref=e1296]
+                  - generic [ref=e1297]: 30s
+            - generic [ref=e1298]:
+              - generic [ref=e1299]:
+                - generic [ref=e1300]:
+                  - img [ref=e1301]
+                  - text: Tamanho das Mensagens
+                - generic [ref=e1304]: Dividir mensagens longas
+              - generic [ref=e1306]:
+                - button "Pequeno (200)" [ref=e1307] [cursor=pointer]
+                - button "Médio (400)" [ref=e1308] [cursor=pointer]
+                - button "Sem divisão" [ref=e1309] [cursor=pointer]
+            - generic [ref=e1310]:
+              - generic [ref=e1311]:
+                - generic [ref=e1312]:
+                  - img [ref=e1313]
+                  - text: Frases Gatilho
+                - generic [ref=e1315]: A IA só responde se a mensagem contiver uma dessas frases
+              - generic [ref=e1316]:
+                - generic [ref=e1317]:
+                  - 'textbox "Ex: olá, quero saber" [ref=e1318]'
+                  - button [disabled]:
+                    - img
+                - paragraph [ref=e1319]: Sem frases gatilho = IA responde a todas mensagens
+            - generic [ref=e1322]:
+              - generic [ref=e1323]:
+                - generic [ref=e1324]:
+                  - img [ref=e1325]
+                  - text: Memória de Conversas
+                - generic [ref=e1335]: Buscar histórico na primeira resposta
+              - switch [ref=e1336] [cursor=pointer]
+            - generic [ref=e1337]:
+              - generic [ref=e1339]:
+                - generic [ref=e1340]:
+                  - generic [ref=e1341]:
+                    - img [ref=e1342]
+                    - text: Pausar IA ao Responder
+                  - generic [ref=e1345]: Desativa IA quando você responde
+                - switch [checked] [ref=e1346] [cursor=pointer]
+              - generic [ref=e1348]:
+                - generic [ref=e1349]:
+                  - img [ref=e1350]
+                  - generic [ref=e1353]: Reativar IA Automaticamente
+                - paragraph [ref=e1354]: Se você não continuar conversando, a IA volta após o tempo selecionado
+                - generic [ref=e1355]:
+                  - button "Nunca" [ref=e1356] [cursor=pointer]
+                  - button "10 min" [ref=e1357] [cursor=pointer]
+                  - button "30 min" [ref=e1358] [cursor=pointer]
+                  - button "1 hora" [ref=e1359] [cursor=pointer]
+                  - button "2 horas" [ref=e1360] [cursor=pointer]
+                  - generic [ref=e1361]:
+                    - spinbutton [ref=e1362]
+                    - generic [ref=e1363]: min
+                - paragraph [ref=e1365]: 💡 A IA só volta quando você reativar manualmente na conversa.
+            - button "Salvar Configurações" [ref=e1366] [cursor=pointer]:
+              - img
+              - text: Salvar Configurações
+        - generic [ref=e1253]:
+          - generic [ref=e1254]:
+            - img [ref=e1256]
+            - generic [ref=e1259]:
+              - paragraph [ref=e1261]: Simulador WhatsApp
+              - paragraph [ref=e1262]: Teste seu agente em tempo real
+            - button "Limpar" [ref=e1263] [cursor=pointer]:
+              - img
+              - text: Limpar
+          - generic [ref=e1264]:
+            - generic [ref=e1380]:
+              - paragraph [ref=e1381]: Oi, boa noite!
+              - paragraph [ref=e1382]: 17:57 ✓✓
+            - generic [ref=e1384]:
+              - paragraph [ref=e1385]:
+                - text: Olá! 👋 Bem-vindo à
+                - strong [ref=e1386]: Estação da Pizza
+                - text: "! 🍕 Sou a atendente virtual e estou aqui pra te ajudar. Como posso te chamar?"
+                - text: Qualquer coisa, é só me chamar! 😉
+                - text: "O que você deseja ver primeiro? Escolha uma categoria:"
+                - text: • 🍫 Doces
+                - text: • ⭐ Especiais
+                - text: • 🥤 Bebidas
+                - text: • ➕ Adicionais
+                - text: • 🧀 Bordas
+                - text: • 🍕 Tradicionais
+                - text: "Ex.: Pizza, Esfihas, Açaí, Bebidas."
+              - paragraph [ref=e1387]: 17:57
+            - generic [ref=e1389]:
+              - paragraph [ref=e1390]: Meu nome é Carlos. Quero ver as pizzas tradicionais
+              - paragraph [ref=e1391]: 17:57 ✓✓
+            - generic [ref=e1393]:
+              - paragraph [ref=e1394]:
+                - text: Não encontrei essa categoria no cardápio. 🤔
+                - text: "Temos:"
+                - text: • 🍫 Doces
+                - text: • ⭐ Especiais
+                - text: • 🥤 Bebidas
+                - text: • ➕ Adicionais
+                - text: • 🧀 Bordas
+                - text: • 🍕 Tradicionais
+                - text: Qual você gostaria de ver?
+              - paragraph [ref=e1395]: 17:57
+            - generic [ref=e1397]:
+              - paragraph [ref=e1398]: Tradicionais
+              - paragraph [ref=e1399]: 17:57 ✓✓
+            - generic [ref=e1401]:
+              - paragraph [ref=e1402]:
+                - text: 🍕
+                - strong [ref=e1403]: ESTAÇÃO DA PIZZA
+                - text: ━━━━━━━━━━━━━━━━━━━━
+                - text: 📋 Cardápio completo (39 itens)
+                - text: "🛵 Entrega: R$ 5,00"
+                - text: "⏱️ Tempo: ~45 min"
+                - text: "🏪 Retirada: GRÁTIS"
+                - text: "📦 Pedido mínimo: R$ 20,00"
+                - text: "💳 Pagamento: Dinheiro, Cartão de Crédito, Cartão de Débito, PIX"
+              - paragraph [ref=e1404]: 17:57
+            - generic [ref=e1406]:
+              - paragraph [ref=e1407]:
+                - text: 📁
+                - strong [ref=e1408]: 🍫 DOCES
+                - text: ───────────────
+                - text: • Romeu e Julieta - R$ 49,99
+                - emphasis [ref=e1409]: "Creme de leite, queijo e goiabada | P: R$34,99 | G: R$49,99 | Família: R$59,99"
+                - text: • Chocolate com Banana - R$ 49,99
+                - emphasis [ref=e1410]: "Creme de leite, chocolate e banana | P: R$34,99 | G: R$49,99 | Família: R$59,99"
+                - text: • Chocolate - R$ 49,99
+                - emphasis [ref=e1411]: "Creme de leite, chocolate e disquete | P: R$34,99 | G: R$49,99 | Família: R$59,99"
+                - text: • Choconinho - R$ 49,99
+              - paragraph [ref=e1412]: 17:57
+            - generic [ref=e1414]:
+              - paragraph [ref=e1415]:
+                - emphasis [ref=e1416]: "Creme de leite, chocolate branco e disquete | P: R$34,99 | G: R$49,99 | Família: R$59,99"
+              - paragraph [ref=e1417]: 17:57
+            - generic [ref=e1419]:
+              - paragraph [ref=e1420]:
+                - text: 📁
+                - strong [ref=e1421]: ⭐ ESPECIAIS
+                - text: ───────────────
+                - text: • Carne de Sol - R$ 54,99
+                - emphasis [ref=e1422]: "Molho, queijo, carne desfiada, pimentão, tomate e cebola | P: R$37,99 | G: R$54,99 | Família: R$64,99"
+                - text: • Carne de Sol c/Cheddar - R$ 54,99
+                - emphasis [ref=e1423]: "Molho, queijo, carne desfiada, cheddar, pimentão, tomate e cebola | P: R$37,99 | G: R$54,99 | Família: R$64,99"
+                - text: • Carne de Sol c/Banana - R$ 54,99
+              - paragraph [ref=e1424]: 17:57
+            - generic [ref=e1426]:
+              - paragraph [ref=e1427]:
+                - emphasis [ref=e1428]: "Molho, queijo, carne de sol e banana da terra | P: R$37,99 | G: R$54,99 | Família: R$64,99"
+                - text: • Nordestina - R$ 54,99
+                - emphasis [ref=e1429]: "Molho, queijo, carne de sol, queijo coalho e pimenta biquinho | P: R$37,99 | G: R$54,99 | Família: R$64,99"
+                - text: • Mexicana - R$ 54,99
+                - emphasis [ref=e1430]: "Molho, queijo, bacon, milho, pimenta calabresa, tomate e cebola | P: R$37,99 | G: R$54,99 | Família: R$64,99"
+                - text: • Bacon Especial - R$ 54,99
+              - paragraph [ref=e1431]: 17:57
+            - generic [ref=e1433]:
+              - paragraph [ref=e1434]:
+                - emphasis [ref=e1435]: "Molho, queijo, bacon, milho, tomate e cebola | P: R$37,99 | G: R$54,99 | Família: R$64,99"
+              - paragraph [ref=e1436]: 17:57
+            - generic [ref=e1438]:
+              - paragraph [ref=e1439]:
+                - text: 📁
+                - strong [ref=e1440]: 🥤 BEBIDAS
+                - text: ───────────────
+                - text: • Água - R$ 2,99
+                - emphasis [ref=e1441]: Água mineral gelada 500ml
+                - text: • Coca-Cola Normal (Lata) - R$ 5,99
+                - emphasis [ref=e1442]: Coca-Cola lata 350ml gelada
+                - text: • Coca-Cola Zero (Lata) - R$ 5,99
+                - emphasis [ref=e1443]: Coca-Cola Zero lata 350ml gelada
+                - text: • Coca-Cola 1L - R$ 11,99
+                - emphasis [ref=e1444]: Coca-Cola garrafa 1 litro gelada
+                - text: • Coca-Cola Zero 1L - R$ 11,99
+                - emphasis [ref=e1445]: Coca-Cola Zero garrafa 1 litro gelada
+                - text: • Guaraná 1L - R$ 11,99
+              - paragraph [ref=e1446]: 17:57
+            - generic [ref=e1448]:
+              - paragraph [ref=e1449]:
+                - emphasis [ref=e1450]: Guaraná garrafa 1 litro gelado
+                - text: • Jesus 1L - R$ 11,99
+                - emphasis [ref=e1451]: Jesus refrigerante 1 litro gelado
+                - text: • Coca-Cola 2L - R$ 14,99
+                - emphasis [ref=e1452]: Coca-Cola garrafa 2 litros
+                - text: • Coca-Cola Zero 2L - R$ 14,99
+                - emphasis [ref=e1453]: Coca-Cola Zero garrafa 2 litros
+              - paragraph [ref=e1454]: 17:57
+            - generic [ref=e1456]:
+              - paragraph [ref=e1457]:
+                - text: 📁
+                - strong [ref=e1458]: ➕ ADICIONAIS
+                - text: ───────────────
+                - text: • Bacon - R$ 7,99
+                - emphasis [ref=e1459]: Adicional de bacon crocante na pizza
+                - text: • Geleia de Pimenta - R$ 7,99
+                - emphasis [ref=e1460]: Adicional de geleia de pimenta
+                - text: • Cheddar - R$ 9,99
+                - emphasis [ref=e1461]: Adicional de cheddar
+                - text: • Queijo Extra - R$ 9,99
+                - emphasis [ref=e1462]: Adicional de queijo extra
+              - paragraph [ref=e1463]: 17:57
+            - generic [ref=e1465]:
+              - paragraph [ref=e1466]:
+                - text: 📁
+                - strong [ref=e1467]: 🧀 BORDAS
+                - text: ───────────────
+                - text: • Borda de Queijo - R$ 9,99
+                - emphasis [ref=e1468]: Borda recheada com queijo derretido
+                - text: • Borda de Chocolate - R$ 9,99
+                - emphasis [ref=e1469]: Borda recheada com chocolate
+                - text: • Borda de Cheddar - R$ 9,99
+                - emphasis [ref=e1470]: Borda recheada com cheddar
+                - text: • Borda Choconinho - R$ 9,99
+                - emphasis [ref=e1471]: Borda recheada com chocolate branco
+              - paragraph [ref=e1472]: 17:57
+            - generic [ref=e1474]:
+              - paragraph [ref=e1475]:
+                - text: 📁
+                - strong [ref=e1476]: 🍕 TRADICIONAIS
+                - text: ───────────────
+                - text: • Balacubana - R$ 49,99
+                - emphasis [ref=e1477]: "Molho, queijo, presunto, frango, catupiry, bacon, tomate e cebola | P: R$34,99 | G: R$49,99 | Família: R$59,99"
+                - text: • Calabresa - R$ 49,99
+                - emphasis [ref=e1478]: "Molho, queijo, calabresa, tomate e cebola | P: R$34,99 | G: R$49,99 | Família: R$59,99"
+                - text: • Cala-Frango - R$ 49,99
+              - paragraph [ref=e1479]: 17:57
+            - generic [ref=e1481]:
+              - paragraph [ref=e1482]:
+                - emphasis [ref=e1483]: "Molho, queijo, calabresa, frango, catupiry, tomate e cebola | P: R$34,99 | G: R$49,99 | Família: R$59,99"
+                - text: • Catubresa - R$ 49,99
+                - emphasis [ref=e1484]: "Molho, queijo, calabresa, milho, catupiry, tomate e cebola | P: R$34,99 | G: R$49,99 | Família: R$59,99"
+                - text: • Frango - R$ 49,99
+                - emphasis [ref=e1485]: "Molho, queijo, frango, tomate e cebola | P: R$34,99 | G: R$49,99 | Família: R$59,99"
+                - text: • Fran-Bacon - R$ 49,99
+              - paragraph [ref=e1486]: 17:57
+            - generic [ref=e1488]:
+              - paragraph [ref=e1489]:
+                - emphasis [ref=e1490]: "Molho, queijo, frango, bacon, catupiry, tomate e cebola | P: R$34,99 | G: R$49,99 | Família: R$59,99"
+                - text: • Frango c/Catupiry - R$ 49,99
+                - emphasis [ref=e1491]: "Molho, queijo, frango, catupiry, tomate e cebola | P: R$34,99 | G: R$49,99 | Família: R$59,99"
+                - text: • Frango c/Cheddar - R$ 49,99
+                - emphasis [ref=e1492]: "Molho, queijo, frango, cheddar, tomate e cebola | P: R$34,99 | G: R$49,99 | Família: R$59,99"
+                - text: • Mussarela - R$ 49,99
+              - paragraph [ref=e1493]: 17:57
+            - generic [ref=e1495]:
+              - paragraph [ref=e1496]:
+                - emphasis [ref=e1497]: "Mussarela, milho, tomate e cebola | P: R$34,99 | G: R$49,99 | Família: R$59,99"
+                - text: • Portuguesa - R$ 49,99
+                - emphasis [ref=e1498]: "Molho, queijo, presunto, milho, calabresa, ovo, pimentão e cebola | P: R$34,99 | G: R$49,99 | Família: R$59,99"
+                - text: • Strogonoff - R$ 49,99
+                - emphasis [ref=e1499]: "Molho, queijo, strogonoff de frango e batata palha | P: R$34,99 | G: R$49,99 | Família: R$59,99"
+              - paragraph [ref=e1500]: 17:57
+            - generic [ref=e1502]:
+              - paragraph [ref=e1503]:
+                - text: 📁
+                - strong [ref=e1504]: 🍕 TRADICIONAIS (cont.)
+                - text: ───────────────
+                - text: • Três Queijos - R$ 49,99
+                - emphasis [ref=e1505]: "Molho, queijo, catupiry, cheddar, tomate e cebola | P: R$34,99 | G: R$49,99 | Família: R$59,99"
+                - text: ━━━━━━━━━━━━━━━━━━━━
+                - text: ✅ Pronto para pedir? Me avise! 😊
+              - paragraph [ref=e1506]: 17:57
+            - generic [ref=e1508]:
+              - paragraph [ref=e1509]: Quero uma Calabresa Grande e uma Coca 2L
+              - paragraph [ref=e1510]: 17:58 ✓✓
+            - generic [ref=e1512]:
+              - paragraph [ref=e1513]:
+                - text: "✅ Adicionado ao pedido:"
+                - text: • 1x Calabresa - R$ 49,99
+                - text: 🛒
+                - strong [ref=e1514]: SEU PEDIDO
+                - text: ───────────────
+                - text: 1x Calabresa - R$ 49,99
+                - text: ───────────────
+                - text: "📦 Subtotal: R$ 49,99"
+                - text: Deseja mais alguma coisa? Posso sugerir
+                - strong [ref=e1515]: Borda Recheada
+                - text: ou
+                - strong [ref=e1516]: Refrigerante
+                - text: .
+                - text: "Para finalizar, me diga:"
+                - text: 📝 Nome
+                - text: "🚚 Tipo de entrega: 🛵 Delivery ou 🏪 Retirada"
+                - text: 📍 Endereço (se for entrega)
+                - text: 💳 Forma de pagamento
+              - paragraph [ref=e1517]: 17:58
+            - generic [ref=e1519]:
+              - paragraph [ref=e1520]: Adiciona uma Coca 2L e uma borda de cheddar. Meu nome é Carlos, entrega na Rua das Flores 123, Centro. Pago no PIX
+              - paragraph [ref=e1521]: 17:58 ✓✓
+          - generic [ref=e1269]:
+            - textbox "Digite sua mensagem..." [active] [ref=e1270]
+            - button [disabled]:
+              - img
