@@ -386,6 +386,31 @@ function normalizeCategoryText(text: string): string {
     .trim();
 }
 
+/**
+ * 🆕 Smart category text matching com awareness de word-boundary.
+ * Previne falsos positivos como "tradicionais" matchando "adicionais"
+ * (substring na posição 2, sem ser fronteira de palavra).
+ */
+function smartCategoryMatch(text1: string, text2: string): boolean {
+  if (!text1 || !text2) return false;
+  
+  // Exact match
+  if (text1 === text2) return true;
+  
+  // Shorter text is a substring of longer text
+  const [shorter, longer] = text1.length <= text2.length ? [text1, text2] : [text2, text1];
+  
+  if (shorter.length >= 3 && longer.includes(shorter)) {
+    const idx = longer.indexOf(shorter);
+    // Match must start at beginning or after a word boundary (space)
+    if (idx === 0 || longer[idx - 1] === ' ') {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
 function normalizeMenuSendMode(value?: string | null): string {
   return String(value || 'text').trim().toLowerCase();
 }
@@ -1131,7 +1156,7 @@ export function detectCategoryFromMessage(message: string): string | null {
     for (const keyword of keywords) {
       const normalizedKeyword = normalizeCategoryText(keyword);
       if (!normalizedKeyword) continue;
-      if (normalizedMsg === normalizedKeyword || normalizedMsg.includes(normalizedKeyword)) {
+      if (smartCategoryMatch(normalizedMsg, normalizedKeyword)) {
         console.log(`🎯 [DeliveryAI] Categoria detectada: ${category} (keyword: ${keyword})`);
         return category;
       }
@@ -1765,7 +1790,7 @@ function findMatchingCategory(
     for (const candidate of keywordCandidates) {
       const normalizedCandidate = normalizeCategoryText(candidate);
       if (!normalizedCandidate) continue;
-      if (catNameNormalized.includes(normalizedCandidate) || normalizedCandidate.includes(catNameNormalized)) {
+      if (smartCategoryMatch(catNameNormalized, normalizedCandidate)) {
         return true;
       }
     }
@@ -1800,14 +1825,14 @@ export function formatCategoryAsBubbles(
     const catNameNormalized = normalizeCategoryText(cat.name);
     if (!catNameNormalized) return false;
 
-    if (catNameNormalized.includes(normalizedKeyword) || normalizedKeyword.includes(catNameNormalized)) {
+    if (smartCategoryMatch(catNameNormalized, normalizedKeyword)) {
       return true;
     }
 
     for (const candidate of keywordCandidates) {
       const normalizedCandidate = normalizeCategoryText(candidate);
       if (!normalizedCandidate) continue;
-      if (catNameNormalized.includes(normalizedCandidate) || normalizedCandidate.includes(catNameNormalized)) {
+      if (smartCategoryMatch(catNameNormalized, normalizedCandidate)) {
         return true;
       }
     }
@@ -2030,8 +2055,7 @@ export async function generateDeliveryResponse(
       if (normalizedMsg) {
         for (const cat of deliveryData.categories) {
           const catNameNormalized = normalizeCategoryText(cat.name);
-          if (catNameNormalized && 
-              (catNameNormalized.includes(normalizedMsg) || normalizedMsg.includes(catNameNormalized))) {
+          if (catNameNormalized && smartCategoryMatch(catNameNormalized, normalizedMsg)) {
             category = normalizedMsg;
             console.log(`🍕 [DeliveryAI] ✅ Categoria encontrada por nome do DB: "${cat.name}" → "${category}"`);
             break;
@@ -2215,8 +2239,7 @@ export async function generateDeliveryResponse(
       if (normalizedMsg) {
         for (const cat of deliveryData.categories) {
           const catNameNormalized = normalizeCategoryText(cat.name);
-          if (catNameNormalized && 
-              (catNameNormalized.includes(normalizedMsg) || normalizedMsg.includes(catNameNormalized))) {
+          if (catNameNormalized && smartCategoryMatch(catNameNormalized, normalizedMsg)) {
             categoryFromMessage = normalizedMsg;
             console.log(`🍕 [DeliveryAI] ✅ WANT_MENU: Categoria encontrada por nome DB: "${cat.name}" → "${categoryFromMessage}"`);
             break;
