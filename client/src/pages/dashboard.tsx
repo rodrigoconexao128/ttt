@@ -63,6 +63,8 @@ import SalonMenuPage from "@/pages/salon-menu";
 import SalonAppointmentsPage from "@/pages/salon-appointments";
 import AudioConfigPage from "@/pages/audio-config";
 import FlowBuilderPage from "@/pages/flow-builder";
+import ToolsMenuPage from "@/pages/tools-menu";
+import ToolsSegmentPage from "@/pages/tools-segment";
 import TicketsPage from "@/pages/TicketsPage";
 import TicketDetailPage from "@/pages/TicketDetailPage";
 import TicketCreatePage from "@/pages/TicketCreatePage";
@@ -185,6 +187,8 @@ export default function Dashboard() {
   const isSalonAppointmentsRoute = location.startsWith("/salon-agendamentos");
   const isAudioConfigRoute = location.startsWith("/falar-por-audio");
   const isFlowBuilderRoute = location.startsWith("/construtor-fluxo");
+  const isToolsMenuRoute = location === "/ferramentas";
+  const isToolsSegmentRoute = location.startsWith("/ferramentas/");
   const isTicketsRoute = location.startsWith("/tickets");
   const isHelpCenterRoute = location.startsWith("/ajuda");
   const isTicketsNewRoute = location === "/tickets/new";
@@ -225,7 +229,9 @@ export default function Dashboard() {
     !isAudioConfigRoute &&
     !isFlowBuilderRoute &&
     !isTicketsRoute &&
-    !isHelpCenterRoute;
+    !isHelpCenterRoute &&
+    !isToolsMenuRoute &&
+    !isToolsSegmentRoute;
   const isToolsRoute =
     isMassSendRoute ||
     isCampaignsRoute ||
@@ -251,7 +257,9 @@ export default function Dashboard() {
     isSalonAppointmentsRoute ||
     isAudioConfigRoute ||
     isFlowBuilderRoute ||
-    isTicketsRoute;
+    isTicketsRoute ||
+    isToolsMenuRoute ||
+    isToolsSegmentRoute;
   
   // Rotas do menu Configurações
   const isConfigRoute =
@@ -447,6 +455,14 @@ const toolsNavigation: ToolNavItem[] = [
     },
   },
   // [PARTE 5] Menu "Robô / Fluxo" removido - Fluxo agora fica em Meu Agente IA (aba Fluxo)
+  { 
+    label: "🏪 Ferramentas por Segmento", 
+    href: "/ferramentas",
+    icon: Wrench, 
+    tooltip: "Ferramentas personalizadas por tipo de negócio", 
+    isActive: isToolsMenuRoute || isToolsSegmentRoute, 
+    testId: "button-nav-tools-menu",
+  },
   { 
     label: "🍕 Delivery", 
     icon: UtensilsCrossed, 
@@ -1125,6 +1141,16 @@ const toolsNavigation: ToolNavItem[] = [
           {isFlowBuilderRoute && (
             <div className="flex-1 overflow-auto">
               <FlowBuilderPage />
+            </div>
+          )}
+          {isToolsMenuRoute && (
+            <div className="flex-1 overflow-auto">
+              <ToolsMenuPage />
+            </div>
+          )}
+          {isToolsSegmentRoute && (
+            <div className="flex-1 overflow-auto">
+              <ToolsSegmentPage />
             </div>
           )}
           

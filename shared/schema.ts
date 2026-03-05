@@ -649,24 +649,6 @@ export const adminConversations = pgTable("admin_conversations", {
     useEmojis: true,
   }),
 
-  // 🧠 MEMÓRIA PERSISTIDA POR CONVERSA  
-  contextState: jsonb("context_state").$type<{
-    mode?: string;
-    pendingSlot?: string;
-    capturedSlots?: Record<string, string>;
-    lastIntent?: string;
-    lastQuestionAnswered?: string;
-    pendingPaymentMethod?: string;
-    awaitingProof?: boolean;
-    quotaConsumedThisTurn?: boolean;
-    nextResumePrompt?: string;
-  }>().default({}),
-  memorySummary: text("memory_summary"),
-  linkedUserId: varchar("linked_user_id"),
-  lastTestToken: text("last_test_token"),
-  lastSuccessfulAction: text("last_successful_action"),
-  pendingSlot: text("pending_slot"),
-
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [

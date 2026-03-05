@@ -1,8 +1,105 @@
-node_modules/
-dist/
-*.log
+node_modules
+dist
+.DS_Store
+server/public
+vite.config.ts.*
+*.tar.gz
 .env
-.env.*
-*.tmp
+
+# Railway deploy optimization
+test-results/
+playwright-report/
+.playwright-mcp/
+*.log
+logs/
+
+# Local development files
+*.md
+!README.md
+
+# Test files
+test-*.ts
+teste-*.ts
+check-*.ts
+debug-*.ts
+fix-*.ts
+run-*.ts
+investigate-*.ts
+find-*.ts
+get-*.ts
+update-*.ts
+migrate-*.ts
+create-*.ts
+add-*.ts
+enable-*.ts
+verify-*.ts
+query*.ts
+compare*.ts
+reproduce*.ts
+execute*.ts
+executar*.ts
+reset-*.ts
+generate-*.ts
+setup-*.ts
+perfis-*.ts
+backup-*.ts
+list-*.ts
+remove-*.ts
+
+# Test scripts
+*.mjs
+!client/**/*.mjs
+!patch-baileys-platform.mjs
+!scripts/wa-unfreeze-pending-timers.mjs
+!scripts/recover-incompleta-24h.mjs
+*.py
+*.ps1
+*.cjs
+
+# Data files
+*.txt
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.wav
+*.mp3
+*.zip
+*.json.backup
+
+# Exception: tutorial screenshots for Help Center
+!client/public/tutorial-screenshots/*.png
+!client/public/tutorial-screenshots/*.jpg
+
+# Admin temp files
+admin_cookies.txt
+cline_mcp_settings.json
+prompt-*.txt
+*-output.log
+*-log.txt
+
+# Local auth folders
+auth_*/
+auth_admin_*/
+session-*.json
+sender-key-*.json
+pre-key-*.json
+tctoken-*.json
+lid-mapping-*.json
+
+# Build artifacts
+*.log
+logs/
+tmp/
+temp_audio/
+
+# App code (do not ignore)
+!client/src/lib/queryClient.ts
+
+# Railway log files (temp polling artifacts)
+railway_*.json
+railway_*.jsonl
+supabase_*.json
+dist_test/
 uploads/
-attached_assets/
+

@@ -13,13 +13,7 @@
     "migrate:tickets-storage": "tsx server/migrate-ticket-attachments-to-supabase.ts",
     "deploy:v2": "railway up --service vvvv2",
     "simulate:admin-factory": "tsx scripts/simular-admin-factory.ts",
-    "simulate:admin-ia-vs-ia": "tsx scripts/simular-admin-ia-vs-ia.ts",
-    "simulate:admin-guided-flow": "tsx scripts/simular-admin-guided-flow.ts",
-    "simulate:admin-module-matrix": "tsx scripts/simular-admin-module-matrix.ts",
-    "audit:admin-delivery-claims": "tsx scripts/audit-admin-delivery-claims.ts",
-    "verify:admin-manager": "npm run simulate:admin-ia-vs-ia && npm run simulate:admin-guided-flow && npm run simulate:admin-module-matrix && npm run audit:admin-delivery-claims",
-    "benchmark:admin-daily": "tsx scripts/run-admin-daily-benchmark.ts",
-    "simulate:admin-real-db-flow": "tsx scripts/simular-admin-real-db-flow.ts"
+    "simulate:admin-ia-vs-ia": "tsx scripts/simular-admin-ia-vs-ia.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.2",
@@ -67,7 +61,7 @@
     "@types/multer": "^2.0.0",
     "@types/pg": "^8.15.6",
     "@vitejs/plugin-react": "^4.7.0",
-    "@whiskeysockets/baileys": "github:WhiskeySockets/Baileys",
+    "@whiskeysockets/baileys": "7.0.0-rc.9",
     "aos": "^2.3.4",
     "autoprefixer": "^10.4.20",
     "bcryptjs": "^3.0.3",

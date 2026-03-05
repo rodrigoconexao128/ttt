@@ -11,7 +11,6 @@ interface ApiKeyCache {
   timestamp: number;
 }
 let apiKeyCache: ApiKeyCache | null = null;
-let openRouterKeyCache: ApiKeyCache | null = null;
 const API_KEY_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
 
 /**
@@ -19,7 +18,6 @@ const API_KEY_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
  */
 export function invalidateMistralKeyCache(): void {
   apiKeyCache = null;
-  openRouterKeyCache = null;
   console.log(`[Mistral] Cache da API key invalidado`);
 }
 
@@ -77,107 +75,6 @@ export async function resolveApiKey(): Promise<string> {
   if (globalMockClient) return "mock-key";
   
   throw new Error("Mistral API Key not configured or invalid (must be at least 32 chars)");
-}
-
-async function resolveConfigValue(key: string): Promise<string | null> {
-  try {
-    const config = await db
-      .select()
-      .from(systemConfig)
-      .where(eq(systemConfig.chave, key))
-      .limit(1);
-
-    return config[0]?.valor ? String(config[0].valor) : null;
-  } catch {
-    return null;
-  }
-}
-
-async function resolveOpenRouterKey(): Promise<string | null> {
-  if (openRouterKeyCache && (Date.now() - openRouterKeyCache.timestamp < API_KEY_CACHE_TTL_MS)) {
-    return openRouterKeyCache.key;
-  }
-
-  const fromDb = await resolveConfigValue("openrouter_api_key");
-  if (fromDb && fromDb.length > 20) {
-    const cleanKey = sanitizeApiKey(fromDb);
-    openRouterKeyCache = { key: cleanKey, timestamp: Date.now() };
-    console.log(`[OpenRouter] Using API key from DATABASE (${cleanKey.length} chars)`);
-    return cleanKey;
-  }
-
-  if (process.env.OPENROUTER_API_KEY && process.env.OPENROUTER_API_KEY.length > 20) {
-    const envKey = sanitizeApiKey(process.env.OPENROUTER_API_KEY);
-    openRouterKeyCache = { key: envKey, timestamp: Date.now() };
-    console.log(`[OpenRouter] Using API key from ENVIRONMENT (${envKey.length} chars)`);
-    return envKey;
-  }
-
-  return null;
-}
-
-async function analyzeImageWithOpenRouter(imageUrl: string, prompt: string): Promise<string | null> {
-  const apiKey = await resolveOpenRouterKey();
-  if (!apiKey) {
-    return null;
-  }
-
-  const candidateModels = [
-    "google/gemma-3-4b-it:free",
-    "qwen/qwen2.5-vl-72b-instruct:free",
-  ];
-
-  for (const model of candidateModels) {
-    try {
-      console.log(`[OpenRouter] Trying vision fallback with model: ${model}`);
-
-      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "https://agentezap.online",
-          "X-Title": "AgenteZap",
-        },
-        body: JSON.stringify({
-          model,
-          messages: [
-            {
-              role: "user",
-              content: [
-                { type: "text", text: prompt },
-                {
-                  type: "image_url",
-                  image_url: {
-                    url: imageUrl,
-                  },
-                },
-              ],
-            },
-          ],
-          temperature: 0.0,
-          max_tokens: 300,
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`[OpenRouter] Vision fallback failed on ${model}: ${response.status} - ${errorText}`);
-        continue;
-      }
-
-      const data = await response.json();
-      const content = data?.choices?.[0]?.message?.content;
-      if (typeof content === "string" && content.trim().length > 0) {
-        console.log(`[OpenRouter] Vision fallback succeeded with model: ${model}`);
-        return content.trim();
-      }
-    } catch (error) {
-      console.error(`[OpenRouter] Vision fallback exception on ${model}:`, error);
-    }
-  }
-
-  return null;
 }
 
 let globalMockClient: any = null;
@@ -261,7 +158,7 @@ export async function analyzeImageWithMistral(
     return response.choices[0].message.content as string;
   } catch (error) {
     console.error("Error analyzing image with Mistral:", error);
-    return await analyzeImageWithOpenRouter(imageUrl, prompt);
+    return null;
   }
 }
 
@@ -321,25 +218,7 @@ export async function analyzeImageForAdmin(
     }
   } catch (error) {
     console.error('Error analyzing image for admin with Mistral:', error);
-    const fallbackRaw = await analyzeImageWithOpenRouter(
-      imageUrl,
-      `Analise a imagem e responda em JSON com {"summary":"etiqueta_curta","description":"frase curta em portugues"}. Responda apenas o JSON.`,
-    );
-    if (!fallbackRaw) return null;
-
-    const jsonTextMatch = fallbackRaw.match(/\{[\s\S]*\}/);
-    const jsonText = jsonTextMatch ? jsonTextMatch[0] : fallbackRaw;
-    try {
-      const parsed = JSON.parse(jsonText);
-      return {
-        summary: String(parsed.summary || parsed.tag || '').trim(),
-        description: String(parsed.description || parsed.desc || '').trim(),
-      };
-    } catch {
-      const description = fallbackRaw.trim();
-      const summary = description.split(/[.,;\n]/)[0].split(' ').slice(0,3).join('_').toLowerCase();
-      return { summary, description };
-    }
+    return null;
   }
 }
 

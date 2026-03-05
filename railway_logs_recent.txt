@@ -31,7 +31,7 @@ Valor tot..."
    ­ƒæë WhatsApp provavelmente desconectado
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=cd97a8e8-bae3-469d-b36a-c9f2a36a67c8
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
 ­ƒìò [DeliveryAI] DEBUG config: null
 ­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
 ­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)

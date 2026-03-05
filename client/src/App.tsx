@@ -131,10 +131,10 @@ function Router() {
       <Route path="/termos-de-uso" component={TermsOfServicePage} />
       <Route path="/p/:slug" component={PlanLinkPage} />
       
-      {/* Central de Ajuda Pública - acessível sem login, com SEO */}
-      <Route path="/ajuda" component={PublicHelpCenter} />
-      <Route path="/ajuda/categoria/:catId" component={PublicHelpCenter} />
-      <Route path="/ajuda/:slug" component={PublicHelpCenter} />
+      {/* Central de Ajuda — versão interna (Dashboard) se autenticado, pública se não */}
+      <Route path="/ajuda" component={() => isLoading ? <LoadingScreen /> : isAuthenticated ? <Dashboard /> : <PublicHelpCenter />} />
+      <Route path="/ajuda/categoria/:catId" component={() => isLoading ? <LoadingScreen /> : isAuthenticated ? <Dashboard /> : <PublicHelpCenter />} />
+      <Route path="/ajuda/:slug" component={() => isLoading ? <LoadingScreen /> : isAuthenticated ? <Dashboard /> : <PublicHelpCenter />} />
       
       {/* Landing page apenas para não autenticados */}
       {!isAuthenticated && <Route path="/" component={LandingMinimal} />}
@@ -178,6 +178,8 @@ function Router() {
       <Route path="/salon-agendamentos" component={Dashboard} />
       <Route path="/falar-por-audio" component={Dashboard} />
       <Route path="/construtor-fluxo" component={Dashboard} />
+      <Route path="/ferramentas" component={Dashboard} />
+      <Route path="/ferramentas/:slug" component={Dashboard} />
       <Route path="/support" component={Support} />
       {/* Rotas de Tickets */}
       <Route path="/tickets/new" component={() => <RequireAuth component={Dashboard} />} />

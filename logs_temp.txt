@@ -126,7 +126,7 @@ Da pra subir a programa├º├úo?..."
    ­ƒöä Contador de lote reiniciado
 ­ƒøí´©Å [ANTI-BAN v4.0] ­ƒæñ Mensagem MANUAL do DONO registrada - Bot aguardar├í antes de responder
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
 ­ƒìò [DeliveryAI] DEBUG config: null
 ­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
 ­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)

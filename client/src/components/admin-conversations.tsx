@@ -21,11 +21,12 @@ import { QuickReplies } from "@/components/quick-replies";
 import { AIMessageGenerator } from "@/components/ai-message-generator";
 import { cn } from "@/lib/utils";
 
-interface AdminConversation extends Conversation {
+type AdminConversation = Omit<Conversation, "followupActive" | "followupStage"> & {
   userId?: string;
-  followupActive: boolean;
+  followupActive?: boolean;
   followupStage?: number;
-}
+  isAgentEnabled?: boolean;
+};
 
 export default function AdminConversations() {
   const { toast } = useToast();
@@ -68,13 +69,19 @@ export default function AdminConversations() {
   const pendingReceiptsCount = pendingReceiptsData?.total || 0;
 
   const { data: selectedConversation } = useQuery<AdminConversation>({
-    queryKey: ["/api/admin/conversation", selectedConversationId],
+    queryKey: ["/api/admin/conversations", selectedConversationId, "details"],
     enabled: !!selectedConversationId,
+    queryFn: async () => {
+      if (!selectedConversationId) throw new Error("Conversa não selecionada");
+      const res = await fetch(`/api/admin/conversations/${selectedConversationId}`);
+      if (!res.ok) throw new Error("Failed to fetch conversation");
+      return res.json();
+    },
   });
 
   const toggleFollowUpMutation = useMutation({
     mutationFn: async (active: boolean) => {
-      return await apiRequest("POST", `/api/admin/conversations/${selectedConversationId}/toggle-followup`, { active });
+      return await apiRequest("POST", `/api/admin/conversations/${selectedConversationId}/followup-toggle`, { active });
     },
     onSuccess: (_, active) => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/conversations"] });
@@ -112,16 +119,7 @@ export default function AdminConversations() {
     staleTime: 60000,
   });
 
-  const { data: agentStatus } = useQuery<{ isDisabled: boolean }>({
-    queryKey: ["/api/admin/conversations", selectedConversationId],
-    queryFn: async () => {
-      const res = await fetch(`/api/admin/conversations/${selectedConversationId}`);
-      if (!res.ok) return { isDisabled: false };
-      const data = await res.json();
-      return { isDisabled: !data.isAgentEnabled };
-    },
-    enabled: !!selectedConversationId,
-  });
+  const isAgentDisabled = selectedConversation ? !selectedConversation.isAgentEnabled : false;
 
   // Filter conversations based on search
   const filteredConversations = conversations.filter((conv) => {
@@ -275,11 +273,11 @@ export default function AdminConversations() {
     setMessageText(message);
   }, []);
 
-  // Mutation para limpar histórico
+  // Mutation para limpar historico (sem excluir conta)
   const clearHistoryMutation = useMutation({
     mutationFn: async () => {
-      // "Limpar histórico" deve limpar TUDO (inclui conta de teste) para permitir recomeçar do zero
-      const res = await fetch(`/api/admin/conversations/${selectedConversationId}/complete`, {
+      // Limpa somente as mensagens da conversa, mantendo a conta para continuidade
+      const res = await fetch(`/api/admin/conversations/${selectedConversationId}/history`, {
         method: "DELETE",
         credentials: "include",
       });
@@ -292,15 +290,14 @@ export default function AdminConversations() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/messages", selectedConversationId] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/conversations"] });
-      setSelectedConversationId(null);
       toast({
-        title: "Reset completo!",
-        description: "Conta e histórico removidos. Você pode recomeçar do zero.",
+        title: "Historico limpo",
+        description: "Conversa apagada. Conta do cliente mantida.",
       });
     },
     onError: (error: Error) => {
       toast({
-        title: "Erro ao limpar histórico",
+        title: "Erro ao limpar historico",
         description: error.message,
         variant: "destructive",
       });
@@ -339,38 +336,6 @@ export default function AdminConversations() {
       });
     },
   });
-
-  // Mutation para encerrar chamado (mantém histórico)
-  const closeTicketMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch(`/api/conversations/${selectedConversationId}/close-ticket`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason: "Encerrado pelo admin" }),
-      });
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || error.message || "Falha ao encerrar chamado");
-      }
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/conversations"] });
-      toast({
-        title: "Chamado encerrado",
-        description: "O chamado foi encerrado. Histórico mantido para auditoria.",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Erro ao encerrar chamado",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
   const handleSend = () => {
     if (!messageText.trim() || !selectedConversationId) return;
     sendMutation.mutate(messageText);
@@ -610,11 +575,11 @@ export default function AdminConversations() {
               </div>
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-2">
-                  <Badge variant={agentStatus?.isDisabled ? "secondary" : "default"}>
-                    {agentStatus?.isDisabled ? "Agente Desativado" : "Agente Ativo"}
+                  <Badge variant={isAgentDisabled ? "secondary" : "default"}>
+                    {isAgentDisabled ? "Agente Desativado" : "Agente Ativo"}
                   </Badge>
                   <Switch
-                    checked={!agentStatus?.isDisabled}
+                    checked={!isAgentDisabled}
                     onCheckedChange={(checked) => toggleAgentMutation.mutate(!checked)}
                     disabled={toggleAgentMutation.isPending}
                   />
@@ -632,29 +597,28 @@ export default function AdminConversations() {
                 </div>
 
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
                   onClick={() => {
-                    if (confirm("Encerrar este chamado? O histórico será mantido para auditoria, mas um novo contato iniciará novo contexto.")) {
-                      closeTicketMutation.mutate();
-                    }
+                    const confirmed = confirm("Limpar o historico desta conversa? A conta do cliente sera mantida.");
+                    if (confirmed) clearHistoryMutation.mutate();
                   }}
-                  disabled={closeTicketMutation.isPending}
-                  title="Encerrar chamado"
+                  disabled={clearHistoryMutation.isPending}
+                  title="Limpar historico da conversa"
                 >
-                  <Trash2 className="w-4 h-4 text-destructive" />
+                  <Trash2 className="w-4 h-4 mr-1" />
+                  Limpar conversa
                 </Button>
-                {/* Botão Reset Completo - só aparece para contas @agentezap.temp */}
                 {selectedConversation?.userId && (
                   <Button
-                    variant="ghost"
+                    variant="destructive"
                     size="sm"
                     onClick={() => setResetDialogOpen(true)}
                     disabled={resetCompleteMutation.isPending}
-                    title="DELETAR TUDO do banco - só para contas de teste"
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    title="Excluir conta de teste e permitir criacao do zero"
                   >
-                    <AlertTriangle className="w-4 h-4" />
+                    <AlertTriangle className="w-4 h-4 mr-1" />
+                    Excluir conta de teste
                   </Button>
                 )}
               </div>

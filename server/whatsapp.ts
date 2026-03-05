@@ -1377,33 +1377,6 @@ interface PendingAdminResponse {
 }
 const pendingAdminResponses = new Map<string, PendingAdminResponse>(); // key: contactNumber
 
-function rescheduleAdminPendingResponse(params: {
-  socket: WASocket;
-  key: string;
-  delayMs: number;
-  reason: string;
-}): boolean {
-  const { socket, key, delayMs, reason } = params;
-  const pending = pendingAdminResponses.get(key);
-  if (!pending) return false;
-
-  if (pending.timeout) {
-    clearTimeout(pending.timeout);
-  }
-
-  const safeDelay = Math.max(1000, delayMs);
-  pending.timeout = setTimeout(() => {
-    void processAdminAccumulatedMessages({
-      socket,
-      key,
-      generation: pending.generation,
-    });
-  }, safeDelay);
-
-  console.log(`⏳ [ADMIN AGENT] Reagendado para ${key} em ${Math.round(safeDelay / 1000)}s. Motivo: ${reason}`);
-  return true;
-}
-
 // ?? Set para rastrear conversas j? verificadas na sess?o atual (evita reprocessamento)
 const checkedConversationsThisSession = new Set<string>();
 
@@ -1952,14 +1925,14 @@ async function processAdminAccumulatedMessages(params: {
     let retryCount = 0;
     const maxRetries = 3;
     
-    while (checkPresence && checkPresence.lastKnownPresence === 'composing' && retryCount < maxRetries) {
+    while (checkPresence && (checkPresence.timeout !== null || checkPresence.lastKnownPresence === 'composing') && retryCount < maxRetries) {
         console.log(`? [ADMIN AGENT] Usu?rio digitando (check final). Aguardando confirma??o... (${retryCount + 1}/${maxRetries})`);
         await new Promise(r => setTimeout(r, 5000)); // Espera 5s
         checkPresence = pendingAdminResponses.get(key);
         retryCount++;
     }
 
-    if (checkPresence && checkPresence.lastKnownPresence === 'composing') {
+    if (checkPresence && (checkPresence.timeout !== null || checkPresence.lastKnownPresence === 'composing')) {
         // Se ainda estiver digitando ap?s retries, verificar se o status ? antigo (stale)
         const lastUpdate = checkPresence.lastPresenceUpdate || 0;
         const timeSinceUpdate = Date.now() - lastUpdate;
@@ -1969,13 +1942,7 @@ async function processAdminAccumulatedMessages(params: {
              console.log(`?? [ADMIN AGENT] Status 'composing' parece travado (${Math.floor(timeSinceUpdate/1000)}s). Ignorando e enviando.`);
              // Prossegue para envio...
         } else {
-             console.log(`? [ADMIN AGENT] Usu?rio segue digitando (check final). Reagendando envio.`);
-             rescheduleAdminPendingResponse({
-               socket,
-               key,
-               delayMs: 6000,
-               reason: "cliente ainda digitando no check final",
-             });
+             console.log(`? [ADMIN AGENT] Usu?rio voltou a digitar (check final). Abortando envio.`);
              return;
         }
     }
@@ -1991,7 +1958,7 @@ async function processAdminAccumulatedMessages(params: {
       }
 
       // ?? CHECK DE PRESEN?A NO LOOP
-      if (current.lastKnownPresence === 'composing') {
+      if (current.timeout !== null || current.lastKnownPresence === 'composing') {
           // Verificar se ? stale
           const lastUpdate = current.lastPresenceUpdate || 0;
           const timeSinceUpdate = Date.now() - lastUpdate;
@@ -1999,13 +1966,7 @@ async function processAdminAccumulatedMessages(params: {
           if (timeSinceUpdate > 45000) {
               console.log(`?? [ADMIN AGENT] Status 'composing' travado durante envio. Ignorando.`);
           } else {
-              console.log(`? [ADMIN AGENT] Usu?rio voltou a digitar durante envio. Reagendando.`);
-              rescheduleAdminPendingResponse({
-                socket,
-                key,
-                delayMs: 6000,
-                reason: "cliente voltou a digitar durante envio",
-              });
+              console.log(`? [ADMIN AGENT] Usu?rio voltou a digitar durante envio. Abortando.`);
               return;
           }
       }
@@ -9779,7 +9740,6 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
       if (!presence) return;
 
       // Atualizar presen?a conhecida
-      const previousPresence = pending.lastKnownPresence;
       pending.lastKnownPresence = presence;
       pending.lastPresenceUpdate = Date.now();
 
@@ -9828,20 +9788,6 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
       } else {
         // Logar outros estados de presen?a para debug (ex: available, unavailable)
         console.log(`?? [ADMIN AGENT] Presen?a atualizada para ${contactNumber}: ${presence}`);
-
-        if (
-          previousPresence === 'composing' &&
-          presence !== 'composing' &&
-          pending.timeout === null &&
-          pending.messages.length > 0
-        ) {
-          rescheduleAdminPendingResponse({
-            socket,
-            key: contactNumber,
-            delayMs: 6000,
-            reason: `presenca mudou para ${presence}`,
-          });
-        }
       }
     });
 

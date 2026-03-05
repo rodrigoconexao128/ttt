@@ -99,14 +99,6 @@ export async function handleTestAgentMessage(
     }
   }
 
-  if (!resolvedUserId && token && token !== "demo") {
-    return {
-      response:
-        "Esse link de teste e invalido ou expirou. Peca um novo link para o administrador e tente novamente.",
-      mode: "client_agent",
-    };
-  }
-
   if (resolvedUserId) {
     const agentConfig = await deps.getAgentConfig(resolvedUserId);
 

@@ -34,6 +34,8 @@ import { registerTicketClosureRoutes } from "./ticketClosure.routes";
 import { registerUserSectorRoutes } from "./routes_user_sectors";
 import adminStatusRoutes from "./routes/admin-status.routes";
 
+import autoLoginRoutes from "./routes/autoLoginRoutes";
+
 import { setupAuth, isAuthenticated, getSession, supabase } from "./supabaseAuth";
 
 import { withRetry, db, pool } from "./db";
@@ -860,6 +862,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   await setupAuth(app);
 
   // ==================== API PÚBLICA — Central de Ajuda ====================
+
+  // 🔐 Auto-login routes (para conexão e planos)
+  app.use("/api/auto-login", autoLoginRoutes);
+  
+
   // Rotas públicas sem autenticação para SEO e pré-venda
   registerPublicHelpRoutes(app);
 
@@ -3336,24 +3343,17 @@ Responda apenas com o nÃºmero do Ã­ndice (0 a ${optionsList.length - 1}) ou 
 
       const userId = getUserId(req);
 
-      const { email, name, phone } = req.body;
+      const { email, name } = req.body;
 
-      const updatePayload: any = {
+
+
+      await storage.updateUser(userId, {
+
         email,
+
         name,
-      };
 
-      if (typeof phone === "string" && phone.trim()) {
-        const normalizedPhone = phone.replace(/\D/g, "");
-        if (normalizedPhone) {
-          updatePayload.phone = normalizedPhone;
-          updatePayload.whatsappNumber = normalizedPhone;
-        }
-      }
-
-
-
-      await storage.updateUser(userId, updatePayload);
+      });
 
 
 
@@ -5478,39 +5478,25 @@ Responda apenas com o nÃºmero do Ã­ndice (0 a ${optionsList.length - 1}) ou 
       const userId = getUserId(req);
 
       const { tagId, connectionId: qsConnectionId, limit: qsLimit, offset: qsOffset } = req.query;
-      const scopedConnectionId =
-        typeof qsConnectionId === "string" && qsConnectionId.trim().length > 0
-          ? qsConnectionId.trim()
-          : undefined;
 
-      const selectedConnections = scopedConnectionId
-        ? [await storage.getConnectionByUserId(userId, scopedConnectionId)].filter(Boolean)
-        : await storage.getConnectionsByUserId(userId);
+      const connection = await storage.getConnectionByUserId(userId, qsConnectionId as string | undefined);
 
-      if (selectedConnections.length === 0) {
+      if (!connection) {
+
         return res.json([]);
+
       }
 
-      const sortByLastMessageDesc = (a: any, b: any) => {
-        const aTime = a?.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0;
-        const bTime = b?.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0;
-        return bTime - aTime;
-      };
 
-      const dedupeByConversationId = <T extends { id: string }>(items: T[]): T[] =>
-        Array.from(new Map(items.map((item) => [item.id, item])).values());
 
       // Se tem filtro por tag, busca apenas conversas com essa tag
       if (tagId) {
-        const taggedBuckets = await Promise.all(
-          selectedConnections.map((conn: any) => storage.getConversationsByTag(tagId, conn.id)),
-        );
-        const mergedTagged = dedupeByConversationId(taggedBuckets.flat()).sort(sortByLastMessageDesc);
-        if (mergedTagged.length === 0) return res.json([]);
+        const conversations = await storage.getConversationsByTag(tagId, connection.id);
+        if (conversations.length === 0) return res.json([]);
         // ?? OTIMIZADO: Batch ao invÃ©s de N+1 (Promise.all com getConversationTags individual)
-        const convIds = mergedTagged.map(c => c.id);
+        const convIds = conversations.map(c => c.id);
         const allTagsForConvs = await storage.getTagsForConversations(convIds);
-        const conversationsWithTags = mergedTagged.map(conv => ({
+        const conversationsWithTags = conversations.map(conv => ({
           ...conv,
           tags: allTagsForConvs.get(conv.id) || [],
         }));
@@ -5521,27 +5507,22 @@ Responda apenas com o nÃºmero do Ã­ndice (0 a ${optionsList.length - 1}) ou 
       const limit = qsLimit ? parseInt(qsLimit as string, 10) : undefined;
       const offset = qsOffset ? parseInt(qsOffset as string, 10) : undefined;
 
-      const resultBuckets = await Promise.all(
-        selectedConnections.map((conn: any) => storage.getConversationsWithTags(conn.id)),
-      );
-      const mergedData = dedupeByConversationId(
-        resultBuckets.flatMap((result: any) => result.data || []),
-      ).sort(sortByLastMessageDesc);
+      // Sem filtro, retorna conversas com suas tags (com paginaÃ§Ã£o se solicitado)
+      const result = await storage.getConversationsWithTags(connection.id, limit, offset);
 
       // Se tem paginaÃ§Ã£o, retornar formato { data, total, hasMore }
       if (limit != null) {
         const currentOffset = offset || 0;
-        const pagedData = mergedData.slice(currentOffset, currentOffset + limit);
         res.json({
-          data: pagedData,
-          total: mergedData.length,
-          hasMore: currentOffset + pagedData.length < mergedData.length,
+          data: result.data,
+          total: result.total,
+          hasMore: currentOffset + result.data.length < result.total,
           offset: currentOffset,
           limit,
         });
       } else {
         // Compatibilidade: sem paginaÃ§Ã£o retorna array direto
-        res.json(mergedData);
+        res.json(result.data);
       }
 
     } catch (error) {
@@ -5563,40 +5544,18 @@ Responda apenas com o nÃºmero do Ã­ndice (0 a ${optionsList.length - 1}) ou 
       const userId = getUserId(req);
       const q = (req.query.q as string || "").trim();
       const limit = Math.min(parseInt(req.query.limit as string || "30", 10), 100);
-      const scopedConnectionId =
-        typeof req.query.connectionId === "string" && req.query.connectionId.trim().length > 0
-          ? req.query.connectionId.trim()
-          : undefined;
 
       if (!q || q.length < 2) {
         return res.json([]);
       }
 
-      const selectedConnections = scopedConnectionId
-        ? [await storage.getConnectionByUserId(userId, scopedConnectionId)].filter(Boolean)
-        : await storage.getConnectionsByUserId(userId);
-      if (selectedConnections.length === 0) {
+      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection) {
         return res.json([]);
       }
 
-      const mergedResults = Array.from(
-        new Map(
-          (
-            await Promise.all(
-              selectedConnections.map((conn: any) => storage.searchConversations(conn.id, q, limit))
-            )
-          )
-            .flat()
-            .sort((a: any, b: any) => {
-              const aTime = a?.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0;
-              const bTime = b?.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0;
-              return bTime - aTime;
-            })
-            .map((conversation: any) => [conversation.id, conversation]),
-        ).values(),
-      ).slice(0, limit);
-
-      return res.json(mergedResults);
+      const results = await storage.searchConversations(connection.id, q, limit);
+      return res.json(results);
     } catch (error) {
       console.error("Error searching conversations:", error);
       res.status(500).json({ message: "Failed to search conversations" });
@@ -20460,6 +20419,45 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
+
+  // ==================== ADMIN: INTELLIGENT MODE CONFIG ====================
+  // Configuração do modo inteligente OpenClaw-style
+  app.get("/api/admin/intelligent-mode", isAdmin, async (_req, res) => {
+    try {
+      const config = await storage.getSystemConfig("admin_agent_intelligent_mode");
+      const enabled = config?.valor === "true";
+      
+      res.json({ 
+        enabled,
+        description: "Modo inteligente OpenClaw-style: Agente decide ações dinamicamente"
+      });
+    } catch (error) {
+      console.error("Error fetching intelligent mode config:", error);
+      res.status(500).json({ message: "Failed to fetch configuration" });
+    }
+  });
+
+  app.post("/api/admin/intelligent-mode", isAdmin, async (req, res) => {
+    try {
+      const { enabled } = req.body;
+      
+      await storage.setSystemConfig("admin_agent_intelligent_mode", enabled ? "true" : "false");
+      
+      console.log(`🧠 [ADMIN] Modo inteligente ${enabled ? "ATIVADO" : "DESATIVADO"}`);
+      
+      res.json({ 
+        success: true,
+        enabled,
+        message: `Modo inteligente ${enabled ? "ativado" : "desativado"} com sucesso`
+      });
+    } catch (error) {
+      console.error("Error updating intelligent mode:", error);
+      res.status(500).json({ message: "Failed to update configuration" });
+    }
+  });
+
+
+
       if (pix_key !== undefined) {
 
         await storage.updateSystemConfig("pix_key", pix_key.trim());
@@ -26881,10 +26879,8 @@ Responda APENAS com o JSON, sem texto adicional.`;
       if (phone) {
 
         const { clearClientSession } = await import("./adminAgentService");
-        const { cancelFollowUp } = await import("./followUpService");
 
         clearClientSession(phone);
-        cancelFollowUp(phone);
 
         console.log(`??? [ADMIN] HistÃ³rico limpo para conversa ${id} (telefone: ${phone})`);
 
@@ -26919,39 +26915,47 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { id } = req.params;
 
-      const requestedPhone = String(req.body?.contactNumber || "").replace(/\D/g, "");
+      const conversation = await storage.getAdminConversation(id);
 
-      let conversation = await storage.getAdminConversation(id);
 
-      if (!conversation && requestedPhone) {
 
-        conversation = await storage.getAdminConversationByPhone(requestedPhone);
+      if (!conversation) {
 
-      }
-
-      if (!conversation && !requestedPhone) {
-
-        return res.status(404).json({ message: "Conversa nao encontrada" });
+        return res.status(404).json({ message: "Conversa nÃ£o encontrada" });
 
       }
+
+
 
       // Extrair telefone da conversa
 
-      const phone = requestedPhone || conversation?.contactNumber || conversation?.remoteJid?.split('@')[0]?.split(':')[0];
+      const phone = conversation.contactNumber || conversation.remoteJid?.split('@')[0]?.split(':')[0];
 
       if (!phone) {
 
-        return res.status(400).json({ message: "Numero de telefone nao encontrado na conversa" });
+        return res.status(400).json({ message: "NÃºmero de telefone nÃ£o encontrado na conversa" });
 
       }
 
-      console.log(`?? [ADMIN] Solicitacao de RESET COMPLETO para ${phone}`);
 
-      // Limpar sessao em memoria primeiro
+
+      // Capturar userId antes do reset (depois ele some do DB)
+
+      const user = await storage.getUserByPhone(phone);
+
+
+
+      console.log(`?? [ADMIN] SolicitaÃ§Ã£o de RESET COMPLETO para ${phone}`);
+
+
+
+      // Limpar sessÃ£o em memÃ³ria primeiro
 
       const { clearClientSession } = await import("./adminAgentService");
 
       clearClientSession(phone);
+
+
 
       // Cancelar follow-ups
 
@@ -26959,15 +26963,19 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       cancelFollowUp(phone);
 
-      // Executar reset seguro com validacoes
 
-      const result = await storage.resetTestAccountSafely(phone, { forceAnyAccount: true });
+
+      // Executar reset seguro com validaÃ§Ãµes
+
+      const result = await storage.resetTestAccountSafely(phone);
+
+
 
       if (!result.success) {
 
         return res.status(400).json({
 
-          message: result.error || "Nao foi possivel resetar a conta",
+          message: result.error || "NÃ£o foi possÃ­vel resetar a conta",
 
           error: result.error
 
@@ -26975,13 +26983,51 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
+
+
+      // Se deletou o usuÃ¡rio no banco, deletar tambÃ©m no Supabase Auth
+
+      // (senÃ£o o email fica preso e gera email_exists no prÃ³ximo teste)
+
+      let authDeleted = false;
+
+      if (user?.id && result.result?.userDeleted) {
+
+        const { supabase } = await import("./supabaseAuth");
+
+        const { error: authDeleteError } = await supabase.auth.admin.deleteUser(user.id);
+
+        if (authDeleteError) {
+
+          console.error("[ADMIN] Falha ao deletar usuÃ¡rio no Supabase Auth:", authDeleteError);
+
+          return res.status(500).json({
+
+            success: false,
+
+            message: "Reset no banco OK, mas falha ao deletar usuÃ¡rio no Auth",
+
+            error: authDeleteError.message,
+
+          });
+
+        }
+
+        authDeleted = true;
+
+        console.log(`??? [ADMIN] UsuÃ¡rio ${user.id} deletado do Supabase Auth (complete)`);
+
+      }
+
+
+
       res.json({
 
         success: true,
 
         message: "Reset completo realizado com sucesso",
 
-        details: { ...result.result }
+        details: { ...result.result, authDeleted }
 
       });
 
@@ -33772,13 +33818,13 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
     try {
 
-      const { message, phoneNumber, testTrigger, mediaType, mediaUrl } = req.body;
+      const { message, phoneNumber, testTrigger } = req.body;
 
 
 
-      if (!message && !mediaType) {
+      if (!message) {
 
-        return res.status(400).json({ message: "Message or mediaType is required" });
+        return res.status(400).json({ message: "Message is required" });
 
       }
 
@@ -33802,7 +33848,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
 
 
-      const response = await processAdminMessage(testPhone, message || "", mediaType, mediaUrl, skipTriggerCheck);
+      const response = await processAdminMessage(testPhone, message, undefined, undefined, skipTriggerCheck);
 
 
 
@@ -36956,21 +37002,21 @@ LEMBRE-SE: VocÃª Ã© o Rodrigo, atendente humano. Seja natural e prestativo!`
 
           // Extrair nome do agente do prompt se possÃ­vel (ex: "VocÃª Ã© Maria, atendente...")
 
-          const normalizedPrompt = String(userConfig[0].prompt || "").replace(/\s+/g, " ").trim();
-          const promptMatch = normalizedPrompt.match(/Voc[�e]\s+[�e]\s+([^,\n.]+)(?:,\s*[^.\n]+)?\s+da\s+([^.\n]+)/i);
+          const promptMatch = userConfig[0].prompt?.match(/VocÃª Ã© (\w+)/i);
 
-          const agentName = promptMatch?.[1]?.trim() || "Agente";
-          const companyName = promptMatch?.[2]?.trim() || userConfig[0].name || "Empresa";
+          const agentName = promptMatch ? promptMatch[1] : "Agente";
+
+
 
           return res.json({
 
             agentName: agentName,
 
-            company: companyName,
+            company: userConfig[0].name || "Empresa",
 
             userId: userConfig[0].userId,
 
-            description: `Agente de ${companyName || "teste"}`,
+            description: `Agente de ${userConfig[0].name || "teste"}`,
 
           });
 
@@ -37008,15 +37054,17 @@ LEMBRE-SE: VocÃª Ã© o Rodrigo, atendente humano. Seja natural e prestativo!`
 
 
 
-      // Token invalido/expirado: nao cair no demo automaticamente.
+      // Token nÃ£o encontrado ou expirado - retornar demo (Rodrigo)
 
-      return res.status(404).json({
+      res.json({
 
-        error: "TOKEN_NOT_FOUND",
+        agentName: "Rodrigo",
 
-        invalidToken: true,
+        company: "AgenteZap",
 
-        message: "Esse link de teste e invalido ou expirou. Peca um novo link para o administrador.",
+        description: "Agente de vendas inteligente (demo)",
+
+        isDemo: true,
 
       });
 
@@ -47762,87 +47810,80 @@ LEMBRE-SE: VocÃª Ã© o Rodrigo, atendente humano. Seja natural e prestativo!`
 
 
       // Determinar destino
-      let targetConversation;
+
+      let targetJid: string;
 
       if (targetConversationId) {
-        targetConversation = await storage.getConversation(targetConversationId);
 
-        if (!targetConversation || targetConversation.connectionId !== connection.id) {
+        const targetConv = await storage.getConversation(targetConversationId);
+
+        if (!targetConv || targetConv.connectionId !== connection.id) {
+
           return res.status(404).json({ message: "Conversa de destino nÃ£o encontrada" });
+
         }
+
+        targetJid = targetConv.remoteJid || `${targetConv.contactNumber}@s.whatsapp.net`;
+
       } else {
+
         // Limpar nÃºmero e formatar JID
-        const cleanNumber = String(targetNumber || '').replace(/\D/g, '');
-        if (!cleanNumber) {
-          return res.status(400).json({ message: "NÃºmero de destino invÃ¡lido" });
-        }
 
-        const targetJid = `${cleanNumber}@s.whatsapp.net`;
-        targetConversation =
-          await storage.getActiveConversationByContactNumber(connection.id, cleanNumber) ||
-          await storage.getConversationByContactNumber(connection.id, cleanNumber);
+        const cleanNumber = targetNumber.replace(/\D/g, '');
 
-        if (!targetConversation) {
-          targetConversation = await storage.createConversation({
-            connectionId: connection.id,
-            contactNumber: cleanNumber,
-            remoteJid: targetJid,
-            contactName: cleanNumber,
-            lastMessageText: null,
-            lastMessageTime: null,
-            unreadCount: 0,
-          });
-        }
+        targetJid = `${cleanNumber}@s.whatsapp.net`;
+
       }
+
+
 
       // Encaminhar mensagem via WhatsApp
-      if (originalMessage.mediaType && (originalMessage.mediaUrl || originalMessage.mediaUrlOriginal)) {
-        const supportedMediaTypes = new Set(["audio", "image", "video", "document"]);
-        if (!supportedMediaTypes.has(originalMessage.mediaType)) {
-          return res.status(400).json({ message: "Tipo de mÃ­dia nÃ£o suportado para encaminhamento" });
-        }
 
-        let mediaData = originalMessage.mediaUrl || originalMessage.mediaUrlOriginal;
-        let mediaMimeType = originalMessage.mediaMimeType || undefined;
+      if (originalMessage.mediaType && originalMessage.mediaUrl) {
 
-        if (mediaData && /^https?:\/\//i.test(mediaData)) {
-          const mediaResponse = await fetch(mediaData);
-          if (!mediaResponse.ok) {
-            throw new Error("NÃ£o foi possÃ­vel baixar a mÃ­dia original para encaminhar");
+        // Encaminhar mÃ­dia
+
+        await whatsappSendMessage(
+
+          userId,
+
+          targetJid,
+
+          originalMessage.mediaCaption || originalMessage.text || "",
+
+          {
+
+            mediaType: originalMessage.mediaType as any,
+
+            mediaUrl: originalMessage.mediaUrl,
+
           }
 
-          const mediaBuffer = Buffer.from(await mediaResponse.arrayBuffer());
-          mediaMimeType = mediaMimeType || mediaResponse.headers.get("content-type") || undefined;
-          mediaData = `data:${mediaMimeType || "application/octet-stream"};base64,${mediaBuffer.toString("base64")}`;
-        }
-
-        if (!mediaData) {
-          return res.status(400).json({ message: "MÃ­dia indisponÃ­vel para encaminhamento" });
-        }
-
-        const { sendUserMediaMessage } = await import("./whatsapp");
-        await sendUserMediaMessage(userId, targetConversation.id, {
-          type: originalMessage.mediaType,
-          data: mediaData,
-          mimetype: mediaMimeType || "application/octet-stream",
-          caption: originalMessage.mediaCaption || originalMessage.text || undefined,
-          ptt: originalMessage.mediaType === "audio" ? true : undefined,
-        });
-      } else if (originalMessage.text) {
-        await whatsappSendMessage(
-          userId,
-          targetConversation.id,
-          `_Mensagem encaminhada:_\n\n${originalMessage.text}`
         );
+
+      } else if (originalMessage.text) {
+
+        // Encaminhar texto
+
+        await whatsappSendMessage(
+
+          userId,
+
+          targetJid,
+
+          `_Mensagem encaminhada:_\n\n${originalMessage.text}`
+
+        );
+
       } else {
+
         return res.status(400).json({ message: "Mensagem nÃ£o pode ser encaminhada" });
+
       }
 
-      res.json({
-        success: true,
-        message: "Mensagem encaminhada com sucesso",
-        conversationId: targetConversation.id,
-      });
+
+
+      res.json({ success: true, message: "Mensagem encaminhada com sucesso" });
 
     } catch (error) {
 
@@ -47867,63 +47908,87 @@ LEMBRE-SE: VocÃª Ã© o Rodrigo, atendente humano. Seja natural e prestativo!`
     try {
 
       const userId = getUserId(req);
-      const { phoneNumber, name, contactName, message, connectionId: requestedConnectionId } = req.body;
+
+      const { phoneNumber, name, message } = req.body;
+
+
 
       if (!phoneNumber) {
+
         return res.status(400).json({ message: "NÃºmero de telefone Ã© obrigatÃ³rio" });
+
       }
 
-      let connection = requestedConnectionId
-        ? await storage.getConnectionByUserId(userId, requestedConnectionId)
-        : undefined;
 
-      if (!connection) {
-        const userConnections = await storage.getConnectionsByUserId(userId);
-        if (userConnections.length > 1 && !requestedConnectionId) {
-          return res.status(400).json({
-            message: "Selecione qual nÃºmero deve iniciar a nova conversa.",
-            requiresConnectionSelection: true,
-          });
-        }
-        connection = userConnections[0];
-      }
+
+      const connection = await storage.getConnectionByUserId(userId);
 
       if (!connection || !connection.isConnected) {
+
         return res.status(400).json({ message: "WhatsApp nÃ£o conectado" });
+
       }
+
+
 
       // Limpar e formatar nÃºmero
+
       const cleanNumber = phoneNumber.replace(/\D/g, '');
+
       const jid = `${cleanNumber}@s.whatsapp.net`;
 
+
+
       // Verificar se jÃ¡ existe conversa
-      let conversation =
-        await storage.getActiveConversationByContactNumber(connection.id, cleanNumber) ||
-        await storage.getConversationByContactNumber(connection.id, cleanNumber);
+
+      let conversation = await storage.getConversationByRemoteJid(connection.id, jid);
+
+
 
       if (!conversation) {
+
         // Criar nova conversa
+
         conversation = await storage.createConversation({
+
           connectionId: connection.id,
+
           contactNumber: cleanNumber,
+
           remoteJid: jid,
-          contactName: name || contactName || cleanNumber,
+
+          contactName: name || cleanNumber,
+
           lastMessageText: null,
+
           lastMessageTime: null,
+
           unreadCount: 0,
+
         });
+
       }
+
+
 
       // Se mensagem inicial fornecida, enviar
+
       if (message) {
-        await whatsappSendMessage(userId, conversation.id, message);
+
+        await whatsappSendMessage(userId, jid, message);
+
       }
 
+
+
       res.json({
+
         success: true,
-        conversationId: conversation.id,
+
         conversation,
+
         message: "Conversa criada com sucesso"
+
       });
 
     } catch (error) {

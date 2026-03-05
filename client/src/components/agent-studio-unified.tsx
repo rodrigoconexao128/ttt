@@ -18,7 +18,7 @@ import {
   Undo2, Redo2, History, ChevronUp, ChevronDown,
   Image as ImageIcon, Music, Video, FileText, Plus, Trash2, Upload, Check,
   Clock, Brain, Pause, X, Save, Pencil, File, Rocket, Wrench, GitBranch,
-  AlignLeft, MoveUp, MoveDown, Info, MapPin
+  AlignLeft, MoveUp, MoveDown
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -186,7 +186,7 @@ interface PromptHistoryEntry {
   summary: string;
 }
 
-type Section = 'chat' | 'code' | 'media' | 'info' | 'config' | 'tools' | 'flow';
+type Section = 'chat' | 'code' | 'media' | 'config' | 'tools' | 'flow';
 
 // ============ HELPER: FORMATAÇÃO WHATSAPP ============
 function formatWhatsAppText(text: string): string {
@@ -262,28 +262,6 @@ export function AgentStudioUnified() {
   const [autoReactivateMinutes, setAutoReactivateMinutes] = useState<number | null>(null);
   const [customMinutesInput, setCustomMinutesInput] = useState<string>("");
   
-
-  // Estado de Info (saudacao e endereco)
-  const [customGreeting, setCustomGreeting] = useState("");
-  const [customAddress, setCustomAddress] = useState("");
-  const [greetingEnabled, setGreetingEnabled] = useState(false);
-  const [addressEnabled, setAddressEnabled] = useState(false);
-  const [greetingVariation, setGreetingVariation] = useState(false);
-  // Estado de Horários de funcionamento
-  const [businessHoursEnabled, setBusinessHoursEnabled] = useState(false);
-  const [offHoursMessageEnabled, setOffHoursMessageEnabled] = useState(false);
-  const [offHoursMessage, setOffHoursMessage] = useState("Olá! No momento estamos fora do horário de atendimento. Retornaremos em breve!");
-  const defaultBusinessHours: Record<string, { enabled: boolean; open: string; close: string }> = {
-    seg: { enabled: true, open: "09:00", close: "18:00" },
-    ter: { enabled: true, open: "09:00", close: "18:00" },
-    qua: { enabled: true, open: "09:00", close: "18:00" },
-    qui: { enabled: true, open: "09:00", close: "18:00" },
-    sex: { enabled: true, open: "09:00", close: "18:00" },
-    sab: { enabled: false, open: "", close: "" },
-    dom: { enabled: false, open: "", close: "" },
-  };
-  const [businessHours, setBusinessHours] = useState<Record<string, { enabled: boolean; open: string; close: string }>>(defaultBusinessHours);
-  const dayLabels: Record<string, string> = { seg: "Segunda", ter: "Terça", qua: "Quarta", qui: "Quinta", sex: "Sexta", sab: "Sábado", dom: "Domingo" };
   // Estado de mídias
   const [mediaDialogOpen, setMediaDialogOpen] = useState(false);
   const [editingMedia, setEditingMedia] = useState<MediaItem | null>(null);
@@ -603,16 +581,6 @@ export function AgentStudioUnified() {
       setPauseOnManualReply(config.pauseOnManualReply ?? true);
       const configMinutes = (config as any).autoReactivateMinutes ?? null;
       setAutoReactivateMinutes(configMinutes);
-      // Carregar Info (saudação/endereço)
-      setCustomGreeting((config as any).customGreeting || "");
-      setCustomAddress((config as any).customAddress || "");
-      setGreetingEnabled((config as any).greetingEnabled === true);
-      setAddressEnabled((config as any).addressEnabled === true);
-      setBusinessHoursEnabled((config as any).businessHoursEnabled === true);
-          setOffHoursMessageEnabled((config as any).offHoursMessageEnabled === true);
-          if ((config as any).offHoursMessage) setOffHoursMessage((config as any).offHoursMessage);
-      if ((config as any).businessHours) setBusinessHours((config as any).businessHours);
-      setGreetingVariation((config as any).greetingVariation === true);
       // Inicializa campo custom se for valor personalizado
       if (configMinutes !== null && ![10, 30, 60, 120].includes(configMinutes)) {
         setCustomMinutesInput(String(configMinutes));
@@ -1118,20 +1086,6 @@ export function AgentStudioUnified() {
   };
 
   // ============ SALVAR CONFIGURAÇÕES ============
-  const handleSaveInfo = () => {
-    updateConfigMutation.mutate({
-      customGreeting,
-      customAddress,
-      greetingEnabled,
-      addressEnabled,
-      greetingVariation,
-      businessHoursEnabled,
-      businessHours,
-      offHoursMessageEnabled,
-      offHoursMessage,
-    } as any);
-  };
-
   const handleSaveConfig = () => {
     updateConfigMutation.mutate({
       isActive,
@@ -1477,7 +1431,6 @@ export function AgentStudioUnified() {
                   {activeSection === "chat" ? "Converse para editar" : 
                    activeSection === "code" ? "Edite o prompt diretamente" :
                    activeSection === "media" ? "Biblioteca de mídias" :
-                   activeSection === "info" ? "Saudação e endereço" :
                    activeSection === "flow" ? "Roteiro pré-definido" : "Configurações"}
                 </p>
               </div>
@@ -1570,15 +1523,6 @@ export function AgentStudioUnified() {
                   Mídias
                 </Button>
                 <Button
-                  variant={activeSection === "info" ? "secondary" : "ghost"}
-                  size="sm"
-                  onClick={() => setActiveSection("info")}
-                  className="h-7 px-2 text-xs"
-                >
-                  <Info className="w-3 h-3 mr-1" />
-                  Info
-                </Button>
-                <Button
                   variant={activeSection === "config" ? "secondary" : "ghost"}
                   size="sm"
                   onClick={() => setActiveSection("config")}
@@ -1669,15 +1613,6 @@ export function AgentStudioUnified() {
             >
               <ImageIcon className="w-3 h-3 mr-1" />
               Mídias
-            </Button>
-            <Button
-              variant={activeSection === "info" ? "secondary" : "ghost"}
-              size="sm"
-              onClick={() => setActiveSection("info")}
-              className="h-7 px-2 text-xs flex-shrink-0"
-            >
-              <Info className="w-3 h-3 mr-1" />
-              Info
             </Button>
             <Button
               variant={activeSection === "config" ? "secondary" : "ghost"}
@@ -2128,253 +2063,6 @@ export function AgentStudioUnified() {
                     ))}
                   </div>
                 )}
-              </div>
-            </ScrollArea>
-          )}
-
-          {/* ============ SECTION: INFO (SAUDAÇÃO E ENDEREÇO) ============ */}
-          {activeSection === "info" && (
-            <ScrollArea className="flex-1">
-              <div className="p-4 space-y-4">
-                <h2 className="text-lg font-semibold">Informações do Negócio</h2>
-                <p className="text-sm text-muted-foreground">
-                  Configure a saudação inicial e o endereço fixo do seu negócio. Esses dados são usados pela IA ao atender seus clientes.
-                </p>
-
-                {/* Card: Saudação */}
-                <Card>
-                  <CardHeader className="py-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <MessageSquare className="h-4 w-4 text-blue-500" />
-                        Primeira Saudação
-                      </CardTitle>
-                      <div className="flex items-center gap-2">
-                        <Label htmlFor="greeting-toggle" className="text-xs text-muted-foreground">
-                          {greetingEnabled ? "Ativada" : "Desativada"}
-                        </Label>
-                        <Switch
-                          id="greeting-toggle"
-                          checked={greetingEnabled}
-                          onCheckedChange={setGreetingEnabled}
-                        />
-                      </div>
-                    </div>
-                    <CardDescription>
-                      Mensagem enviada automaticamente na primeira interação com cada cliente. Use {"{nome}"} para incluir o nome do contato.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <Textarea
-                      placeholder="Ex: Olá {nome}! Seja bem-vindo(a)! Como posso te ajudar hoje?"
-                      value={customGreeting}
-                      onChange={(e) => setCustomGreeting(e.target.value)}
-                      rows={3}
-                      disabled={!greetingEnabled}
-                      className={!greetingEnabled ? "opacity-50" : ""}
-                    />
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Switch
-                          id="variation-toggle"
-                          checked={greetingVariation}
-                          onCheckedChange={setGreetingVariation}
-                          disabled={!greetingEnabled}
-                        />
-                        <Label htmlFor="variation-toggle" className="text-xs">
-                          Variação com IA (cada cliente recebe uma versão levemente diferente)
-                        </Label>
-                      </div>
-                    </div>
-                    {greetingEnabled && customGreeting && (
-                      <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-3 border border-blue-200 dark:border-blue-800">
-                        <p className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-1">Preview:</p>
-                        <p className="text-sm text-blue-900 dark:text-blue-100">
-                          "{customGreeting.replace(/\{nome\}/gi, "João")}"
-                        </p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                {/* Card: Endereço */}
-                <Card>
-                  <CardHeader className="py-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <MapPin className="h-4 w-4 text-red-500" />
-                        Endereço do Negócio
-                      </CardTitle>
-                      <div className="flex items-center gap-2">
-                        <Label htmlFor="address-toggle" className="text-xs text-muted-foreground">
-                          {addressEnabled ? "Ativado" : "Desativado"}
-                        </Label>
-                        <Switch
-                          id="address-toggle"
-                          checked={addressEnabled}
-                          onCheckedChange={setAddressEnabled}
-                        />
-                      </div>
-                    </div>
-                    <CardDescription>
-                      Endereço fixo que a IA sempre usará. Evita que a IA invente endereços.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <Textarea
-                      placeholder="Ex: Rua das Flores, 123 - Centro, São Paulo/SP - CEP 01234-567"
-                      value={customAddress}
-                      onChange={(e) => setCustomAddress(e.target.value)}
-                      rows={2}
-                      disabled={!addressEnabled}
-                      className={!addressEnabled ? "opacity-50" : ""}
-                    />
-                    {addressEnabled && customAddress && (
-                      <div className="bg-red-50 dark:bg-red-950/30 rounded-lg p-3 border border-red-200 dark:border-red-800">
-                        <p className="text-xs font-medium text-red-700 dark:text-red-300 mb-1">Endereço fixo:</p>
-                        <p className="text-sm text-red-900 dark:text-red-100">{customAddress}</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                
-                {/* Card: Horario de Funcionamento */}
-                <Card>
-                  <CardHeader className="py-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <Clock className="h-4 w-4 text-green-500" />
-                        Horario de Funcionamento
-                      </CardTitle>
-                      <div className="flex items-center gap-2">
-                        <Label htmlFor="hours-toggle" className="text-xs text-muted-foreground">
-                          {businessHoursEnabled ? "Ativado" : "Desativado"}
-                        </Label>
-                        <Switch
-                          id="hours-toggle"
-                          checked={businessHoursEnabled}
-                          onCheckedChange={setBusinessHoursEnabled}
-                        />
-                      </div>
-                    </div>
-                    <CardDescription>
-                      Defina os dias e horarios de funcionamento. A IA informara o horario aos clientes quando perguntarem.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    {Object.entries(dayLabels).map(([key, label]) => (
-                      <div key={key} className={`flex items-center gap-3 p-2 rounded ${!businessHoursEnabled ? "opacity-50" : ""}`}>
-                        <div className="flex items-center gap-2 w-24">
-                          <input
-                            type="checkbox"
-                            checked={businessHours[key]?.enabled ?? false}
-                            disabled={!businessHoursEnabled}
-                            onChange={(e) => {
-                              setBusinessHours(prev => ({
-                                ...prev,
-                                [key]: { ...prev[key], enabled: e.target.checked }
-                              }));
-                            }}
-                            className="rounded border-gray-300"
-                          />
-                          <span className="text-sm font-medium">{label}</span>
-                        </div>
-                        <input
-                          type="time"
-                          value={businessHours[key]?.open ?? "09:00"}
-                          disabled={!businessHoursEnabled || !businessHours[key]?.enabled}
-                          onChange={(e) => {
-                            setBusinessHours(prev => ({
-                              ...prev,
-                              [key]: { ...prev[key], open: e.target.value }
-                            }));
-                          }}
-                          className="border rounded px-2 py-1 text-sm w-28 disabled:opacity-40"
-                        />
-                        <span className="text-xs text-muted-foreground">ate</span>
-                        <input
-                          type="time"
-                          value={businessHours[key]?.close ?? "18:00"}
-                          disabled={!businessHoursEnabled || !businessHours[key]?.enabled}
-                          onChange={(e) => {
-                            setBusinessHours(prev => ({
-                              ...prev,
-                              [key]: { ...prev[key], close: e.target.value }
-                            }));
-                          }}
-                          className="border rounded px-2 py-1 text-sm w-28 disabled:opacity-40"
-                        />
-                      </div>
-                    ))}
-                    {businessHoursEnabled && (
-                      <div className="bg-green-50 dark:bg-green-950/30 rounded-lg p-3 border border-green-200 dark:border-green-800 mt-2">
-                        <p className="text-xs font-medium text-green-700 dark:text-green-300 mb-1">Preview do horario:</p>
-                        <p className="text-sm text-green-900 dark:text-green-100">
-                          {Object.entries(dayLabels).filter(([k]) => businessHours[k]?.enabled).map(([k, l]) => `${l}: ${businessHours[k]?.open} - ${businessHours[k]?.close}`).join(" | ") || "Nenhum dia configurado"}
-                        </p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                
-
-
-            {/* Card Mensagem Fora do Horario */}
-            <Card className="border-orange-200 bg-orange-50/30">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-medium flex items-center gap-2">
-                    <Clock className="h-4 w-4 text-orange-500" />
-                    Mensagem Fora do Horario
-                  </CardTitle>
-                  <div className="flex items-center gap-2">
-                    <Label htmlFor="offhours-toggle" className="text-xs text-muted-foreground">
-                      {offHoursMessageEnabled ? "Ativado" : "Desativado"}
-                    </Label>
-                    <Switch
-                      id="offhours-toggle"
-                      checked={offHoursMessageEnabled}
-                      onCheckedChange={setOffHoursMessageEnabled}
-                    />
-                  </div>
-                </div>
-                <CardDescription>
-                  Mensagem automatica enviada quando o cliente escreve fora do horario de funcionamento. Requer horario de funcionamento ativado.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <textarea
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm min-h-[80px] resize-y"
-                  placeholder="Ex: Ola! Estamos fora do horario de atendimento. Nosso horario e de segunda a sexta, das 09:00 as 18:00."
-                  value={offHoursMessage}
-                  onChange={(e) => setOffHoursMessage(e.target.value)}
-                  disabled={!offHoursMessageEnabled}
-                />
-                {offHoursMessageEnabled && (
-                  <div className="mt-2 p-2 bg-orange-100 rounded text-xs text-orange-800">
-                    <p className="font-medium">Preview:</p>
-                    <p className="italic">{offHoursMessage}</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-                {/* Botão Salvar Info */}
-                <Button
-                  onClick={handleSaveInfo}
-                  disabled={updateConfigMutation.isPending}
-                  className="w-full"
-                  size="lg"
-                >
-                  {updateConfigMutation.isPending ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : (
-                    <Save className="h-4 w-4 mr-2" />
-                  )}
-                  Salvar Informações
-                </Button>
               </div>
             </ScrollArea>
           )}

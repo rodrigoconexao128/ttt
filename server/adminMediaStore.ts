@@ -5,7 +5,6 @@
  */
 
 import { storage } from "./storage";
-import { getAgentMediaLibrary } from "./mediaService";
 
 export interface AdminMedia {
   id: string;
@@ -31,82 +30,6 @@ export interface AdminMedia {
 const adminMediaCache: Map<string, AdminMedia> = new Map();
 const lastCacheUpdate: Map<string, number> = new Map();
 const CACHE_TTL = 60000; // 1 minuto
-const BASE_MEDIA_SOURCE_EMAIL = "rodrigo4@gmail.com";
-let baseAdminMediaCache: AdminMedia[] = [];
-let lastBaseMediaUpdate = 0;
-
-function mapBaseMediaToAdminMedia(baseUserId: string, media: any): AdminMedia {
-  return {
-    id: `base:${media.id}`,
-    adminId: baseUserId,
-    name: media.name,
-    mediaType: media.mediaType as "audio" | "image" | "video" | "document",
-    storageUrl: media.storageUrl,
-    fileName: media.fileName || undefined,
-    fileSize: media.fileSize || undefined,
-    mimeType: media.mimeType || undefined,
-    durationSeconds: media.durationSeconds || undefined,
-    description: media.description || "",
-    whenToUse: media.whenToUse || undefined,
-    caption: media.caption || undefined,
-    transcription: media.transcription || undefined,
-    isActive: media.isActive !== false,
-    sendAlone: media.sendAlone === true,
-    displayOrder: media.displayOrder || 0,
-    createdAt: media.createdAt?.toISOString?.() || new Date().toISOString(),
-  };
-}
-
-async function getBaseAdminMedia(): Promise<AdminMedia[]> {
-  const now = Date.now();
-  if (lastBaseMediaUpdate > 0 && now - lastBaseMediaUpdate < CACHE_TTL) {
-    return baseAdminMediaCache;
-  }
-
-  try {
-    const baseUser = await storage.getUserByEmail(BASE_MEDIA_SOURCE_EMAIL);
-    if (!baseUser?.id) {
-      baseAdminMediaCache = [];
-      lastBaseMediaUpdate = now;
-      return baseAdminMediaCache;
-    }
-
-    const baseMedia = await getAgentMediaLibrary(baseUser.id);
-    baseAdminMediaCache = baseMedia
-      .filter((media) => media.isActive !== false)
-      .map((media) => mapBaseMediaToAdminMedia(baseUser.id, media));
-    lastBaseMediaUpdate = now;
-  } catch (error) {
-    console.error("📁 [AdminMediaStore] Erro ao carregar base de mídias do Rodrigo 4:", error);
-    baseAdminMediaCache = [];
-    lastBaseMediaUpdate = now;
-  }
-
-  return baseAdminMediaCache;
-}
-
-function mergeAdminMediaWithBase(primaryMedia: AdminMedia[], baseMedia: AdminMedia[]): AdminMedia[] {
-  const merged = new Map<string, AdminMedia>();
-
-  for (const media of baseMedia) {
-    const key = media.name.toUpperCase();
-    if (!merged.has(key)) {
-      merged.set(key, media);
-    }
-  }
-
-  for (const media of primaryMedia) {
-    const key = media.name.toUpperCase();
-    merged.set(key, media);
-  }
-
-  return Array.from(merged.values()).sort((a, b) => {
-    if (a.displayOrder !== b.displayOrder) {
-      return b.displayOrder - a.displayOrder;
-    }
-    return a.name.localeCompare(b.name);
-  });
-}
 
 /**
  * Recarrega o cache do banco de dados
@@ -160,9 +83,7 @@ async function reloadCache(adminId?: string): Promise<void> {
  */
 export async function getAdminMediaList(adminId?: string): Promise<AdminMedia[]> {
   await reloadCache(adminId);
-  const directMedia = Array.from(adminMediaCache.values()).filter(m => m.isActive);
-  const baseMedia = await getBaseAdminMedia();
-  return mergeAdminMediaWithBase(directMedia, baseMedia);
+  return Array.from(adminMediaCache.values()).filter(m => m.isActive);
 }
 
 /**
@@ -171,8 +92,10 @@ export async function getAdminMediaList(adminId?: string): Promise<AdminMedia[]>
  * @param name - Nome da mídia
  */
 export let getAdminMediaByName = async function(adminId: string | undefined, name: string): Promise<AdminMedia | undefined> {
+  await reloadCache(adminId);
+  
   const normalizedName = name.toUpperCase().replace(/\s+/g, '_');
-  const values = await getAdminMediaList(adminId);
+  const values = Array.from(adminMediaCache.values());
   
   for (const media of values) {
     if (media.name.toUpperCase() === normalizedName && media.isActive) {
@@ -359,7 +282,6 @@ export function getAdminMediaCount(): number {
  */
 export async function forceReloadCache(adminId: string): Promise<void> {
   lastCacheUpdate.delete(adminId);
-  lastBaseMediaUpdate = 0;
   await reloadCache(adminId);
 }
 

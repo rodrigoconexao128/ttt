@@ -95,7 +95,6 @@ export async function setupVite(app: Express, server: Server) {
 
 export function serveStatic(app: Express) {
   const distPath = path.resolve(__dirname, "..", "dist", "public");
-  const legacyFindeasAssetsPath = path.resolve(distPath, "findeas-theme");
 
   if (!fs.existsSync(distPath)) {
     throw new Error(
@@ -103,25 +102,12 @@ export function serveStatic(app: Express) {
     );
   }
 
-  // Backward compatibility for old public HTML that referenced /findeas-theme/assets/*
-  if (fs.existsSync(legacyFindeasAssetsPath)) {
-    app.use("/findeas-theme/assets", express.static(legacyFindeasAssetsPath));
-  }
-
   app.use(express.static(distPath));
 
   // fall through to index.html if the file doesn't exist
   // BUT skip API routes - let Express handle them
   app.use("*", (_req, res, next) => {
-    const requestPath = (_req.originalUrl || _req.path || "").split("?")[0];
-    const isApiRoute = requestPath.startsWith("/api/");
-    const isStaticAssetRequest =
-      requestPath.startsWith("/assets/") ||
-      requestPath.startsWith("/findeas-theme/") ||
-      requestPath.startsWith("/uploads/") ||
-      /\.[a-zA-Z0-9]+$/.test(requestPath);
-
-    if (isApiRoute || isStaticAssetRequest) {
+    if (_req.originalUrl.startsWith('/api/')) {
       return next();
     }
     res.sendFile(path.resolve(distPath, "index.html"));
