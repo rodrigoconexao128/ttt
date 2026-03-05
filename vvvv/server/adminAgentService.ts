@@ -6061,7 +6061,7 @@ ${dataContext}
 - Negrito: use *uma* vez por mensagem no maximo, so para destacar algo realmente importante.
 - NAO faca listas com checkmarks, estrelas, numeros ou bullets longos. Fale em frases naturais curtas.
 - NAO simule dialogos exemplo ("Cliente: ... Agente: ..."). Isso e chato e artificial.
-- MIDIAS: so envie midia ([ENVIAR_MIDIA:]) quando o cliente PEDIR ou falar algo que bata EXATAMENTE com o campo "Quando usar" da midia. NUNCA envie midia por conta propria ou "do nada".
+- MIDIAS: quando o contexto da conversa corresponder ao campo "Quando usar" de uma midia disponivel, USE a tag [ENVIAR_MIDIA:NOME] no final da resposta. Na primeira saudacao do cliente, use [ENVIAR_MIDIA:MENSAGEM_DE_INICIO_QUANDO_O_CLIENTE_VEM_CONVERSAR]. Apos o cliente descrever o negocio dele, use [ENVIAR_MIDIA:COMO_FUNCIONA]. NAO envie midia repetida (se ja enviou, nao envie de novo).
 - EXEMPLOS DO TOM E TAMANHO CORRETO:
   "Fechou. Criei seu agente e deixei pronto. Testa aqui: [link] e me diz o que achou."
   "Show! Me manda o nome do seu negocio e o que voce vende que eu monto o agente agora."
@@ -9545,18 +9545,51 @@ export async function processAdminMessage(
   }
 
   
-  // Media: Apenas parse tags que a IA explicitamente incluiu. SEM fallback automatico.
-  // O fallback de keywords causava envio de midia "do nada" - desativado.
+  // Media: Parse tags da IA + fallback TARGETED para midias criticas
   let textForMediaParsing = textWithoutActions;
 
-  // Corrigir tag quebrada no final (ex: [ENVIAR_ ou [ENVIAR) - unico fallback permitido
+  // Corrigir tag quebrada no final (ex: [ENVIAR_ ou [ENVIAR)
   const brokenTagRegex = /\[ENVIAR_?$/i;
   if (brokenTagRegex.test(textForMediaParsing)) {
       console.log('[SALES] Removendo tag de midia quebrada no final');
       textForMediaParsing = textForMediaParsing.replace(brokenTagRegex, '').trim();
   }
+
+  // TARGETED MEDIA FALLBACK v2: Apenas para midias CRITICAS em momentos especificos.
+  // NAO e o fallback agressivo antigo. Sao apenas 2 regras seguras e previsíveis.
+  const hasExplicitMediaTag = /\[ENVIAR_MIDIA:/i.test(textForMediaParsing);
+  if (!hasExplicitMediaTag) {
+    const userMsgCount = session.conversationHistory.filter((m: any) => m.role === 'user').length;
+    const assistantMsgCount = session.conversationHistory.filter((m: any) => m.role === 'assistant').length;
+    
+    // Regra 1: MENSAGEM_DE_INICIO - primeira mensagem da conversa (saudacao)
+    if (userMsgCount <= 1 && assistantMsgCount === 0) {
+      const greetingWords = /\b(oi|ol[aá]|bom\s*dia|boa\s*(tarde|noite)|e\s*a[ií]|fala|hey|hello|salve|opa)\b/i;
+      if (greetingWords.test(messageText) || messageText.trim().length < 30) {
+        const introMedia = await getAdminMediaByName(undefined, 'MENSAGEM_DE_INICIO_QUANDO_O_CLIENTE_VEM_CONVERSAR');
+        if (introMedia) {
+          console.log('[SALES] Fallback v2: Injetando MENSAGEM_DE_INICIO (primeira mensagem)');
+          textForMediaParsing += ' [ENVIAR_MIDIA:MENSAGEM_DE_INICIO_QUANDO_O_CLIENTE_VEM_CONVERSAR]';
+        }
+      }
+    }
+    
+    // Regra 2: COMO_FUNCIONA - apos cliente descrever negocio (IA criou conta de teste)
+    if (actions.some((a: any) => a.type === 'CRIAR_CONTA_TESTE')) {
+      const alreadySentCF = session.conversationHistory.some((m: any) =>
+        m.role === 'assistant' && m.content && m.content.includes('COMO_FUNCIONA')
+      );
+      if (!alreadySentCF) {
+        const cfMedia = await getAdminMediaByName(undefined, 'COMO_FUNCIONA');
+        if (cfMedia) {
+          console.log('[SALES] Fallback v2: Injetando COMO_FUNCIONA (conta de teste criada)');
+          textForMediaParsing += ' [ENVIAR_MIDIA:COMO_FUNCIONA]';
+        }
+      }
+    }
+  }
   
-  // Parse tags de midia (somente as que a IA incluiu explicitamente)
+  // Parse tags de midia (IA explicitamente + fallback v2 acima)
   const { cleanText, mediaActions } = parseAdminMediaTags(textForMediaParsing);
   
   // Processar mÃƒÂ­dias

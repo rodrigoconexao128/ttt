@@ -2451,18 +2451,17 @@ function splitSectionIntoChunks(section: string, maxChars: number): string[] {
 
 // Divide texto por frases, garantindo que n?o corte palavras ou URLs
 function splitTextBySentences(text: string, maxChars: number): string[] {
-  // PROTE??O DE URLs: Substituir pontos em URLs por placeholder tempor?rio
+  // PROTE??O DE URLs: Substituir URLs inteiras por placeholder tempor?rio
   // para evitar que a regex de frases corte no meio de URLs
-  const urlPlaceholder = '?URL_DOT?';
+  // V20 FIX: Placeholder usa __ em vez de ? para não conflitar com sentencePattern [.!?]
   const urlRegex = /(https?:\/\/[^\s]+)/g;
   const protectedUrls: string[] = [];
   
-  // Substituir URLs por placeholders numerados
+  // Substituir URLs por placeholders numerados (sem ? . ! para nao conflitar com regex)
   let protectedText = text.replace(urlRegex, (match) => {
     const index = protectedUrls.length;
     protectedUrls.push(match);
-    // Substituir pontos dentro da URL por placeholder
-    return `?URL_${index}?`;
+    return `__URLPROT_${index}__`;
   });
   
   // Regex para encontrar frases (terminadas em . ! ? seguidos de espa?o/fim)
@@ -2475,7 +2474,7 @@ function splitTextBySentences(text: string, maxChars: number): string[] {
   const restoredSentences = sentences.map(sentence => {
     let restored = sentence;
     protectedUrls.forEach((url, index) => {
-      restored = restored.replace(`?URL_${index}?`, url);
+      restored = restored.replace(`__URLPROT_${index}__`, url);
     });
     return restored;
   });
