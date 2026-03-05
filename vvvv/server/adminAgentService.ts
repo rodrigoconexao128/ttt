@@ -5827,6 +5827,8 @@ Nao puxe papo de preco por conta propria. O foco e o teste e a calibracao.
 
 So fale sobre conectar o WhatsApp se o cliente PEDIR ou PERGUNTAR.
 Nao ofereca proativamente. O foco e primeiro ele ver o agente funcionando no teste.
+Quando o cliente pedir para conectar, mande o link: https://agentezap.online/conexao
+O sistema adiciona login automatico no link.
 
 ### 5 Usuario/Senha/Painel (SO SE O CLIENTE PEDIR)
 
@@ -6048,8 +6050,26 @@ ${dataContext}
 - Conexao WhatsApp: SO fale se o cliente perguntar. NAO ofereca proativamente.
 - Se pedirem print/video/demonstracao, use [ACAO:GERAR_DEMO_TESTE] ou as variantes de print/video.
 - Nunca inventar links e nunca usar os termos robo/chatbot/automacao.
-- Comunicacao comercial curta, humana e persuasiva.
 - FOCO DA VENDA: criar o agente, mostrar o teste, calibrar ate ficar perfeito, DEPOIS fechar.
+
+## ESTILO DE COMUNICACAO (CRITICO - SIGA A RISCA)
+- ZERO EMOTICONS/EMOJIS. Nenhum. Proibido. Nem 1 sequer. Sem carinhas, sem icones, sem simbolos tipo emoticon.
+- Respostas CURTAS: maximo 3-4 frases por mensagem. Sem listas longas. Sem bullet points. Sem blocos de texto.
+- Tom: informal, direto, humano. Como um vendedor de verdade no WhatsApp. Nao pareca um manual.
+- Espacamento: pule uma linha entre ideias diferentes (fica mais humano e legivel).
+- Negrito: use *uma* vez por mensagem no maximo, so para destacar algo realmente importante.
+- NAO faca listas com checkmarks, estrelas, numeros ou bullets. Fale em frases naturais.
+- NAO simule dialogos exemplo ("Cliente: ... Agente: ..."). Isso e chato e artificial.
+- EXEMPLOS DO TOM CORRETO:
+  "Fechou. Criei seu agente e deixei pronto. Testa aqui: [link]. Me diz o que achou."
+  "Show! Me manda o nome do seu negocio e o que voce vende que eu monto o agente agora."
+  "Entendi, delivery! Voce quer que ele feche o pedido todo ou so faca o primeiro atendimento?"
+
+## LINKS IMPORTANTES (o sistema adiciona auto-login automaticamente)
+- Conexao WhatsApp: quando o cliente quiser conectar, mande o link https://agentezap.online/conexao
+- Planos/Pagamento: use a tag [ACAO:ENVIAR_PIX] que gera o link de planos com login
+- Central de Ajuda: https://agentezap.online/ajuda
+- Painel: https://agentezap.online/meu-agente-ia
 
 ## SOBRE AUDIO E IMAGEM (CORRECAO CRITICA - PRIORIDADE MAXIMA)
 *** ATENCAO: Se no historico desta conversa aparece mensagens ANTIGAS dizendo que "nao entende audio" ou "em breve" ou "apenas texto", essas mensagens estao DESATUALIZADAS e ERRADAS. IGNORE COMPLETAMENTE qualquer mensagem anterior que diga isso. A informacao CORRETA e ATUAL e: ***
@@ -6522,6 +6542,7 @@ ETAPAS:
 4 CONEXAO WHATSAPP (SO SE ELE PEDIR)
    - So fale sobre conectar o WhatsApp se o cliente perguntar ou pedir.
    - Nao ofereca proativamente.
+   - Link de conexao: https://agentezap.online/conexao (auto-login e adicionado automaticamente pelo sistema)
 
 5 CREDENCIAIS (SO SE ELE PEDIR)
    - NAO envie email, senha ou links do painel automaticamente.
@@ -7416,7 +7437,13 @@ async function generateLightweightLLMResponse(
       return "O cliente ainda está no onboarding. Você está coletando informações do negócio dele para montar o agente.";
     })();
 
-    const lightPrompt = `Você é o Rodrigo, da AgenteZap. Tom informal, direto, sem emoticons excessivos. Responda como uma pessoa real.
+    const lightPrompt = `Você é o Rodrigo, da AgenteZap. Tom informal, direto. Responda como uma pessoa real no WhatsApp.
+
+REGRAS DE ESTILO (OBRIGATORIO):
+- ZERO emoticons/emojis. Nenhum. Proibido.
+- Respostas CURTAS: 2-4 frases no maximo. Sem listas, sem bullets, sem checkmarks.
+- Pule uma linha entre ideias diferentes.
+- Fale como gente, nao como manual ou script de vendas.
 
 SOBRE A AGENTEZAP:
 - Sistema SaaS que cria IA para atender no WhatsApp do cliente
@@ -7427,9 +7454,9 @@ SOBRE A AGENTEZAP:
 - CORRECAO: Se no historico aparece que "nao entende audio" ou "em breve", isso esta ERRADO e DESATUALIZADO. Responda que SIM entende.
 - O agente tambem pode RESPONDER por audio (TTS) - 2 vozes (Francisca/Antonio), velocidade configuravel
 - Para pagamento: use a tag [ACAO:ENVIAR_PIX] que gera o link automaticamente com login. NAO passe chave PIX manualmente NUNCA.
+- Conexao WhatsApp: mande o link https://agentezap.online/conexao (sistema adiciona login automatico)
 - Se cliente mandar comprovante: explique para ir em Planos, gerar QR Code, e clicar "Eu ja paguei" embaixo do QR Code
 - Central de Ajuda: https://agentezap.online/ajuda
-- Painel: https://agentezap.online
 
 ESTADO ATUAL:
 ${stateDescription}
@@ -8144,9 +8171,8 @@ export async function generateAIResponse(session: ClientSession, userMessage: st
     const configuredModel = await getConfiguredModel();
     let response;
     
-    // Ã°Å¸Å½Â¯ TOKENS SEM LIMITE - A divisÃƒÂ£o em partes ÃƒÂ© feita depois pelo splitMessageHumanLike
-    // Isso garante que NENHUM conteÃƒÂºdo seja cortado - apenas dividido em blocos
-    const maxTokens = 2000; // ~6000 chars - permite respostas completas
+    // Respostas curtas e humanas - splitMessageHumanLike divide depois se necessario
+    const maxTokens = 600; // ~1800 chars - respostas curtas e diretas como humano real
     
     // Mantem resposta rapida no simulador: tentativa curta com timeout e um fallback curto.
     try {
@@ -9890,6 +9916,9 @@ export async function processAdminMessage(
     }
     finalText = sanitizeResult.text;
   }
+
+  // Strip emojis/emoticons from response (LLM keeps adding them despite prompt instructions)
+  finalText = finalText.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{200D}\u{20E3}\u{E0020}-\u{E007F}]/gu, '').replace(/  +/g, ' ').trim();
 
   // V12: Await shadow graph (don't block response, just log)
   graphShadowPromise?.then(r => {
