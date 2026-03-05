@@ -71,7 +71,7 @@ interface OpeningHoursDay {
 }
 
 // Verifica se o estabelecimento está aberto agora (horário do Brasil)
-export function isBusinessOpen(openingHours?: Record<string, OpeningHoursDay>): {
+export function isBusinessOpen(openingHours?: Record<string, OpeningHoursDay> | Array<any>): {
   isOpen: boolean;
   currentDay: string;
   currentTime: string;
@@ -98,8 +98,26 @@ export function isBusinessOpen(openingHours?: Record<string, OpeningHoursDay>): 
   const currentMinute = brazilTime.getMinutes().toString().padStart(2, '0');
   const currentTime = `${currentHour}:${currentMinute}`;
 
+  // 🆕 FIX: Converter array para Record se necessário
+  // DB armazena como array [{day:"monday",...}], mas função espera Record {monday:{...}}
+  let normalizedHours: Record<string, OpeningHoursDay> | undefined;
+  if (Array.isArray(openingHours)) {
+    normalizedHours = {};
+    for (const entry of openingHours) {
+      if (entry && entry.day) {
+        normalizedHours[entry.day] = {
+          open: entry.open || '00:00',
+          close: entry.close || '23:59',
+          enabled: entry.enabled !== false,
+        };
+      }
+    }
+  } else {
+    normalizedHours = openingHours;
+  }
+
   // Se não tem horários configurados, assume aberto
-  if (!openingHours || Object.keys(openingHours).length === 0) {
+  if (!normalizedHours || Object.keys(normalizedHours).length === 0) {
     return {
       isOpen: true,
       currentDay,
@@ -108,12 +126,12 @@ export function isBusinessOpen(openingHours?: Record<string, OpeningHoursDay>): 
     };
   }
 
-  const todayHours = openingHours[currentDay];
+  const todayHours = normalizedHours[currentDay];
   
   // Se não tem configuração para hoje ou está desabilitado
   if (!todayHours || !todayHours.enabled) {
     // Encontrar próximo dia aberto
-    const nextOpenDay = findNextOpenDay(openingHours, currentDay);
+    const nextOpenDay = findNextOpenDay(normalizedHours, currentDay);
     return {
       isOpen: false,
       currentDay,
@@ -171,8 +189,25 @@ export function isBusinessOpen(openingHours?: Record<string, OpeningHoursDay>): 
   }
 }
 
-function formatBusinessHours(openingHours?: Record<string, OpeningHoursDay>): string {
-  if (!openingHours || Object.keys(openingHours).length === 0) {
+function formatBusinessHours(openingHours?: Record<string, OpeningHoursDay> | Array<any>): string {
+  // 🆕 FIX: Converter array para Record se necessário
+  let normalizedHours: Record<string, OpeningHoursDay> | undefined;
+  if (Array.isArray(openingHours)) {
+    normalizedHours = {};
+    for (const entry of openingHours) {
+      if (entry && entry.day) {
+        normalizedHours[entry.day] = {
+          open: entry.open || '00:00',
+          close: entry.close || '23:59',
+          enabled: entry.enabled !== false,
+        };
+      }
+    }
+  } else {
+    normalizedHours = openingHours;
+  }
+  
+  if (!normalizedHours || Object.keys(normalizedHours).length === 0) {
     return 'Horários não informados.';
   }
 
@@ -191,7 +226,7 @@ function formatBusinessHours(openingHours?: Record<string, OpeningHoursDay>): st
 
   let text = '📅 *Nossos horários:*\n';
   for (const day of dayOrder) {
-    const dayConfig = openingHours[day];
+    const dayConfig = normalizedHours[day];
     if (dayConfig && dayConfig.enabled) {
       text += `• ${dayNamesPt[day]}: ${dayConfig.open} às ${dayConfig.close}\n`;
     }
@@ -236,8 +271,10 @@ function getCustomerNameFromHistory(
     /\bme chamo\s+([a-záàâãéèêíïóôõöúçñ\s]{2,50})/i,
     /\beu sou\s+([a-záàâãéèêíïóôõöúçñ\s]{2,50})/i,
     /\bsou\s+(?:o|a)?\s*([a-záàâãéèêíïóôõöúçñ\s]{2,50})/i,
+    /\bpode me chamar de\s+([a-záàâãéèêíïóôõöúçñ\s]{2,50})/i,
   ];
 
+  // 1ª passada: buscar padrões EXPLÍCITOS de nome (meu nome é, me chamo, etc.)
   for (let i = conversationHistory.length - 1; i >= 0; i--) {
     const entry = conversationHistory[i];
     if (entry.fromMe) continue;
@@ -247,13 +284,26 @@ function getCustomerNameFromHistory(
     for (const pattern of namePatterns) {
       const match = text.match(pattern);
       if (match?.[1]) {
-        return match[1].trim();
+        // Nome extraído: capitalizar primeira letra
+        const rawName = match[1].trim().split(/\s+/)[0]; // Pegar apenas o primeiro nome
+        return rawName.charAt(0).toUpperCase() + rawName.slice(1).toLowerCase();
       }
     }
+  }
 
-    const looksLikeName = /^[a-záàâãéèêíïóôõöúçñ\s]{2,50}$/i.test(text);
-    if (looksLikeName && !/\d/.test(text)) {
-      return text.trim();
+  // 2ª passada (fallback): mensagem que parece ser APENAS um nome (max 20 chars, sem palavras comuns)
+  const commonWords = /\b(quero|ver|cardapio|cardápio|primeiro|pizza|borda|bebida|adicional|oi|ola|olá|boa|noite|tarde|dia|obrigado|obrigada|sim|nao|não|ok|entrega|delivery|retirada|pagar|pagamento|pix|cartao|cartão|dinheiro|favor|por|uma|querer|pedido|meu|minha)\b/i;
+  for (let i = conversationHistory.length - 1; i >= 0; i--) {
+    const entry = conversationHistory[i];
+    if (entry.fromMe) continue;
+    const text = entry.text?.trim();
+    if (!text || text.length > 20) continue; // Nomes reais são curtos (max 20 chars)
+
+    // Verificar se parece nome: só letras, sem palavras comuns, sem dígitos
+    const looksLikeName = /^[a-záàâãéèêíïóôõöúçñ\s]{2,20}$/i.test(text);
+    if (looksLikeName && !/\d/.test(text) && !commonWords.test(text)) {
+      const rawName = text.split(/\s+/)[0];
+      return rawName.charAt(0).toUpperCase() + rawName.slice(1).toLowerCase();
     }
   }
 
@@ -1428,8 +1478,10 @@ REGRAS IMPORTANTES:
 1. "sim", "confirmo", "ok", "pode mandar", "fechado" = CONFIRM_ORDER
 2. "meia X e meia Y" = HALF_HALF (sempre, mesmo sem dizer "meio a meio")
 3. Se já tem pedido em andamento e cliente manda saudação simples, é OTHER ou CONFIRM_ORDER
-4. Se menciona apenas UMA categoria (pizza, esfirra) = WANT_CATEGORY
-5. Se fornece nome, endereço, forma de pagamento = PROVIDE_CUSTOMER_INFO
+4. Se menciona apenas UMA categoria GENÉRICA sem especificar item (ex: "pizza", "bordas", "bebidas") = WANT_CATEGORY
+5. Se menciona um ITEM ESPECÍFICO de uma categoria (ex: "borda de cheddar", "coca-cola 2l", "calabresa grande", "borda cheddar") = WANT_TO_ORDER ou ADD_ITEM, NUNCA WANT_CATEGORY
+6. Se fornece nome, endereço, forma de pagamento = PROVIDE_CUSTOMER_INFO
+7. Palavras como "adiciona", "coloca", "quero", "bota" seguidas de nome de item = ADD_ITEM ou WANT_TO_ORDER
 
 Responda APENAS com o nome da intenção, nada mais.`;
 
@@ -1758,6 +1810,28 @@ function buildMenuMediaActions(
 
   if (intent === 'WANT_CATEGORY') {
     return [];
+  }
+
+  // 🆕 Para GREETING e WANT_MENU sem categoria específica: enviar TODAS as imagens únicas do cardápio
+  if (intent === 'GREETING' || intent === 'WANT_MENU') {
+    const uniqueImages = new Map<string, string>(); // url -> caption
+    for (const cat of categoriesWithImages) {
+      if (cat.image_url && !uniqueImages.has(cat.image_url)) {
+        uniqueImages.set(cat.image_url, cat.name);
+      }
+    }
+    if (uniqueImages.size > 0) {
+      const actions: MistralResponse['actions'] = [];
+      for (const [url, caption] of uniqueImages) {
+        actions.push({
+          type: 'send_media_url',
+          media_url: url,
+          media_type: 'image',
+          caption: caption,
+        });
+      }
+      return actions;
+    }
   }
 
   return [];
@@ -2478,7 +2552,12 @@ export async function generateDeliveryResponse(
                 const subtotal = cart ? getCartSubtotal(cart) : finalPrice;
                 const deliveryFee = deliveryData.config.delivery_fee;
                 
-                let response = `✅ Perfeito! Adicionado ao pedido:\n\n`;
+                // 🆕 FIX: Usar nome do cliente
+                const hhName = getCustomerNameFromHistory(conversationHistory);
+                const hhDisplayName = deliveryData.config.use_customer_name ? (hhName || '') : '';
+                const hhPrefix = hhDisplayName ? `, ${hhDisplayName}` : '';
+                
+                let response = `✅ Perfeito! Adicionado ao pedido${hhPrefix}:\n\n`;
                 response += `• 1x ${displayName} - R$ ${finalPrice.toFixed(2).replace('.', ',')}\n`;
                 
                 if (cart) {
@@ -2543,7 +2622,12 @@ export async function generateDeliveryResponse(
               const subtotal = cart ? getCartSubtotal(cart) : itemTotal;
               const deliveryFee = deliveryData.config.delivery_fee;
               
-              let response = `✅ Perfeito! Adicionado ao pedido:\n\n`;
+              // 🆕 FIX: Usar nome do cliente
+              const pendName = getCustomerNameFromHistory(conversationHistory);
+              const pendDisplayName = deliveryData.config.use_customer_name ? (pendName || '') : '';
+              const pendPrefix = pendDisplayName ? `, ${pendDisplayName}` : '';
+              
+              let response = `✅ Perfeito! Adicionado ao pedido${pendPrefix}:\n\n`;
               response += `• ${pendingQuantity}x ${resolved.displayName} - R$ ${itemTotal.toFixed(2).replace('.', ',')}\n`;
               
               if (cart) {
@@ -2696,7 +2780,14 @@ export async function generateDeliveryResponse(
     const deliveryFee = deliveryData.config.delivery_fee;
     const total = subtotal + deliveryFee;
     
-    let response = `✅ Adicionado ao pedido:\n\n`;
+    // 🆕 FIX: Usar nome do cliente na resposta
+    const customerNameFromHistory = getCustomerNameFromHistory(conversationHistory);
+    const customerDisplayName = deliveryData.config.use_customer_name
+      ? (customerNameFromHistory || '')
+      : '';
+    const namePrefix = customerDisplayName ? `, ${customerDisplayName}` : '';
+    
+    let response = `✅ Adicionado ao pedido${namePrefix}:\n\n`;
     for (const item of addedItems) {
       response += `• ${item.quantity}x ${item.name} - R$ ${item.total.toFixed(2).replace('.', ',')}\n`;
     }
@@ -3503,7 +3594,7 @@ const NUMBER_WORDS: Record<string, number> = {
 export function parseOrderItems(message: string): Array<{ name: string; quantity: number }> {
   const results: Array<{ name: string; quantity: number }> = [];
   const normalizedMsg = message.toLowerCase()
-    .replace(/quero|vou querer|me (vê|ve|da|dá)|pode|manda/gi, '')
+    .replace(/quero|vou querer|me (vê|ve|da|dá)|pode|manda|adiciona|coloca|bota|p[oõ]e|por favor|pfv|pf/gi, '')
     .trim();
   
   // Padrões: "2 pizza calabresa", "uma esfiha de carne", "3x refrigerante"
@@ -3565,9 +3656,9 @@ export function findItemByNameFuzzy(
   
   console.log(`🔍 [DeliveryAI] Buscando "${searchName}" em ${categoriesToSearch.length} categorias ${categoryFilter ? `(filtro: ${categoryFilter})` : ''}`);
   
-  // 1. Normalização de sabor (remover prefixos como "pizza de", "esfiha de")
+  // 1. Normalização de sabor (remover prefixos como "pizza de", "esfiha de", "borda de")
   const cleanedName = normalized
-    .replace(/^(?:pizza\s*(?:de\s*)?|esfirra?\s*(?:de\s*)?|esfiha\s*(?:de\s*)?)/i, '')
+    .replace(/^(?:pizza\s*(?:de\s*)?|esfirra?\s*(?:de\s*)?|esfiha\s*(?:de\s*)?|borda\s*(?:de\s*)?)/i, '')
     .replace(/^(?:uma?\s*|um\s*)/i, '')
     .trim();
 
@@ -3946,6 +4037,29 @@ export async function processDeliveryMessage(
     // Detectar intenção COM IA (considera contexto da conversa)
     intent = await detectIntentWithAI(message, conversationHistory, deliveryData);
   }
+  
+  // 🆕 FIX: OVERRIDE WANT_CATEGORY quando mensagem contém nome de item específico
+  // Evita que "borda de cheddar", "coca-cola 2l" sejam tratados como WANT_CATEGORY
+  if (intent === 'WANT_CATEGORY') {
+    const categoryKeywords = ['pizza', 'pizzas', 'borda', 'bordas', 'bebida', 'bebidas',
+      'adicional', 'adicionais', 'doce', 'doces', 'especial', 'especiais',
+      'tradicional', 'tradicionais', 'esfiha', 'esfihas', 'esfirra', 'esfirras',
+      'acai', 'açaí', 'sobremesa', 'sobremesas', 'lanche', 'lanches',
+      'hamburguer', 'hamburgueres', 'combo', 'combos'];
+    const parsedCheck = parseOrderItems(message);
+    if (parsedCheck.length > 0) {
+      const parsedName = parsedCheck[0].name.toLowerCase().trim();
+      const isJustCategoryKeyword = categoryKeywords.some(kw => parsedName === kw);
+      if (!isJustCategoryKeyword && parsedName.length > 3) {
+        const foundItem = findItemByNameFuzzy(deliveryData, parsedCheck[0].name);
+        if (foundItem) {
+          console.log(`🍕 [DeliveryAI] WANT_CATEGORY override → WANT_TO_ORDER (item encontrado: ${foundItem.name})`);
+          intent = 'WANT_TO_ORDER';
+        }
+      }
+    }
+  }
+  
   console.log(`🍕 [DeliveryAI] Intenção detectada (com contexto): ${intent}`);
   
   // 4. Gerar resposta baseada na intenção
@@ -3961,7 +4075,9 @@ export async function processDeliveryMessage(
   );
 
   const menuSendMode = normalizeMenuSendMode(deliveryData.config.menu_send_mode);
-  if (menuSendMode !== 'text') {
+  // 🔒 Intents que devem mostrar imagem de categoria (NÃO sobrescrever ADD_ITEM/WANT_TO_ORDER)
+  const isMenuDisplayIntent = ['WANT_MENU', 'WANT_CATEGORY', 'GREETING'].includes(response.intent);
+  if (menuSendMode !== 'text' && isMenuDisplayIntent) {
     if (menuSendMode === 'image' && !response.metadata?.categoryImageUrl) {
       const requestedCategory = response.metadata?.categoryRequested || detectCategoryFromMessage(message);
       if (requestedCategory) {
@@ -3991,10 +4107,18 @@ export async function processDeliveryMessage(
     if (mediaActions.length > 0) {
       response.mediaActions = mediaActions;
       if (menuSendMode === 'image') {
-        // 🆕 Em vez de esvaziar as bubbles, manter um texto de referência
-        // para que o simulador e clientes sem suporte a imagem vejam algo
-        const catName = response.metadata?.categoryName || response.metadata?.categoryRequested || 'Cardápio';
-        response.bubbles = [`📷 *${catName}*\nConfira a imagem do cardápio acima! 👆\n\nO que você gostaria de pedir? 😊`];
+        // 🆕 Para GREETING: manter a mensagem de boas-vindas + adicionar referência às imagens
+        // Para WANT_CATEGORY/WANT_MENU: substituir por texto de referência à imagem
+        if (response.intent === 'GREETING') {
+          // Mantém o texto de boas-vindas original e adiciona nota sobre as imagens
+          response.bubbles = [
+            ...response.bubbles,
+            `📷 Confira as imagens do cardápio acima! 👆\n\nEscolha uma categoria para ver os itens! 😊`
+          ];
+        } else {
+          const catName = response.metadata?.categoryName || response.metadata?.categoryRequested || 'Cardápio';
+          response.bubbles = [`📷 *${catName}*\nConfira a imagem do cardápio acima! 👆\n\nO que você gostaria de pedir? 😊`];
+        }
       }
     }
   }

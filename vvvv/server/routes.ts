@@ -16314,6 +16314,28 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
           }
 
+          // 🆕 PASS-THROUGH para send_media_url (imagens de categoria do delivery)
+
+          // Já possuem media_url diretamente, não precisam de lookup na biblioteca
+
+          if (action.type === 'send_media_url' && action.media_url) {
+
+            console.log(`📷 [/api/agent/test] Mídia URL direta (delivery): ${action.media_url}`);
+
+            mediaActions.push({
+
+              type: 'send_media_url',
+
+              media_url: action.media_url,
+
+              media_type: action.media_type || 'image',
+
+              caption: action.caption || '',
+
+            });
+
+          }
+
         }
 
       }
