@@ -1,0 +1,141 @@
+{
+  "baseUrl": "http://127.0.0.1:5000",
+  "timestamp": "2026-03-05T13:19:57.876Z",
+  "e2e": [
+    {
+      "role": "cliente",
+      "segmentPage": "http://127.0.0.1:5000/ferramentas/lanchonete",
+      "finalUrl": "http://127.0.0.1:5000/ajuda",
+      "flowOk": true
+    },
+    {
+      "role": "admin",
+      "segmentPage": "http://127.0.0.1:5000/ferramentas/lanchonete",
+      "finalUrl": "http://127.0.0.1:5000/ajuda",
+      "flowOk": true
+    }
+  ],
+  "mappingCount": 42,
+  "mappingSample": [
+    {
+      "tipo": "Beleza / Estética",
+      "categoria": "Salão de Beleza",
+      "slug": "salao_beleza",
+      "ferramenta": "agendamento"
+    },
+    {
+      "tipo": "Beleza / Estética",
+      "categoria": "Barbearia",
+      "slug": "barbearia",
+      "ferramenta": "agendamento"
+    },
+    {
+      "tipo": "Beleza / Estética",
+      "categoria": "Clínica de Estética",
+      "slug": "estetica",
+      "ferramenta": "agendamento"
+    },
+    {
+      "tipo": "Beleza / Estética",
+      "categoria": "Sobrancelhas / Micropigmentação",
+      "slug": "sobrancelhas",
+      "ferramenta": "agendamento"
+    },
+    {
+      "tipo": "Beleza / Estética",
+      "categoria": "Manicure / Nail Designer",
+      "slug": "manicure",
+      "ferramenta": "agendamento"
+    },
+    {
+      "tipo": "Beleza / Estética",
+      "categoria": "Extensão de Cílios / Lash",
+      "slug": "cilios_lash",
+      "ferramenta": "agendamento"
+    },
+    {
+      "tipo": "Beleza / Estética",
+      "categoria": "Depilação",
+      "slug": "depilacao",
+      "ferramenta": "agendamento"
+    },
+    {
+      "tipo": "Beleza / Estética",
+      "categoria": "Spa / Terapias",
+      "slug": "spa",
+      "ferramenta": "agendamento"
+    },
+    {
+      "tipo": "Delivery / Alimentação",
+      "categoria": "Lanchonete / Fast Food",
+      "slug": "lanchonete",
+      "ferramenta": "delivery"
+    },
+    {
+      "tipo": "Delivery / Alimentação",
+      "categoria": "Pizzaria",
+      "slug": "pizzaria",
+      "ferramenta": "delivery"
+    },
+    {
+      "tipo": "Delivery / Alimentação",
+      "categoria": "Restaurante",
+      "slug": "restaurante",
+      "ferramenta": "delivery"
+    },
+    {
+      "tipo": "Delivery / Alimentação",
+      "categoria": "Hamburgueria",
+      "slug": "hamburgueria",
+      "ferramenta": "delivery"
+    },
+    {
+      "tipo": "Delivery / Alimentação",
+      "categoria": "Marmitaria / Quentinha",
+      "slug": "marmitaria",
+      "ferramenta": "delivery"
+    },
+    {
+      "tipo": "Delivery / Alimentação",
+      "categoria": "Açaí / Sorveteria",
+      "slug": "acai_sorveteria",
+      "ferramenta": "delivery"
+    },
+    {
+      "tipo": "Delivery / Alimentação",
+      "categoria": "Confeitaria / Bolos",
+      "slug": "confeitaria",
+      "ferramenta": "delivery"
+    },
+    {
+      "tipo": "Delivery / Alimentação",
+      "categoria": "Salgaderia / Doceria",
+      "slug": "salgaderia",
+      "ferramenta": "delivery"
+    },
+    {
+      "tipo": "Delivery / Alimentação",
+      "categoria": "Outros Delivery",
+      "slug": "delivery_outros",
+      "ferramenta": "delivery"
+    },
+    {
+      "tipo": "Saúde",
+      "categoria": "Clínica Médica",
+      "slug": "clinica_medica",
+      "ferramenta": "agendamento"
+    },
+    {
+      "tipo": "Saúde",
+      "categoria": "Dentista / Odontologia",
+      "slug": "dentista",
+      "ferramenta": "agendamento"
+    },
+    {
+      "tipo": "Saúde",
+      "categoria": "Fisioterapia / Pilates",
+      "slug": "fisioterapia",
+      "ferramenta": "agendamento"
+    }
+  ]
+}
