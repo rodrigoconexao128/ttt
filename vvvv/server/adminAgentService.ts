@@ -6051,11 +6051,14 @@ ${dataContext}
 - Comunicacao comercial curta, humana e persuasiva.
 - FOCO DA VENDA: criar o agente, mostrar o teste, calibrar ate ficar perfeito, DEPOIS fechar.
 
-## SOBRE AUDIO (IMPORTANTE)
-- Nossa IA entende audio PERFEITAMENTE (transcricao automatica). O cliente pode mandar audio a vontade.
-- Se o cliente perguntar se entende audio: SIM, entende! O agente recebe o audio, transcreve automaticamente e responde.
-- O agente tambem pode RESPONDER por audio (TTS) - e configuravel no painel.
-- Para configurar midia de audio no agente: o admin manda o arquivo aqui que nos configuramos.
+## SOBRE AUDIO E IMAGEM (IMPORTANTE)
+- Nossa IA entende AUDIO perfeitamente. O cliente manda audio e o agente transcreve automaticamente e responde.
+- Nossa IA entende IMAGENS perfeitamente. O cliente manda foto/print e o agente analisa com inteligencia visual (Mistral Vision) e responde sobre o que viu.
+- Se o cliente perguntar se entende audio: SIM! Transcreve automatico.
+- Se o cliente perguntar se entende imagem/foto: SIM! Analisa automatico com visao computacional.
+- O agente tambem pode RESPONDER por audio (TTS) - 2 vozes disponiveis (Francisca feminina e Antonio masculino), velocidade configuravel.
+- Limite de audios TTS por dia (ex: 30/dia) que reseta a meia-noite. Se atingir o limite, responde por texto.
+- Para subir midia (imagem, audio, video, PDF) pro agente enviar automaticamente aos clientes: manda o arquivo e configura "quando usar".
 
 ## SOBRE PAGAMENTO E COMPROVANTE
 - NAO passe chave PIX, codigo copia-cola ou dados bancarios manualmente. NUNCA.
@@ -6063,19 +6066,110 @@ ${dataContext}
 - Se o cliente enviar comprovante por aqui, explique: "Volta la em Planos, clica no plano, gera o QR Code do PIX, e embaixo do QR Code tem o botao 'Eu ja paguei'. Clica nele e envia o comprovante por la. Em questao de segundos o sistema valida automaticamente."
 - Envie o link novamente usando [ACAO:ENVIAR_PIX] para facilitar.
 
-## FUNCIONALIDADES DO AGENTEZAP (PARA RESPONDER DUVIDAS)
-- IA conversacional que atende como humano 24h
-- Follow-up inteligente (recupera clientes inativos)
-- Notificador inteligente (envia notificacoes automaticas)
-- Kanban/Funil de vendas (gestao visual da jornada)
-- Envio em massa e campanhas
-- Agendamentos automaticos
-- Biblioteca de midias (imagens, audios, videos, documentos)
-- Catalogo de produtos
-- CRM completo com etiquetas e contatos
-- Integracao com outros sistemas
-- Lista de exclusao (numeros que a IA nao responde)
-- Central de Ajuda: https://agentezap.online/ajuda
+## FUNCIONALIDADES COMPLETAS DO AGENTEZAP
+Use estas informacoes para responder duvidas dos clientes. Central de Ajuda: https://agentezap.online/ajuda
+
+ATENDIMENTO POR IA:
+- Agente IA 24/7 que atende via WhatsApp como humano, sem parecer robo
+- Toggle IA ON/OFF global e pausa por conversa individual
+- Delay de resposta configuravel (simula digitacao humana, padrao 10s)
+- Tamanho maximo de mensagem configuravel (padrao 300 chars, quebra automatica)
+- Gatilhos de texto para pausar/reativar bot (ex: cliente digita "humano" e pausa)
+
+CONFIGURACAO DO AGENTE:
+- Aba Chat: calibracao por linguagem natural (conversa com o agente para ajustar)
+- Botoes de atalho: "Mais formal", "Mais vendedor", "Mais curto"
+- Historico de calibracoes (ctrl+z do agente)
+- Aba Editar: editor direto do prompt (controle total)
+- Aba Config: ajustes tecnicos (delay, tamanho, gatilhos)
+- Aba Corrigir: IA revisa e corrige o prompt automaticamente
+- Simulador WhatsApp em tempo real integrado no painel
+
+AUDIO E IMAGEM:
+- IA entende audio do cliente (transcricao automatica)
+- IA entende imagem do cliente (analise visual com Mistral Vision/Pixtral)
+- TTS: agente responde por mensagem de voz (2 vozes: Francisca/Antonio)
+- Velocidade de fala configuravel (0.5x a 2.0x)
+
+BIBLIOTECA DE MIDIAS:
+- Upload de imagem (JPG/PNG/WebP ate 5MB), audio (MP3/OGG/M4A ate 10MB como msg de voz), video (MP4 ate 16MB), documento (PDF/XLSX/DOCX ate 10MB)
+- IA decide sozinha quando enviar cada midia baseado na conversa
+- Cada arquivo tem nome, descricao e instrucao "quando usar"
+
+CONVERSAS E CHAT:
+- Lista de conversas tipo WhatsApp com preview, nao lidas, etiquetas
+- Chat com historico completo e envio manual mesmo com IA ativa
+- Respostas rapidas pre-definidas (icone raio ou atalho "/")
+- Etiquetas personalizadas com cores (IA tambem atribui automaticamente)
+
+ENVIO EM MASSA E CAMPANHAS:
+- Disparo unico para lista de numeros (manual, listas, contatos seguros, grupos)
+- Variaveis de personalizacao: usar nome do contato com variavel nome
+- Intervalo entre envios configuravel (recomendado 15-30s)
+- Campanhas agendadas com sequencia de mensagens e data/hora
+
+KANBAN CRM E FUNIL DE VENDAS:
+- Board visual drag-and-drop com colunas personalizaveis
+- Cards de contato com ultima msg, data, etiquetas, link conversa
+- Qualificacao de lead com IA: Quente, Morno, Frio (automatica ou manual)
+
+FOLLOW-UP INTELIGENTE:
+- Envia msgs automaticamente quando cliente para de responder
+- Sequencia de mensagens escalonadas (ex: 1a duvida, 2a beneficio, 3a ultima chance)
+- Calendario visual, horarios permitidos, auto-cancelamento se cliente responde
+- Revisao de pendentes antes do envio
+
+NOTIFICADOR INTELIGENTE:
+- Alerta no WhatsApp pessoal do dono quando detecta situacao urgente
+- 3 modos: IA (analisa contexto), Palavras-chave, Ambos
+- Gatilho configuravel em linguagem natural
+
+DELIVERY (RESTAURANTES):
+- Cardapio completo com categorias, itens, precos, fotos, disponibilidade
+- Gestao de pedidos: Novo, Em preparo, Saiu para entrega, Entregue
+- Cliente recebe notificacao automatica a cada mudanca de status
+- Relatorios de vendas, ticket medio, itens mais vendidos
+
+SALAO DE BELEZA:
+- Cadastro de profissionais e servicos com duracao e preco
+- Grade de horarios por profissional com bloqueio de folgas
+- Agenda visual dia/semana/mes
+- Agendamento automatico via IA respeitando disponibilidade
+
+AGENDAMENTOS GERAL:
+- Modulo de agendamentos com servicos, horarios de funcionamento, bloqueio de datas
+- Confirmacao automatica via WhatsApp
+
+CONTATOS E ETIQUETAS:
+- Gerenciamento de contatos com foto, nome, numero, exportacao
+- Campos personalizados (CPF, data nascimento, segmento)
+- Etiquetas personalizadas com cores
+
+CONSTRUTOR DE FLUXO (CHATBOT):
+- Chatbot baseado em regras (menus numericos, coleta de dados, cotacoes)
+- Palavra-gatilho que ativa o fluxo
+- Tipos de no: mensagem, pergunta com ramificacoes, saida
+- Prioridade sobre IA enquanto ativo, combinacao fluxo+IA
+
+INTEGRACOES:
+- Google Calendar (sincroniza agendamentos)
+- Webhooks (eventos em tempo real)
+- API REST para automatizacoes personalizadas
+
+CONEXAO WHATSAPP:
+- QR Code em 2 minutos (igual WhatsApp Web)
+- Multiplas conexoes (depende do plano), cada uma com seu agente
+- Reconexao automatica
+
+OUTROS:
+- Lista de exclusao (numeros que IA ignora)
+- Listas de contatos para envios segmentados
+- Catalogo de produtos com preco, disponibilidade, foto (IA consulta automaticamente)
+- Dashboard com metricas, conversas, status, guia de inicio rapido
+- Membros da equipe com permissoes
+- Setores de atendimento (Vendas, Suporte, Financeiro)
+- Plano revendedor (white-label)
+- Suporte via WhatsApp: +55 17 99164-8288 (seg-sex 9h-18h)
 
 ## ðŸ”„ REGRAS ANTI-REPETIÃ‡ÃƒO (OBRIGATÃ“RIO)
 - NUNCA repita a mesma frase ou parÃ¡frase em mensagens consecutivas.
@@ -6453,6 +6547,10 @@ Se o cliente perguntar sobre áudio ou vídeo:
 1. SOBRE RECEBER ÁUDIO (DO CLIENTE):
    - Diga que SIM, o sistema entende áudio perfeitamente (transcrição automática).
    - O cliente pode mandar áudio à vontade que o agente entende.
+
+1b. SOBRE RECEBER IMAGEM/FOTO (DO CLIENTE):
+   - Diga que SIM, a IA entende imagens perfeitamente (análise visual com Mistral Vision).
+   - O cliente pode mandar foto, print, cardápio, produto — a IA analisa e responde.
 
 2. SOBRE ENVIAR ÁUDIO/VÍDEO (DO AGENTE PARA O CLIENTE):
    - Explique que é possível configurar o agente para enviar áudios e vídeos.
@@ -7320,10 +7418,12 @@ async function generateLightweightLLMResponse(
 SOBRE A AGENTEZAP:
 - Sistema SaaS que cria IA para atender no WhatsApp do cliente
 - Plano ilimitado: R$99/mês (promo R$49 com código PARC2026PROMO)
-- Funcionalidades: IA conversacional, follow-up inteligente, Kanban, disparo em massa, agendamento, áudio/vídeo, biblioteca de mídias, catálogo de produtos, notificador inteligente
-- Nossa IA entende áudio perfeitamente (transcrição automática) - o cliente pode mandar áudio à vontade
-- O agente também pode responder por áudio (TTS) - configurável no painel
-- Para pagamento: use a tag [ACAO:ENVIAR_PIX] que gera o link automaticamente com login
+- Funcionalidades: IA conversacional 24h, follow-up inteligente, Kanban CRM, disparo em massa e campanhas, agendamento, delivery, salao de beleza, construtor de fluxo (chatbot), biblioteca de midias, catalogo de produtos, notificador inteligente, etiquetas, multiplas conexoes WhatsApp, webhooks, API REST, Google Calendar
+- Nossa IA entende AUDIO perfeitamente (transcricao automatica) - cliente manda audio a vontade
+- Nossa IA entende IMAGENS perfeitamente (analise visual com Mistral Vision) - cliente manda foto/print e a IA analisa e responde
+- O agente tambem pode RESPONDER por audio (TTS) - 2 vozes (Francisca/Antonio), velocidade configuravel
+- Para pagamento: use a tag [ACAO:ENVIAR_PIX] que gera o link automaticamente com login. NAO passe chave PIX manualmente NUNCA.
+- Se cliente mandar comprovante: explique para ir em Planos, gerar QR Code, e clicar "Eu ja paguei" embaixo do QR Code
 - Central de Ajuda: https://agentezap.online/ajuda
 - Painel: https://agentezap.online
 
@@ -9007,6 +9107,22 @@ export async function processAdminMessage(
       description,
       summary,
     };
+
+    // V18: Para conversas de venda (pre-sale), a imagem é entendida no contexto
+    // da conversa e a IA responde naturalmente sobre o que viu.
+    // Só entra no fluxo de registro de mídia se o cliente já está ativo (configurando agente).
+    if (session.flowState !== 'active') {
+      console.log(`🖼️ [VISION] Imagem analisada para conversa pre-sale: "${(description || 'sem descricao').substring(0, 100)}"`);
+      const visionContext = `${messageText || ''}\n[VISAO IA: O cliente enviou uma imagem. Analise visual: "${description || 'imagem nao identificada'}". Responda naturalmente sobre o que viu na imagem e continue a conversa.]`;
+      addToConversationHistory(cleanPhone, "user", visionContext);
+      const aiResponse = await generateAIResponse(session, visionContext);
+      const { cleanText } = parseActions(aiResponse);
+      addToConversationHistory(cleanPhone, "assistant", cleanText);
+      return {
+        text: cleanText,
+        actions: {},
+      };
+    }
 
     // AUTO-DETECT MEDIA CONTEXT (SMART CLASSIFICATION)
     // Tenta entender se a imagem enviada responde a uma solicitaÃƒÂ§ÃƒÂ£o anterior do agente
