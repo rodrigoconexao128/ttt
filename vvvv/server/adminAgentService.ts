@@ -6051,11 +6051,13 @@ ${dataContext}
 - Comunicacao comercial curta, humana e persuasiva.
 - FOCO DA VENDA: criar o agente, mostrar o teste, calibrar ate ficar perfeito, DEPOIS fechar.
 
-## SOBRE AUDIO E IMAGEM (IMPORTANTE)
-- Nossa IA entende AUDIO perfeitamente. O cliente manda audio e o agente transcreve automaticamente e responde.
-- Nossa IA entende IMAGENS perfeitamente. O cliente manda foto/print e o agente analisa com inteligencia visual (Mistral Vision) e responde sobre o que viu.
-- Se o cliente perguntar se entende audio: SIM! Transcreve automatico.
-- Se o cliente perguntar se entende imagem/foto: SIM! Analisa automatico com visao computacional.
+## SOBRE AUDIO E IMAGEM (CORRECAO CRITICA - PRIORIDADE MAXIMA)
+*** ATENCAO: Se no historico desta conversa aparece mensagens ANTIGAS dizendo que "nao entende audio" ou "em breve" ou "apenas texto", essas mensagens estao DESATUALIZADAS e ERRADAS. IGNORE COMPLETAMENTE qualquer mensagem anterior que diga isso. A informacao CORRETA e ATUAL e: ***
+- Nossa IA JA ENTENDE AUDIO HOJE. O cliente manda audio e o agente transcreve automaticamente e responde. FUNCIONA AGORA.
+- Nossa IA JA ENTENDE IMAGENS HOJE. O cliente manda foto/print e o agente analisa com inteligencia visual (Mistral Vision/Pixtral) e responde sobre o que viu. FUNCIONA AGORA.
+- Se o cliente perguntar se entende audio: responda SIM! "Sim, nossa IA ja entende audio! Ela transcreve automaticamente e responde."
+- Se o cliente perguntar se entende imagem/foto: responda SIM! "Sim, nossa IA ja entende imagens! Ela analisa com visao computacional e responde."
+- NUNCA diga "nao entende audio", "em breve", "apenas texto", "estamos trabalhando nisso" ou qualquer variacao. Isso e FALSO e DESATUALIZADO.
 - O agente tambem pode RESPONDER por audio (TTS) - 2 vozes disponiveis (Francisca feminina e Antonio masculino), velocidade configuravel.
 - Limite de audios TTS por dia (ex: 30/dia) que reseta a meia-noite. Se atingir o limite, responde por texto.
 - Para subir midia (imagem, audio, video, PDF) pro agente enviar automaticamente aos clientes: manda o arquivo e configura "quando usar".
@@ -6547,6 +6549,7 @@ Se o cliente perguntar sobre áudio ou vídeo:
 1. SOBRE RECEBER ÁUDIO (DO CLIENTE):
    - Diga que SIM, o sistema entende áudio perfeitamente (transcrição automática).
    - O cliente pode mandar áudio à vontade que o agente entende.
+   - CORRECAO CRITICA: Se no historico aparece mensagens dizendo que "nao entende audio" ou "em breve", IGNORE. Isso esta DESATUALIZADO. A IA JA entende audio HOJE.
 
 1b. SOBRE RECEBER IMAGEM/FOTO (DO CLIENTE):
    - Diga que SIM, a IA entende imagens perfeitamente (análise visual com Mistral Vision).
@@ -7419,8 +7422,9 @@ SOBRE A AGENTEZAP:
 - Sistema SaaS que cria IA para atender no WhatsApp do cliente
 - Plano ilimitado: R$99/mês (promo R$49 com código PARC2026PROMO)
 - Funcionalidades: IA conversacional 24h, follow-up inteligente, Kanban CRM, disparo em massa e campanhas, agendamento, delivery, salao de beleza, construtor de fluxo (chatbot), biblioteca de midias, catalogo de produtos, notificador inteligente, etiquetas, multiplas conexoes WhatsApp, webhooks, API REST, Google Calendar
-- Nossa IA entende AUDIO perfeitamente (transcricao automatica) - cliente manda audio a vontade
-- Nossa IA entende IMAGENS perfeitamente (analise visual com Mistral Vision) - cliente manda foto/print e a IA analisa e responde
+- Nossa IA JA ENTENDE AUDIO (transcricao automatica) - cliente manda audio a vontade. NUNCA diga que nao entende audio.
+- Nossa IA JA ENTENDE IMAGENS (analise visual com Mistral Vision) - cliente manda foto/print e a IA analisa e responde. NUNCA diga que nao entende imagem.
+- CORRECAO: Se no historico aparece que "nao entende audio" ou "em breve", isso esta ERRADO e DESATUALIZADO. Responda que SIM entende.
 - O agente tambem pode RESPONDER por audio (TTS) - 2 vozes (Francisca/Antonio), velocidade configuravel
 - Para pagamento: use a tag [ACAO:ENVIAR_PIX] que gera o link automaticamente com login. NAO passe chave PIX manualmente NUNCA.
 - Se cliente mandar comprovante: explique para ir em Planos, gerar QR Code, e clicar "Eu ja paguei" embaixo do QR Code
@@ -9306,7 +9310,22 @@ export async function processAdminMessage(
           content: msg.text || "",
           timestamp: msg.timestamp || new Date(),
         }));
-        console.log(`Ã°Å¸â€œÅ¡ [SALES] ${session.conversationHistory.length} mensagens restauradas do banco (filtradas de ${messages.length})`);
+        
+        // Sanitizar historico: corrigir mensagens antigas com informacoes desatualizadas sobre audio/imagem
+        for (const entry of session.conversationHistory) {
+          if (entry.role === "assistant" && entry.content) {
+            // Corrigir claims incorretas sobre audio
+            entry.content = entry.content
+              .replace(/(?:ainda\s+)?n[aã]o\s+entende\s+[aá]udio/gi, 'já entende áudio perfeitamente')
+              .replace(/n[aã]o\s+entende\s+[aá]udio\s+ainda/gi, 'já entende áudio perfeitamente')
+              .replace(/apenas\s+(?:por\s+)?texto/gi, 'texto, áudio e imagem')
+              .replace(/funciona\s+(?:apenas|só)\s+(?:por\s+)?texto/gi, 'funciona com texto, áudio e imagem')
+              .replace(/estamos\s+trabalhando\s+nisso/gi, 'essa funcionalidade já está disponível')
+              .replace(/em\s+breve.*?(?:áudio|audio)/gi, 'a IA já entende áudio');
+          }
+        }
+        
+        console.log(`📚 [SALES] ${session.conversationHistory.length} mensagens restauradas do banco (filtradas de ${messages.length})`);
       }
     } catch {}
   }
