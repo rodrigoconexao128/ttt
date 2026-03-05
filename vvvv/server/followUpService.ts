@@ -511,6 +511,34 @@ export class FollowUpService {
   }
 
   /**
+   * Agenda follow-up com delay customizado (solicitado pela IA via [FOLLOWUP:tempo="X"])
+   * Ignora follow-up já ativo — a IA pediu explicitamente, então respeita o delay.
+   */
+  async scheduleCustomFollowUpByPhone(phoneNumber: string, delayMinutes: number, motivo?: string) {
+    const conversation = await db.query.adminConversations.findFirst({
+      where: eq(adminConversations.contactNumber, phoneNumber),
+      orderBy: (adminConversations, { desc }) => [desc(adminConversations.lastMessageTime)]
+    });
+
+    if (!conversation) {
+      console.warn(`⚠️ [FOLLOW-UP] Conversa não encontrada para ${phoneNumber} ao tentar agendar follow-up customizado`);
+      return;
+    }
+
+    const nextDate = new Date(Date.now() + delayMinutes * 60 * 1000);
+
+    await db.update(adminConversations)
+      .set({ 
+        followupActive: true,
+        followupStage: 0,
+        nextFollowupAt: nextDate
+      })
+      .where(eq(adminConversations.id, conversation.id));
+
+    console.log(`🎯 [FOLLOW-UP] Agendado PROATIVO para ${phoneNumber} em ${delayMinutes}min. Motivo: ${motivo || 'IA solicitou'}. Próximo: ${nextDate.toLocaleString()}`);
+  }
+
+  /**
    * Cancela follow-up ativo para um telefone (MANUALMENTE)
    */
   async cancelFollowUpByPhone(phoneNumber: string) {
