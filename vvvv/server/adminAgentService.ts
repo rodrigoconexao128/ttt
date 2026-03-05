@@ -12,7 +12,7 @@
 
 import { storage } from "./storage";
 import { generatePixQRCode } from "./pixService";
-import { getLLMClient, withRetryLLM } from "./llm";
+import { getLLMClient, withRetryLLM, generateWithLLM } from "./llm";
 import { analyzeImageWithMistral, analyzeImageForAdmin } from "./mistralClient";
 import { v4 as uuidv4 } from "uuid";
 import { 
@@ -3340,55 +3340,84 @@ function applyExistingClientPromptAdjustments(
 }
 
 /**
- * ClassificaÃ§Ã£o de intenÃ§Ã£o de ediÃ§Ã£o via LLM quando o regex nÃ£o pega.
- * Usa a LLM para extrair nome do agente e empresa de mensagens ambÃ­guas.
- * SÃ³ Ã© chamado quando hasGeneralEditIntent() Ã© true mas parseExistingClientPromptAdjustments() falha.
+ * Classificacao de intencao de edicao via LLM - 100% baseado em IA.
+ * Usa o provider LLM configurado (OpenRouter/NVIDIA/Mistral) para detectar
+ * se o usuario quer editar algo E extrair os parametros.
+ * Entende qualquer forma natural de pedir edicao, sem depender de regex.
  */
 async function classifyEditIntentWithLLM(message: string): Promise<{
   hasEditIntent: boolean;
   agentName?: string;
   company?: string;
+  funcao?: string;
   moreCommercial?: boolean;
   editDescription?: string;
 }> {
   try {
-    const llmClient = await getLLMClient();
-    const systemPrompt = `VocÃª Ã© um classificador de intenÃ§Ãµes. O usuÃ¡rio estÃ¡ pedindo para alterar algo no agente de IA dele.
-Extraia do texto:
-- agentName: nome da pessoa que o agente deve se identificar (ex: "Rodrigo", "Maria", "Lucas"). NÃ£o invente, use APENAS se o usuÃ¡rio mencionar.
-- company: nome da empresa/negÃ³cio (ex: "Drielle CalÃ§ados", "Pizzaria do JoÃ£o"). NÃ£o invente.
-- moreCommercial: true se pede tom mais comercial/vendedor
-- editDescription: breve descriÃ§Ã£o do que o usuÃ¡rio quer alterar
+    const systemPrompt = `Voce e um classificador de intencoes para uma plataforma de agentes de IA para WhatsApp.
+O usuario ja tem um agente criado e pode estar pedindo para ALTERAR algo nele.
 
-Responda APENAS com JSON vÃ¡lido, sem explicaÃ§Ã£o:
-{"hasEditIntent":true/false,"agentName":"ou null","company":"ou null","moreCommercial":false,"editDescription":"texto"}`;
+EXEMPLOS de mensagens de edicao (hasEditIntent=true):
+- "Quero mudar o nome da empresa para Pizzaria do Joao"
+- "Troca o nome do agente para Maria"
+- "Agora minha loja se chama Fashion Store"
+- "O nome mudou pra Barbearia do Lucas"
+- "Altera a funcao para vendedor"
+- "Muda pra nome Carla e empresa Carla Beauty"
+- "Pode colocar o nome como Atendente Rex?"
+- "A empresa agora e Pet Shop Estrela e o agente se chama Luna"
+- "Quero que o agente seja mais comercial"
+- "Atualiza o nome pra Joao da Silva"
+- "meu negocio agora chama diferente, e Loja Nova"
+- "troca tudo, nome vai ser Ana e empresa Doces da Ana"
 
-    const response = await withRetryLLM(() =>
-      llmClient.chat.complete({
-        model: "mistral-small-latest",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: message },
-        ],
-        maxTokens: 200,
-        temperature: 0,
-      }),
-    );
+EXEMPLOS de mensagens que NAO sao edicao (hasEditIntent=false):
+- "Oi, tudo bem?"
+- "Como funciona o agente?"
+- "Quero criar um agente"
+- "Quanto custa o plano?"
+- "Obrigado"
+- "Quero testar"
 
-    const content = (response?.choices?.[0]?.message?.content as string)?.trim() || "";
-    const jsonMatch = content.match(/\{[^}]+\}/);
+Extraia do texto EXATAMENTE o que o usuario disse:
+- agentName: nome da pessoa/atendente que o agente deve usar (ex: "Maria", "Atendente Rex"). NAO invente.
+- company: nome da empresa/negocio/loja (ex: "Pet Shop Estrela", "Pizzaria do Joao"). NAO invente.
+- funcao: funcao/cargo do agente (ex: "vendedor", "atendente", "consultor"). NAO invente.
+- moreCommercial: true APENAS se pede tom mais comercial/vendedor
+- editDescription: breve descricao do que quer alterar
+
+REGRAS:
+- Se o usuario NAO menciona um campo, retorne null para ele
+- NAO invente valores que o usuario nao disse
+- hasEditIntent=true APENAS se o usuario claramente quer ALTERAR algo existente
+
+Responda APENAS com JSON valido, sem explicacao:
+{"hasEditIntent":true,"agentName":"ou null","company":"ou null","funcao":"ou null","moreCommercial":false,"editDescription":"texto"}`;
+
+    const content = await generateWithLLM(systemPrompt, message, {
+      maxTokens: 200,
+      temperature: 0,
+    });
+
+    const trimmed = content?.trim() || "";
+    // Suportar JSON com ou sem nested objects
+    const jsonMatch = trimmed.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
-      return {
+      const result = {
         hasEditIntent: Boolean(parsed.hasEditIntent),
-        agentName: parsed.agentName && parsed.agentName !== "null" ? String(parsed.agentName) : undefined,
-        company: parsed.company && parsed.company !== "null" ? String(parsed.company) : undefined,
+        agentName: parsed.agentName && parsed.agentName !== "null" && parsed.agentName !== null ? String(parsed.agentName) : undefined,
+        company: parsed.company && parsed.company !== "null" && parsed.company !== null ? String(parsed.company) : undefined,
+        funcao: parsed.funcao && parsed.funcao !== "null" && parsed.funcao !== null ? String(parsed.funcao) : undefined,
         moreCommercial: Boolean(parsed.moreCommercial),
         editDescription: parsed.editDescription ? String(parsed.editDescription) : undefined,
       };
+      console.log(`[EDIT-LLM] Classificacao: hasEditIntent=${result.hasEditIntent}, agentName=${result.agentName || 'null'}, company=${result.company || 'null'}, funcao=${result.funcao || 'null'}`);
+      return result;
     }
+    console.warn(`[EDIT-LLM] Resposta nao contem JSON valido: "${trimmed.substring(0, 100)}"`);
   } catch (err) {
-    console.error("âš ï¸ [SALES] LLM edit intent classification failed:", err);
+    console.error("[EDIT-LLM] Classificacao LLM falhou:", err);
   }
   return { hasEditIntent: false };
 }
@@ -9234,70 +9263,43 @@ export async function processAdminMessage(
   const { cleanText: textWithoutActions, actions, followUp } = parseActions(aiResponse);
 
   // EDIT-FALLBACK: Se a IA nao gerou [ACAO:SALVAR_CONFIG] mas o usuario tem intencao de editar,
-  // detectar e injetar a acao automaticamente (a IA frequentemente "esquece" a tag)
-  // HIBRIDO: regex rapido para intencao + LLM como fallback para extracao + validacao cruzada com resposta da IA
+  // detectar via LLM (100% IA, sem regex) e injetar a acao automaticamente
   if (actions.length === 0 && session.userId) {
-    const lowerMsg = messageText.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    const editPatterns = [
-      /(?:mudar|trocar|alterar|atualizar|modificar|renomear).*?(?:nome|empresa|negocio|agente|funcao|horario|comportamento)/i,
-      /(?:nome|empresa|negocio|agente|funcao).*?(?:mudar|trocar|alterar|ser|passa a ser|agora e)/i,
-      /(?:quero|gostaria|preciso|pode).*?(?:mudar|trocar|alterar|atualizar).*?(?:nome|empresa|agente)/i,
-    ];
-    const hasEditIntent = editPatterns.some(p => p.test(lowerMsg));
-    
-    if (hasEditIntent) {
-      console.log(`[EDIT-FALLBACK] Detectou intencao de edicao na mensagem: "${messageText.substring(0, 60)}..."`);
-      let editParams: Record<string, string> = {};
+    try {
+      console.log(`[EDIT-FALLBACK] Analisando mensagem via LLM: "${messageText.substring(0, 80)}..."`);
+      const llmClassification = await classifyEditIntentWithLLM(messageText);
       
-      // PASSO 1: Extrair via regex (rapido, sem custo)
-      const nomeMatch = messageText.match(/(?:nome\s+(?:do\s+)?agente|agente\s+(?:se\s+chama|para))\s+(?:para\s+)?[""]?([^""\n,]+?)[""]?(?:\s+e\s+|\s*[.,]|\s*$)/i)
-        || messageText.match(/(?:nome\s+(?:do\s+)?agente)\s+(?:para\s+)?(.+?)(?:\s+e\s+|$)/i);
-      if (nomeMatch) editParams.nome = nomeMatch[1].trim();
-      
-      const empresaMatch = messageText.match(/(?:nome\s+(?:da\s+)?empresa|empresa\s+(?:se\s+chama|para))\s+(?:para\s+)?[""]?([^""\n,]+?)[""]?(?:\s+e\s+|\s*[.,]|\s*$)/i)
-        || messageText.match(/(?:empresa)\s+(?:para\s+)?(.+?)(?:\s+e\s+|$)/i);
-      if (empresaMatch) editParams.empresa = empresaMatch[1].trim();
-      
-      const funcaoMatch = messageText.match(/(?:funcao|fun[\u00e7c]ao)\s+(?:para\s+)?[""]?([^""\n,]+?)[""]?(?:\s+e\s+|\s*[.,]|\s*$)/i);
-      if (funcaoMatch) editParams.funcao = funcaoMatch[1].trim();
-      
-      // PASSO 2: Se regex nao extraiu parametros, usar LLM para extrair (classifyEditIntentWithLLM)
-      if (Object.keys(editParams).length === 0) {
-        console.log(`[EDIT-FALLBACK] Regex nao extraiu params, usando LLM para classificar...`);
-        try {
-          const llmResult = await classifyEditIntentWithLLM(messageText);
-          if (llmResult.hasEditIntent) {
-            if (llmResult.agentName) editParams.nome = llmResult.agentName;
-            if (llmResult.company) editParams.empresa = llmResult.company;
-            console.log(`[EDIT-FALLBACK] LLM extraiu:`, editParams);
-          }
-        } catch (llmErr) {
-          console.error(`[EDIT-FALLBACK] LLM extraction failed:`, llmErr);
-        }
-      }
-      
-      // PASSO 3: Validacao cruzada - verificar se os valores aparecem na resposta da IA
-      if (Object.keys(editParams).length > 0) {
-        const aiLower = aiResponse.toLowerCase();
-        const validated: Record<string, string> = {};
-        for (const [key, value] of Object.entries(editParams)) {
-          if (aiLower.includes(value.toLowerCase())) {
-            validated[key] = value;
-          } else {
-            console.log(`[EDIT-FALLBACK] WARN: "${value}" (${key}) nao encontrado na resposta da IA - mantendo mesmo assim (regex confiavel)`);
-            validated[key] = value; // Manter mesmo sem validacao - regex é confiável para padroes especificos
+      if (llmClassification.hasEditIntent) {
+        console.log(`[EDIT-FALLBACK] LLM detectou intencao de edicao na mensagem`);
+        const editParams: Record<string, string> = {};
+        
+        if (llmClassification.agentName) editParams.nome = llmClassification.agentName;
+        if (llmClassification.company) editParams.empresa = llmClassification.company;
+        if (llmClassification.funcao) editParams.funcao = llmClassification.funcao;
+        
+        // Validacao cruzada: verificar se os valores aparecem na resposta da IA (aviso apenas)
+        if (Object.keys(editParams).length > 0) {
+          const aiLower = aiResponse.toLowerCase();
+          for (const [key, value] of Object.entries(editParams)) {
+            if (!aiLower.includes(value.toLowerCase())) {
+              console.log(`[EDIT-FALLBACK] INFO: "${value}" (${key}) nao encontrado na resposta da IA - mantendo (LLM extraiu da mensagem do usuario)`);
+            }
           }
         }
-        editParams = validated;
+        
+        if (Object.keys(editParams).length > 0) {
+          console.log(`[EDIT-FALLBACK] Parametros extraidos via LLM:`, editParams);
+          actions.push({ type: "SALVAR_CONFIG", params: editParams });
+          console.log(`[EDIT-FALLBACK] Injetou SALVAR_CONFIG com params:`, JSON.stringify(editParams));
+        } else if (llmClassification.moreCommercial) {
+          console.log(`[EDIT-FALLBACK] LLM detectou pedido de tom mais comercial`);
+          // Deixar o adjustSalesPrompt lidar com isso na proxima mensagem
+        } else {
+          console.log(`[EDIT-FALLBACK] LLM detectou intencao mas nao conseguiu extrair parametros especificos`);
+        }
       }
-      
-      if (Object.keys(editParams).length > 0) {
-        console.log(`[EDIT-FALLBACK] Parametros extraidos:`, editParams);
-        actions.push({ type: "SALVAR_CONFIG", params: editParams });
-        console.log(`[EDIT-FALLBACK] Injetou SALVAR_CONFIG com params:`, JSON.stringify(editParams));
-      } else {
-        console.log(`[EDIT-FALLBACK] Intencao detectada mas nao conseguiu extrair parametros`);
-      }
+    } catch (editFallbackErr) {
+      console.error(`[EDIT-FALLBACK] Erro na classificacao LLM:`, editFallbackErr);
     }
   }
 
