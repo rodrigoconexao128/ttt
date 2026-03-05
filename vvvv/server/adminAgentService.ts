@@ -4106,18 +4106,10 @@ function sessionHasDeliveredTestLink(session?: ClientSession): boolean {
   const hasRealTestLink = session.conversationHistory.some(
     (item) => item.role === "assistant" && tokenPattern.test(String(item.content || "")),
   );
-  if (!hasRealTestLink) return false;
 
-  const hasAccessHints = session.conversationHistory.some((item) => {
-    if (item.role !== "assistant") return false;
-    const content = String(item.content || "");
-    return (
-      content.includes("/login") ||
-      /\b\d{10,15}@agentezap\.(?:online|com)\b/i.test(content)
-    );
-  });
-
-  return hasAccessHints;
+  // V18 FIX: Agora que buildStructuredAccountDeliveryText não envia mais credenciais/login,
+  // basta verificar se o link de teste foi entregue. Não requer mais "access hints".
+  return hasRealTestLink;
 }
 
 function enforceAdminResponseConsistency(
