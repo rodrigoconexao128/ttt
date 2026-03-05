@@ -2039,23 +2039,54 @@ async function processAdminAccumulatedMessages(params: {
           }
       }
 
-      // ??? ANTI-BLOQUEIO: Enviar mensagem inteira (sem split)
-      const sentMessage = await sendWithQueue('ADMIN_AGENT', `admin resposta completa`, async () => {
-        return await socket.sendMessage(pending.remoteJid, { text: fullText });
-      });
-      trackAdminAgentMessageId((sentMessage as any)?.key?.id);
+      // V18: BOLHAS HUMANAS - dividir resposta em múltiplas bolhas pelo separador |||
+      // A IA gera "parte1|||parte2|||parte3" e cada parte vira uma bolha separada no WhatsApp
+      const bubbles = fullText.split('|||').map((b: string) => b.trim()).filter((b: string) => b.length > 0);
+      
+      console.log(`💬 [ADMIN AGENT] Enviando ${bubbles.length} bolha(s) para ${pending.contactNumber}`);
+      
+      for (let i = 0; i < bubbles.length; i++) {
+        const bubble = bubbles[i];
+        
+        // Check se novas mensagens chegaram (cancelar se sim)
+        const stillValid = pendingAdminResponses.get(key);
+        if (!stillValid || stillValid.generation !== generation) {
+          console.log(`⚠️ [ADMIN AGENT] Cancelando envio de bolha ${i+1}/${bubbles.length} (nova mensagem chegou)`);
+          break;
+        }
+        
+        // Typing delay entre bolhas (simula digitação humana)
+        if (i > 0) {
+          // Delay proporcional ao tamanho da bolha: ~30ms por caractere, mínimo 800ms, máximo 3000ms
+          const typingMs = Math.min(3000, Math.max(800, bubble.length * 30));
+          // Simular typing indicator
+          try {
+            await socket.sendPresenceUpdate('composing', pending.remoteJid);
+          } catch {}
+          await new Promise(r => setTimeout(r, typingMs));
+          try {
+            await socket.sendPresenceUpdate('paused', pending.remoteJid);
+          } catch {}
+        }
+        
+        const sentMessage = await sendWithQueue('ADMIN_AGENT', `admin bolha ${i+1}/${bubbles.length}`, async () => {
+          return await socket.sendMessage(pending.remoteJid, { text: bubble });
+        });
+        trackAdminAgentMessageId((sentMessage as any)?.key?.id);
+      }
     }
 
     console.log(`? [ADMIN AGENT] Resposta enviada para ${pending.contactNumber}`);
 
-    // ?? Salvar resposta do agente no banco de dados
-    if (pending.conversationId && response.text) {
+    // ?? Salvar resposta do agente no banco de dados (sem separadores |||)
+    const cleanDbText = (response.text || '').replace(/\|\|\|/g, '\n\n').trim();
+    if (pending.conversationId && cleanDbText) {
       try {
         await storage.createAdminMessage({
           conversationId: pending.conversationId,
           messageId: `agent_${Date.now()}`,
           fromMe: true,
-          text: response.text,
+          text: cleanDbText,
           timestamp: new Date(),
           status: "sent",
           isFromAgent: true,
@@ -2063,7 +2094,7 @@ async function processAdminAccumulatedMessages(params: {
         
         // Atualizar ?ltima mensagem da conversa
         await storage.updateAdminConversation(pending.conversationId, {
-          lastMessageText: response.text.substring(0, 255),
+          lastMessageText: cleanDbText.substring(0, 255),
           lastMessageTime: new Date(),
         });
         

@@ -528,9 +528,14 @@ ${tipo}: ${media.name}
   }
 
   mediaBlock += `
-⚠️ REGRA CRÍTICA DE ENVIO:
-Analise o campo "Quando usar" de cada mídia. Se a mensagem do usuário corresponder à situação descrita, VOCÊ DEVE ENVIAR A MÍDIA.
-Não ignore esta instrução. Se o usuário perguntar algo que bate com "Quando usar", envie a tag [ENVIAR_MIDIA:NOME].
+⚠️ REGRAS DE ENVIO DE MÍDIA (SIGA RIGOROSAMENTE):
+1. LEIA o campo "Quando usar" de CADA mídia ANTES de decidir enviar.
+2. SÓ envie a mídia se a mensagem do cliente bater EXATAMENTE com a situação descrita em "Quando usar".
+3. Se "Quando usar" diz "NÃO ENVIAR" em determinada situação, OBEDEÇA e não envie.
+4. NUNCA envie mídia "do nada" ou por conta própria. Só envie se o cliente falou algo que ativa o gatilho.
+5. Máximo 1 mídia por resposta. Não envie 2 ou mais mídias de uma vez.
+6. Se já enviou aquela mídia antes nesta conversa, NÃO envie de novo.
+7. Na dúvida, NÃO envie. É melhor não enviar do que enviar fora de contexto.
 `;
 
   return mediaBlock;

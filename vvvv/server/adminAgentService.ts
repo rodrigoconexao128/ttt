@@ -3743,8 +3743,9 @@ function injectAutoLoginUrls(text: string, session: ClientSession): string {
     const escapedBase = baseUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const escapedPath = path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     // Match URL completa sem ?al= já presente
+    // Inclui * (markdown bold), ] (markdown link), " ' ` e outros delimitadores comuns
     const pattern = new RegExp(
-      `(${escapedBase}${escapedPath})(?!\\?al=)(?=[)\\s\\n\\r,;!?]|$)`,
+      `(${escapedBase}${escapedPath})(?!\\?al=)(?=[)\\s\\n\\r,;!?*\\]"'\`>}]|$)`,
       "gi"
     );
     text = text.replace(pattern, `$1?al=${encoded}`);
@@ -6054,16 +6055,21 @@ ${dataContext}
 
 ## ESTILO DE COMUNICACAO (CRITICO - SIGA A RISCA)
 - ZERO EMOTICONS/EMOJIS. Nenhum. Proibido. Nem 1 sequer. Sem carinhas, sem icones, sem simbolos tipo emoticon.
-- Respostas CURTAS: maximo 3-4 frases por mensagem. Sem listas longas. Sem bullet points. Sem blocos de texto.
+- FORMATO DE BOLHAS: Separe sua resposta em 2-3 bolhas curtas usando o separador |||. Cada bolha vira uma mensagem separada no WhatsApp, como uma pessoa real mandaria. Exemplo:
+  "Fechou, criei seu agente!|||Testa aqui: [link]|||Me diz o que achou depois"
+  "Show, delivery! O agente pode fechar o pedido inteiro ou so fazer o primeiro atendimento.|||Qual prefere?"
+- Cada bolha: 1-2 frases. Maximo 3 frases em bolhas que precisem explicar algo.
+- Dentro de cada bolha: quando tiver mais de uma frase, pule linha entre elas (fica mais facil de ler).
 - Tom: informal, direto, humano. Como um vendedor de verdade no WhatsApp. Nao pareca um manual.
-- Espacamento: pule uma linha entre ideias diferentes (fica mais humano e legivel).
 - Negrito: use *uma* vez por mensagem no maximo, so para destacar algo realmente importante.
 - NAO faca listas com checkmarks, estrelas, numeros ou bullets. Fale em frases naturais.
 - NAO simule dialogos exemplo ("Cliente: ... Agente: ..."). Isso e chato e artificial.
-- EXEMPLOS DO TOM CORRETO:
-  "Fechou. Criei seu agente e deixei pronto. Testa aqui: [link]. Me diz o que achou."
-  "Show! Me manda o nome do seu negocio e o que voce vende que eu monto o agente agora."
-  "Entendi, delivery! Voce quer que ele feche o pedido todo ou so faca o primeiro atendimento?"
+- NAO mande mais de 4 bolhas. 2-3 e o ideal.
+- MIDIAS: so envie midia ([ENVIAR_MIDIA:]) quando o cliente PEDIR ou falar algo que bata EXATAMENTE com o campo "Quando usar" da midia. NUNCA envie midia por conta propria ou "do nada".
+- EXEMPLOS DO TOM E FORMATO CORRETO:
+  "Fechou. Criei seu agente e deixei pronto.|||Testa aqui: [link]|||Me diz o que achou."
+  "Show!|||Me manda o nome do seu negocio e o que voce vende que eu monto o agente agora."
+  "Entendi, delivery!|||Voce quer que ele feche o pedido todo ou so faca o primeiro atendimento?"
 
 ## LINKS IMPORTANTES (o sistema adiciona auto-login automaticamente)
 - Conexao WhatsApp: quando o cliente quiser conectar, mande o link https://agentezap.online/conexao
@@ -6390,6 +6396,7 @@ ${memoryInstruction}
 - Ãƒâ€° focado na dor ("Ao invÃƒÂ©s de vocÃƒÂª ter que responder... a IA responde").
 - NÃƒÆ’O Ãƒâ€° ROBÃƒâ€œTICO. NÃƒÂ£o usa "Prezado", "Por favor", "Gostaria".
 - ZERO EMOTICONS: VocÃƒÂª ÃƒÂ© uma pessoa sÃƒÂ©ria. Quase nunca usa emoticons. Ãƒâ€° bem difÃƒÂ­cil vocÃƒÂª usar um. Mantenha o tom profissional e direto.
+- FORMATO BOLHAS: Separe sua resposta em 2-3 bolhas usando ||| como separador. Cada bolha vira uma mensagem separada no WhatsApp, como uma pessoa real mandaria. Cada bolha deve ter 1-2 frases. Exemplo: "Fechou, criei seu agente!|||Testa aqui: [link]|||Me diz o que achou"
 
 Ã°Å¸â€™Â¡ ANALOGIA DO FUNCIONÃƒÂRIO (USE ISSO PARA EXPLICAR):
 "Imagine que vocÃƒÂª contratou o melhor vendedor do mundo. VocÃƒÂª passa pra ele tudo sobre sua empresa, seus preÃƒÂ§os, suas tÃƒÂ©cnicas. Ele aprende tudo e atende seus clientes exatamente como vocÃƒÂª faria, sÃƒÂ³ que 24 horas por dia, sem cansar, sem pedir fÃƒÂ©rias e sem encargos trabalhistas. Ãƒâ€° isso que a nossa IA faz. VocÃƒÂª treina ela como se estivesse treinando um funcionÃƒÂ¡rio novo, e ela executa com perfeiÃƒÂ§ÃƒÂ£o."
@@ -7441,9 +7448,10 @@ async function generateLightweightLLMResponse(
 
 REGRAS DE ESTILO (OBRIGATORIO):
 - ZERO emoticons/emojis. Nenhum. Proibido.
-- Respostas CURTAS: 2-4 frases no maximo. Sem listas, sem bullets, sem checkmarks.
-- Pule uma linha entre ideias diferentes.
+- Use BOLHAS: separe sua resposta em 2-3 partes usando ||| como separador. Cada parte vira uma bolha separada no WhatsApp.
+- Cada bolha: 1-2 frases curtas. Dentro da bolha, pule linha entre frases.
 - Fale como gente, nao como manual ou script de vendas.
+- Exemplo: "Fechou, criei seu agente!|||Testa aqui: [link]|||Me diz o que achou"
 
 SOBRE A AGENTEZAP:
 - Sistema SaaS que cria IA para atender no WhatsApp do cliente
@@ -9928,8 +9936,8 @@ export async function processAdminMessage(
     }
   }).catch(() => {});
 
-  // Adicionar resposta ao histÃƒÂ³rico
-  addToConversationHistory(cleanPhone, "assistant", finalText);
+  // Adicionar resposta ao histÃƒÂ³rico (sem separadores ||| de bolha)
+  addToConversationHistory(cleanPhone, "assistant", finalText.replace(/\|\|\|/g, '\n\n'));
   
   // CAMADA 3: Persistir fatos durÃ¡veis e mÃ©tricas da conversa
   try {
