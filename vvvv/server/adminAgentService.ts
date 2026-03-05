@@ -3509,6 +3509,21 @@ async function maybeApplyStructuredExistingClientUpdate(
         prompt: adjustedPrompt.prompt,
       });
 
+      // FIX: Sync prompt_versions after identity edit
+      try {
+        const { salvarVersaoPrompt } = await import("./promptHistoryService");
+        await salvarVersaoPrompt({
+          userId: session.userId,
+          configType: "ai_agent_config",
+          promptContent: adjustedPrompt.prompt,
+          editSummary: "Identity edit: " + (adjustedPrompt.agentName || "") + " " + (adjustedPrompt.company || ""),
+          editType: "ia"
+        });
+        console.log("[EDIT-SYNC] prompt_versions synced after identity edit for " + session.userId);
+      } catch (pvErr) {
+        console.error("[EDIT-SYNC] prompt_versions sync error:", pvErr);
+      }
+
       // VALIDAÃ‡ÃƒO: Confirmar que o prompt foi realmente salvo antes de dizer "jÃ¡ alterei"
       const savedConfig = await storage.getAgentConfig(session.userId);
       const savedIdentity = parseExistingAgentIdentity(savedConfig?.prompt);
@@ -6919,6 +6934,21 @@ export async function executeActions(session: ClientSession, actions: ParsedActi
             });
             console.log(`Ã°Å¸â€™Â¾ [SALES] Config (Prompt Completo) salva no DB para userId: ${session.userId}`);
 
+            // FIX: Sync prompt_versions to prevent PROMPT SYNC from reverting
+            try {
+              const { salvarVersaoPrompt } = await import("./promptHistoryService");
+              await salvarVersaoPrompt({
+                userId: session.userId,
+                configType: "ai_agent_config",
+                promptContent: fullPrompt,
+                editSummary: "SALVAR_CONFIG: " + (agentConfig.company || agentConfig.name || "edit"),
+                editType: "ia"
+              });
+              console.log("[SALVAR_CONFIG] prompt_versions synced for " + session.userId);
+            } catch (pvErr) {
+              console.error("[SALVAR_CONFIG] prompt_versions sync error:", pvErr);
+            }
+
             // FIX: Atualizar tambÃƒÂ©m os tokens de teste ativos para refletir no Simulador
             await updateUserTestTokens(session.userId, {
               agentName: agentConfig.name,
@@ -6946,6 +6976,21 @@ export async function executeActions(session: ClientSession, actions: ParsedActi
                 prompt: fullPrompt
               });
               console.log(`Ã°Å¸â€™Â¾ [SALES] Prompt salvo no DB para userId: ${session.userId}`);
+
+              // FIX: Sync prompt_versions after SALVAR_PROMPT
+              try {
+                const { salvarVersaoPrompt } = await import("./promptHistoryService");
+                await salvarVersaoPrompt({
+                  userId: session.userId,
+                  configType: "ai_agent_config",
+                  promptContent: fullPrompt,
+                  editSummary: "SALVAR_PROMPT update",
+                  editType: "ia"
+                });
+                console.log("[SALVAR_PROMPT] prompt_versions synced for " + session.userId);
+              } catch (pvErr) {
+                console.error("[SALVAR_PROMPT] prompt_versions sync error:", pvErr);
+              }
             } catch (err) {
               console.error(`Ã¢ÂÅ’ [SALES] Erro ao salvar prompt no DB:`, err);
             }
@@ -9164,6 +9209,63 @@ export async function processAdminMessage(
   
   // Parse aÃƒÂ§ÃƒÂµes e follow-up
   const { cleanText: textWithoutActions, actions, followUp } = parseActions(aiResponse);
+
+  // EDIT-FALLBACK: Se a IA nao gerou [ACAO:SALVAR_CONFIG] mas o usuario tem intencao de editar,
+  // detectar e injetar a acao automaticamente (a IA frequentemente "esquece" a tag)
+  if (actions.length === 0 && session.userId) {
+    const lowerMsg = messageText.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const editPatterns = [
+      /(?:mudar|trocar|alterar|atualizar|modificar|renomear).*?(?:nome|empresa|negocio|agente|funcao|horario|comportamento)/i,
+      /(?:nome|empresa|negocio|agente|funcao).*?(?:mudar|trocar|alterar|ser|passa a ser|agora e)/i,
+      /(?:quero|gostaria|preciso|pode).*?(?:mudar|trocar|alterar|atualizar).*?(?:nome|empresa|agente)/i,
+    ];
+    const hasEditIntent = editPatterns.some(p => p.test(lowerMsg));
+    
+    if (hasEditIntent) {
+      console.log(`[EDIT-FALLBACK] Detectou intencao de edicao na mensagem: "${messageText.substring(0, 60)}..."`);
+      const editParams: Record<string, string> = {};
+      
+      // Extrair nome do agente - stop before " e " or end
+      const nomeMatch = messageText.match(/(?:nome\s+(?:do\s+)?agente|agente\s+(?:se\s+chama|para))\s+(?:para\s+)?[""]?([^""\n,]+?)[""]?(?:\s+e\s+|\s*[.,]|\s*$)/i)
+        || messageText.match(/(?:nome\s+(?:do\s+)?agente)\s+(?:para\s+)?(.+?)(?:\s+e\s+|$)/i);
+      if (nomeMatch) editParams.nome = nomeMatch[1].trim();
+      
+      // Extrair empresa - stop before " e " or end
+      const empresaMatch = messageText.match(/(?:nome\s+(?:da\s+)?empresa|empresa\s+(?:se\s+chama|para))\s+(?:para\s+)?[""]?([^""\n,]+?)[""]?(?:\s+e\s+|\s*[.,]|\s*$)/i)
+        || messageText.match(/(?:empresa)\s+(?:para\s+)?(.+?)(?:\s+e\s+|$)/i);
+      if (empresaMatch) editParams.empresa = empresaMatch[1].trim();
+      
+      // Extrair funcao
+      const funcaoMatch = messageText.match(/(?:funcao|fun[\u00e7c]ao)\s+(?:para\s+)?[""]?([^""\n,]+?)[""]?(?:\s+e\s+|\s*[.,]|\s*$)/i);
+      if (funcaoMatch) editParams.funcao = funcaoMatch[1].trim();
+      
+      // Fallback: tentar extrair por padroes simples se nao achou com regex acima
+      if (!editParams.nome && !editParams.empresa && !editParams.funcao) {
+        // Padrao: "mudar X para Y e Z para W"
+        const pairs = messageText.match(/(?:nome|empresa|agente|funcao|fun[\u00e7c]ao|negocio)\s+(?:d[aoe]\s+\w+\s+)?(?:para|pra)\s+([^,\n]+?)(?:\s+e\s+|\s*$)/gi);
+        if (pairs) {
+          for (const pair of pairs) {
+            const lower = pair.toLowerCase();
+            const value = pair.match(/(?:para|pra)\s+(.+?)(?:\s+e\s+|\s*$)/i)?.[1]?.trim();
+            if (value) {
+              if (lower.includes("empresa") || lower.includes("negocio")) editParams.empresa = value;
+              else if (lower.includes("agente") || lower.includes("nome")) editParams.nome = value;
+              else if (lower.includes("funcao") || lower.includes("fun")) editParams.funcao = value;
+            }
+          }
+        }
+      }
+      
+      if (Object.keys(editParams).length > 0) {
+        console.log(`[EDIT-FALLBACK] Parametros extraidos:`, editParams);
+        actions.push({ type: "SALVAR_CONFIG", params: editParams });
+        console.log(`[EDIT-FALLBACK] Injetou SALVAR_CONFIG com params:`, JSON.stringify(editParams));
+      } else {
+        console.log(`[EDIT-FALLBACK] Intencao detectada mas nao conseguiu extrair parametros`);
+      }
+    }
+  }
+
   
   // FALLBACK: Se a IA esqueceu de colocar a tag de mÃƒÂ­dia, vamos tentar detectar pelo contexto
   let textForMediaParsing = textWithoutActions;

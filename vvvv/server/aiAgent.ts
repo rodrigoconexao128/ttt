@@ -2360,16 +2360,39 @@ export async function generateAIResponse(
           const currentVersion = await obterVersaoAtual(userId, 'ai_agent_config');
 
           if (currentVersion?.prompt_content && currentVersion.prompt_content !== agentConfig.prompt) {
-            console.log(`[PROMPT SYNC] Prompt desatualizado no ai_agent_config. Usando versao current do historico.`);
-            console.log(`   - ai_agent_config hash: ${agentPromptHash}`);
-            console.log(`   - prompt_versions hash: ${crypto.createHash('md5').update(currentVersion.prompt_content).digest('hex').substring(0, 8)}`);
-            agentConfig = { ...agentConfig, prompt: currentVersion.prompt_content };
+            const versionHash = crypto.createHash('md5').update(currentVersion.prompt_content).digest('hex').substring(0, 8);
+            console.log(`[PROMPT SYNC] Mismatch detected. config hash: ${agentPromptHash}, versions hash: ${versionHash}`);
 
-            try {
-              await storage.updateAgentConfig(userId, { prompt: currentVersion.prompt_content });
-              console.log(`[PROMPT SYNC] ai_agent_config atualizado para manter consistencia`);
-            } catch (syncErr) {
-              console.error(`[PROMPT SYNC] Falha ao atualizar ai_agent_config:`, syncErr);
+            // BIDIRECTIONAL SYNC: compare timestamps to determine source of truth
+            const configTime = agentConfig.updatedAt ? new Date(agentConfig.updatedAt).getTime() : 0;
+            const versionTime = currentVersion.updated_at ? new Date(currentVersion.updated_at).getTime() : 0;
+
+            if (configTime > versionTime) {
+              // ai_agent_config is NEWER (admin agent / SALVAR_CONFIG wrote) -> sync TO prompt_versions
+              console.log(`[PROMPT SYNC] ai_agent_config is newer (${new Date(configTime).toISOString()} > ${new Date(versionTime).toISOString()}) - syncing TO prompt_versions`);
+              try {
+                const { salvarVersaoPrompt } = await import('./promptHistoryService');
+                await salvarVersaoPrompt({
+                  userId,
+                  configType: 'ai_agent_config',
+                  promptContent: agentConfig.prompt,
+                  editSummary: 'Auto-sync from admin agent update',
+                  editType: 'ia'
+                });
+                console.log(`[PROMPT SYNC] prompt_versions updated from ai_agent_config`);
+              } catch (syncErr) {
+                console.error(`[PROMPT SYNC] Failed to sync to prompt_versions:`, syncErr);
+              }
+            } else {
+              // prompt_versions is NEWER (UI restore/edit) -> sync TO ai_agent_config
+              console.log(`[PROMPT SYNC] prompt_versions is newer - syncing TO ai_agent_config`);
+              agentConfig = { ...agentConfig, prompt: currentVersion.prompt_content };
+              try {
+                await storage.updateAgentConfig(userId, { prompt: currentVersion.prompt_content });
+                console.log(`[PROMPT SYNC] ai_agent_config updated from prompt_versions`);
+              } catch (syncErr) {
+                console.error(`[PROMPT SYNC] Failed to sync to ai_agent_config:`, syncErr);
+              }
             }
           }
 
