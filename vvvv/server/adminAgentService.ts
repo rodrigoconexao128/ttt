@@ -6902,9 +6902,31 @@ export async function executeActions(session: ClientSession, actions: ParsedActi
         const agentConfig = { ...session.agentConfig };
         
         // Capture old values for replacement
-        const oldName = agentConfig.name;
-        const oldCompany = agentConfig.company;
-        const oldRole = agentConfig.role;
+        let oldName = agentConfig.name;
+        let oldCompany = agentConfig.company;
+        let oldRole = agentConfig.role;
+
+        // FIX: After server restart, session.agentConfig is empty (no name/company/role).
+        // Without old values, search-and-replace is skipped and the prompt is saved unchanged.
+        // Recovery: parse current identity from the existing DB prompt.
+        if (session.userId && (!oldName || !oldCompany)) {
+          try {
+            const existingPromptForIdentity = await storage.getAgentConfig(session.userId);
+            if (existingPromptForIdentity?.prompt) {
+              const parsedIdentity = parseExistingAgentIdentity(existingPromptForIdentity.prompt);
+              if (!oldName && parsedIdentity.agentName) {
+                oldName = parsedIdentity.agentName;
+                console.log(`[SALVAR_CONFIG] Old name recovered from DB prompt: "${oldName}"`);
+              }
+              if (!oldCompany && parsedIdentity.company) {
+                oldCompany = parsedIdentity.company;
+                console.log(`[SALVAR_CONFIG] Old company recovered from DB prompt: "${oldCompany}"`);
+              }
+            }
+          } catch (identityErr) {
+            console.error(`[SALVAR_CONFIG] Error recovering identity from DB:`, identityErr);
+          }
+        }
 
         if (action.params.nome) agentConfig.name = action.params.nome;
         if (action.params.empresa) agentConfig.company = action.params.empresa;
@@ -6965,11 +6987,51 @@ export async function executeActions(session: ClientSession, actions: ParsedActi
             if (existingDbConfig?.prompt && existingDbConfig.prompt.length > 500) {
               // Prompt rico existe no DB - fazer search-and-replace para preservar qualidade
               fullPrompt = existingDbConfig.prompt;
-              if (oldName && action.params.nome && oldName !== action.params.nome) {
-                fullPrompt = fullPrompt.split(oldName).join(action.params.nome);
+              
+              // FIX v3: Extract old identity DIRECTLY from the DB prompt using encoding-safe regex.
+              // parseExistingAgentIdentity has encoding issues (mojibake in source file).
+              // Using Unicode escapes (\u00ea = ê, \u00e9 = é) to match properly.
+              // Also uses `.` wildcard as fallback for any encoding variant.
+              let dbOldName: string | undefined;
+              let dbOldCompany: string | undefined;
+              
+              // Try to extract name: "Você é *NAME*," or "Você é NAME,"
+              // Using . to match any char where accented letters would be (encoding-safe)
+              const nameWithAsterisks = fullPrompt.match(/Voc.\s+.\s+(\*[^*,]+\*)\s*,/i);
+              const nameWithoutAsterisks = fullPrompt.match(/Voc.\s+.\s+([^*,\n.]+)\s*,/i);
+              if (nameWithAsterisks) {
+                dbOldName = nameWithAsterisks[1].trim();
+              } else if (nameWithoutAsterisks) {
+                dbOldName = nameWithoutAsterisks[1].trim();
               }
-              if (oldCompany && action.params.empresa && oldCompany !== action.params.empresa) {
-                fullPrompt = fullPrompt.split(oldCompany).join(action.params.empresa);
+              
+              // Try to extract company: "da *COMPANY*." or "da COMPANY."
+              const companyWithAsterisks = fullPrompt.match(/\bda\s+(\*[^*\n.]+\*)\s*[.,]/i);
+              const companyWithoutAsterisks = fullPrompt.match(/\bda\s+([^*\n.]+)\s*[.,]/i);
+              if (companyWithAsterisks) {
+                dbOldCompany = companyWithAsterisks[1].trim();
+              } else if (companyWithoutAsterisks) {
+                dbOldCompany = companyWithoutAsterisks[1].trim();
+              }
+              
+              console.log(`[SALVAR_CONFIG] DB identity extracted: name="${dbOldName}", company="${dbOldCompany}"`);
+              
+              // Use DB-extracted values for search-and-replace (they reflect what's actually in the prompt)
+              if (dbOldName && action.params.nome && dbOldName !== action.params.nome) {
+                fullPrompt = fullPrompt.split(dbOldName).join(action.params.nome);
+                console.log(`[SALVAR_CONFIG] Replaced name: "${dbOldName}" -> "${action.params.nome}"`);
+                
+                // Also replace plain name without asterisks (e.g. "Você é o Lucas" → "Você é o Rodrigo")
+                const plainOldName = dbOldName.replace(/\*/g, '');
+                const plainNewName = action.params.nome.replace(/\*/g, '');
+                if (plainOldName !== dbOldName && fullPrompt.includes(plainOldName)) {
+                  fullPrompt = fullPrompt.split(plainOldName).join(plainNewName);
+                  console.log(`[SALVAR_CONFIG] Also replaced plain name: "${plainOldName}" -> "${plainNewName}"`);
+                }
+              }
+              if (dbOldCompany && action.params.empresa && dbOldCompany !== action.params.empresa) {
+                fullPrompt = fullPrompt.split(dbOldCompany).join(action.params.empresa);
+                console.log(`[SALVAR_CONFIG] Replaced company: "${dbOldCompany}" -> "${action.params.empresa}"`);
               }
               if (oldRole && action.params.funcao && oldRole !== action.params.funcao) {
                 fullPrompt = fullPrompt.split(oldRole).join(action.params.funcao);
