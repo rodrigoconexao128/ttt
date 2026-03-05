@@ -6988,40 +6988,61 @@ export async function executeActions(session: ClientSession, actions: ParsedActi
               // Prompt rico existe no DB - fazer search-and-replace para preservar qualidade
               fullPrompt = existingDbConfig.prompt;
               
-              // FIX v3: Extract old identity DIRECTLY from the DB prompt using encoding-safe regex.
-              // parseExistingAgentIdentity has encoding issues (mojibake in source file).
-              // Using Unicode escapes (\u00ea = ê, \u00e9 = é) to match properly.
-              // Also uses `.` wildcard as fallback for any encoding variant.
+              // FIX v4: 100% LLM para extrair identidade do prompt.
+              // Funciona com QUALQUER formato de prompt — cada cliente tem um prompt diferente.
+              // A LLM le o prompt inteiro e entende semanticamente onde estao nome e empresa.
               let dbOldName: string | undefined;
               let dbOldCompany: string | undefined;
               
-              // Try to extract name: "Você é *NAME*," or "Você é NAME,"
-              // Using . to match any char where accented letters would be (encoding-safe)
-              const nameWithAsterisks = fullPrompt.match(/Voc.\s+.\s+(\*[^*,]+\*)\s*,/i);
-              const nameWithoutAsterisks = fullPrompt.match(/Voc.\s+.\s+([^*,\n.]+)\s*,/i);
-              if (nameWithAsterisks) {
-                dbOldName = nameWithAsterisks[1].trim();
-              } else if (nameWithoutAsterisks) {
-                dbOldName = nameWithoutAsterisks[1].trim();
+              const needsNameExtraction = action.params.nome;
+              const needsCompanyExtraction = action.params.empresa;
+              
+              if (needsNameExtraction || needsCompanyExtraction) {
+                try {
+                  const extractionPrompt = `Analise o prompt de agente abaixo e extraia EXATAMENTE como aparecem no texto:
+- agentName: o nome do agente/atendente/vendedor (a pessoa que o agente finge ser). Pode estar entre asteriscos (*Lucas*) ou sem (Lucas). Retorne EXATAMENTE como aparece no prompt, incluindo asteriscos se tiver.
+- company: o nome da empresa/negocio/loja. Pode estar entre asteriscos (*Loja X*) ou sem (Loja X). Retorne EXATAMENTE como aparece no prompt, incluindo asteriscos se tiver.
+
+REGRAS:
+- Extraia o nome e empresa EXATAMENTE como aparecem na PRIMEIRA ocorrencia no texto
+- Se tem asteriscos (*Lucas*), retorne com asteriscos
+- Se nao tem asteriscos (Lucas), retorne sem
+- Se nao conseguir identificar, retorne null
+- NAO invente, NAO modifique - copie EXATAMENTE do texto
+
+Responda APENAS com JSON: {"agentName": "...", "company": "..."}`;
+                  
+                  // Enviar apenas os primeiros 800 chars do prompt para a LLM (onde a identidade normalmente esta)
+                  const promptPreview = fullPrompt.substring(0, 800);
+                  
+                  const extractionResult = await generateWithLLM(extractionPrompt, promptPreview, {
+                    temperature: 0,
+                    maxTokens: 100,
+                  });
+                  
+                  const jsonMatch = extractionResult.match(/\{[^}]+\}/);
+                  if (jsonMatch) {
+                    const parsed = JSON.parse(jsonMatch[0]);
+                    if (parsed.agentName && parsed.agentName !== "null") {
+                      dbOldName = String(parsed.agentName).trim();
+                    }
+                    if (parsed.company && parsed.company !== "null") {
+                      dbOldCompany = String(parsed.company).trim();
+                    }
+                  }
+                  
+                  console.log(`[SALVAR_CONFIG] LLM identity extracted: name="${dbOldName}", company="${dbOldCompany}"`);
+                } catch (llmExtractErr) {
+                  console.error(`[SALVAR_CONFIG] LLM extraction failed, skipping:`, llmExtractErr);
+                }
               }
               
-              // Try to extract company: "da *COMPANY*." or "da COMPANY."
-              const companyWithAsterisks = fullPrompt.match(/\bda\s+(\*[^*\n.]+\*)\s*[.,]/i);
-              const companyWithoutAsterisks = fullPrompt.match(/\bda\s+([^*\n.]+)\s*[.,]/i);
-              if (companyWithAsterisks) {
-                dbOldCompany = companyWithAsterisks[1].trim();
-              } else if (companyWithoutAsterisks) {
-                dbOldCompany = companyWithoutAsterisks[1].trim();
-              }
-              
-              console.log(`[SALVAR_CONFIG] DB identity extracted: name="${dbOldName}", company="${dbOldCompany}"`);
-              
-              // Use DB-extracted values for search-and-replace (they reflect what's actually in the prompt)
+              // Use LLM-extracted values for search-and-replace (deterministic string swap)
               if (dbOldName && action.params.nome && dbOldName !== action.params.nome) {
                 fullPrompt = fullPrompt.split(dbOldName).join(action.params.nome);
                 console.log(`[SALVAR_CONFIG] Replaced name: "${dbOldName}" -> "${action.params.nome}"`);
                 
-                // Also replace plain name without asterisks (e.g. "Você é o Lucas" → "Você é o Rodrigo")
+                // Also replace plain name without asterisks (e.g. "*Lucas*" → strip → "Lucas" occurrences)
                 const plainOldName = dbOldName.replace(/\*/g, '');
                 const plainNewName = action.params.nome.replace(/\*/g, '');
                 if (plainOldName !== dbOldName && fullPrompt.includes(plainOldName)) {
@@ -7032,11 +7053,19 @@ export async function executeActions(session: ClientSession, actions: ParsedActi
               if (dbOldCompany && action.params.empresa && dbOldCompany !== action.params.empresa) {
                 fullPrompt = fullPrompt.split(dbOldCompany).join(action.params.empresa);
                 console.log(`[SALVAR_CONFIG] Replaced company: "${dbOldCompany}" -> "${action.params.empresa}"`);
+                
+                // Also replace plain company without asterisks
+                const plainOldCompany = dbOldCompany.replace(/\*/g, '');
+                const plainNewCompany = action.params.empresa.replace(/\*/g, '');
+                if (plainOldCompany !== dbOldCompany && fullPrompt.includes(plainOldCompany)) {
+                  fullPrompt = fullPrompt.split(plainOldCompany).join(plainNewCompany);
+                  console.log(`[SALVAR_CONFIG] Also replaced plain company: "${plainOldCompany}" -> "${plainNewCompany}"`);
+                }
               }
               if (oldRole && action.params.funcao && oldRole !== action.params.funcao) {
                 fullPrompt = fullPrompt.split(oldRole).join(action.params.funcao);
               }
-              console.log(`[SALVAR_CONFIG] Prompt rico preservado (${fullPrompt.length} chars) com search-and-replace`);
+              console.log(`[SALVAR_CONFIG] Prompt editado via LLM (${fullPrompt.length} chars)`);
             } else {
               // Sem prompt rico no DB - usar buildFullPrompt como fallback
               fullPrompt = buildFullPrompt(agentConfig);
