@@ -3794,36 +3794,23 @@ export function buildStructuredAccountDeliveryText(
 }
 
 function buildPixPaymentInstructions(session?: ClientSession): string {
-  // V17: Se temos credenciais do cliente, gerar link direto para /plans com auto-login
+  // V18: Link para /plans com auto-login. SEM PIX, SEM comprovante por aqui.
+  // O cliente paga pela plataforma e usa "Eu já paguei" para enviar comprovante.
   const email = session?.email || session?.agentConfig?.email;
   const password = session?.lastGeneratedPassword;
   const baseUrl = (process.env.APP_URL || "https://agentezap.online").replace(/\/+$/, "");
   
   console.log(`🔍 [V17.2-DEBUG] buildPixPaymentInstructions: email=${email || 'NULL'}, password=${password ? 'SET(' + password.length + ')' : 'NULL'}, session.email=${session?.email || 'NULL'}, session.agentConfig?.email=${session?.agentConfig?.email || 'NULL'}, session.lastGeneratedPassword=${session?.lastGeneratedPassword ? 'SET' : 'NULL'}, phoneNumber=${session?.phoneNumber || 'NULL'}`);
 
-  if (email && password) {
-    const plansLink = buildAutoLoginUrl(baseUrl, email, password, "/plans");
-    return `Pra ativar agora, é só escolher seu plano neste link (já entra logado automaticamente):
+  const plansLink = (email && password)
+    ? buildAutoLoginUrl(baseUrl, email, password, "/plans")
+    : `${baseUrl}/plans`;
+
+  return `Pra ativar agora, é só escolher seu plano neste link${email && password ? ' (já entra logado automaticamente)' : ''}:
 
 ${plansLink}
 
-Lá você vê os planos disponíveis, escolhe o que faz mais sentido e já ativa na hora.
-
-Se preferir pagar por PIX direto, a chave é: ${PIX_KEY_PHONE} (${PIX_HOLDER_NAME} - ${PIX_BANK_NAME})
-
-Depois do pagamento me manda o comprovante por aqui que eu libero na hora.`;
-  }
-
-  // Fallback se não tiver credenciais
-  return `Pra ativar agora, acesse este link pra escolher seu plano:
-
-${baseUrl}/plans
-
-Se preferir pagar por PIX direto:
-Chave PIX (celular): ${PIX_KEY_PHONE}
-Titular: ${PIX_HOLDER_NAME} (${PIX_BANK_NAME})
-
-Depois do pagamento me manda o comprovante por aqui que eu libero na hora.`;
+Lá você escolhe o plano, gera o QR Code do PIX e paga. Embaixo do QR Code tem o botão "Eu já paguei" — clica nele e envia o comprovante por lá. Em questão de segundos o sistema já valida seu pagamento automaticamente.`;
 }
 
 function getLastAssistantMessage(session: ClientSession): string {
@@ -6064,6 +6051,32 @@ ${dataContext}
 - Comunicacao comercial curta, humana e persuasiva.
 - FOCO DA VENDA: criar o agente, mostrar o teste, calibrar ate ficar perfeito, DEPOIS fechar.
 
+## SOBRE AUDIO (IMPORTANTE)
+- Nossa IA entende audio PERFEITAMENTE (transcricao automatica). O cliente pode mandar audio a vontade.
+- Se o cliente perguntar se entende audio: SIM, entende! O agente recebe o audio, transcreve automaticamente e responde.
+- O agente tambem pode RESPONDER por audio (TTS) - e configuravel no painel.
+- Para configurar midia de audio no agente: o admin manda o arquivo aqui que nos configuramos.
+
+## SOBRE PAGAMENTO E COMPROVANTE
+- NAO passe chave PIX, codigo copia-cola ou dados bancarios manualmente. NUNCA.
+- Use SOMENTE a tag [ACAO:ENVIAR_PIX] que gera o link de planos automaticamente com login.
+- Se o cliente enviar comprovante por aqui, explique: "Volta la em Planos, clica no plano, gera o QR Code do PIX, e embaixo do QR Code tem o botao 'Eu ja paguei'. Clica nele e envia o comprovante por la. Em questao de segundos o sistema valida automaticamente."
+- Envie o link novamente usando [ACAO:ENVIAR_PIX] para facilitar.
+
+## FUNCIONALIDADES DO AGENTEZAP (PARA RESPONDER DUVIDAS)
+- IA conversacional que atende como humano 24h
+- Follow-up inteligente (recupera clientes inativos)
+- Notificador inteligente (envia notificacoes automaticas)
+- Kanban/Funil de vendas (gestao visual da jornada)
+- Envio em massa e campanhas
+- Agendamentos automaticos
+- Biblioteca de midias (imagens, audios, videos, documentos)
+- Catalogo de produtos
+- CRM completo com etiquetas e contatos
+- Integracao com outros sistemas
+- Lista de exclusao (numeros que a IA nao responde)
+- Central de Ajuda: https://agentezap.online/ajuda
+
 ## ðŸ”„ REGRAS ANTI-REPETIÃ‡ÃƒO (OBRIGATÃ“RIO)
 - NUNCA repita a mesma frase ou parÃ¡frase em mensagens consecutivas.
 - Se jÃ¡ explicou como funciona, NÃƒO explique de novo â€” avance para o prÃ³ximo passo.
@@ -6405,7 +6418,10 @@ ETAPAS:
 
 3 PAGAMENTO (SO SE ELE PEDIR)
    - Use a tag [ACAO:ENVIAR_PIX] para enviar o link de pagamento/planos.
+   - O sistema gera o link automaticamente com login automático.
+   - NÃO escreva chaves PIX ou códigos manualmente.
    - NAO fale de preco por conta propria. So se ele perguntar.
+   - Se o cliente enviar comprovante por aqui: explique que ele deve clicar em "Eu já paguei" embaixo do QR Code no link de planos. Envie o link novamente com [ACAO:ENVIAR_PIX].
 
 4 CONEXAO WHATSAPP (SO SE ELE PEDIR)
    - So fale sobre conectar o WhatsApp se o cliente perguntar ou pedir.
@@ -7304,8 +7320,11 @@ async function generateLightweightLLMResponse(
 SOBRE A AGENTEZAP:
 - Sistema SaaS que cria IA para atender no WhatsApp do cliente
 - Plano ilimitado: R$99/mês (promo R$49 com código PARC2026PROMO)
-- Funcionalidades: IA conversacional, follow-up inteligente, Kanban, disparo em massa, agendamento, áudio/vídeo
-- PIX para pagamento: rodrigoconexao128@gmail.com (Rodrigo Pereira Da Silva)
+- Funcionalidades: IA conversacional, follow-up inteligente, Kanban, disparo em massa, agendamento, áudio/vídeo, biblioteca de mídias, catálogo de produtos, notificador inteligente
+- Nossa IA entende áudio perfeitamente (transcrição automática) - o cliente pode mandar áudio à vontade
+- O agente também pode responder por áudio (TTS) - configurável no painel
+- Para pagamento: use a tag [ACAO:ENVIAR_PIX] que gera o link automaticamente com login
+- Central de Ajuda: https://agentezap.online/ajuda
 - Painel: https://agentezap.online
 
 ESTADO ATUAL:
