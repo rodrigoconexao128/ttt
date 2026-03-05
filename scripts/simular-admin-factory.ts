@@ -38,9 +38,9 @@ const scenarios: Scenario[] = [
     contactName: "Carlos Silva",
     messages: [
       "Oi, eu vi voces no insta. Isso responde cliente mesmo?",
-      "Quero algo que venda por mim, mas sou leigo e nao sei configurar.",
-      "Pode criar para mim e me mandar para eu testar?",
-      "Se eu quiser editar depois, consigo?",
+      "Minha empresa e Studio Prisma, e eu vendo roupas femininas.",
+      "Quero que ele responda como vendedor, tire duvidas e faca follow-up sem parecer robo.",
+      "Nao vai usar agendamento. Quero so atendimento e vendas.",
     ],
   },
   {
@@ -48,18 +48,19 @@ const scenarios: Scenario[] = [
     contactName: "Patricia Delivery",
     messages: [
       "Tenho delivery e quero automatizar pedidos no whatsapp.",
-      "Da para cadastrar meu cardapio e fazer upsell?",
-      "Me cria um exemplo para eu testar com meus clientes.",
-      "Depois me mostra como ajustar itens e valores.",
+      "Meu negocio e Restaurante Sabor da Vila, e eu vendo marmita e lanche.",
+      "Quero que ele responda rapido, apresente cardapio e faca upsell.",
+      "Quero que ele feche o pedido ate o final.",
     ],
   },
   {
     id: "retorno-mesmo-numero",
     contactName: "Joao Retorno",
     messages: [
-      "Oi, eu ja falei com voces ontem e quero melhorar meu agente.",
-      "Meu nicho e salao, quero agenda e confirmar horarios automatico.",
-      "Nao lembro se preciso cadastro novo. Pode seguir com meu numero?",
+      "Oi, eu quero ver uma demonstracao completa.",
+      "Meu negocio e Barbearia Alfa, e meu principal servico e corte e barba.",
+      "Quero que ele atenda como recepcao, confirme horarios e fale natural.",
+      "Sim, vai trabalhar com agendamento de segunda a sabado das 09:00 as 19:00.",
       "Me manda um print e um video do meu agente funcionando para eu mostrar para minha equipe.",
     ],
     expectDemoAssets: true,

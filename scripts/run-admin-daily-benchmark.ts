@@ -107,9 +107,18 @@ function hasQuestionWorkflow(text: string): boolean {
 
 function looksLikeBusinessAnswer(text: string): boolean {
   const n = normalize(text);
-  return /\b(meu negocio|minha empresa|minha loja|sou da|sou do|sou de|eu vendo|trabalho com|restaurante|barbearia|clinica|salao|delivery|consultoria|loja)\b/.test(
-    n,
-  );
+  const hasExplicitIdentitySignal =
+    /\b(meu negocio|minha empresa|minha loja|sou da|sou do|sou de|eu vendo|trabalho com)\b/.test(n);
+  if (hasExplicitIdentitySignal) return true;
+
+  // Evita contar perguntas exploratorias como "vocês fazem delivery?" como resposta de negocio.
+  if (isLikelyQuestion(text)) return false;
+
+  const hasDomainKeyword = /\b(restaurante|barbearia|clinica|salao|delivery|consultoria|loja)\b/.test(n);
+  if (!hasDomainKeyword) return false;
+
+  const wordCount = n.split(/\s+/).filter(Boolean).length;
+  return wordCount >= 3;
 }
 
 function looksLikeBehaviorAnswer(text: string): boolean {

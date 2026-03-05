@@ -10,6 +10,7 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { ContactImportModal } from "@/components/contact-import-modal";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -122,7 +123,7 @@ interface SendProgress {
   total: number;
   sent: number;
   failed: number;
-  status: 'idle' | 'running' | 'paused' | 'completed' | 'error';
+  status: 'idle' | 'running' | 'paused' | 'completed' | 'error' | 'cancelled';
   currentPhone?: string;
   estimatedTime?: number;
 }
@@ -135,7 +136,12 @@ interface CampaignHistory {
   failedCount?: number;
   totalSent?: number;    // Backend pode enviar nesse formato
   totalFailed?: number;  // Backend pode enviar nesse formato
-  executedAt: string;
+  sent_count?: number;   // snake_case DB field
+  failed_count?: number; // snake_case DB field
+  total_contacts?: number; // snake_case DB field
+  executedAt?: string;
+  completed_at?: string; // snake_case DB field
+  started_at?: string;   // snake_case DB field
   status: string;
   recipients?: string[];
   recipientNames?: Record<string, string>;
@@ -213,16 +219,13 @@ export default function MassSendPage() {
   
   // Configurações de envio
   const [useAI, setUseAI] = useState(false);
-  const [useHumanDelay, setUseHumanDelay] = useState(true);
-  // Pré-selecionado: Humano (5-12s) - Recomendado
-  const [delayMin, setDelayMin] = useState(5);
-  const [delayMax, setDelayMax] = useState(12);
-  const [batchSize, setBatchSize] = useState(10);
-  const [batchInterval, setBatchInterval] = useState(60);
+  const [activeCampaignId, setActiveCampaignId] = useState<string | null>(null);
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   
   // Estado para listas e contatos selecionados
   const [selectedListId, setSelectedListId] = useState<string>("");
   const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
+  const [selectedSyncedContacts, setSelectedSyncedContacts] = useState<Record<string, { phone: string; name: string }>>({});
   const [searchTerm, setSearchTerm] = useState("");
   // Flag para indicar se a seleção foi inicializada
   const [selectionInitialized, setSelectionInitialized] = useState(false);
@@ -248,6 +251,8 @@ export default function MassSendPage() {
   const [showListDetailsDialog, setShowListDetailsDialog] = useState(false);
   const [selectedListDetails, setSelectedListDetails] = useState<ContactList | null>(null);
   const [listSearchTerm, setListSearchTerm] = useState("");
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importDestination, setImportDestination] = useState<'mass-send' | 'contact-list'>('mass-send');
   const [listPage, setListPage] = useState(1);
   const listsPerPage = 5;
   const [newListName, setNewListName] = useState("");
@@ -272,22 +277,48 @@ export default function MassSendPage() {
   // Buscar listas de contatos
   const { data: contactLists = [], isLoading: listsLoading, refetch: refetchLists } = useQuery<ContactList[]>({
     queryKey: ["/api/contacts/lists"],
-    retry: false,
   });
 
-  // Buscar contatos sincronizados (apenas que já responderam)
-  const { data: syncedContacts = [], refetch: refetchContacts } = useQuery<Contact[]>({
-    queryKey: ["/api/contacts/synced?array=true"],
-    retry: false,
+  // Buscar contagem de contatos sincronizados (apenas que já responderam)
+  const { data: syncedContactsCount = { total: 0 } } = useQuery<{ total: number }>({
+    queryKey: ["/api/contacts/synced/count"],
   });
 
-  // Inicializar seleção quando contatos sincronizados carregarem
+  // Estados para paginação e busca no modo synced
+  const [syncedPage, setSyncedPage] = useState(1);
+  const [syncedSearch, setSyncedSearch] = useState("");
+  const [debouncedSyncedSearch, setDebouncedSyncedSearch] = useState("");
+
+  // Debounce para busca sínced (400ms)
   useEffect(() => {
-    if (syncedContacts.length > 0 && !selectionInitialized && recipientMode === 'synced') {
-      setSelectedContactIds(new Set(syncedContacts.map(c => c.id)));
-      setSelectionInitialized(true);
-    }
-  }, [syncedContacts, selectionInitialized, recipientMode]);
+    const timer = setTimeout(() => setDebouncedSyncedSearch(syncedSearch), 400);
+    return () => clearTimeout(timer);
+  }, [syncedSearch]);
+
+  // Reset page ao mudar busca sínced
+  useEffect(() => {
+    setSyncedPage(1);
+  }, [debouncedSyncedSearch]);
+
+  // Query lazy de contatos paginados para quando modo synced estiver ativo
+  const { data: syncedContactsData } = useQuery<{
+    contacts: Contact[];
+    total: number;
+    page: number;
+    totalPages: number;
+  }>({
+    queryKey: ["/api/contacts/synced", syncedPage, debouncedSyncedSearch],
+    queryFn: async () => {
+      const params = new URLSearchParams({ page: String(syncedPage), limit: '50' });
+      if (debouncedSyncedSearch) params.set('search', debouncedSyncedSearch);
+      const res = await apiRequest('GET', `/api/contacts/synced?${params}`);
+      return res.json();
+    },
+    enabled: recipientMode === 'synced',
+    retry: false,
+  });
+
+  const syncedContacts = syncedContactsData?.contacts || [];
 
   // Buscar grupos do WhatsApp
   const { data: whatsappGroups = [], isLoading: groupsQueryLoading, refetch: refetchGroups } = useQuery<WhatsAppGroup[]>({
@@ -302,64 +333,93 @@ export default function MassSendPage() {
     retry: false,
   });
 
-  // Função para fazer polling do progresso da campanha
-  const pollCampaignProgress = async (campaignId: string, totalContacts: number) => {
-    const maxAttempts = totalContacts * 20 + 30; // Espera até 20 segundos por contato + 30s margem
-    let attempts = 0;
-    
-    while (attempts < maxAttempts) {
+  // Iniciar polling com setInterval
+  const startPolling = (campaignId: string, total: number) => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+    }
+    localStorage.setItem('activeCampaignId', campaignId);
+    setActiveCampaignId(campaignId);
+
+    const intervalId = setInterval(async () => {
       try {
         const response = await apiRequest("GET", `/api/campaigns/${campaignId}`);
         const campaign = await response.json();
-        
         if (campaign) {
-          const sent = campaign.totalSent || 0;
-          const failed = campaign.totalFailed || 0;
-          
+          const sent = campaign.sent_count ?? campaign.totalSent ?? 0;
+          const failed = campaign.failed_count ?? campaign.totalFailed ?? 0;
+          const totalContacts = campaign.total_contacts ?? campaign.totalContacts ?? total;
           setSendProgress({
             total: totalContacts,
             sent,
             failed,
-            status: campaign.status === 'completed' ? 'completed' : 
-                   campaign.status === 'error' ? 'error' : 'running'
+            status: campaign.status === 'completed' ? 'completed' :
+                   campaign.status === 'error' ? 'error' :
+                   campaign.status === 'cancelled' ? 'cancelled' : 'running',
           });
-          
-          if (campaign.status === 'completed') {
+          if (['completed', 'error', 'cancelled'].includes(campaign.status)) {
+            clearInterval(intervalId);
+            pollingIntervalRef.current = null;
+            localStorage.removeItem('activeCampaignId');
+            setActiveCampaignId(null);
             setIsSending(false);
-            toast({
-              title: "Envio concluído!",
-              description: `${sent} mensagens enviadas com sucesso${failed > 0 ? `, ${failed} falharam` : ''}.`,
-            });
             queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
-            return;
-          }
-          
-          if (campaign.status === 'error') {
-            setIsSending(false);
-            toast({
-              title: "Erro no envio",
-              description: campaign.errorMessage || "Ocorreu um erro durante o envio.",
-              variant: "destructive",
-            });
-            return;
+            if (campaign.status === 'completed') {
+              toast({
+                title: "Envio concluído!",
+                description: `${sent} mensagens enviadas${failed > 0 ? `, ${failed} falharam` : ''}.`,
+              });
+            } else if (campaign.status === 'cancelled') {
+              toast({
+                title: "Envio cancelado",
+                description: "A campanha foi cancelada pelo servidor.",
+              });
+            } else if (campaign.status === 'error') {
+              toast({
+                title: "Erro no envio",
+                description: campaign.errorMessage || "Ocorreu um erro durante o envio.",
+                variant: "destructive",
+              });
+            }
           }
         }
       } catch (error) {
         console.error('Erro ao verificar progresso:', error);
       }
-      
-      // Aguardar 1 segundo antes de verificar novamente
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      attempts++;
-    }
-    
-    // Timeout - verificar status final
-    setIsSending(false);
-    toast({
-      title: "Envio em andamento",
-      description: "O envio está demorando mais que o esperado. Verifique o histórico.",
-    });
+    }, 3000);
+    pollingIntervalRef.current = intervalId;
   };
+
+  // Retomar polling ao montar + cleanup ao desmontar
+  useEffect(() => {
+    const savedCampaignId = localStorage.getItem('activeCampaignId');
+    if (savedCampaignId) {
+      apiRequest("GET", `/api/campaigns/${savedCampaignId}`)
+        .then(r => r.json())
+        .then(campaign => {
+          if (campaign?.status === 'running') {
+            setIsSending(true);
+            setActiveCampaignId(savedCampaignId);
+            const total = campaign.total_contacts ?? campaign.totalContacts ?? 0;
+            setSendProgress({
+              total,
+              sent: campaign.sent_count ?? 0,
+              failed: campaign.failed_count ?? 0,
+              status: 'running',
+            });
+            startPolling(savedCampaignId, total);
+          } else {
+            localStorage.removeItem('activeCampaignId');
+          }
+        })
+        .catch(() => localStorage.removeItem('activeCampaignId'));
+    }
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+      }
+    };
+  }, []);
 
   // Mutation para envio em massa
   const sendBulkMutation = useMutation({
@@ -367,57 +427,31 @@ export default function MassSendPage() {
       contacts: { phone: string; name?: string }[]; 
       message: string;
       useAI: boolean;
-      delayMin: number;
-      delayMax: number;
-      batchSize: number;
-      batchInterval: number;
     }) => {
-      // Usar a API existente de bulk-send
-      const phones = data.contacts.map(c => c.phone);
-      const response = await apiRequest("POST", "/api/whatsapp/bulk-send", { 
-        phones, 
-        message: data.message,
-        contacts: data.contacts, // Enviar dados completos também
-        settings: {
-          useAI: data.useAI,
-          delayMin: data.delayMin,
-          delayMax: data.delayMax,
-          batchSize: data.batchSize,
-          batchInterval: data.batchInterval
-        }
+      const response = await apiRequest("POST", "/api/campaigns", {
+        contacts: data.contacts,
+        messageTemplate: data.message,
+        useAi: data.useAI,
+        name: "Campanha " + new Date().toLocaleDateString('pt-BR'),
       });
       const result = await response.json();
       return { ...result, totalContacts: data.contacts.length };
     },
     onSuccess: (data) => {
-      // Backend retorna imediatamente - iniciar polling para acompanhar progresso
-      setSendProgress({ 
-        total: data.total || data.totalContacts || 0, 
-        sent: 0, 
-        failed: 0, 
-        status: 'running' 
-      });
-      
+      const campaignId = data.campaignId || data.id;
+      const total = data.total || data.total_contacts || data.totalContacts || 0;
+      setSendProgress({ total, sent: 0, failed: 0, status: 'running' });
       toast({
         title: "Envio iniciado!",
-        description: "Enviando mensagens em background. Acompanhe o progresso abaixo.",
+        description: "Mensagens sendo enviadas em background.",
       });
-      
-      // Se tiver campaignId, fazer polling do progresso
-      if (data.campaignId) {
-        pollCampaignProgress(data.campaignId, data.total || data.totalContacts || 0);
-      } else {
-        // Fallback: marcar como concluído após delay estimado
-        setTimeout(() => {
-          setSendProgress(prev => ({ ...prev, status: 'completed' }));
-          setIsSending(false);
-          queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
-        }, (data.total || 1) * 10000);
+      if (campaignId) {
+        startPolling(campaignId, total);
       }
     },
     onError: (error: Error) => {
       setSendProgress(prev => ({ ...prev, status: 'error' }));
-      setIsSending(false); // Liberar botão mesmo em erro
+      setIsSending(false);
       toast({
         title: "Erro no envio",
         description: error.message,
@@ -509,7 +543,8 @@ export default function MassSendPage() {
     },
     onSuccess: (data) => {
       setSyncProgress({ syncing: false, count: data.count || 0 });
-      refetchContacts();
+      queryClient.invalidateQueries({ queryKey: ["/api/contacts/synced"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/contacts/synced/count"] });
       toast({
         title: "Sincronização concluída!",
         description: `${data.count || 0} contatos que já conversaram foram sincronizados.`,
@@ -529,71 +564,40 @@ export default function MassSendPage() {
       mediaFile: File;
       mediaType: 'image' | 'video' | 'audio' | 'document';
       useAI: boolean;
-      delayMin: number;
-      delayMax: number;
-      batchSize: number;
-      batchInterval: number;
     }) => {
-      // Converter arquivo para base64
       const toBase64 = (file: File): Promise<string> => {
         return new Promise((resolve, reject) => {
           const reader = new FileReader();
           reader.readAsDataURL(file);
           reader.onload = () => {
             const result = reader.result as string;
-            // Remover o prefixo data:*/*;base64, para obter apenas o base64
-            const base64 = result.split(',')[1];
-            resolve(base64);
+            resolve(result.split(',')[1]);
           };
           reader.onerror = error => reject(error);
         });
       };
-
       const mediaBase64 = await toBase64(data.mediaFile);
-      const phones = data.contacts.map(c => c.phone);
-      
-      const response = await apiRequest("POST", "/api/whatsapp/bulk-send-media", { 
-        phones, 
-        message: data.message,
+      const response = await apiRequest("POST", "/api/campaigns", {
         contacts: data.contacts,
-        media: {
-          type: data.mediaType,
-          data: mediaBase64,
-          filename: data.mediaFile.name,
-          mimetype: data.mediaFile.type
-        },
-        settings: {
-          useAI: data.useAI,
-          delayMin: data.delayMin,
-          delayMax: data.delayMax,
-          batchSize: data.batchSize,
-          batchInterval: data.batchInterval
-        }
+        messageTemplate: data.message,
+        useAi: data.useAI,
+        name: "Campanha " + new Date().toLocaleDateString('pt-BR'),
+        mediaUrl: `data:${data.mediaFile.type};base64,${mediaBase64}`,
+        mediaType: data.mediaType,
       });
       const result = await response.json();
       return { ...result, totalContacts: data.contacts.length };
     },
     onSuccess: (data) => {
-      setSendProgress({ 
-        total: data.total || data.totalContacts || 0, 
-        sent: 0, 
-        failed: 0, 
-        status: 'running' 
-      });
-      
+      const campaignId = data.campaignId || data.id;
+      const total = data.total || data.total_contacts || data.totalContacts || 0;
+      setSendProgress({ total, sent: 0, failed: 0, status: 'running' });
       toast({
         title: "Envio de mídia iniciado!",
-        description: "Enviando mensagens com mídia em background. Acompanhe o progresso.",
+        description: "Mensagens com mídia sendo enviadas em background.",
       });
-      
-      if (data.campaignId) {
-        pollCampaignProgress(data.campaignId, data.total || data.totalContacts || 0);
-      } else {
-        setTimeout(() => {
-          setSendProgress(prev => ({ ...prev, status: 'completed' }));
-          setIsSending(false);
-          queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
-        }, (data.total || 1) * 15000); // Mais tempo para mídia
+      if (campaignId) {
+        startPolling(campaignId, total);
       }
     },
     onError: (error: Error) => {
@@ -720,15 +724,14 @@ export default function MassSendPage() {
         return selected.map(c => ({ phone: c.phone, name: c.name || '' }));
       }
     } else if (recipientMode === 'synced') {
-      const selected = syncedContacts.filter(c => selectedContactIds.has(c.id));
-      return selected.map(c => ({ phone: c.phone, name: c.name || '' }));
+      return Object.values(selectedSyncedContacts);
     } else if (recipientMode === 'groups') {
       // Para grupos, retornamos os grupos selecionados como "contatos" para contagem
       const selectedGroups = whatsappGroups?.filter(g => selectedGroupIds.has(g.id)) || [];
       return selectedGroups.map(g => ({ phone: g.id, name: g.name }));
     }
     return [];
-  }, [recipientMode, manualContacts, selectedListId, selectedContactIds, contactLists, syncedContacts, selectedGroupIds, whatsappGroups]);
+  }, [recipientMode, manualContacts, selectedListId, selectedContactIds, selectedSyncedContacts, contactLists, selectedGroupIds, whatsappGroups]);
 
   // Aplicar variáveis na mensagem
   const applyMessageTemplate = (template: string, name: string): string => {
@@ -752,40 +755,91 @@ export default function MassSendPage() {
     return phone;
   };
 
-  // Calcular tempo estimado de envio
+  // Calcular tempo estimado de envio (valores fixos do BroadcastService)
   const estimatedTime = useMemo(() => {
     const count = getSelectedContacts.length;
     if (count === 0) return 0;
-    
-    const avgDelay = (delayMin + delayMax) / 2;
-    const batches = Math.ceil(count / batchSize);
-    const totalSeconds = (count * avgDelay) + ((batches - 1) * batchInterval);
-    
+    // Fixed: 60s avg delay per message, batches of 10 with 600s pause between batches
+    const FIXED_DELAY = 60;
+    const FIXED_BATCH_SIZE = 10;
+    const FIXED_BATCH_INTERVAL = 600;
+    const batches = Math.ceil(count / FIXED_BATCH_SIZE);
+    const totalSeconds = (count * FIXED_DELAY) + ((batches - 1) * FIXED_BATCH_INTERVAL);
     return Math.ceil(totalSeconds / 60); // Em minutos
-  }, [getSelectedContacts.length, delayMin, delayMax, batchSize, batchInterval]);
+  }, [getSelectedContacts.length]);
 
-  // Filtrar contatos por busca
-  const filteredContacts = useMemo(() => {
-    const contacts = recipientMode === 'synced' ? syncedContacts : 
-                    (recipientMode === 'list' && selectedListId) ? 
-                    contactLists.find(l => l.id === selectedListId)?.contacts || [] : [];
-    
+  // Filtrar contatos da lista por busca local
+  const filteredListContacts = useMemo(() => {
+    const contacts = recipientMode === 'list' && selectedListId
+      ? contactLists.find(l => l.id === selectedListId)?.contacts || []
+      : [];
+
     if (!searchTerm) return contacts;
-    
+
     const term = searchTerm.toLowerCase();
-    return contacts.filter(c => 
-      c.name?.toLowerCase().includes(term) || 
+    return contacts.filter(c =>
+      c.name?.toLowerCase().includes(term) ||
       c.phone.includes(term)
     );
-  }, [recipientMode, syncedContacts, selectedListId, contactLists, searchTerm]);
+  }, [recipientMode, selectedListId, contactLists, searchTerm]);
 
-  // Selecionar/deselecionar todos
-  const toggleSelectAll = () => {
-    if (selectedContactIds.size === filteredContacts.length) {
-      setSelectedContactIds(new Set());
+  const allVisibleListContactsSelected = filteredListContacts.length > 0 &&
+    filteredListContacts.every(contact => selectedContactIds.has(contact.id));
+
+  const allVisibleSyncedContactsSelected = syncedContacts.length > 0 &&
+    syncedContacts.every(contact => selectedContactIds.has(contact.id));
+
+  const toggleSelectAllListContacts = () => {
+    const next = new Set(selectedContactIds);
+
+    if (allVisibleListContactsSelected) {
+      filteredListContacts.forEach(contact => next.delete(contact.id));
     } else {
-      setSelectedContactIds(new Set(filteredContacts.map(c => c.id)));
+      filteredListContacts.forEach(contact => next.add(contact.id));
     }
+
+    setSelectedContactIds(next);
+  };
+
+  const toggleSyncedContact = (contact: Contact, checked: boolean) => {
+    const nextIds = new Set(selectedContactIds);
+
+    if (checked) {
+      nextIds.add(contact.id);
+      setSelectedSyncedContacts(prev => ({
+        ...prev,
+        [contact.id]: { phone: contact.phone, name: contact.name || "" },
+      }));
+    } else {
+      nextIds.delete(contact.id);
+      setSelectedSyncedContacts(prev => {
+        const next = { ...prev };
+        delete next[contact.id];
+        return next;
+      });
+    }
+
+    setSelectedContactIds(nextIds);
+  };
+
+  const toggleSelectAllSyncedContacts = () => {
+    const nextIds = new Set(selectedContactIds);
+    const nextSelectedContacts = { ...selectedSyncedContacts };
+
+    if (allVisibleSyncedContactsSelected) {
+      syncedContacts.forEach(contact => {
+        nextIds.delete(contact.id);
+        delete nextSelectedContacts[contact.id];
+      });
+    } else {
+      syncedContacts.forEach(contact => {
+        nextIds.add(contact.id);
+        nextSelectedContacts[contact.id] = { phone: contact.phone, name: contact.name || "" };
+      });
+    }
+
+    setSelectedContactIds(nextIds);
+    setSelectedSyncedContacts(nextSelectedContacts);
   };
 
   // Estado para prevenir múltiplos cliques
@@ -827,8 +881,8 @@ export default function MassSendPage() {
         groupIds,
         message: messageTemplate,
         useAI,
-        delayMin,
-        delayMax,
+        delayMin: 60,
+        delayMax: 90,
         scheduledAt: scheduledAtStr,
       });
     } else if (mediaFile && mediaType !== 'none') {
@@ -839,10 +893,6 @@ export default function MassSendPage() {
         mediaFile: mediaFile,
         mediaType: mediaType as 'image' | 'video' | 'audio' | 'document',
         useAI,
-        delayMin,
-        delayMax,
-        batchSize,
-        batchInterval
       });
     } else {
       // Modo normal de contatos (apenas texto)
@@ -850,10 +900,6 @@ export default function MassSendPage() {
         contacts,
         message: messageTemplate,
         useAI,
-        delayMin,
-        delayMax,
-        batchSize,
-        batchInterval
       });
     }
   };
@@ -965,7 +1011,7 @@ export default function MassSendPage() {
                     <UserCheck className="w-8 h-8 mb-2 text-green-600" />
                     <h3 className="font-semibold">Contatos Seguros</h3>
                     <p className="text-sm text-muted-foreground mt-1">
-                      <span className="text-green-600">✓</span> Quem já conversou ({syncedContacts.length})
+                      <span className="text-green-600">✓</span> Quem já conversou ({syncedContactsCount.total})
                     </p>
                   </button>
 
@@ -1035,6 +1081,13 @@ Pedro Oliveira, 31988776655`}
                       <Button
                         variant="outline"
                         size="sm"
+                        onClick={() => { setImportDestination('mass-send'); setShowImportModal(true); }}
+                      >
+                        <Upload className="w-4 h-4 mr-1" /> Importar Planilha
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => {
                           const contacts = parseManualContacts(manualContacts);
                           if (contacts.length > 0) {
@@ -1065,10 +1118,16 @@ Pedro Oliveira, 31988776655`}
                         Gerencie e selecione listas para envio
                       </CardDescription>
                     </div>
-                    <Button variant="outline" size="sm" onClick={() => setShowCreateListDialog(true)}>
-                      <Plus className="w-4 h-4 mr-2" />
-                      Nova Lista
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={() => setShowCreateListDialog(true)}>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Nova Lista
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => { setImportDestination('contact-list'); setShowImportModal(true); }}>
+                        <Upload className="w-4 h-4 mr-2" />
+                        Importar Planilha
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -1196,8 +1255,8 @@ Pedro Oliveira, 31988776655`}
                               />
                             </div>
                             <div className="flex items-center gap-2">
-                              <Button variant="outline" size="sm" onClick={toggleSelectAll}>
-                                {selectedContactIds.size === filteredContacts.length ? 'Desmarcar Todos' : 'Selecionar Todos'}
+                              <Button variant="outline" size="sm" onClick={toggleSelectAllListContacts}>
+                                {allVisibleListContactsSelected ? 'Desmarcar Todos' : 'Selecionar Todos'}
                               </Button>
                               <span className="text-sm text-muted-foreground">
                                 {selectedContactIds.size} selecionados
@@ -1215,7 +1274,7 @@ Pedro Oliveira, 31988776655`}
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
-                                {filteredContacts.map((contact) => (
+                                {filteredListContacts.map((contact) => (
                                   <TableRow key={contact.id}>
                                     <TableCell>
                                       <Checkbox
@@ -1286,7 +1345,7 @@ Pedro Oliveira, 31988776655`}
                     </Button>
                     
                     <span className="text-sm text-muted-foreground">
-                      {syncedContacts.length} contatos disponíveis
+                      {syncedContactsCount.total} contatos disponíveis
                     </span>
                   </div>
 
@@ -1296,18 +1355,18 @@ Pedro Oliveira, 31988776655`}
                         <div className="relative flex-1 max-w-xs">
                           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                           <Input
-                            placeholder="Buscar..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
+                            placeholder="Buscar por nome ou telefone..."
+                            value={syncedSearch}
+                            onChange={(e) => setSyncedSearch(e.target.value)}
                             className="pl-9"
                           />
                         </div>
                         <div className="flex items-center gap-2">
-                          <Button variant="outline" size="sm" onClick={toggleSelectAll}>
-                            {selectedContactIds.size === filteredContacts.length ? 'Desmarcar Todos' : 'Selecionar Todos'}
+                          <Button variant="outline" size="sm" onClick={toggleSelectAllSyncedContacts}>
+                            {allVisibleSyncedContactsSelected ? 'Desmarcar Página' : 'Selecionar Página'}
                           </Button>
                           <span className="text-sm text-muted-foreground">
-                            {selectedContactIds.size} selecionados
+                            {Object.keys(selectedSyncedContacts).length} selecionados
                           </span>
                         </div>
                       </div>
@@ -1322,19 +1381,13 @@ Pedro Oliveira, 31988776655`}
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {filteredContacts.map((contact) => (
+                            {syncedContacts.map((contact) => (
                               <TableRow key={contact.id}>
                                 <TableCell>
                                   <Checkbox
                                     checked={selectedContactIds.has(contact.id)}
                                     onCheckedChange={(checked) => {
-                                      const newSet = new Set(selectedContactIds);
-                                      if (checked) {
-                                        newSet.add(contact.id);
-                                      } else {
-                                        newSet.delete(contact.id);
-                                      }
-                                      setSelectedContactIds(newSet);
+                                      toggleSyncedContact(contact, !!checked);
                                     }}
                                   />
                                 </TableCell>
@@ -1345,6 +1398,31 @@ Pedro Oliveira, 31988776655`}
                           </TableBody>
                         </Table>
                       </ScrollArea>
+
+                      {/* Controles de Paginação */}
+                      {(syncedContactsData?.totalPages ?? 1) > 1 && (
+                        <div className="flex items-center justify-center gap-4 pt-4 border-t">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={syncedPage <= 1}
+                            onClick={() => setSyncedPage(p => p - 1)}
+                          >
+                            ← Anterior
+                          </Button>
+                          <span className="text-sm text-muted-foreground">
+                            Página {syncedPage} de {syncedContactsData?.totalPages ?? 1}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={syncedPage >= (syncedContactsData?.totalPages ?? 1)}
+                            onClick={() => setSyncedPage(p => p + 1)}
+                          >
+                            Próxima →
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </CardContent>
@@ -1464,11 +1542,11 @@ Pedro Oliveira, 31988776655`}
                                       )}
                                     </div>
                                     <p className="text-xs text-muted-foreground">
-                                      {group.participantCount} participantes
+                                      {group.participantsCount} participantes
                                     </p>
                                   </div>
                                   <Badge variant="outline" className="text-blue-600">
-                                    {group.participantCount}
+                                    {group.participantsCount}
                                   </Badge>
                                 </div>
                               </div>
@@ -1487,7 +1565,7 @@ Pedro Oliveira, 31988776655`}
                             <span className="text-xs text-blue-600">
                               (~{whatsappGroups
                                 .filter(g => selectedGroupIds.has(g.id))
-                                .reduce((acc, g) => acc + g.participantCount, 0)} pessoas alcançadas)
+                                .reduce((acc, g) => acc + g.participantsCount, 0)} pessoas alcançadas)
                             </span>
                           </div>
                         </div>
@@ -1772,105 +1850,17 @@ Estou entrando em contato para...
             </Alert>
 
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Clock className="w-5 h-5" />
-                  Delay Humanizado
-                  <InfoTooltip text="Intervalos aleatórios entre mensagens simulam digitação humana." />
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <Label>Ativar delay humanizado</Label>
-                  <Switch checked={useHumanDelay} onCheckedChange={setUseHumanDelay} />
-                </div>
-
-                {useHumanDelay && (
-                  <>
-                    <div className="space-y-4">
-                      <div className="space-y-2">
-                        <Label>Perfil de Delay</Label>
-                        <Select 
-                          value={`${delayMin}-${delayMax}`} 
-                          onValueChange={(v) => {
-                            const [min, max] = v.split('-').map(Number);
-                            setDelayMin(min);
-                            setDelayMax(max);
-                          }}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="3-7">
-                              <span className="flex items-center gap-2">
-                                <Zap className="w-4 h-4 text-yellow-500" /> Normal (3-7s)
-                              </span>
-                            </SelectItem>
-                            <SelectItem value="5-12">
-                              <span className="flex items-center gap-2">
-                                <Timer className="w-4 h-4 text-blue-500" /> Humano (5-12s) - Recomendado
-                              </span>
-                            </SelectItem>
-                            <SelectItem value="10-20">
-                              <span className="flex items-center gap-2">
-                                <Shield className="w-4 h-4 text-green-500" /> Conservador (10-20s)
-                              </span>
-                            </SelectItem>
-                            <SelectItem value="15-30">
-                              <span className="flex items-center gap-2">
-                                <Shield className="w-4 h-4 text-emerald-500" /> Ultra Seguro (15-30s)
-                              </span>
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <p className="text-xs text-muted-foreground">
-                          Intervalo atual: {delayMin}s a {delayMax}s entre cada mensagem
-                        </p>
-                      </div>
-                    </div>
-
-                    <Separator />
-
-                    <div className="space-y-4">
-                      <h4 className="font-medium flex items-center gap-2">
-                        <Zap className="w-4 h-4" />
-                        Configurações de Lotes
-                      </h4>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Mensagens por lote</Label>
-                          <Select value={String(batchSize)} onValueChange={(v) => setBatchSize(Number(v))}>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="10">10 mensagens</SelectItem>
-                              <SelectItem value="20">20 mensagens</SelectItem>
-                              <SelectItem value="30">30 mensagens</SelectItem>
-                              <SelectItem value="50">50 mensagens</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label>Pausa entre lotes</Label>
-                          <Select value={String(batchInterval)} onValueChange={(v) => setBatchInterval(Number(v))}>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="60">1 minuto</SelectItem>
-                              <SelectItem value="120">2 minutos</SelectItem>
-                              <SelectItem value="180">3 minutos</SelectItem>
-                              <SelectItem value="300">5 minutos</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                )}
+              <CardContent className="pt-6">
+                <Alert className="bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-800">
+                  <Shield className="h-4 w-4 text-green-600" />
+                  <AlertTitle className="text-green-800 dark:text-green-200">🛡️ Proteção Anti-Bloqueio Ativa</AlertTitle>
+                  <AlertDescription className="text-green-700 dark:text-green-300 space-y-1">
+                    <p>• Delay mínimo: 60 segundos entre mensagens</p>
+                    <p>• Lotes de 10 mensagens por vez</p>
+                    <p>• Pausa de 10 minutos entre lotes</p>
+                    <p className="mt-2 text-xs">Esta configuração protege sua conta de bloqueios pelo WhatsApp.</p>
+                  </AlertDescription>
+                </Alert>
               </CardContent>
             </Card>
 
@@ -1880,8 +1870,8 @@ Estou entrando em contato para...
                 <h4 className="font-medium mb-4">Resumo das Proteções</h4>
                 <div className="grid gap-3 md:grid-cols-2">
                   <div className="flex items-center gap-2 text-sm">
-                    {useHumanDelay ? <CheckCircle2 className="w-4 h-4 text-green-600" /> : <XCircle className="w-4 h-4 text-red-500" />}
-                    <span>Delay humanizado ({delayMin}-{delayMax}s)</span>
+                    <CheckCircle2 className="w-4 h-4 text-green-600" />
+                    <span>Delay humanizado (60-90s proteção ativa)</span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     {useAI ? <CheckCircle2 className="w-4 h-4 text-green-600" /> : <XCircle className="w-4 h-4 text-muted-foreground" />}
@@ -2009,7 +1999,7 @@ Estou entrando em contato para...
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Delay:</span>
-                      <span className="font-medium">{delayMin}-{delayMax}s</span>
+                      <span className="font-medium">60-90s (proteção ativa)</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">IA:</span>
@@ -2087,10 +2077,12 @@ Estou entrando em contato para...
                         <h4 className="font-medium">Progresso</h4>
                         <Badge variant={
                           sendProgress.status === 'completed' ? 'default' : 
-                          sendProgress.status === 'error' ? 'destructive' : 'secondary'
+                          sendProgress.status === 'error' ? 'destructive' :
+                          sendProgress.status === 'cancelled' ? 'outline' : 'secondary'
                         }>
                           {sendProgress.status === 'running' ? 'Enviando...' : 
                            sendProgress.status === 'completed' ? 'Concluído' :
+                           sendProgress.status === 'cancelled' ? 'Cancelado' :
                            sendProgress.status === 'error' ? 'Erro' : 'Aguardando'}
                         </Badge>
                       </div>
@@ -2106,13 +2098,44 @@ Estou entrando em contato para...
                         </div>
                       </div>
                     </div>
+                    {sendProgress.status === 'running' && (
+                      <Alert className="bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-800">
+                        <AlertDescription className="text-amber-700 dark:text-amber-300">
+                          ✅ O envio continua em background. Você pode fechar esta página com segurança.
+                        </AlertDescription>
+                      </Alert>
+                    )}
                   </>
                 )}
               </CardContent>
               <CardFooter className="flex justify-between border-t pt-6">
-                <Button variant="outline" onClick={() => setCurrentStep(3)} disabled={isSending}>
-                  Voltar
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" onClick={() => setCurrentStep(3)} disabled={isSending}>
+                    Voltar
+                  </Button>
+                  {sendProgress.status === 'running' && activeCampaignId && (
+                    <Button
+                      variant="outline"
+                      className="text-red-600 border-red-300 hover:bg-red-50"
+                      onClick={async () => {
+                        try {
+                          await apiRequest("PUT", `/api/campaigns/${activeCampaignId}/cancel`, {});
+                          if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+                          pollingIntervalRef.current = null;
+                          localStorage.removeItem('activeCampaignId');
+                          setActiveCampaignId(null);
+                          setSendProgress(prev => ({ ...prev, status: 'cancelled' }));
+                          setIsSending(false);
+                          toast({ title: "Envio cancelado", description: "A campanha foi cancelada." });
+                        } catch {
+                          toast({ title: "Erro ao cancelar", variant: "destructive" });
+                        }
+                      }}
+                    >
+                      ⛔ Cancelar Envio
+                    </Button>
+                  )}
+                </div>
                 {/* Botão desaparece após envio concluído */}
                 {sendProgress.status !== 'completed' ? (
                   <Button 
@@ -2170,22 +2193,39 @@ Estou entrando em contato para...
             <CardContent>
               <div className="space-y-3">
                 {campaignHistory.filter(c => c.status === 'completed').slice(0, 3).map((campaign) => {
-                  const sentCount = campaign.totalSent || campaign.sentCount || 0;
-                  const failedCount = campaign.totalFailed || campaign.failedCount || 0;
+                  const sentCount = campaign.sent_count ?? campaign.totalSent ?? campaign.sentCount ?? 0;
+                  const failedCount = campaign.failed_count ?? campaign.totalFailed ?? campaign.failedCount ?? 0;
+                  const campaignDate = campaign.executedAt || campaign.completed_at || campaign.started_at;
                   
                   return (
                     <div 
                       key={campaign.id} 
                       className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors"
-                      onClick={() => {
+                      onClick={async () => {
                         setSelectedCampaignDetails(campaign);
                         setShowCampaignDetailsDialog(true);
+                        try {
+                          const resp = await apiRequest("GET", `/api/campaigns/${campaign.id}`);
+                          const detail = await resp.json();
+                          if (detail?.results_json) {
+                            const results = typeof detail.results_json === 'string'
+                              ? JSON.parse(detail.results_json)
+                              : detail.results_json;
+                            const sent = (results as any[]).filter((r: any) => r.status === 'sent').map((r: any) => ({
+                              phone: r.phone, name: r.name, timestamp: r.sentAt || ''
+                            }));
+                            const failed = (results as any[]).filter((r: any) => r.status === 'failed').map((r: any) => ({
+                              phone: r.phone, name: r.name, error: r.error || 'Erro desconhecido', timestamp: ''
+                            }));
+                            setSelectedCampaignDetails(prev => prev ? { ...prev, results: { sent, failed } } : prev);
+                          }
+                        } catch { /* silently ignore */ }
                       }}
                     >
                       <div>
                         <p className="font-medium">{campaign.name}</p>
                         <p className="text-sm text-muted-foreground">
-                          {campaign.executedAt ? new Date(campaign.executedAt).toLocaleDateString('pt-BR') : '-'}
+                          {campaignDate ? new Date(campaignDate).toLocaleDateString('pt-BR') : '-'}
                         </p>
                       </div>
                       <div className="flex items-center gap-3">
@@ -2316,31 +2356,73 @@ Estou entrando em contato para...
                 </div>
               ) : (
                 campaignHistory.map((campaign) => {
-                  const sentCount = campaign.totalSent || campaign.sentCount || 0;
-                  const failedCount = campaign.totalFailed || campaign.failedCount || 0;
-                  const total = sentCount + failedCount;
-                  const recipientsCount = campaign.recipients?.length || total;
+                  const sentCount = campaign.sent_count ?? campaign.totalSent ?? campaign.sentCount ?? 0;
+                  const failedCount = campaign.failed_count ?? campaign.totalFailed ?? campaign.failedCount ?? 0;
+                  const total = campaign.total_contacts ?? (sentCount + failedCount);
+                  const recipientsCount = campaign.recipients?.length || campaign.total_contacts || total;
+                  const campaignDate = campaign.executedAt || campaign.completed_at || campaign.started_at;
                   
                   return (
                     <div 
                       key={campaign.id} 
                       className="p-4 border rounded-lg space-y-3 hover:bg-muted/50 cursor-pointer transition-colors"
-                      onClick={() => {
+                      onClick={async () => {
                         setSelectedCampaignDetails(campaign);
                         setShowCampaignDetailsDialog(true);
+                        try {
+                          const resp = await apiRequest("GET", `/api/campaigns/${campaign.id}`);
+                          const detail = await resp.json();
+                          if (detail?.results_json) {
+                            const results = typeof detail.results_json === 'string'
+                              ? JSON.parse(detail.results_json)
+                              : detail.results_json;
+                            const sent = (results as any[]).filter((r: any) => r.status === 'sent').map((r: any) => ({
+                              phone: r.phone, name: r.name, timestamp: r.sentAt || ''
+                            }));
+                            const failed = (results as any[]).filter((r: any) => r.status === 'failed').map((r: any) => ({
+                              phone: r.phone, name: r.name, error: r.error || 'Erro desconhecido', timestamp: ''
+                            }));
+                            setSelectedCampaignDetails(prev => prev ? { ...prev, results: { sent, failed } } : prev);
+                          }
+                        } catch { /* silently ignore */ }
                       }}
                     >
                       <div className="flex items-center justify-between">
                         <div>
                           <h4 className="font-medium">{campaign.name}</h4>
                           <p className="text-xs text-muted-foreground">
-                            {campaign.executedAt ? new Date(campaign.executedAt).toLocaleString('pt-BR') : '-'}
+                            {campaignDate ? new Date(campaignDate).toLocaleString('pt-BR') : '-'}
                           </p>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Badge variant={campaign.status === 'completed' ? 'default' : 'secondary'}>
-                            {campaign.status === 'completed' ? 'Concluída' : campaign.status}
+                          <Badge className={
+                            campaign.status === 'completed' ? 'bg-green-100 text-green-800 border-green-200' :
+                            campaign.status === 'running' ? 'bg-blue-100 text-blue-800 border-blue-200' :
+                            campaign.status === 'error' ? 'bg-red-100 text-red-800 border-red-200' :
+                            campaign.status === 'cancelled' ? 'bg-orange-100 text-orange-800 border-orange-200' :
+                            'bg-gray-100 text-gray-800 border-gray-200'
+                          }>
+                            {campaign.status === 'completed' ? 'Concluída' :
+                             campaign.status === 'running' ? 'Em andamento' :
+                             campaign.status === 'error' ? 'Erro' :
+                             campaign.status === 'cancelled' ? 'Cancelada' : campaign.status}
                           </Badge>
+                          {campaign.status === 'running' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-600 hover:text-red-700"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                try {
+                                  await apiRequest("PUT", `/api/campaigns/${campaign.id}/cancel`);
+                                  queryClient.invalidateQueries({ queryKey: ['/api/campaigns'] });
+                                } catch { /* silently ignore */ }
+                              }}
+                            >
+                              ⛔
+                            </Button>
+                          )}
                           <Button variant="ghost" size="sm">
                             <Eye className="w-4 h-4" />
                           </Button>
@@ -2626,6 +2708,24 @@ Estou entrando em contato para...
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ContactImportModal
+        open={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        destination={importDestination}
+        onSuccess={(contacts) => {
+          if (contacts?.length) {
+            if (importDestination === 'mass-send') {
+              const lines = contacts.map(c => `${c.name}, ${c.phone}`).join('\n');
+              setManualContacts(prev => prev ? `${prev}\n${lines}` : lines);
+              toast({ title: "Contatos importados!", description: `${contacts.length} contatos adicionados.` });
+            } else {
+              queryClient.invalidateQueries({ queryKey: ['/api/contacts/lists'] });
+              toast({ title: "Lista importada!", description: `${contacts.length} contatos importados para nova lista.` });
+            }
+          }
+        }}
+      />
     </div>
   );
 }

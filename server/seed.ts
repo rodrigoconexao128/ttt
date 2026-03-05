@@ -7,8 +7,8 @@ export async function seedDatabase() {
   try {
     console.log("🌱 Seeding database...");
 
-    const adminEmail = "rodrigoconexao128@gmail.com";
-    const adminPassword = "Ibira2019!";
+    const adminEmail = process.env.ADMIN_EMAIL || "admin@agentezap.online";
+    const adminPassword = process.env.ADMIN_PASSWORD || "changeme123!";
 
     const existingAdmin = await withRetry(() => 
       db

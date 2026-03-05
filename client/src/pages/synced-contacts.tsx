@@ -72,16 +72,31 @@ export default function SyncedContactsPage() {
   
   // Estados
   const [searchTerm, setSearchTerm] = useState('');
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'phone' | 'lastMessage'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [filterResponded, setFilterResponded] = useState(false);
   const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set());
+  const [selectedContactMap, setSelectedContactMap] = useState<Record<string, Contact>>({});
   const [activeTab, setActiveTab] = useState('all');
 
   // Estados do diálogo de criar lista
   const [showCreateListDialog, setShowCreateListDialog] = useState(false);
   const [newListName, setNewListName] = useState('');
   const [newListDescription, setNewListDescription] = useState('');
+
+  // Debounce para busca (400ms)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 400);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Reset page ao mudar busca
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
 
   // ===== AGENDA LIVE: Contatos em Memória (SEM BANCO) =====
   // SEMPRE busca ao carregar para verificar se há cache no servidor
@@ -110,24 +125,31 @@ export default function SyncedContactsPage() {
     },
   });
 
-  // Buscar contatos do banco - DESABILITADO
-  // Agora usamos apenas agenda-live (memória) para economizar recursos
+  // Buscar contatos do banco com paginação e busca
   const { data: syncedData, isLoading, refetch } = useQuery<{
     contacts: Contact[];
     total: number;
+    page: number;
+    totalPages: number;
     syncStatus?: {
       status: string;
       progress: number;
       message: string;
     };
-  } | Contact[]>({
-    queryKey: ['/api/contacts/synced'],
+  }>({
+    queryKey: ['/api/contacts/synced', page, debouncedSearch],
+    queryFn: async () => {
+      const params = new URLSearchParams({ page: String(page), limit: '50' });
+      if (debouncedSearch) params.set('search', debouncedSearch);
+      const res = await apiRequest('GET', `/api/contacts/synced?${params}`);
+      return res.json();
+    },
     enabled: true,
     staleTime: 60000,
     refetchOnWindowFocus: false,
     refetchInterval: (data) => {
       // Se está sincronizando, atualizar a cada 5 segundos
-      if (data && 'syncStatus' in data && data.syncStatus?.status === 'running') {
+      if (data && data.syncStatus?.status === 'running') {
         return 5000;
       }
       return false;
@@ -137,24 +159,22 @@ export default function SyncedContactsPage() {
   // ===== PRIORIDADE: Agenda-Live (memória) > DB (fallback) =====
   // Se tiver contatos na agenda-live, usar eles (economiza banco)
   // Senão, usar do banco como fallback (histórico)
-  const agendaContacts = agendaData?.status === 'ready' ? agendaData.contacts : [];
-  const dbContacts = Array.isArray(syncedData) ? syncedData : (syncedData?.contacts || []);
+  const dbContacts = syncedData?.contacts || [];
+  const dbTotal = syncedData?.total || 0;
+  const dbTotalPages = syncedData?.totalPages || 1;
 
   // Preferir agenda-live quando ela é maior ou igual ao banco
   // Caso contrário, usar banco (histórico completo)
-  const contacts = agendaContacts.length >= dbContacts.length
-    ? agendaContacts
-    : dbContacts;
+  const contacts = dbContacts;
   
   // Status da sincronização - combinar ambos
   const syncStatus = agendaData?.status === 'syncing' 
     ? { status: 'running', progress: 50, message: agendaData.message }
-    : (!Array.isArray(syncedData) ? syncedData?.syncStatus : undefined);
+    : syncedData?.syncStatus;
 
   // Mostrar se está usando dados da agenda-live ou do banco
-  const isUsingAgendaLive = contacts === agendaContacts && agendaContacts.length > 0;
-  const isUsingDatabase = contacts === dbContacts && dbContacts.length > 0;
-  const agendaMessage = agendaData?.message;
+  const isUsingAgendaLive = false;
+  const isUsingDatabase = dbContacts.length > 0;
 
   // Buscar estatísticas de WhatsApp
   const { data: whatsappStatus } = useQuery<any>({
@@ -324,6 +344,7 @@ export default function SyncedContactsPage() {
       setNewListName('');
       setNewListDescription('');
       setSelectedContacts(new Set());
+      setSelectedContactMap({});
       queryClient.invalidateQueries({ queryKey: ['/api/contacts/lists'] });
       toast({ 
         title: 'Lista criada com sucesso!', 
@@ -346,7 +367,7 @@ export default function SyncedContactsPage() {
       return;
     }
 
-    const selectedContactsList = filteredContacts.filter(c => selectedContacts.has(c.phone));
+    const selectedContactsList = Object.values(selectedContactMap);
     createListMutation.mutate({
       name: newListName,
       description: newListDescription,
@@ -356,7 +377,7 @@ export default function SyncedContactsPage() {
 
   // Calcular estatísticas
   const stats: SyncStats = {
-    total: contacts.length,
+    total: dbTotal,
     withName: contacts.filter(c => c.name || c.pushName).length,
     responded: contacts.filter(c => c.hasResponded || c.conversationCount).length,
     groups: contacts.filter(c => c.isGroup).length,
@@ -406,28 +427,61 @@ export default function SyncedContactsPage() {
     });
 
   // Toggle seleção de contato
-  const toggleSelect = (phone: string) => {
+  const toggleSelect = (contact: Contact) => {
+    const phone = contact.phone || contact.jid?.replace('@s.whatsapp.net', '') || '';
     const newSet = new Set(selectedContacts);
+    const nextMap = { ...selectedContactMap };
+
     if (newSet.has(phone)) {
       newSet.delete(phone);
+      delete nextMap[phone];
     } else {
       newSet.add(phone);
+      nextMap[phone] = contact;
     }
+
     setSelectedContacts(newSet);
+    setSelectedContactMap(nextMap);
   };
 
   // Selecionar todos visíveis
   const selectAll = () => {
-    if (selectedContacts.size === filteredContacts.length) {
-      setSelectedContacts(new Set());
+    const allVisibleSelected = filteredContacts.length > 0 &&
+      filteredContacts.every(contact => {
+        const phone = contact.phone || contact.jid?.replace('@s.whatsapp.net', '') || '';
+        return selectedContacts.has(phone);
+      });
+
+    if (allVisibleSelected) {
+      const newSet = new Set(selectedContacts);
+      const nextMap = { ...selectedContactMap };
+
+      filteredContacts.forEach(contact => {
+        const phone = contact.phone || contact.jid?.replace('@s.whatsapp.net', '') || '';
+        newSet.delete(phone);
+        delete nextMap[phone];
+      });
+
+      setSelectedContacts(newSet);
+      setSelectedContactMap(nextMap);
     } else {
-      setSelectedContacts(new Set(filteredContacts.map(c => c.phone)));
+      const newSet = new Set(selectedContacts);
+      const nextMap = { ...selectedContactMap };
+
+      filteredContacts.forEach(contact => {
+        const phone = contact.phone || contact.jid?.replace('@s.whatsapp.net', '') || '';
+        newSet.add(phone);
+        nextMap[phone] = contact;
+      });
+
+      setSelectedContacts(newSet);
+      setSelectedContactMap(nextMap);
     }
   };
 
   // Exportar contatos selecionados
   const exportSelected = () => {
-    const toExport = filteredContacts.filter(c => selectedContacts.has(c.phone));
+    const toExport = Object.values(selectedContactMap);
     const csv = toExport.map(c => `${c.name || c.pushName || 'Sem nome'},${c.phone}`).join('\n');
     
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -443,8 +497,7 @@ export default function SyncedContactsPage() {
 
   // Copiar números selecionados
   const copySelected = () => {
-    const phones = filteredContacts
-      .filter(c => selectedContacts.has(c.phone))
+    const phones = Object.values(selectedContactMap)
       .map(c => c.phone)
       .join('\n');
     
@@ -582,7 +635,7 @@ export default function SyncedContactsPage() {
       )}
 
       {/* Banner Inicial - Quando não tem cache */}
-      {agendaData?.status === 'not_synced' && whatsappStatus?.isConnected && (
+      {agendaData?.status === 'not_synced' && whatsappStatus?.isConnected && dbTotal === 0 && (
         <Card className="mb-6 bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-300">
           <CardContent className="pt-4">
             <div className="flex items-center gap-3">
@@ -702,7 +755,7 @@ export default function SyncedContactsPage() {
         <TabsList>
           <TabsTrigger value="all">
             <Users className="h-4 w-4 mr-1" />
-            Todos ({contacts.length})
+            Todos ({dbTotal})
           </TabsTrigger>
           <TabsTrigger value="responded">
             <CheckCheck className="h-4 w-4 mr-1" />
@@ -749,7 +802,10 @@ export default function SyncedContactsPage() {
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  onClick={() => setSelectedContacts(new Set())}
+                  onClick={() => {
+                    setSelectedContacts(new Set());
+                    setSelectedContactMap({});
+                  }}
                 >
                   <X className="h-4 w-4" />
                 </Button>
@@ -762,12 +818,26 @@ export default function SyncedContactsPage() {
       {/* Lista de Contatos */}
       <Card>
         <CardHeader className="pb-2">
+          {/* Campo de Busca */}
+          <div className="mb-4">
+            <Input
+              placeholder="Buscar por nome ou telefone..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full"
+              icon={<Search className="w-4 h-4" />}
+            />
+          </div>
+          
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg">
-              {filteredContacts.length} contatos encontrados
+              {dbTotal > 0 ? `${dbTotal} contatos` : `${filteredContacts.length} contatos encontrados`}
             </CardTitle>
             <Button variant="ghost" size="sm" onClick={selectAll}>
-              {selectedContacts.size === filteredContacts.length ? 'Desmarcar Todos' : 'Selecionar Todos'}
+              {(filteredContacts.length > 0 && filteredContacts.every(contact => {
+                const phone = contact.phone || contact.jid?.replace('@s.whatsapp.net', '') || '';
+                return selectedContacts.has(phone);
+              })) ? 'Desmarcar Todos' : 'Selecionar Todos'}
             </Button>
           </div>
         </CardHeader>
@@ -795,6 +865,7 @@ export default function SyncedContactsPage() {
               )}
             </div>
           ) : (
+            <>
             <div className="space-y-2 max-h-[500px] overflow-y-auto">
               {filteredContacts.map((contact, idx) => {
                 const displayName = contact.name || contact.pushName || 'Sem nome';
@@ -806,12 +877,12 @@ export default function SyncedContactsPage() {
                     className={`flex items-center gap-3 p-3 rounded-lg border hover:bg-gray-50 transition-colors cursor-pointer ${
                       selectedContacts.has(phone) ? 'bg-blue-50 border-blue-200' : ''
                     }`}
-                    onClick={() => toggleSelect(phone)}
+                    onClick={() => toggleSelect(contact)}
                   >
                     <Checkbox
                       checked={selectedContacts.has(phone)}
                       onClick={(e) => e.stopPropagation()}
-                      onCheckedChange={() => toggleSelect(phone)}
+                      onCheckedChange={() => toggleSelect(contact)}
                     />
                     
                     {/* Avatar */}
@@ -869,6 +940,32 @@ export default function SyncedContactsPage() {
                 );
               })}
             </div>
+
+            {/* Controles de Paginação */}
+            {dbTotalPages > 1 && (
+              <div className="flex items-center justify-center gap-4 mt-6 pt-6 border-t">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page <= 1}
+                  onClick={() => setPage(p => p - 1)}
+                >
+                  ← Anterior
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  Página {page} de {dbTotalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={page >= dbTotalPages}
+                  onClick={() => setPage(p => p + 1)}
+                >
+                  Próxima →
+                </Button>
+              </div>
+            )}
+            </>
           )}
         </CardContent>
       </Card>

@@ -23,6 +23,7 @@ export default function SettingsPage() {
 
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
   
   // Estado para alteração de senha
   const [currentPassword, setCurrentPassword] = useState("");
@@ -50,13 +51,14 @@ export default function SettingsPage() {
     if (user) {
       setEmail(user.email || "");
       setName(user.name || "");
+      setPhone((user as any).phone || (user as any).whatsappNumber || "");
       setSignature((user as any).signature || "");
       setSignatureEnabled((user as any).signatureEnabled || false);
     }
   }, [user]);
 
   const updateProfileMutation = useMutation({
-    mutationFn: async (data: { email?: string; name?: string }) => {
+    mutationFn: async (data: { email?: string; name?: string; phone?: string }) => {
       const response = await apiRequest("PUT", "/api/user/profile", data);
       return await response.json();
     },
@@ -113,7 +115,7 @@ export default function SettingsPage() {
 
   const handleProfileSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    updateProfileMutation.mutate({ email, name });
+    updateProfileMutation.mutate({ email, name, phone });
   };
 
   const handleSignatureSubmit = (e: React.FormEvent) => {
@@ -194,6 +196,21 @@ export default function SettingsPage() {
                   data-testid="input-name"
                   className="h-11"
                 />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="phone" className="text-sm">Telefone Vinculado</Label>
+                <Input
+                  id="phone"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="Ex: 5511999999999"
+                  data-testid="input-phone"
+                  className="h-11"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Esse numero e usado para eu reconhecer sua conta quando voce falar com o Rodrigo no WhatsApp.
+                </p>
               </div>
 
               <Button 

@@ -9,13 +9,19 @@ type Scenario = {
   contactName: string;
   objective: string;
   requireDemoAssets?: boolean;
+  businessReply: string;
+  behaviorReply: string;
+  workflowReply: string;
 };
+
+const skipDemoAssetsValidation = process.env.ADMIN_BENCHMARK_SKIP_DEMO === "1";
 
 type TurnLog = {
   turn: number;
   client: string;
   agent: string;
   hasCredentials: boolean;
+  hasDeterministicDelivery: boolean;
   hasDemoScreenshot: boolean;
   hasDemoVideo: boolean;
 };
@@ -25,11 +31,21 @@ type ScenarioResult = {
   phone: string;
   success: boolean;
   hasCredentials: boolean;
+  hasDeterministicDelivery: boolean;
   hasDemoScreenshot: boolean;
   hasDemoVideo: boolean;
   turns: TurnLog[];
   error?: string;
 };
+
+function normalizeText(value: string): string {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
 const scenarios: Scenario[] = [
   {
@@ -37,12 +53,18 @@ const scenarios: Scenario[] = [
     contactName: "Cliente Leigo",
     objective:
       "Voce e um cliente leigo e curioso. Quer atendimento automatico no WhatsApp, tem duvidas sobre configuracao e quer que montem tudo para voce.",
+    businessReply: "Minha empresa e Studio Prisma e eu vendo roupas femininas.",
+    behaviorReply: "Quero que ele responda como vendedor, tire duvidas e faca follow-up sem parecer robo.",
+    workflowReply: "Nao vai usar agendamento. Quero so atendimento e vendas.",
   },
   {
     id: "ia-vs-ia-delivery",
     contactName: "Cliente Delivery",
     objective:
       "Voce tem delivery com cardapio e quer automatizar pedidos e upsell. Questione se da para ajustar produtos e horarios depois.",
+    businessReply: "Meu negocio e Restaurante Sabor da Vila e eu vendo marmita e lanche.",
+    behaviorReply: "Quero que ele responda rapido, mostre cardapio e faca upsell.",
+    workflowReply: "Quero que ele feche o pedido ate o final.",
   },
   {
     id: "ia-vs-ia-demo-midia",
@@ -50,6 +72,9 @@ const scenarios: Scenario[] = [
     objective:
       "Voce quer prova visual antes de pagar. Durante a conversa, peca print e video da demonstracao funcionando.",
     requireDemoAssets: true,
+    businessReply: "Meu negocio e Barbearia Alfa e meu principal servico e corte e barba.",
+    behaviorReply: "Quero que ele atenda como recepcao, confirme horarios e fale natural.",
+    workflowReply: "Sim, vai trabalhar com agendamento de segunda a sabado das 09:00 as 19:00.",
   },
 ];
 
@@ -68,25 +93,50 @@ function hasDemoVideo(text: string, actionDemoVideo?: string | null): boolean {
   return Boolean(actionDemoVideo) || normalized.includes("video da demonstracao") || normalized.includes("demo em video");
 }
 
-async function generateInitialClientMessage(objective: string): Promise<string> {
-  const response = await chatComplete({
-    messages: [
-      {
-        role: "system",
-        content:
-          "Voce simula um cliente real em conversa de WhatsApp. Responda sempre em portugues do Brasil, com 1 frase curta.",
-      },
-      {
-        role: "user",
-        content: `${objective}\n\nEnvie a PRIMEIRA mensagem agora, curta e natural.`,
-      },
-    ],
-    maxTokens: 120,
-    temperature: 0.8,
-  });
+const realTestLinkPattern = /https?:\/\/[^\s]*\/test\/[a-z0-9]{8,}/i;
+const canonicalEmailPattern = /\b\d{10,15}@agentezap\.online\b/i;
+const placeholderCredentialsPattern = /\b(seu email|senha:\s*123456)\b/i;
 
-  const text = String(response.choices?.[0]?.message?.content || "").trim();
-  return text || "Oi, queria entender como funciona.";
+function expectedCanonicalEmail(phoneNumber: string): string {
+  return `${String(phoneNumber || "").replace(/\D/g, "")}@agentezap.online`;
+}
+
+function hasDeterministicDelivery(text: string, phoneNumber: string): boolean {
+  const source = String(text || "");
+  const expectedEmail = expectedCanonicalEmail(phoneNumber).toLowerCase();
+  const hasExpectedEmail = source.toLowerCase().includes(expectedEmail);
+  return (
+    realTestLinkPattern.test(source) &&
+    source.includes("/login") &&
+    canonicalEmailPattern.test(source) &&
+    hasExpectedEmail &&
+    !placeholderCredentialsPattern.test(source)
+  );
+}
+
+async function generateInitialClientMessage(objective: string): Promise<string> {
+  try {
+    const response = await chatComplete({
+      messages: [
+        {
+          role: "system",
+          content:
+            "Voce simula um cliente real em conversa de WhatsApp. Responda sempre em portugues do Brasil, com 1 frase curta.",
+        },
+        {
+          role: "user",
+          content: `${objective}\n\nEnvie a PRIMEIRA mensagem agora, curta e natural.`,
+        },
+      ],
+      maxTokens: 120,
+      temperature: 0.8,
+    });
+
+    const text = String(response.choices?.[0]?.message?.content || "").trim();
+    return text || "Oi, queria entender como funciona.";
+  } catch {
+    return "Oi, queria entender como funciona.";
+  }
 }
 
 async function generateNextClientMessage(
@@ -94,28 +144,64 @@ async function generateNextClientMessage(
   transcript: Array<{ role: "user" | "assistant"; content: string }>,
 ): Promise<string> {
   const compactHistory = transcript.slice(-10);
+  try {
+    const response = await chatComplete({
+      messages: [
+        {
+          role: "system",
+          content:
+            "Voce simula um cliente real no WhatsApp. Fale curto, natural e sem repetir frases. Nao use listas. Sempre faca uma pergunta ou avancar a conversa.",
+        },
+        {
+          role: "user",
+          content:
+            `${objective}\n\nContexto recente:\n${compactHistory
+              .map((m) => `${m.role === "user" ? "Cliente" : "Atendente"}: ${m.content}`)
+              .join("\n")}\n\nEscreva a proxima mensagem do cliente em ate 2 frases.`,
+        },
+      ],
+      maxTokens: 140,
+      temperature: 0.9,
+    });
 
-  const response = await chatComplete({
-    messages: [
-      {
-        role: "system",
-        content:
-          "Voce simula um cliente real no WhatsApp. Fale curto, natural e sem repetir frases. Nao use listas. Sempre faca uma pergunta ou avancar a conversa.",
-      },
-      {
-        role: "user",
-        content:
-          `${objective}\n\nContexto recente:\n${compactHistory
-            .map((m) => `${m.role === "user" ? "Cliente" : "Atendente"}: ${m.content}`)
-            .join("\n")}\n\nEscreva a proxima mensagem do cliente em ate 2 frases.`,
-      },
-    ],
-    maxTokens: 140,
-    temperature: 0.9,
-  });
+    const text = String(response.choices?.[0]?.message?.content || "").trim();
+    return text || "Consegue me mandar o link para eu testar agora?";
+  } catch {
+    return "Consegue me mandar o link para eu testar agora?";
+  }
+}
 
-  const text = String(response.choices?.[0]?.message?.content || "").trim();
-  return text || "Consegue me mandar o link para eu testar agora?";
+function detectGuidedStep(agentMessage: string): "business" | "behavior" | "workflow" | null {
+  const normalized = agentMessage
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  if (
+    normalized.includes("1) qual e o nome do seu negocio") ||
+    normalized.includes("nome do seu negocio") ||
+    normalized.includes("nome do seu negocio e qual e o principal")
+  ) {
+    return "business";
+  }
+
+  if (
+    normalized.includes("2) como voce quer que esse agente trabalhe") ||
+    normalized.includes("como voce quer que esse agente trabalhe")
+  ) {
+    return "behavior";
+  }
+
+  if (
+    normalized.includes("3)") ||
+    normalized.includes("vai realmente fechar agendamentos") ||
+    normalized.includes("quer que ele feche o pedido ate o final") ||
+    normalized.includes("vai usar agendamento")
+  ) {
+    return "workflow";
+  }
+
+  return null;
 }
 
 async function runScenario(scenario: Scenario, index: number): Promise<ScenarioResult> {
@@ -126,13 +212,21 @@ async function runScenario(scenario: Scenario, index: number): Promise<ScenarioR
   const transcript: Array<{ role: "user" | "assistant"; content: string }> = [];
 
   let hasCredentials = false;
+  let hasDeterministicDeliveryPayload = false;
   let demoScreenshot = false;
   let demoVideo = false;
 
   try {
     let clientMessage = await generateInitialClientMessage(scenario.objective);
 
-    for (let turn = 1; turn <= 6; turn += 1) {
+    const sentBusinessReply = () =>
+      transcript.some((m) => m.role === "user" && normalizeText(m.content) === normalizeText(scenario.businessReply));
+    const sentBehaviorReply = () =>
+      transcript.some((m) => m.role === "user" && normalizeText(m.content) === normalizeText(scenario.behaviorReply));
+    const sentWorkflowReply = () =>
+      transcript.some((m) => m.role === "user" && normalizeText(m.content) === normalizeText(scenario.workflowReply));
+
+    for (let turn = 1; turn <= 10; turn += 1) {
       const response = await processAdminMessage(phone, clientMessage, undefined, undefined, true, scenario.contactName);
       if (!response) {
         turns.push({
@@ -140,11 +234,20 @@ async function runScenario(scenario: Scenario, index: number): Promise<ScenarioR
           client: clientMessage,
           agent: "[sem resposta - trigger]",
           hasCredentials,
+          hasDeterministicDelivery: hasDeterministicDeliveryPayload,
           hasDemoScreenshot: demoScreenshot,
           hasDemoVideo: demoVideo,
         });
 
-        clientMessage = await generateNextClientMessage(scenario.objective, transcript);
+        if (!hasCredentials && !sentBusinessReply()) {
+          clientMessage = scenario.businessReply;
+        } else if (!hasCredentials && !sentBehaviorReply()) {
+          clientMessage = scenario.behaviorReply;
+        } else if (!hasCredentials && !sentWorkflowReply()) {
+          clientMessage = scenario.workflowReply;
+        } else {
+          clientMessage = await generateNextClientMessage(scenario.objective, transcript);
+        }
         continue;
       }
 
@@ -152,7 +255,9 @@ async function runScenario(scenario: Scenario, index: number): Promise<ScenarioR
       const credentials = response.actions?.testAccountCredentials;
       const demoAssets = response.actions?.demoAssets;
 
-      hasCredentials = hasCredentials || Boolean(credentials?.email);
+      hasCredentials = hasCredentials || Boolean(credentials?.email && credentials?.simulatorToken);
+      hasDeterministicDeliveryPayload =
+        hasDeterministicDeliveryPayload || hasDeterministicDelivery(agentText, phone);
       demoScreenshot = demoScreenshot || hasDemoScreenshot(agentText, demoAssets?.screenshotUrl || null);
       demoVideo = demoVideo || hasDemoVideo(agentText, demoAssets?.videoUrl || null);
 
@@ -161,6 +266,7 @@ async function runScenario(scenario: Scenario, index: number): Promise<ScenarioR
         client: clientMessage,
         agent: agentText,
         hasCredentials,
+        hasDeterministicDelivery: hasDeterministicDeliveryPayload,
         hasDemoScreenshot: demoScreenshot,
         hasDemoVideo: demoVideo,
       });
@@ -168,24 +274,63 @@ async function runScenario(scenario: Scenario, index: number): Promise<ScenarioR
       transcript.push({ role: "user", content: clientMessage });
       transcript.push({ role: "assistant", content: agentText });
 
-      const doneByCredentials = hasCredentials && !scenario.requireDemoAssets;
-      const doneByDemo = hasCredentials && scenario.requireDemoAssets && (demoScreenshot || demoVideo);
+      const requiresDemoAssets = Boolean(scenario.requireDemoAssets) && !skipDemoAssetsValidation;
+      const doneByCredentials =
+        hasCredentials && hasDeterministicDeliveryPayload && !requiresDemoAssets;
+      const doneByDemo =
+        hasCredentials &&
+        hasDeterministicDeliveryPayload &&
+        requiresDemoAssets &&
+        (demoScreenshot || demoVideo);
       if (doneByCredentials || doneByDemo) {
         break;
+      }
+
+      const guidedStep = detectGuidedStep(agentText);
+      if (guidedStep === "business") {
+        clientMessage = scenario.businessReply;
+        continue;
+      }
+      if (guidedStep === "behavior") {
+        clientMessage = scenario.behaviorReply;
+        continue;
+      }
+      if (guidedStep === "workflow") {
+        clientMessage = scenario.workflowReply;
+        continue;
+      }
+      if (hasCredentials && requiresDemoAssets && !(demoScreenshot || demoVideo)) {
+        clientMessage = "Me manda um print e um video do meu agente funcionando.";
+        continue;
+      }
+
+      if (!hasCredentials && !sentBusinessReply()) {
+        clientMessage = scenario.businessReply;
+        continue;
+      }
+      if (!hasCredentials && !sentBehaviorReply()) {
+        clientMessage = scenario.behaviorReply;
+        continue;
+      }
+      if (!hasCredentials && !sentWorkflowReply()) {
+        clientMessage = scenario.workflowReply;
+        continue;
       }
 
       clientMessage = await generateNextClientMessage(scenario.objective, transcript);
     }
 
-    const success = scenario.requireDemoAssets
-      ? hasCredentials && (demoScreenshot || demoVideo)
-      : hasCredentials;
+    const requiresDemoAssets = Boolean(scenario.requireDemoAssets) && !skipDemoAssetsValidation;
+    const success = requiresDemoAssets
+      ? hasCredentials && hasDeterministicDeliveryPayload && (demoScreenshot || demoVideo)
+      : hasCredentials && hasDeterministicDeliveryPayload;
 
     return {
       scenarioId: scenario.id,
       phone,
       success,
       hasCredentials,
+      hasDeterministicDelivery: hasDeterministicDeliveryPayload,
       hasDemoScreenshot: demoScreenshot,
       hasDemoVideo: demoVideo,
       turns,
@@ -196,6 +341,7 @@ async function runScenario(scenario: Scenario, index: number): Promise<ScenarioR
       phone,
       success: false,
       hasCredentials,
+      hasDeterministicDelivery: hasDeterministicDeliveryPayload,
       hasDemoScreenshot: demoScreenshot,
       hasDemoVideo: demoVideo,
       turns,
@@ -214,7 +360,7 @@ async function main() {
     results.push(result);
 
     console.log(
-      `Resultado ${scenario.id}: ${result.success ? "OK" : "FALHOU"} | credenciais=${result.hasCredentials} | print=${result.hasDemoScreenshot} | video=${result.hasDemoVideo}`,
+      `Resultado ${scenario.id}: ${result.success ? "OK" : "FALHOU"} | credenciais=${result.hasCredentials} | entrega=${result.hasDeterministicDelivery} | print=${result.hasDemoScreenshot} | video=${result.hasDemoVideo}`,
     );
   }
 

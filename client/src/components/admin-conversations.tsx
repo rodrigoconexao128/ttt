@@ -6,8 +6,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Dialog, DialogContent, DialogClose } from "@/components/ui/dialog";
-import { Send, MessageCircle, Search, Smartphone, Bot, X, Trash2, AlertTriangle, Loader2, Receipt } from "lucide-react";
+import { Dialog, DialogContent, DialogClose, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Send, MessageCircle, Search, Smartphone, Bot, X, Trash2, AlertTriangle, Loader2, Receipt, Link2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { formatDistanceToNow } from "date-fns";
@@ -20,6 +20,7 @@ import { MediaUploader, type MediaType } from "@/components/media-uploader";
 import { QuickReplies } from "@/components/quick-replies";
 import { AIMessageGenerator } from "@/components/ai-message-generator";
 import { cn } from "@/lib/utils";
+import { formatWhatsAppTextForHtml } from "@/lib/whatsapp-format";
 
 type AdminConversation = Omit<Conversation, "followupActive" | "followupStage"> & {
   userId?: string;
@@ -43,12 +44,44 @@ export default function AdminConversations() {
   const [isRecordingAudio, setIsRecordingAudio] = useState(false);
   // Detectar se está em mobile
   const [isMobile, setIsMobile] = useState(false);
-  
+
+  const updateConversationHash = useCallback((conversationId: string | null) => {
+    const nextHash = conversationId ? `#conversations/${conversationId}` : "#conversations";
+    window.history.replaceState(null, "", `/admin${nextHash}`);
+  }, []);
+
+  const selectConversation = useCallback((conversationId: string) => {
+    setSelectedConversationId(conversationId);
+    updateConversationHash(conversationId);
+  }, [updateConversationHash]);
+
+  const clearSelectedConversation = useCallback(() => {
+    setSelectedConversationId(null);
+    updateConversationHash(null);
+  }, [updateConversationHash]);
+
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  useEffect(() => {
+    const syncSelectedConversationFromHash = () => {
+      const hash = window.location.hash.replace("#", "");
+      const [tab, conversationId] = hash.split("/");
+
+      if (tab !== "conversations") {
+        return;
+      }
+
+      setSelectedConversationId(conversationId || null);
+    };
+
+    syncSelectedConversationFromHash();
+    window.addEventListener("hashchange", syncSelectedConversationFromHash);
+    return () => window.removeEventListener("hashchange", syncSelectedConversationFromHash);
   }, []);
 
   // Fetch all conversations from admin endpoint
@@ -85,7 +118,7 @@ export default function AdminConversations() {
     },
     onSuccess: (_, active) => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/conversations"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/conversations", selectedConversationId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/conversations", selectedConversationId, "details"] });
       toast({
         title: active ? "Follow-up Ativado" : "Follow-up Desativado",
         description: active 
@@ -144,7 +177,7 @@ export default function AdminConversations() {
     },
     onSuccess: (_, disable) => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/conversations"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/admin/conversations", selectedConversationId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/conversations", selectedConversationId, "details"] });
       toast({
         title: !disable ? "Agente Ativado" : "Agente Desativado",
         description: !disable 
@@ -171,6 +204,7 @@ export default function AdminConversations() {
       setMessageText("");
       queryClient.invalidateQueries({ queryKey: ["/api/admin/messages", selectedConversationId] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/conversations", selectedConversationId, "details"] });
     },
     onError: (error: Error) => {
       toast({
@@ -288,11 +322,13 @@ export default function AdminConversations() {
       return res.json();
     },
     onSuccess: () => {
+      setMessageText("");
       queryClient.invalidateQueries({ queryKey: ["/api/admin/messages", selectedConversationId] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/conversations", selectedConversationId, "details"] });
       toast({
         title: "Historico limpo",
-        description: "Conversa apagada. Conta do cliente mantida.",
+        description: "Conversa zerada. O proximo contato desse cliente inicia um novo atendimento.",
       });
     },
     onError: (error: Error) => {
@@ -309,7 +345,13 @@ export default function AdminConversations() {
     mutationFn: async () => {
       const res = await fetch(`/api/admin/conversations/${selectedConversationId}/complete`, {
         method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
         credentials: "include",
+        body: JSON.stringify({
+          contactNumber: selectedConversation?.contactNumber,
+        }),
       });
       if (!res.ok) {
         const error = await res.json();
@@ -320,12 +362,12 @@ export default function AdminConversations() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/messages", selectedConversationId] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/conversations"] });
-      setSelectedConversationId(null);
+      clearSelectedConversation();
       setResetDialogOpen(false);
       setResetConfirmText("");
       toast({
         title: "Reset Completo!",
-        description: "Conta deletada completamente do banco de dados. Você pode testar novamente do zero.",
+        description: "Conta vinculada a este numero foi deletada. Agora voce pode recriar do zero no proximo contato.",
       });
     },
     onError: (error: Error) => {
@@ -367,6 +409,29 @@ export default function AdminConversations() {
     (selectedConversation?.remoteJid
       ? selectedConversation.remoteJid.split("@")[0].split(":")[0]
       : "");
+
+  const conversationAdminUrl =
+    selectedConversationId
+      ? `${window.location.origin}/admin#conversations/${selectedConversationId}`
+      : "";
+
+  const handleCopyConversationLink = useCallback(async () => {
+    if (!conversationAdminUrl) return;
+
+    try {
+      await navigator.clipboard.writeText(conversationAdminUrl);
+      toast({
+        title: "Link copiado",
+        description: "URL direta desta conversa copiada para a area de transferencia.",
+      });
+    } catch {
+      toast({
+        title: "Erro ao copiar link",
+        description: "Nao foi possivel copiar automaticamente o link desta conversa.",
+        variant: "destructive",
+      });
+    }
+  }, [conversationAdminUrl, toast]);
 
   return (
     <div className="flex w-full h-full gap-0 bg-background">
@@ -432,7 +497,7 @@ export default function AdminConversations() {
                 return (
                   <button
                     key={conversation.id}
-                    onClick={() => setSelectedConversationId(conversation.id)}
+                    onClick={() => selectConversation(conversation.id)}
                     className={`w-full p-4 text-left hover:bg-accent transition-colors ${
                       selectedConversationId === conversation.id
                         ? "bg-sidebar-accent"
@@ -536,8 +601,9 @@ export default function AdminConversations() {
         ) : (
           <>
             {/* Chat Header */}
-            <div className="border-b p-4 flex items-center justify-between flex-shrink-0">
-              <div className="flex items-center gap-3">
+            <div className="border-b p-4 flex flex-col gap-3 flex-shrink-0">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
                 <Avatar 
                   className="w-10 h-10 cursor-pointer hover:opacity-80 transition-opacity"
                   onClick={(e) => {
@@ -566,14 +632,14 @@ export default function AdminConversations() {
                       : displayNumber.charAt(0)}
                   </AvatarFallback>
                 </Avatar>
-                <div>
-                  <h3 className="font-semibold">
+                <div className="min-w-0">
+                  <h3 className="font-semibold truncate">
                     {selectedConversation?.contactName || displayNumber}
                   </h3>
-                  <p className="text-xs text-muted-foreground">{displayNumber}</p>
+                  <p className="text-xs text-muted-foreground truncate">{displayNumber}</p>
                 </div>
-              </div>
-              <div className="flex items-center gap-2">
+                </div>
+                <div className="flex flex-wrap items-center justify-end gap-2 shrink-0">
                 <div className="flex items-center gap-2">
                   <Badge variant={isAgentDisabled ? "secondary" : "default"}>
                     {isAgentDisabled ? "Agente Desativado" : "Agente Ativo"}
@@ -595,6 +661,20 @@ export default function AdminConversations() {
                     disabled={toggleFollowUpMutation.isPending}
                   />
                 </div>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleCopyConversationLink}
+                  disabled={!selectedConversationId}
+                  title="Copiar URL direta desta conversa"
+                >
+                  <Link2 className="w-4 h-4 mr-1" />
+                  Copiar link
+                </Button>
 
                 <Button
                   variant="outline"
@@ -605,20 +685,22 @@ export default function AdminConversations() {
                   }}
                   disabled={clearHistoryMutation.isPending}
                   title="Limpar historico da conversa"
+                  data-testid="button-clear-conversation-history"
                 >
                   <Trash2 className="w-4 h-4 mr-1" />
                   Limpar conversa
                 </Button>
-                {selectedConversation?.userId && (
+                {selectedConversationId && (
                   <Button
                     variant="destructive"
                     size="sm"
                     onClick={() => setResetDialogOpen(true)}
                     disabled={resetCompleteMutation.isPending}
-                    title="Excluir conta de teste e permitir criacao do zero"
+                    title="Excluir qualquer conta vinculada a este numero e permitir criacao do zero"
+                    data-testid="button-reset-linked-account"
                   >
                     <AlertTriangle className="w-4 h-4 mr-1" />
-                    Excluir conta de teste
+                    Excluir conta vinculada
                   </Button>
                 )}
               </div>
@@ -670,9 +752,10 @@ export default function AdminConversations() {
                             fromMe={message.fromMe}
                           />
                           {message.text && (
-                            <p className="text-sm whitespace-pre-wrap break-words">
-                              {message.text}
-                            </p>
+                            <p
+                              className="text-sm whitespace-pre-wrap break-words"
+                              dangerouslySetInnerHTML={{ __html: formatWhatsAppTextForHtml(message.text) }}
+                            />
                           )}
                         </div>
                       ) : message.mediaType === "video" && message.mediaUrl ? (
@@ -683,11 +766,17 @@ export default function AdminConversations() {
                             className="max-w-[280px] max-h-[280px] rounded-lg"
                           />
                           {message.mediaCaption && (
-                            <p className="text-sm whitespace-pre-wrap break-words">{message.mediaCaption}</p>
+                            <p
+                              className="text-sm whitespace-pre-wrap break-words"
+                              dangerouslySetInnerHTML={{ __html: formatWhatsAppTextForHtml(message.mediaCaption) }}
+                            />
                           )}
                         </div>
                       ) : (
-                        <p className="text-sm whitespace-pre-wrap break-words">{message.text}</p>
+                        <p
+                          className="text-sm whitespace-pre-wrap break-words"
+                          dangerouslySetInnerHTML={{ __html: formatWhatsAppTextForHtml(message.text) }}
+                        />
                       )}
                       
                       <p
@@ -827,13 +916,17 @@ export default function AdminConversations() {
       {/* Reset Complete Dialog */}
       <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
         <DialogContent className="max-w-md">
+          <DialogTitle className="sr-only">Reset completo da conta vinculada</DialogTitle>
+          <DialogDescription className="sr-only">
+            Confirma a exclusao irreversivel da conta vinculada ao numero desta conversa.
+          </DialogDescription>
           <div className="space-y-4">
             <div className="flex items-start gap-3">
               <AlertTriangle className="w-6 h-6 text-red-600 flex-shrink-0 mt-1" />
               <div>
                 <h3 className="font-semibold text-lg">⚠️ ATENÇÃO - Reset Completo</h3>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Esta ação é IRREVERSÍVEL e vai DELETAR TUDO do banco de dados:
+                  Esta ação é IRREVERSÍVEL e vai DELETAR TODA a conta vinculada a este número:
                 </p>
               </div>
             </div>

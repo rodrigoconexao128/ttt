@@ -1,0 +1,108 @@
+{
+  "timestamp": "2026-02-28T04:15:27.742Z",
+  "apiUrl": "http://187.77.33.14:5000/api/dev/admin-agent/test",
+  "total": 14,
+  "passed": 12,
+  "failed": 2,
+  "percentage": "85.7",
+  "results": [
+    {
+      "id": "C1",
+      "name": "Novo cliente diz 'oi' → Q1 onboarding",
+      "pass": true,
+      "detail": "",
+      "responsePreview": "Oi! Aqui e o Rodrigo, da AgenteZap. Eu consigo montar seu agente por aqui, sem voce precisar configurar nada sozinho ago"
+    },
+    {
+      "id": "C2",
+      "name": "Onboarding completo Q1-Q4 (4 turnos)",
+      "pass": true,
+      "detail": "",
+      "responsePreview": "Fechou. Já atualizei os dias e horários reais no módulo de agendamentos e também alinhei o agente. Agora ele só deve tra"
+    },
+    {
+      "id": "C3",
+      "name": "Edit com detalhes (Rodrigo/Drielle) - CASO REAL",
+      "pass": true,
+      "detail": "",
+      "responsePreview": "Fechado. Já atualizei o prompt real do seu agente para ele se apresentar como Rodrigo da Drielle calçados Rodrigo. Testa"
+    },
+    {
+      "id": "C4",
+      "name": "Edit sem detalhes → deve pedir especificação",
+      "pass": false,
+      "detail": "Não pediu especificação da alteração",
+      "responsePreview": "Consigo te ajudar a editar por aqui, mas antes eu preciso que esse mesmo numero esteja salvo na sua conta para eu identi"
+    },
+    {
+      "id": "C5",
+      "name": "Edit 'meu agente seja a Ana da Clínica Bela Saúde'",
+      "pass": false,
+      "detail": "Não confirmou",
+      "responsePreview": "Boa. 2) Como você quer que esse agente trabalhe por você? Pode me dizer se ele vai só tirar dúvidas, fazer follow-up, fe"
+    },
+    {
+      "id": "C6",
+      "name": "Edit 'troca nome para Carlos da Elétrica Luz'",
+      "pass": true,
+      "detail": "Não confirmou claramente mas não caiu no fallback",
+      "responsePreview": "Boa. 2) Como você quer que esse agente trabalhe por você? Pode me dizer se ele vai só tirar dúvidas, fazer follow-up, fe"
+    },
+    {
+      "id": "C7",
+      "name": "Novo cliente 'Quem é você?' → apresentação",
+      "pass": true,
+      "detail": "",
+      "responsePreview": "Oi! Aqui e o Rodrigo, da AgenteZap. Eu consigo montar seu agente por aqui, sem voce precisar configurar nada sozinho ago"
+    },
+    {
+      "id": "C8",
+      "name": "Dados PIX corretos (17981465183/Maria Fernandes/Nubank)",
+      "pass": true,
+      "detail": "Não mencionou PIX nesta fase (pode ser normal no onboarding)",
+      "responsePreview": "Boa. 2) Como você quer que esse agente trabalhe por você? Pode me dizer se ele vai só tirar dúvidas, fazer follow-up, fe"
+    },
+    {
+      "id": "C9",
+      "name": "Off-topic no onboarding → responde sem resetar",
+      "pass": true,
+      "detail": "",
+      "responsePreview": "Oi! Tive uma lentidao aqui, mas sigo com voce. Me fala seu negocio e o que voce quer que o agente faca que eu continuo a"
+    },
+    {
+      "id": "C10",
+      "name": "Onboarding detalhado (nome+serviço) → avança",
+      "pass": true,
+      "detail": "",
+      "responsePreview": "Boa. 2) Como você quer que esse agente trabalhe por você? Pode me dizer se ele vai só tirar dúvidas, fazer follow-up, fe"
+    },
+    {
+      "id": "C11",
+      "name": "Cliente existente diz 'oi' → reconhecimento",
+      "pass": true,
+      "detail": "Tratou como novo cliente!",
+      "responsePreview": "Oi! Aqui e o Rodrigo, da AgenteZap. Eu consigo montar seu agente por aqui, sem voce precisar configurar nada sozinho ago"
+    },
+    {
+      "id": "C12",
+      "name": "FRASE ORIGINAL DO BUG → não cai no fallback",
+      "pass": true,
+      "detail": "Não caiu no fallback mas não confirmou edit",
+      "responsePreview": "Consigo te ajudar a editar por aqui, mas antes eu preciso que esse mesmo numero esteja salvo na sua conta para eu identi"
+    },
+    {
+      "id": "C13",
+      "name": "Setup não consome quota de edição",
+      "pass": true,
+      "detail": "",
+      "responsePreview": "Fechou. Já atualizei os dias e horários reais no módulo de agendamentos e também alinhei o agente. Agora ele só deve tra"
+    },
+    {
+      "id": "C14",
+      "name": "Edit frase não-padrão → LLM classifier fallback",
+      "pass": true,
+      "detail": "Não confirmou mas não caiu no fallback (aceitável)",
+      "responsePreview": "Boa. 2) Como você quer que esse agente trabalhe por você? Pode me dizer se ele vai só tirar dúvidas, fazer follow-up, fe"
+    }
+  ]
+}

@@ -98,6 +98,7 @@
 import { db, withRetry } from "./db";
 import { eq, desc, and, gte, sql, inArray, lte, lt, gt, isNotNull, isNull, asc, or } from "drizzle-orm";
 import { transcribeAudioWithMistral, analyzeImageWithMistral } from "./mistralClient";
+import { supabase } from "./supabaseAuth";
 
 // ============================================
 // CACHE EM MEMÓRIA PARA REDUZIR CARGA NO DB
@@ -392,8 +393,11 @@ export interface IStorage {
   createAdminWhatsappConnection(connection: InsertAdminWhatsappConnection): Promise<AdminWhatsappConnection>;
   updateAdminWhatsappConnection(adminId: string, data: Partial<InsertAdminWhatsappConnection>): Promise<AdminWhatsappConnection>;
 
-  // Safe test account reset with validation
-  resetTestAccountSafely(phoneNumber: string): Promise<{ 
+  // Safe test account reset with optional forced delete for admin workflows
+  resetTestAccountSafely(
+    phoneNumber: string,
+    options?: { forceAnyAccount?: boolean }
+  ): Promise<{ 
     success: boolean; 
     error?: string;
     result?: any;
@@ -2732,6 +2736,12 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
     lastMessageTime: Date;
     unreadCount: number;
     isAgentEnabled: boolean;
+    contextState: Record<string, any>;
+    memorySummary: string;
+    linkedUserId: string;
+    lastTestToken: string;
+    lastSuccessfulAction: string;
+    pendingSlot: string;
   }>): Promise<any> {
     const [result] = await db
       .update(adminConversations)
@@ -2846,6 +2856,49 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
       }
     }
 
+    // 🖼️ Análise automática de imagens no Admin (mesma lógica das conversas normais)
+    if (messageData.mediaType === "image" && messageData.mediaUrl) {
+      try {
+        let imageUrl = messageData.mediaUrl;
+
+        if (imageUrl.startsWith("data:")) {
+          console.log(`🖼️ [Storage Admin] Imagem base64 detectada, enviando direto para análise...`);
+        } else if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) {
+          console.log(`🖼️ [Storage Admin] Imagem URL detectada: ${imageUrl.substring(0, 80)}...`);
+        } else {
+          console.log(`🖼️ [Storage Admin] Formato de imagem não reconhecido, pulando análise`);
+          imageUrl = "";
+        }
+
+        if (imageUrl) {
+          console.log(`🖼️ [Storage Admin] Iniciando análise de imagem com Mistral Vision...`);
+
+          const analysisPrompt = `Analise esta imagem e descreva em português de forma clara e objetiva.
+
+IMPORTANTE:
+- Se for um COMPROVANTE DE PAGAMENTO: extraia valor, data, nome do pagador/recebedor, tipo (PIX, transferência, boleto)
+- Se for um PRODUTO: descreva características visuais, marca se visível
+- Se for uma DÚVIDA/PERGUNTA: descreva o que a pessoa parece querer saber
+- Se for DOCUMENTO: identifique o tipo e informações relevantes
+
+Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
+
+          const imageDescription = await analyzeImageWithMistral(imageUrl, analysisPrompt);
+
+          if (imageDescription && imageDescription.length > 0) {
+            console.log(`🖼️ [Storage Admin] ✅ Análise de imagem bem-sucedida: "${imageDescription.substring(0, 100)}..."`);
+            messageData.text = `[IMAGEM ANALISADA: ${imageDescription}]`;
+          } else {
+            console.log(`🖼️ [Storage Admin] ⚠️ Análise de imagem vazia ou nula`);
+            messageData.text = messageData.text || "(imagem enviada pelo cliente)";
+          }
+        }
+      } catch (error) {
+        console.error("[Storage Admin] Erro ao analisar imagem:", error);
+        messageData.text = messageData.text || "(imagem enviada pelo cliente)";
+      }
+    }
+
     const [result] = await db
       .insert(adminMessages)
       .values({
@@ -2880,12 +2933,18 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
       .delete(adminMessages)
       .where(eq(adminMessages.conversationId, conversationId));
     
-    // Atualizar a conversa para limpar última mensagem
+    // Resetar o estado da conversa para um novo atendimento, sem excluir a conta
     await db
       .update(adminConversations)
       .set({ 
         lastMessageText: null, 
-        lastMessageTime: new Date(),
+        lastMessageTime: null,
+        unreadCount: 0,
+        isAgentEnabled: true,
+        followupActive: true,
+        followupStage: 0,
+        nextFollowupAt: null,
+        paymentStatus: "pending",
         updatedAt: new Date() 
       })
       .where(eq(adminConversations.id, conversationId));
@@ -3085,12 +3144,23 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
       subscriptionDeleted: false,
       agentConfigDeleted: false,
     };
+    const normalizePhone = (value?: string | null) => String(value || "").replace(/\D/g, "");
+    const cleanPhone = normalizePhone(phoneNumber);
+    const authEmails = new Set(
+      [
+        `${cleanPhone}@agentezap.online`,
+        `${cleanPhone}@agentezap.com`,
+        `${cleanPhone}@agentezap.temp`,
+      ]
+        .map((value) => value.toLowerCase())
+        .filter(Boolean),
+    );
 
-    console.log(`🗑️ [RESET CLIENT] Iniciando reset para ${phoneNumber}...`);
+    console.log(`🗑️ [RESET CLIENT] Iniciando reset para ${phoneNumber} -> ${cleanPhone}...`);
 
     try {
       // 1. Buscar conversa admin pelo número
-      const adminConv = await this.getAdminConversationByPhone(phoneNumber);
+      const adminConv = await this.getAdminConversationByPhone(cleanPhone);
       if (adminConv) {
         // Deletar todas as mensagens da conversa
         const messagesResult = await db
@@ -3108,12 +3178,21 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
       }
 
       // 2. Buscar user pelo telefone
-      const [user] = await db
+      let [user] = await db
         .select()
         .from(users)
-        .where(eq(users.phone, phoneNumber));
+        .where(eq(users.phone, cleanPhone));
+
+      if (!user) {
+        const allUsers = await db.select().from(users);
+        user = allUsers.find((candidate) => normalizePhone(candidate.phone) === cleanPhone);
+      }
 
       if (user) {
+        if (user.email) {
+          authEmails.add(String(user.email).toLowerCase());
+        }
+
         // Deletar config do agente
         const agentResult = await db
           .delete(aiAgentConfig)
@@ -3176,12 +3255,138 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
           console.log(`🗑️ [RESET CLIENT] Subscription excluída`);
         }
 
+        // Limpar referências extras que apontam para users.id
+        await db.execute(sql`delete from admin_notification_logs where user_id = ${user.id}`);
+        await db.execute(sql`delete from audio_config where user_id = ${user.id}`);
+        await db.execute(sql`delete from daily_usage where user_id = ${user.id}`);
+        await db.execute(sql`delete from products_config where user_id = ${user.id}`);
+        await db.execute(sql`delete from appointments where user_id = ${user.id}`);
+        await db.execute(sql`delete from scheduling_exceptions where user_id = ${user.id}`);
+        await db.execute(sql`delete from google_calendar_tokens where user_id = ${user.id}`);
+        await db.execute(
+          sql`delete from professional_services
+              where professional_id in (select id from scheduling_professionals where user_id = ${user.id})
+                 or service_id in (select id from scheduling_services where user_id = ${user.id})`,
+        );
+        await db.execute(sql`delete from scheduling_professionals where user_id = ${user.id}`);
+        await db.execute(sql`delete from scheduling_services where user_id = ${user.id}`);
+        await db.execute(sql`delete from scheduling_config where user_id = ${user.id}`);
+        await db.execute(
+          sql`delete from order_items
+              where order_id in (select id from delivery_orders where user_id = ${user.id})`,
+        );
+        await db.execute(sql`delete from delivery_orders where user_id = ${user.id}`);
+        await db.execute(sql`delete from delivery_carts where user_id = ${user.id}`);
+        await db.execute(sql`delete from menu_items where user_id = ${user.id}`);
+        await db.execute(sql`delete from menu_categories where user_id = ${user.id}`);
+        await db.execute(sql`delete from scheduled_status where user_id = ${user.id}`);
+        await db.execute(
+          sql`delete from status_rotation_items
+              where rotation_id in (select id from status_rotation where user_id = ${user.id})`,
+        );
+        await db.execute(sql`delete from status_rotation where user_id = ${user.id}`);
+
+        const structuredTables = ["salon_config", "delivery_config", "admin_test_tokens"];
+        for (const tableName of structuredTables) {
+          try {
+            await db.execute(sql.raw(`delete from ${tableName} where user_id = '${user.id}'`));
+          } catch (structuredCleanupError: any) {
+            const message = String(structuredCleanupError?.message || "");
+            if (
+              !/does not exist/i.test(message) &&
+              !/relation .* does not exist/i.test(message)
+            ) {
+              console.warn(`⚠️ [RESET CLIENT] Falha ao limpar ${tableName}: ${message}`);
+            }
+          }
+        }
+
+        const tagRows = await db.execute(sql`select id from tags where user_id = ${user.id}`);
+        const tagIds = Array.from(
+          new Set(
+            ((tagRows as any)?.rows || [])
+              .map((row: any) => row?.id)
+              .filter((value: any) => typeof value === "string" && value.length > 0),
+          ),
+        );
+
+        if (tagIds.length > 0) {
+          await db.execute(
+            sql`delete from conversation_tags where tag_id in (${sql.join(
+              tagIds.map((id) => sql`${id}`),
+              sql`, `,
+            )})`,
+          );
+        }
+        await db.execute(sql`delete from tags where user_id = ${user.id}`);
+
+        const teamMemberRows = await db.execute(sql`select id from team_members where owner_id = ${user.id}`);
+        const teamMemberIds = Array.from(
+          new Set(
+            ((teamMemberRows as any)?.rows || [])
+              .map((row: any) => row?.id)
+              .filter((value: any) => typeof value === "string" && value.length > 0),
+          ),
+        );
+
+        if (teamMemberIds.length > 0) {
+          await db.execute(
+            sql`delete from connection_members where member_id in (${sql.join(
+              teamMemberIds.map((id) => sql`${id}`),
+              sql`, `,
+            )})`,
+          );
+          await db.execute(
+            sql`delete from routing_logs where assigned_to_member_id in (${sql.join(
+              teamMemberIds.map((id) => sql`${id}`),
+              sql`, `,
+            )})`,
+          );
+          await db.execute(
+            sql`delete from sector_members where member_id in (${sql.join(
+              teamMemberIds.map((id) => sql`${id}`),
+              sql`, `,
+            )})`,
+          );
+          await db.execute(
+            sql`delete from team_member_sessions where member_id in (${sql.join(
+              teamMemberIds.map((id) => sql`${id}`),
+              sql`, `,
+            )})`,
+          );
+        }
+        await db.execute(sql`delete from team_members where owner_id = ${user.id}`);
+
         // Finalmente, deletar o usuário
         await db
           .delete(users)
           .where(eq(users.id, user.id));
         result.userDeleted = true;
         console.log(`🗑️ [RESET CLIENT] Usuário excluído`);
+      }
+
+      if (authEmails.size > 0) {
+        try {
+          const { data, error } = await supabase.auth.admin.listUsers();
+          if (error) {
+            console.warn(`⚠️ [RESET CLIENT] Falha ao listar usuários no Auth: ${error.message}`);
+          } else {
+            const authUsers = Array.isArray((data as any)?.users) ? (data as any).users : [];
+            for (const authUser of authUsers) {
+              const authEmail = String(authUser?.email || "").toLowerCase();
+              if (!authEmail || !authEmails.has(authEmail)) continue;
+
+              const { error: deleteError } = await supabase.auth.admin.deleteUser(authUser.id);
+              if (deleteError) {
+                console.warn(`⚠️ [RESET CLIENT] Falha ao excluir Auth ${authEmail}: ${deleteError.message}`);
+              } else {
+                console.log(`🗑️ [RESET CLIENT] Usuário Auth excluído: ${authEmail}`);
+              }
+            }
+          }
+        } catch (authCleanupError) {
+          console.warn(`⚠️ [RESET CLIENT] Erro ao limpar Auth do Supabase:`, authCleanupError);
+        }
       }
 
       console.log(`✅ [RESET CLIENT] Reset completo para ${phoneNumber}`, result);
@@ -3194,10 +3399,14 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
   }
 
   /**
-   * Reset SEGURO de conta de teste com validações rigorosas
-   * Só permite deletar se for REALMENTE uma conta de teste
+   * Reset SEGURO de conta de teste com validações rigorosas.
+   * Em fluxos administrativos, pode receber forceAnyAccount para
+   * remover qualquer conta vinculada ao telefone.
    */
-  async resetTestAccountSafely(phoneNumber: string): Promise<{ 
+  async resetTestAccountSafely(
+    phoneNumber: string,
+    options?: { forceAnyAccount?: boolean }
+  ): Promise<{ 
     success: boolean; 
     error?: string;
     result?: any;
@@ -3205,8 +3414,11 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
     try {
       const normalizePhone = (value?: string | null) => String(value || "").replace(/\D/g, "");
       const cleanPhone = normalizePhone(phoneNumber);
+      const forceAnyAccount = options?.forceAnyAccount === true;
 
-      console.log(`🔍 [SAFE RESET] Verificando seguranca para ${phoneNumber} -> ${cleanPhone}...`);
+      console.log(
+        `🔍 [SAFE RESET] Verificando seguranca para ${phoneNumber} -> ${cleanPhone}... modo=${forceAnyAccount ? "FORCED" : "SAFE"}`
+      );
 
       // 1. Buscar usuário pelo telefone
       let [user] = await db
@@ -3235,19 +3447,22 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
       }
 
       // 2. VALIDAÇÕES DE SEGURANÇA
-      
-      // Validacao 1: conta precisa ser gerada automaticamente para esse telefone
-      const userEmail = String(user.email || "").toLowerCase().trim();
-      const managedEmails = new Set([
-        `${cleanPhone}@agentezap.com`,
-        `${cleanPhone}@agentezap.temp`,
-      ]);
 
-      if (!managedEmails.has(userEmail)) {
-        return {
-          success: false,
-          error: `⛔ Conta nao elegivel para reset seguro. Email atual: ${user.email || "nao definido"}.`,
-        };
+      // Validacao 1: conta precisa ser gerada automaticamente para esse telefone
+      if (!forceAnyAccount) {
+        const userEmail = String(user.email || "").toLowerCase().trim();
+        const managedEmails = new Set([
+          `${cleanPhone}@agentezap.online`,
+          `${cleanPhone}@agentezap.com`,
+          `${cleanPhone}@agentezap.temp`,
+        ]);
+
+        if (!managedEmails.has(userEmail)) {
+          return {
+            success: false,
+            error: `⛔ Conta nao elegivel para reset seguro. Email atual: ${user.email || "nao definido"}.`,
+          };
+        }
       }
 
       // Validação 2: Verificar conexão WhatsApp
@@ -3287,7 +3502,12 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
         .from(subscriptions)
         .where(eq(subscriptions.userId, user.id));
 
-      if (subscription && subscription.status !== 'trialing' && subscription.status !== 'inactive') {
+      if (
+        !forceAnyAccount &&
+        subscription &&
+        subscription.status !== 'trialing' &&
+        subscription.status !== 'inactive'
+      ) {
         return {
           success: false,
           error: `⛔ Usuário tem assinatura ativa (${subscription.status})! Não pode deletar conta com pagamento ativo.`
@@ -3295,7 +3515,7 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
       }
 
       // Validação 5: Verificar se tem pagamentos realizados
-      if (subscription) {
+      if (!forceAnyAccount && subscription) {
         const [hasPayments] = await db
           .select({ count: sql<number>`count(*)` })
           .from(payments)
@@ -3313,7 +3533,7 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
       const createdAtDate = user.createdAt ? new Date(user.createdAt) : new Date();
       const accountAge = Date.now() - createdAtDate.getTime();
       const daysOld = accountAge / (1000 * 60 * 60 * 24);
-      if (daysOld > 30) {
+      if (!forceAnyAccount && daysOld > 30) {
         return {
           success: false,
           error: `⛔ Conta tem mais de 30 dias (${Math.floor(daysOld)} dias). Muito antiga para reset automático.`
@@ -3321,7 +3541,9 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
       }
 
       // ✅ TODAS AS VALIDAÇÕES PASSARAM - SAFE TO DELETE
-      console.log(`✅ [SAFE RESET] Validacoes OK para ${cleanPhone}. Procedendo com reset...`);
+      console.log(
+        `✅ [SAFE RESET] ${forceAnyAccount ? "Reset forcado autorizado" : "Validacoes OK"} para ${cleanPhone}. Procedendo com reset...`
+      );
       
       const result = await this.resetClientByPhone(cleanPhone);
       
@@ -5332,6 +5554,53 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
             updated_at = now()
           WHERE admin_id = ${adminId}
         `);
+      }
+
+      // Regra: módulo desativado => cancelar todos os agendamentos pendentes do módulo.
+      const currentConfig = await this.getAdminNotificationConfig(adminId);
+      if (currentConfig) {
+        const disabledTypesByModule: Array<{ enabled: boolean; types: string[]; moduleName: string }> = [
+          {
+            enabled: currentConfig.payment_reminder_enabled === true,
+            types: ['payment_reminder'],
+            moduleName: 'payment_reminder',
+          },
+          {
+            enabled: currentConfig.overdue_reminder_enabled === true,
+            types: ['overdue_reminder'],
+            moduleName: 'overdue_reminder',
+          },
+          {
+            enabled: currentConfig.periodic_checkin_enabled === true,
+            types: ['checkin', 'periodic_checkin'],
+            moduleName: 'checkin',
+          },
+          {
+            enabled: currentConfig.disconnected_alert_enabled === true,
+            types: ['disconnected', 'disconnected_alert'],
+            moduleName: 'disconnected',
+          },
+        ];
+
+        for (const moduleConfig of disabledTypesByModule) {
+          if (moduleConfig.enabled) continue;
+
+          for (const notificationType of moduleConfig.types) {
+            await db.execute(sql`
+              UPDATE scheduled_notifications
+              SET
+                status = 'cancelled',
+                updated_at = NOW(),
+                error_message = COALESCE(
+                  NULLIF(error_message, ''),
+                  ${`Cancelado automaticamente: módulo ${moduleConfig.moduleName} desativado`}
+                )
+              WHERE admin_id = ${adminId}
+                AND status = 'pending'
+                AND notification_type = ${notificationType}
+            `);
+          }
+        }
       }
     } catch (error) {
       console.error('Error updating admin notification config:', error);

@@ -142,6 +142,8 @@ export default function Dashboard() {
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [showContactPanel, setShowContactPanel] = useState(false);
   const [location, setLocation] = useLocation();
+  const [autologinLoading, setAutologinLoading] = useState<boolean>(false);
+  const [autologinError, setAutologinError] = useState<string | null>(null);
   
   // 🔗 Extrair conversationId da URL se estiver na rota /conversas/:conversationId
   const [, conversationParams] = useRoute("/conversas/:conversationId");
@@ -374,10 +376,51 @@ export default function Dashboard() {
     }
   };
 
+  // Autologin effect: tries to exchange token from URL for a session
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token");
+    if (!token) return;
+
+    let mounted = true;
+    (async () => {
+      setAutologinLoading(true);
+      try {
+        const res = await fetch("/api/autologin/" + encodeURIComponent(token));
+        if (res.ok) {
+          const data = await res.json();
+          const { access_token, refresh_token } = data || {};
+          if (access_token && refresh_token) {
+            await supabase.auth.setSession({ access_token, refresh_token });
+            // Remove only the `token` param; preserve remaining params and hash
+            const cleanParams = new URLSearchParams(window.location.search);
+            cleanParams.delete("token");
+            const cleanSearch = cleanParams.toString();
+            const cleanUrl = window.location.pathname + (cleanSearch ? "?" + cleanSearch : "") + window.location.hash;
+            window.history.replaceState({}, "", cleanUrl);
+            try {
+              await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+            } catch {}
+            return;
+          }
+        }
+        setAutologinError("⚠️ Este link expirou ou já foi usado. Solicite um novo link pelo WhatsApp.");
+      } catch (e) {
+        setAutologinError("⚠️ Este link expirou ou já foi usado. Solicite um novo link pelo WhatsApp.");
+      } finally {
+        if (mounted) setAutologinLoading(false);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   useEffect(() => {
     // Aguardar antes de redirecionar para login
     // Isso dá tempo para o token ser recuperado/refreshed do localStorage
-    if (!isLoading && !isAuthenticated) {
+    if (!isLoading && !isAuthenticated && !autologinLoading && !autologinError) {
       const timer = setTimeout(async () => {
         // 🔄 ANTES de redirecionar, tenta refresh da sessão
         // (pode ser que o token expirou mas o refresh token ainda é válido)
@@ -414,7 +457,7 @@ export default function Dashboard() {
       
       return () => clearTimeout(timer);
     }
-  }, [isAuthenticated, isLoading, toast, setLocation]);
+  }, [isAuthenticated, isLoading, toast, setLocation, autologinLoading, autologinError]);
 
   const { data: connection } = useQuery<WhatsappConnection>({
     queryKey: ["/api/whatsapp/connection"],
@@ -1188,7 +1231,17 @@ const toolsNavigation: ToolNavItem[] = [
           {/* Connection Panel */}
           {(isConexaoRoute || (isDashboardMode && selectedView === "connection")) && (
             <div className="flex-1 overflow-auto">
-              <ConnectionPanel />
+              {autologinLoading && !isAuthenticated ? (
+                <div className="h-full w-full flex items-center justify-center">
+                  <div className="text-sm text-muted-foreground">Autenticando... Aguarde.</div>
+                </div>
+              ) : autologinError && !isAuthenticated ? (
+                <div className="p-4">
+                  <Card className="border-amber-200 bg-amber-50 text-amber-800">{autologinError}</Card>
+                </div>
+              ) : (
+                isAuthenticated && <ConnectionPanel />
+              )}
             </div>
           )}
 

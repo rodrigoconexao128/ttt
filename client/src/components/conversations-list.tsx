@@ -7,8 +7,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Search, MessageCircle, Smartphone, X, Tags, Filter, CheckCheck, Circle, Mail, MailOpen, MessageSquarePlus, Archive, ArchiveRestore, Loader2, Bot, Clock } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import type { Conversation } from "@shared/schema";
-import { useState, useEffect, useRef, useCallback } from "react";
+import type { Conversation, WhatsappConnection } from "@shared/schema";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type React from "react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useLocation } from "wouter";
@@ -240,6 +240,17 @@ export function ConversationsList({
     queryKey: ["/api/tags"],
     enabled: true, // ⚡ OTIMIZADO: Carregar imediatamente
   });
+  const { data: allConnections = [] } = useQuery<WhatsappConnection[]>({
+    queryKey: ["/api/whatsapp/connections"],
+    enabled: true,
+    staleTime: 15000,
+    refetchOnWindowFocus: false,
+  });
+
+  const connectionMetaById = useMemo(
+    () => new Map(allConnections.map((conn) => [conn.id, conn])),
+    [allConnections],
+  );
 
   // WebSocket para atualização em tempo real
   useEffect(() => {
@@ -611,7 +622,8 @@ export function ConversationsList({
     try {
       const response = await apiRequest("POST", "/api/conversations/new-contact", {
         phoneNumber: newContactNumber.replace(/\D/g, ""),
-        contactName: newContactName.trim() || undefined,
+        name: newContactName.trim() || undefined,
+        connectionId: connectionId || undefined,
       });
       
       const data = await response.json();
@@ -688,6 +700,15 @@ export function ConversationsList({
   const archiveActionLabel = statusFilter === "archived" ? "Desarquivar" : "Arquivar";
   const ArchiveActionIcon = statusFilter === "archived" ? ArchiveRestore : Archive;
 
+  const formatConnectionBadge = (conversation: ConversationWithTags): string | null => {
+    if (allConnections.length <= 1 || !conversation.connectionId) return null;
+    const connectionMeta = connectionMetaById.get(conversation.connectionId);
+    if (!connectionMeta) return `Conexão ${conversation.connectionId.slice(0, 4)}`;
+    if (connectionMeta.connectionName?.trim()) return connectionMeta.connectionName.trim();
+    if (connectionMeta.phoneNumber) return `Linha ${connectionMeta.phoneNumber}`;
+    return `Conexão ${connectionMeta.id.slice(0, 4)}`;
+  };
+
   /** Destaca o termo de busca no texto com <mark> */
   const highlightTerm = (text: string | null | undefined, term: string): React.ReactNode => {
     if (!text || !term) return text || "";
@@ -718,6 +739,7 @@ export function ConversationsList({
 
     // Badge de pendência — só mostrar fora de busca (na lista normal já há o chip de filtro)
     const showPendingBadge = !conversation.hasReplied && !conversation.isArchived;
+    const connectionBadge = formatConnectionBadge(conversation);
 
     return (
       <button
@@ -766,6 +788,15 @@ export function ConversationsList({
                   ? highlightTerm(conversation.contactName || displayNumber, debouncedQuery)
                   : (conversation.contactName || displayNumber)}
               </h3>
+              {connectionBadge && (
+                <Badge
+                  variant="outline"
+                  className="h-5 px-1.5 text-[10px] border-sky-200 text-sky-700 bg-sky-50"
+                  title="NÃºmero de origem desta conversa"
+                >
+                  {connectionBadge}
+                </Badge>
+              )}
               <div className="flex items-center gap-1 flex-shrink-0">
                 {conversation.lastMessageTime && (
                   <span className="text-xs text-muted-foreground">

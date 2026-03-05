@@ -649,6 +649,24 @@ export const adminConversations = pgTable("admin_conversations", {
     useEmojis: true,
   }),
 
+  // 🧠 MEMÓRIA PERSISTIDA POR CONVERSA  
+  contextState: jsonb("context_state").$type<{
+    mode?: string;
+    pendingSlot?: string;
+    capturedSlots?: Record<string, string>;
+    lastIntent?: string;
+    lastQuestionAnswered?: string;
+    pendingPaymentMethod?: string;
+    awaitingProof?: boolean;
+    quotaConsumedThisTurn?: boolean;
+    nextResumePrompt?: string;
+  }>().default({}),
+  memorySummary: text("memory_summary"),
+  linkedUserId: varchar("linked_user_id"),
+  lastTestToken: text("last_test_token"),
+  lastSuccessfulAction: text("last_successful_action"),
+  pendingSlot: text("pending_slot"),
+
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
@@ -1153,6 +1171,7 @@ export const usersRelations = relations(users, ({ many, one }) => ({
     references: [businessAgentConfigs.userId],
   }),
   subscriptions: many(subscriptions),
+  broadcastCampaigns: many(broadcastCampaigns),
 }));
 
 export const whatsappConnectionsRelations = relations(whatsappConnections, ({ one, many }) => ({
@@ -1166,6 +1185,7 @@ export const whatsappConnectionsRelations = relations(whatsappConnections, ({ on
   }),
   conversations: many(conversations),
   contacts: many(whatsappContacts),
+  broadcastCampaigns: many(broadcastCampaigns),
 }));
 
 export const whatsappContactsRelations = relations(whatsappContacts, ({ one }) => ({
@@ -3844,3 +3864,52 @@ export const businessCategories = pgTable("business_categories", {
 
 export type BusinessCategory = typeof businessCategories.$inferSelect;
 export type InsertBusinessCategory = typeof businessCategories.$inferInsert;
+
+// ─── Broadcast Campaigns ─────────────────────────────────────────────────────
+
+export const broadcastCampaigns = pgTable("broadcast_campaigns", {
+  id:              varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId:          varchar("user_id").notNull().references(() => users.id, { onDelete: 'cascade' }),
+  connectionId:    varchar("connection_id").references(() => whatsappConnections.id, { onDelete: 'cascade' }),
+  name:            varchar("name", { length: 255 }).notNull().default('Campanha'),
+  status:          varchar("status", { length: 50 }).notNull().default('pending'),
+  messageTemplate: text("message_template").notNull(),
+  mediaUrl:        text("media_url"),
+  mediaType:       varchar("media_type", { length: 50 }),
+  totalContacts:   integer("total_contacts").default(0).notNull(),
+  sentCount:       integer("sent_count").default(0).notNull(),
+  failedCount:     integer("failed_count").default(0).notNull(),
+  useAi:           boolean("use_ai").default(false).notNull(),
+  delayMinMs:      integer("delay_min_ms").default(60000).notNull(),
+  delayMaxMs:      integer("delay_max_ms").default(90000).notNull(),
+  batchSize:       integer("batch_size").default(10).notNull(),
+  batchPauseMs:    integer("batch_pause_ms").default(600000).notNull(),
+  contactsJson:    jsonb("contacts_json").$type<Array<{ id: string; phone: string; name: string }>>().default([]).notNull(),
+  resultsJson:     jsonb("results_json").$type<Array<{ phone: string; name: string; status: string; error?: string; sentAt?: string }>>().default([]).notNull(),
+  scheduledAt:     timestamp("scheduled_at"),
+  startedAt:       timestamp("started_at"),
+  completedAt:     timestamp("completed_at"),
+  errorMessage:    text("error_message"),
+  createdAt:       timestamp("created_at").defaultNow(),
+  updatedAt:       timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_broadcast_campaigns_user_status").on(table.userId, table.status),
+  index("idx_broadcast_campaigns_status_scheduled").on(table.status, table.scheduledAt),
+  index("idx_broadcast_campaigns_connection").on(table.connectionId),
+  index("idx_broadcast_campaigns_created").on(table.createdAt),
+]);
+
+export const broadcastCampaignsRelations = relations(broadcastCampaigns, ({ one }) => ({
+  user: one(users, {
+    fields: [broadcastCampaigns.userId],
+    references: [users.id],
+  }),
+  connection: one(whatsappConnections, {
+    fields: [broadcastCampaigns.connectionId],
+    references: [whatsappConnections.id],
+  }),
+}));
+
+export const insertBroadcastCampaignSchema = createInsertSchema(broadcastCampaigns).omit({ id: true, createdAt: true, updatedAt: true });
+export type BroadcastCampaign = typeof broadcastCampaigns.$inferSelect;
+export type InsertBroadcastCampaign = z.infer<typeof insertBroadcastCampaignSchema>;

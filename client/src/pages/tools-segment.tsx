@@ -29,14 +29,14 @@ interface BusinessCategory {
 const toolRoutes: Record<string, string> = {
   delivery:    "/delivery-cardapio",
   agendamento: "/agendamentos",
-  vendas:      "/ferramentas",
+  vendas:      "/produtos",
   generic:     "/meu-agente-ia",
 };
 
 const toolNames: Record<string, string> = {
   delivery:    "Delivery",
   agendamento: "Agendamentos",
-  vendas:      "Vendas",
+  vendas:      "Catálogo/Vendas",
   generic:     "Agente IA",
 };
 

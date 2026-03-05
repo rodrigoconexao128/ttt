@@ -223,11 +223,11 @@ Quanto vcs cobram para mudar uma tomad..."
 ­ƒìò [AI Agent] Delivery n├úo ativo ou sem resposta - continuando fluxo normal
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=b58c4f1d-032d-4b6a-8e85-7b03d4e0be9b
 ­ƒìò [DeliveryAI] DEBUG config: null
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
 ­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c
 ­ƒìò [DeliveryAI] DEBUG config: null
 ­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)
 ­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
@@ -312,14 +312,14 @@ Empresa: JB El├®trica ÔÇö Uberl├ó...
 
 ­ƒöä [AI Agent] Placeholders processados na resposta
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=eefedb8c-c554-4517-8480-f2d54e317d45
 ­ƒìò [DeliveryAI] DEBUG config: null
 ­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
 ­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)
 ­ƒìò [DeliveryAI] Delivery n├úo ativo para user eefedb8c-c554-4517-8480-f2d54e317d45
 ­ƒìò [DeliveryAI] Motivo: configError=true, config=false, is_active=undefined
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=eefedb8c-c554-4517-8480-f2d54e317d45
 ­ƒìò [DeliveryAI] DEBUG config: null
 ­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
 ­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)
@@ -381,7 +381,7 @@ Quanto vcs cobram para mudar uma tomad... (NOVA MENSAGEM)
    ­ƒôè Fila: 1 | Prioridade: high
    ­ƒôØ Texto: "Claro, pode enviar...."
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
-­ƒìò [AI Agent] Tag [ENVIAR_CARDAPIO_COMPLETO] detectada! Buscando card├ípio para userId=ai-agent-builder-59...
+­ƒìò [AI Agent] Tag [ENVIAR_CARDAPIO_COMPLETO] detectada! Buscando card├ípio para userId=80e1d160-dd4f-4173-a2ec-9385c770dbc4...
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
@@ -591,13 +591,13 @@ Lipoless ÔÇô..."
 ­ƒÜ¿ [FORCE MEDIA] ­ƒÆí Raz├úo: Resposta n├úo ├® JSON v├ílido
 ­ƒÜ¿ [FORCE MEDIA] ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=cb9213c3-fde3-479e-a4aa-344171c59735
 ­ƒìò [DeliveryAI] DEBUG config: {"id":"758574ce-6000-4032-894d-27283633c04b","user_id":"cb9213c3-fde3-479e-a4aa-344171c59735","is_active":false,"send_to_ai":false,"business_name":null,"business_type":"restaurante","delivery_fee":0,"min_order_value":0,"estimated_delivery_time":45,"delivery_radius_km":10,"payment_methods":["dinheiro","cartao","pix"],"accepts_delivery":true,"accepts_pickup":true,"opening_hours":{"friday":{"open":"18:00","close":"23:59","is_open":true},"monday":{"open":"18:00","close":"23:00","is_open":true},"sunday":{"open":"18:00","close":"22:00","is_open":true},"tuesday":{"open":"18:00","close":"23:00","is_open":true},"saturday":{"open":"18:00","close":"23:59","is_open":true},"thursday":{"open":"18:00","close":"23:00","is_open":true},"wednesday":{"open":"18:00","close":"23:00","is_open":true}},"ai_instructions":"Voc├¬ ├® um atendente de delivery. Seja simp├ítico, ajude o cliente a escolher, anote os pedidos corretamente com todos os detalhes e sempre confirme antes de finalizar.","whatsapp_order_number":null,"created_at":"2026-01-19T01:33:39.745433","updated_at":"2026-01-19T01:38:20.527","display_instructions":"Quando o cliente pedir o card├ípio, liste cada item em uma linha separada com emoji, nome e pre├ºo. Organize por categoria.","accepts_cancellation":false}
 ­ƒÜ¿ [AI Agent] ÔØî IA de classifica├º├úo decidiu N├âO enviar m├¡dia
 ­ƒÜ¿ [AI Agent] ­ƒÆí Raz├úo: Resposta n├úo ├® JSON v├ílido
 ­ƒöä [AI Agent] Placeholders processados na resposta
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=841c32ed-95fe-4267-a37a-9262e2fcd993
 ­ƒìò [DeliveryAI] DEBUG config: null
 ­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
 ­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)
@@ -744,7 +744,7 @@ Da pra subir a programa├º├úo?..."
    ­ƒöä Contador de lote reiniciado
 ­ƒøí´©Å [ANTI-BAN v4.0] ­ƒæñ Mensagem MANUAL do DONO registrada - Bot aguardar├í antes de responder
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c
 ­ƒìò [DeliveryAI] DEBUG config: null
 ­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
 ­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)
@@ -1309,7 +1309,7 @@ Ignoring group/status message from: status@broadcast
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
 ­ƒøí´©Å [ANTI-BLOCK] ­ƒôñ Enviando mensagem para 553498332370@s....
 ­ƒøí´©Å [ANTI-BAN] Ôî¿´©Å Simulando digita├º├úo por 3s...
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=eefedb8c-c554-4517-8480-f2d54e317d45
 ­ƒìò [DeliveryAI] DEBUG config: null
 ­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
    Prompt length: 23472 chars
@@ -1441,7 +1441,7 @@ Pastor consegue me dizer quan...
 [QR CODE] QR Code saved to database for user 1f2f40b5-fb3e-4d04-8136-611358c2283d (took 187ms)
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=eefedb8c-c554-4517-8480-f2d54e317d45
 ­ƒìò [DeliveryAI] DEBUG config: null
 ­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
 ­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)
@@ -1975,7 +1975,7 @@ Ignoring group/status message from: status@broadcast
 ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
 ­ƒìò [DeliveryAI] Processando mensagem: "Ola..."
 Ignoring group/status message from: status@broadcast
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c
 ­ƒìò [DeliveryAI] DEBUG config: null
 ­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
 ­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)
@@ -2085,7 +2085,7 @@ Ignoring group/status message from: status@broadcast
 ­ƒæñ [AI Agent] Nome do cliente: Luan
 ­ƒôü [AI Agent] M├¡dias j├í enviadas: nenhuma
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c
 ­ƒìò [DeliveryAI] DEBUG config: null
 ­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
 ­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)
@@ -2137,7 +2137,7 @@ Ignoring group/status message from: status@broadcast
    Model (legacy, ignorado): openai/gpt-oss-20b ÔåÆ real: system_config.openrouter_model
 
 ­ƒñû [AI Agent] ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=eefedb8c-c554-4517-8480-f2d54e317d45
    Prompt (MD5 para debug): a5469330
 ­ƒñû [AI Agent] ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
 
@@ -2242,7 +2242,7 @@ Ignoring group/status message from: status@broadcast
 ?? [MSG CACHE] Armazenada mensagem 3EB0EDB7F58538BA92B70F para user d4a1d307... (cache size: 11)
 ?? [SYNC] Ignorando mensagem de sincroniza´┐¢´┐¢o (type: append)
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=eefedb8c-c554-4517-8480-f2d54e317d45
 ­ƒìò [DeliveryAI] DEBUG config: null
 ­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
 ­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)
@@ -3211,7 +3211,7 @@ Paz do Senhor Jesus ­ƒÖî..."
 ÔØî [AI Agent] RETURN NULL #3: agentConfig n├úo encontrado ou INATIVO
    userId: f58d9e3c-ef53-4cbb-b6d6-a818683259f7
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=cd97a8e8-bae3-469d-b36a-c9f2a36a67c8
 ­ƒìò [DeliveryAI] DEBUG config: null
 ­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
 ­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)
@@ -3253,7 +3253,7 @@ Paz do Senhor Jesus ­ƒÖî..."
 ­ƒìò [DeliveryAI] Motivo: configError=true, config=false, is_active=undefined
 ­ƒìò [DeliveryAI] Delivery n├úo ativo para este usu├írio
 ­ƒìò [AI Agent] Delivery n├úo ativo ou sem resposta - continuando fluxo normal
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=0ead7092-10b0-4f54-98a0-0baa26612bd1
 ­ƒìò [DeliveryAI] DEBUG config: null
 
 ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
@@ -3323,7 +3323,7 @@ Paz do Senhor Jesus ­ƒÖî"
 
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=b58c4f1d-032d-4b6a-8e85-7b03d4e0be9b
 ­ƒìò [DeliveryAI] DEBUG config: null
 ­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
 ­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)
@@ -3381,7 +3381,7 @@ Paz do Senhor Jesus ­ƒÖî"
 ­ƒìò [DeliveryAI] Processando mensagem: "Boa tarde
 
 [IMAGEM ANALISADA: A imagem mostra um d..."
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=b58c4f1d-032d-4b6a-8e85-7b03d4e0be9b
 ­ƒìò [DeliveryAI] DEBUG config: null
 ­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
 ­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)
@@ -3460,7 +3460,7 @@ Thiago ( Mercado pago)"
 ­ƒöô [AI AGENT] Conversa 564b0ee8-51f6-40cb-aef6-ae02989f6c16 liberada para pr├│ximo processamento
 ÔÜá´©Å [AI AGENT] Timer N├âO marcado como completed - resposta N├âO foi enviada (responseSuccessful=false)
 ÔÜá´©Å [AI AGENT] Conversa 564b0ee8-51f6-40cb-aef6-ae02989f6c16 ficar├í pendente para retry no pr├│ximo ciclo
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=3e724ad7-d03b-49ca-a195-6c0d28b6fb31
 ­ƒìò [DeliveryAI] DEBUG config: null
 ­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
 ­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)
@@ -3712,7 +3712,7 @@ Ades├úo: R$ 150,00
 ├ë O..."
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=841c32ed-95fe-4267-a37a-9262e2fcd993
 ­ƒìò [DeliveryAI] DEBUG config: null
 ­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
 ­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)
@@ -3812,7 +3812,7 @@ Ignoring group/status message from: 120363285786771949@g.us
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
 ?? [MSG CACHE] Armazenada mensagem AC3E3195441E1327446A9A99D62B1B55 para user b8a9a57b... (cache size: 23)
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=841c32ed-95fe-4267-a37a-9262e2fcd993
 ­ƒìò [DeliveryAI] DEBUG config: null
 ­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
 ­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)
@@ -3886,7 +3886,7 @@ Ignoring group/status message from: 120363360376054090@g.us
 ÔÜá´©Å [AI Agent] TAG N├âO DETECTADA! Response: ­ƒô▓ *Baixe o app aqui:* [Pop Player Pro](https://play.google.com/store/apps/details?id=com.pro.popplayer)  
 ÔÜá´©Å *Ap├│s baixar, ├® obrigat├│rio enviar a numera├º├úo MAC do seu celular.*
 ­ƒöä [AI Agent] Placeholders processados na resposta
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=3e724ad7-d03b-49ca-a195-6c0d28b6fb31
 ­ƒìò [DeliveryAI] DEBUG config: null
 ­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
 ­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)
@@ -3940,7 +3940,7 @@ Ignoring group/status message from: 120363360376054090@g.us
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
 ­ƒöö [NOTIFICATION DEBUG] Agent includes "quero": false
 ­ƒöö [NOTIFICATION DEBUG] Checking keyword: "qual o valor"
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=b58c4f1d-032d-4b6a-8e85-7b03d4e0be9b
 ­ƒìò [DeliveryAI] DEBUG config: null
 ­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
 ­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)
@@ -3949,7 +3949,7 @@ Ignoring group/status message from: 120363360376054090@g.us
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
 ?? [MSG CACHE] Armazenada mensagem AC4DD644A9F99172E458925255B39388 para user 84170f76... (cache size: 22)
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=841c32ed-95fe-4267-a37a-9262e2fcd993
 ­ƒìò [DeliveryAI] DEBUG config: null
 ­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
 ­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)
@@ -4095,7 +4095,7 @@ Ignoring group/status message from: 120363045367836735@g.us
 ­ƒÜ¿ [AI Agent] ­ƒÆí Raz├úo: The clientÔÇÖs last message is a polite closing (ÔÇ£A disposi├º├úoÔÇØ) and does not request any information that would warrant sending a media file. No media is relevant to the context.
 ­ƒöä [AI Agent] Placeholders processados na resposta
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=841c32ed-95fe-4267-a37a-9262e2fcd993
 ­ƒìò [DeliveryAI] DEBUG config: null
 ­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
 ­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)
@@ -4176,7 +4176,7 @@ Ignoring group/status message from: 120363360376054090@g.us
 Ignoring group/status message from: 120363045367836735@g.us
 ­ƒÜ¿ [AI Agent] ÔØî IA de classifica├º├úo decidiu N├âO enviar m├¡dia
 ­ƒñû [MEDIA AI] ­ƒôÑ Resposta bruta (658ms): 
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=841c32ed-95fe-4267-a37a-9262e2fcd993
 ­ƒÜ¿ [AI Agent] ­ƒÆí Raz├úo: Resposta n├úo ├® JSON v├ílido
 ­ƒñû [MEDIA AI] ÔÜá´©Å N├úo conseguiu extrair JSON
 ­ƒÜ¿ [FORCE MEDIA] ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
@@ -4528,7 +4528,7 @@ Siiim..."
 ­ƒìò [DeliveryAI] DEBUG config: null
 7:48:08 PM [express] GET /api/conversations-with-tags 304 in 1359ms :: [{"id":"942395a3-107e-401e-9eÔÇª
 ­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=eefedb8c-c554-4517-8480-f2d54e317d45
 
 ­ƒÜ½ [shouldUseFlowEngine] FlowEngine DESABILITADO
    ÔåÆ Usando IA com Blindagem V3 para user eefedb8c-c554-4517-8480-f2d54e317d45
@@ -4676,7 +4676,7 @@ Ignoring group/status message from: status@broadcast
 
 ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
 ­ƒìò [DeliveryAI] Processando mensagem: "A paz do senhor pastor Marcelo sim com certeza ­ƒÖÅ..."
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=eefedb8c-c554-4517-8480-f2d54e317d45
 ­ƒìò [DeliveryAI] DEBUG config: null
 ­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
 ­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)

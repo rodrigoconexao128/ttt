@@ -57,6 +57,8 @@ import {
   registerMessageProcessor 
 } from "./pendingMessageRecoveryService";
 
+import { startBackgroundSync } from "./contactSyncService";
+
 // -----------------------------------------------------------------------
 // ?? SISTEMA DE CACHE DE MENSAGENS PARA RETRY (FIX "AGUARDANDO MENSAGEM")
 // -----------------------------------------------------------------------
@@ -582,6 +584,33 @@ function promoteSessionOpenState(session: WhatsAppSession, reason: string): bool
 // ?? Set para rastrear IDs de mensagens enviadas pelo agente/usu?rio via sendMessage
 // Evita duplicatas quando Baileys dispara evento fromMe ap?s socket.sendMessage()
 const agentMessageIds = new Set<string>();
+const adminAgentMessageIds = new Map<string, number>();
+const ADMIN_AGENT_MESSAGE_ID_TTL_MS = 10 * 60 * 1000;
+
+function trackAdminAgentMessageId(messageId?: string | null): void {
+  if (!messageId) return;
+
+  const now = Date.now();
+  adminAgentMessageIds.set(messageId, now);
+
+  if (adminAgentMessageIds.size > 2000) {
+    for (const [id, ts] of adminAgentMessageIds.entries()) {
+      if (now - ts > ADMIN_AGENT_MESSAGE_ID_TTL_MS) {
+        adminAgentMessageIds.delete(id);
+      }
+    }
+  }
+}
+
+function consumeAdminAgentMessageId(messageId?: string | null): boolean {
+  if (!messageId) return false;
+
+  const ts = adminAgentMessageIds.get(messageId);
+  if (!ts) return false;
+
+  adminAgentMessageIds.delete(messageId);
+  return Date.now() - ts <= ADMIN_AGENT_MESSAGE_ID_TTL_MS;
+}
 
 // ?? Fun??o exportada para registrar messageIds de m?dias enviadas pelo agente
 // Usado pelo mediaService para evitar que handleOutgoingMessage pause a IA incorretamente
@@ -1377,6 +1406,33 @@ interface PendingAdminResponse {
 }
 const pendingAdminResponses = new Map<string, PendingAdminResponse>(); // key: contactNumber
 
+function rescheduleAdminPendingResponse(params: {
+  socket: WASocket;
+  key: string;
+  delayMs: number;
+  reason: string;
+}): boolean {
+  const { socket, key, delayMs, reason } = params;
+  const pending = pendingAdminResponses.get(key);
+  if (!pending) return false;
+
+  if (pending.timeout) {
+    clearTimeout(pending.timeout);
+  }
+
+  const safeDelay = Math.max(1000, delayMs);
+  pending.timeout = setTimeout(() => {
+    void processAdminAccumulatedMessages({
+      socket,
+      key,
+      generation: pending.generation,
+    });
+  }, safeDelay);
+
+  console.log(`⏳ [ADMIN AGENT] Reagendado para ${key} em ${Math.round(safeDelay / 1000)}s. Motivo: ${reason}`);
+  return true;
+}
+
 // ?? Set para rastrear conversas j? verificadas na sess?o atual (evita reprocessamento)
 const checkedConversationsThisSession = new Set<string>();
 
@@ -1925,14 +1981,14 @@ async function processAdminAccumulatedMessages(params: {
     let retryCount = 0;
     const maxRetries = 3;
     
-    while (checkPresence && (checkPresence.timeout !== null || checkPresence.lastKnownPresence === 'composing') && retryCount < maxRetries) {
+    while (checkPresence && checkPresence.lastKnownPresence === 'composing' && retryCount < maxRetries) {
         console.log(`? [ADMIN AGENT] Usu?rio digitando (check final). Aguardando confirma??o... (${retryCount + 1}/${maxRetries})`);
         await new Promise(r => setTimeout(r, 5000)); // Espera 5s
         checkPresence = pendingAdminResponses.get(key);
         retryCount++;
     }
 
-    if (checkPresence && (checkPresence.timeout !== null || checkPresence.lastKnownPresence === 'composing')) {
+    if (checkPresence && checkPresence.lastKnownPresence === 'composing') {
         // Se ainda estiver digitando ap?s retries, verificar se o status ? antigo (stale)
         const lastUpdate = checkPresence.lastPresenceUpdate || 0;
         const timeSinceUpdate = Date.now() - lastUpdate;
@@ -1942,44 +1998,52 @@ async function processAdminAccumulatedMessages(params: {
              console.log(`?? [ADMIN AGENT] Status 'composing' parece travado (${Math.floor(timeSinceUpdate/1000)}s). Ignorando e enviando.`);
              // Prossegue para envio...
         } else {
-             console.log(`? [ADMIN AGENT] Usu?rio voltou a digitar (check final). Abortando envio.`);
+             console.log(`? [ADMIN AGENT] Usu?rio segue digitando (check final). Reagendando envio.`);
+             rescheduleAdminPendingResponse({
+               socket,
+               key,
+               delayMs: 6000,
+               reason: "cliente ainda digitando no check final",
+             });
              return;
         }
     }
 
-    // Quebrar mensagem longa em partes
-    const parts = splitMessageHumanLike(response.text || "", config.messageSplitChars);
+    // V17: Enviar mensagem completa sem dividir em partes (bolhas)
+    // O admin chat mostra a mensagem inteira - WhatsApp deve receber igual
+    const fullText = (response.text || "").trim();
 
-    for (let i = 0; i < parts.length; i++) {
+    if (fullText) {
       const current = pendingAdminResponses.get(key);
       if (!current || current.generation !== generation) {
         console.log(`?? [ADMIN AGENT] Cancelando envio (mensagens novas chegaram)`);
         return;
       }
 
-      // ?? CHECK DE PRESEN?A NO LOOP
-      if (current.timeout !== null || current.lastKnownPresence === 'composing') {
-          // Verificar se ? stale
+      // ?? CHECK DE PRESEN?A FINAL
+      if (current.lastKnownPresence === 'composing') {
           const lastUpdate = current.lastPresenceUpdate || 0;
           const timeSinceUpdate = Date.now() - lastUpdate;
           
           if (timeSinceUpdate > 45000) {
               console.log(`?? [ADMIN AGENT] Status 'composing' travado durante envio. Ignorando.`);
           } else {
-              console.log(`? [ADMIN AGENT] Usu?rio voltou a digitar durante envio. Abortando.`);
+              console.log(`? [ADMIN AGENT] Usu?rio voltou a digitar durante envio. Reagendando.`);
+              rescheduleAdminPendingResponse({
+                socket,
+                key,
+                delayMs: 6000,
+                reason: "cliente voltou a digitar durante envio",
+              });
               return;
           }
       }
 
-      if (i > 0) {
-        const interval = randomBetween(config.messageIntervalMinMs, config.messageIntervalMaxMs);
-        await new Promise((r) => setTimeout(r, interval));
-      }
-
-      // ??? ANTI-BLOQUEIO: Usar fila do Admin Agent
-      await sendWithQueue('ADMIN_AGENT', `admin resposta parte ${i+1}`, async () => {
-        await socket.sendMessage(pending.remoteJid, { text: parts[i] });
+      // ??? ANTI-BLOQUEIO: Enviar mensagem inteira (sem split)
+      const sentMessage = await sendWithQueue('ADMIN_AGENT', `admin resposta completa`, async () => {
+        return await socket.sendMessage(pending.remoteJid, { text: fullText });
       });
+      trackAdminAgentMessageId((sentMessage as any)?.key?.id);
     }
 
     console.log(`? [ADMIN AGENT] Resposta enviada para ${pending.contactNumber}`);
@@ -4278,6 +4342,23 @@ export async function connectWhatsApp(
             console.error(`? [FOLLOW-UP] Erro ao limpar status de aguardo:`, error);
           }
         }, 5000); // 5 segundos ap?s conex?o
+
+        // ======================================================================
+        // ? SINCRONIZACAO AUTOMATICA DE CONTATOS
+        // ======================================================================
+        // Apos a conexao estabilizar, sincronizar contatos em background
+        // sem notificar o cliente por WebSocket
+        // ======================================================================
+        setTimeout(async () => {
+          try {
+            console.log(`[SYNC] Iniciando sincronizacao automatica de contatos para ${userId.substring(0, 8)}...`);
+            startBackgroundSync(userId, session.connectionId).catch(err => {
+              console.error('[SYNC] Erro em background sync automatico:', err);
+            });
+          } catch (syncError) {
+            console.error(`[SYNC] Erro ao disparar sync automatico:`, syncError);
+          }
+        }, 5000); // 5 segundos apos conexao
       }
     });
 
@@ -5118,7 +5199,8 @@ async function handleOutgoingMessage(session: WhatsAppSession, waMessage: WAMess
     await storage.updateConversation(conversation.id, {
       lastMessageText: messageText,
       lastMessageTime: new Date(),
-      lastMessageFromMe: false,
+      lastMessageFromMe: true,
+      hasReplied: true,
       unreadCount: 0,
     });
     return;
@@ -8263,7 +8345,8 @@ export async function sendBulkMessages(
   phones: string[], 
   message: string
 ): Promise<{ sent: number; failed: number; errors: string[] }> {
-  const session = sessions.get(userId);
+  const activeConnection = await storage.getConnectionByUserId(userId);
+  const session = activeConnection ? sessions.get(activeConnection.id) : sessions.get(userId);
   if (!session?.socket) {
     throw new Error("WhatsApp n?o conectado");
   }
@@ -8343,7 +8426,8 @@ export async function sendBulkMessagesAdvanced(
     failed: { phone: string; name?: string; error: string; timestamp: string }[];
   };
 }> {
-  const session = sessions.get(userId);
+  const activeConnection = await storage.getConnectionByUserId(userId);
+  const session = activeConnection ? sessions.get(activeConnection.id) : sessions.get(userId);
   if (!session?.socket) {
     throw new Error("WhatsApp n?o conectado");
   }
@@ -9532,6 +9616,12 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
     async function handleAdminOutgoingMessage(adminId: string, waMessage: WAMessage) {
       const remoteJid = waMessage.key.remoteJid;
       if (!remoteJid) return;
+
+      const outgoingMessageId = waMessage.key.id;
+      if (consumeAdminAgentMessageId(outgoingMessageId)) {
+        console.log(`?? [ADMIN FROM ME] Ignorando mensagem automatica do agente (messageId: ${outgoingMessageId})`);
+        return;
+      }
       
       // Filtrar grupos e status
       if (remoteJid.includes("@g.us") || remoteJid.includes("@broadcast")) {
@@ -9740,6 +9830,7 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
       if (!presence) return;
 
       // Atualizar presen?a conhecida
+      const previousPresence = pending.lastKnownPresence;
       pending.lastKnownPresence = presence;
       pending.lastPresenceUpdate = Date.now();
 
@@ -9788,6 +9879,20 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
       } else {
         // Logar outros estados de presen?a para debug (ex: available, unavailable)
         console.log(`?? [ADMIN AGENT] Presen?a atualizada para ${contactNumber}: ${presence}`);
+
+        if (
+          previousPresence === 'composing' &&
+          presence !== 'composing' &&
+          pending.timeout === null &&
+          pending.messages.length > 0
+        ) {
+          rescheduleAdminPendingResponse({
+            socket,
+            key: contactNumber,
+            delayMs: 6000,
+            reason: `presenca mudou para ${presence}`,
+          });
+        }
       }
     });
 
@@ -10040,16 +10145,13 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
           const typingDelay = randomBetween(cfg.typingDelayMinMs, cfg.typingDelayMaxMs);
           await new Promise(resolve => setTimeout(resolve, typingDelay));
 
-          const parts = splitMessageHumanLike(response.text, cfg.messageSplitChars);
-          for (let i = 0; i < parts.length; i++) {
-            if (i > 0) {
-              const interval = randomBetween(cfg.messageIntervalMinMs, cfg.messageIntervalMaxMs);
-              await new Promise(resolve => setTimeout(resolve, interval));
-            }
-            // ??? ANTI-BLOQUEIO: Usar fila do Admin
-            await sendWithQueue('ADMIN_AGENT', `m?dia resposta parte ${i+1}`, async () => {
-              await socket.sendMessage(realRemoteJid, { text: parts[i] });  // IMPORTANTE: Usar JID real
+          // V17: Enviar mensagem completa sem dividir (igual ao admin chat)
+          const fullResponseText = (response.text || "").trim();
+          if (fullResponseText) {
+            const sentMessage = await sendWithQueue('ADMIN_AGENT', `m?dia resposta completa`, async () => {
+              return await socket.sendMessage(realRemoteJid, { text: fullResponseText });  // IMPORTANTE: Usar JID real
             });
+            trackAdminAgentMessageId((sentMessage as any)?.key?.id);
           }
           console.log(`? [ADMIN AGENT] Resposta enviada para ${contactNumber}`);
           
@@ -11636,7 +11738,7 @@ export async function requestClientPairingCode(userId: string, phoneNumber: stri
 
               // Atualizar sess�o
               session.socket = newSock;
-              sessions.set(userId, session);
+              sessions.set(session.connectionId, session);
 
               // Re-configurar handlers
               newSock.ev.on("creds.update", newSaveCreds);

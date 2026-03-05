@@ -19,6 +19,8 @@ import { registerAdminFollowUpRoutes } from "./routes_admin_followup";
 import { registerNotapayersRoutes } from "./routes_notapayers";
 import { registerAIRoutes } from "./routes_ai";
 import { registerPublicHelpRoutes, generateHelpSitemap } from "./routes_public_help";
+import { registerAutologinRoutes } from './routes_autologin';
+import { registerTestAdminRoutes } from './routes_test_admin';
 
 import { adminConversations } from "@shared/schema";
 
@@ -34,21 +36,21 @@ import { registerTicketClosureRoutes } from "./ticketClosure.routes";
 import { registerUserSectorRoutes } from "./routes_user_sectors";
 import adminStatusRoutes from "./routes/admin-status.routes";
 
-import autoLoginRoutes from "./routes/autoLoginRoutes";
-
 import { setupAuth, isAuthenticated, getSession, supabase } from "./supabaseAuth";
 
 import { withRetry, db, pool } from "./db";
 
 import { eq, and, gte, desc, inArray, sql } from "drizzle-orm";
 
-import { subscriptions, paymentHistory, conversations as conversationsTable, plans, resellers, resellerClients, users, resellerInvoiceItems as resellerInvoiceItemsTable, resellerInvoices as resellerInvoicesTable, websiteImports, aiAgentConfig } from "@shared/schema";
+import { subscriptions, paymentHistory, conversations as conversationsTable, plans, resellers, resellerClients, users, resellerInvoiceItems as resellerInvoiceItemsTable, resellerInvoices as resellerInvoicesTable, websiteImports, aiAgentConfig, broadcastCampaigns } from "@shared/schema";
 
 import { resellerService } from "./resellerService";
 
 import { scrapeWebsite, validateUrl, formatContextForAgent, type WebsiteScrapingResult } from "./websiteScraperService";
 
-import { startBackgroundSync, getSyncStatus, getSyncedContactsFromDB, hasSyncedBefore } from "./contactSyncService";
+import { startBackgroundSync, getSyncStatus, getSyncedContactsFromDB, getSyncedContactsCount, hasSyncedBefore } from "./contactSyncService";
+
+import * as broadcastService from "./broadcastService";
 
 import { startFullContactSync, getFullSyncStatus, scheduleFullSyncForAllClients, startDailySyncCron, getQueueStats } from "./fullContactSyncService";
 
@@ -358,6 +360,7 @@ const upload = multer({
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 
       'text/plain', // Aceitar arquivos .txt
+      'text/csv', // Aceitar arquivos .csv
 
       'application/vnd.ms-excel', // Excel .xls
 
@@ -380,6 +383,7 @@ const upload = multer({
 });
 
 import { isAdmin } from "./middleware";
+import { parseContactFile, extractContacts } from "./contactImportService";
 
 import {
 
@@ -644,6 +648,24 @@ function autoMapColumns(headers: string[]): Record<string, number | null> {
 
 }
 
+function isSupportedContactImportFile(file?: { mimetype?: string; originalname?: string } | null) {
+  if (!file) return false;
+
+  const supportedMimes = new Set([
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'text/csv',
+    'application/csv',
+    'application/vnd.ms-excel',
+    '',
+  ]);
+
+  const originalName = String(file.originalname || '').toLowerCase();
+  const hasSupportedExtension = originalName.endsWith('.xlsx') || originalName.endsWith('.csv');
+  const hasSupportedMime = supportedMimes.has(String(file.mimetype || ''));
+
+  return hasSupportedExtension || hasSupportedMime;
+}
+
 
 
 // ============ FUNÃ‡ÃƒO DE GERAÃ‡ÃƒO LOCAL DE PROMPTS - VERSÃƒO CONCISA ============
@@ -860,13 +882,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
 
   await setupAuth(app);
+  // Autologin routes (public)
+  try {
+    registerAutologinRoutes(app);
+    console.log('? [Autologin] Routes registered');
+  } catch (e) {
+    console.error('? [Autologin] Error registering autologin routes:', e);
+  }
+
+  // Test admin routes (E2E — protegidas por x-test-secret)
+  try {
+    registerTestAdminRoutes(app);
+  } catch (e) {
+    console.error('✗ [TestAdmin] Error registering test admin routes:', e);
+  }
 
   // ==================== API PÚBLICA — Central de Ajuda ====================
-
-  // 🔐 Auto-login routes (para conexão e planos)
-  app.use("/api/auto-login", autoLoginRoutes);
-  
-
   // Rotas públicas sem autenticação para SEO e pré-venda
   registerPublicHelpRoutes(app);
 
@@ -2832,7 +2863,7 @@ Sitemap: https://agentezap.online/sitemap.xml
 
     try {
 
-      const { phone, message, mediaType, mediaUrl } = req.body;
+      const { phone, message, mediaType, mediaUrl, skipTrigger } = req.body;
 
 
 
@@ -2841,6 +2872,21 @@ Sitemap: https://agentezap.online/sitemap.xml
         return res.status(400).json({ error: "Phone number required" });
 
       }
+
+
+
+      // Security guard: skipTrigger is only honoured when the caller proves
+      // identity via the X-Test-Secret header matching the TEST_ADMIN_SECRET
+      // env var.  Without valid auth the parameter is silently forced to false
+      // so that production trigger logic is never bypassed by unauthenticated
+      // callers.
+      const testAdminSecret = process.env.TEST_ADMIN_SECRET;
+      const requestSecret   = req.headers["x-test-secret"];
+      const isTestAuthorized =
+        testAdminSecret &&
+        typeof requestSecret === "string" &&
+        requestSecret === testAdminSecret;
+      const effectiveSkipTrigger = isTestAuthorized && req.body.skipTrigger === true;
 
 
 
@@ -2854,9 +2900,9 @@ Sitemap: https://agentezap.online/sitemap.xml
 
 
 
-      // processAdminMessage - sem skipTriggerCheck para testar o fluxo real com trigger
+      // processAdminMessage - passa skipTrigger apenas quando autorizado
 
-      const response = await processAdminMessage(phone, message || "", mediaType, mediaUrl);
+      const response = await processAdminMessage(phone, message || "", mediaType, mediaUrl, effectiveSkipTrigger);
 
 
 
@@ -3010,11 +3056,17 @@ Sitemap: https://agentezap.online/sitemap.xml
 
 
 
-      // Limpar sessÃ£o em memÃ³ria
+      // Limpar sessão em memória
 
       const { clearClientSession } = await import("./adminAgentService");
 
       const cleared = clearClientSession(cleanPhone);
+
+      // Limpar estado do grafo V2 (caso contrário syncFromLegacySessionIfNew retorna estado antigo)
+
+      const { clearGraphState } = await import("./adminAgentGraphPOC");
+
+      clearGraphState(cleanPhone);
 
 
 
@@ -3343,17 +3395,24 @@ Responda apenas com o nÃºmero do Ã­ndice (0 a ${optionsList.length - 1}) ou 
 
       const userId = getUserId(req);
 
-      const { email, name } = req.body;
+      const { email, name, phone } = req.body;
 
-
-
-      await storage.updateUser(userId, {
-
+      const updatePayload: any = {
         email,
-
         name,
+      };
 
-      });
+      if (typeof phone === "string" && phone.trim()) {
+        const normalizedPhone = phone.replace(/\D/g, "");
+        if (normalizedPhone) {
+          updatePayload.phone = normalizedPhone;
+          updatePayload.whatsappNumber = normalizedPhone;
+        }
+      }
+
+
+
+      await storage.updateUser(userId, updatePayload);
 
 
 
@@ -5478,25 +5537,39 @@ Responda apenas com o nÃºmero do Ã­ndice (0 a ${optionsList.length - 1}) ou 
       const userId = getUserId(req);
 
       const { tagId, connectionId: qsConnectionId, limit: qsLimit, offset: qsOffset } = req.query;
+      const scopedConnectionId =
+        typeof qsConnectionId === "string" && qsConnectionId.trim().length > 0
+          ? qsConnectionId.trim()
+          : undefined;
 
-      const connection = await storage.getConnectionByUserId(userId, qsConnectionId as string | undefined);
+      const selectedConnections = scopedConnectionId
+        ? [await storage.getConnectionByUserId(userId, scopedConnectionId)].filter(Boolean)
+        : await storage.getConnectionsByUserId(userId);
 
-      if (!connection) {
-
+      if (selectedConnections.length === 0) {
         return res.json([]);
-
       }
 
+      const sortByLastMessageDesc = (a: any, b: any) => {
+        const aTime = a?.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0;
+        const bTime = b?.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0;
+        return bTime - aTime;
+      };
 
+      const dedupeByConversationId = <T extends { id: string }>(items: T[]): T[] =>
+        Array.from(new Map(items.map((item) => [item.id, item])).values());
 
       // Se tem filtro por tag, busca apenas conversas com essa tag
       if (tagId) {
-        const conversations = await storage.getConversationsByTag(tagId, connection.id);
-        if (conversations.length === 0) return res.json([]);
+        const taggedBuckets = await Promise.all(
+          selectedConnections.map((conn: any) => storage.getConversationsByTag(tagId, conn.id)),
+        );
+        const mergedTagged = dedupeByConversationId(taggedBuckets.flat()).sort(sortByLastMessageDesc);
+        if (mergedTagged.length === 0) return res.json([]);
         // ?? OTIMIZADO: Batch ao invÃ©s de N+1 (Promise.all com getConversationTags individual)
-        const convIds = conversations.map(c => c.id);
+        const convIds = mergedTagged.map(c => c.id);
         const allTagsForConvs = await storage.getTagsForConversations(convIds);
-        const conversationsWithTags = conversations.map(conv => ({
+        const conversationsWithTags = mergedTagged.map(conv => ({
           ...conv,
           tags: allTagsForConvs.get(conv.id) || [],
         }));
@@ -5507,22 +5580,27 @@ Responda apenas com o nÃºmero do Ã­ndice (0 a ${optionsList.length - 1}) ou 
       const limit = qsLimit ? parseInt(qsLimit as string, 10) : undefined;
       const offset = qsOffset ? parseInt(qsOffset as string, 10) : undefined;
 
-      // Sem filtro, retorna conversas com suas tags (com paginaÃ§Ã£o se solicitado)
-      const result = await storage.getConversationsWithTags(connection.id, limit, offset);
+      const resultBuckets = await Promise.all(
+        selectedConnections.map((conn: any) => storage.getConversationsWithTags(conn.id)),
+      );
+      const mergedData = dedupeByConversationId(
+        resultBuckets.flatMap((result: any) => result.data || []),
+      ).sort(sortByLastMessageDesc);
 
       // Se tem paginaÃ§Ã£o, retornar formato { data, total, hasMore }
       if (limit != null) {
         const currentOffset = offset || 0;
+        const pagedData = mergedData.slice(currentOffset, currentOffset + limit);
         res.json({
-          data: result.data,
-          total: result.total,
-          hasMore: currentOffset + result.data.length < result.total,
+          data: pagedData,
+          total: mergedData.length,
+          hasMore: currentOffset + pagedData.length < mergedData.length,
           offset: currentOffset,
           limit,
         });
       } else {
         // Compatibilidade: sem paginaÃ§Ã£o retorna array direto
-        res.json(result.data);
+        res.json(mergedData);
       }
 
     } catch (error) {
@@ -5544,18 +5622,40 @@ Responda apenas com o nÃºmero do Ã­ndice (0 a ${optionsList.length - 1}) ou 
       const userId = getUserId(req);
       const q = (req.query.q as string || "").trim();
       const limit = Math.min(parseInt(req.query.limit as string || "30", 10), 100);
+      const scopedConnectionId =
+        typeof req.query.connectionId === "string" && req.query.connectionId.trim().length > 0
+          ? req.query.connectionId.trim()
+          : undefined;
 
       if (!q || q.length < 2) {
         return res.json([]);
       }
 
-      const connection = await storage.getConnectionByUserId(userId);
-      if (!connection) {
+      const selectedConnections = scopedConnectionId
+        ? [await storage.getConnectionByUserId(userId, scopedConnectionId)].filter(Boolean)
+        : await storage.getConnectionsByUserId(userId);
+      if (selectedConnections.length === 0) {
         return res.json([]);
       }
 
-      const results = await storage.searchConversations(connection.id, q, limit);
-      return res.json(results);
+      const mergedResults = Array.from(
+        new Map(
+          (
+            await Promise.all(
+              selectedConnections.map((conn: any) => storage.searchConversations(conn.id, q, limit))
+            )
+          )
+            .flat()
+            .sort((a: any, b: any) => {
+              const aTime = a?.lastMessageTime ? new Date(a.lastMessageTime).getTime() : 0;
+              const bTime = b?.lastMessageTime ? new Date(b.lastMessageTime).getTime() : 0;
+              return bTime - aTime;
+            })
+            .map((conversation: any) => [conversation.id, conversation]),
+        ).values(),
+      ).slice(0, limit);
+
+      return res.json(mergedResults);
     } catch (error) {
       console.error("Error searching conversations:", error);
       res.status(500).json({ message: "Failed to search conversations" });
@@ -12361,6 +12461,181 @@ ${config.ai_instructions || ''}
 
     return clientsActivated;
   };
+
+  // Upload publico de comprovante PIX (fluxo via WhatsApp/pagamento.html, sem login)
+  app.post("/api/public/payment-receipts/upload", upload.single("receipt"), async (req: any, res) => {
+    try {
+      const file = req.file;
+      const phoneInput = String(req.body?.phone || "").trim();
+      const amountInput = req.body?.amount;
+      const paymentIdInput = String(req.body?.paymentId || "").trim();
+
+      if (!file) {
+        return res.status(400).json({ message: "Arquivo de comprovante e obrigatorio" });
+      }
+
+      const normalizedPhone = phoneInput.replace(/\D/g, "");
+      if (normalizedPhone.length < 10) {
+        return res.status(400).json({ message: "Telefone invalido" });
+      }
+
+      const matchByPhoneSuffix = (value?: string | null) => {
+        const digits = String(value || "").replace(/\D/g, "");
+        if (!digits) return false;
+        return (
+          digits === normalizedPhone ||
+          digits.endsWith(normalizedPhone) ||
+          normalizedPhone.endsWith(digits) ||
+          digits.slice(-11) === normalizedPhone.slice(-11)
+        );
+      };
+
+      let user = await storage.getUserByPhone(normalizedPhone);
+      if (!user) {
+        const users = await storage.getAllUsers();
+        user = users.find(
+          (candidate: any) =>
+            matchByPhoneSuffix(candidate.phone) ||
+            matchByPhoneSuffix((candidate as any).whatsappNumber) ||
+            matchByPhoneSuffix((candidate as any).whatsapp_number),
+        );
+      }
+
+      if (!user) {
+        return res.status(404).json({
+          message: "Nao achei conta com esse telefone. Me chama no WhatsApp para vincular sua conta antes de enviar o comprovante.",
+        });
+      }
+
+      let subscription = await storage.getUserSubscription(user.id);
+      if (!subscription) {
+        const activePlans = await storage.getActivePlans();
+        const selectedPlan = [...activePlans].sort((a: any, b: any) => Number(a.preco || 0) - Number(b.preco || 0))[0];
+
+        if (!selectedPlan) {
+          return res.status(500).json({ message: "Nao ha plano ativo para vincular o comprovante" });
+        }
+
+        await storage.createSubscription({
+          userId: user.id,
+          planId: selectedPlan.id,
+          status: "pending",
+          dataInicio: new Date(),
+          dataFim: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          paymentMethod: "pix_manual",
+        });
+
+        subscription = await storage.getUserSubscription(user.id);
+      }
+
+      if (!subscription) {
+        return res.status(500).json({ message: "Nao consegui preparar assinatura para receber o comprovante" });
+      }
+
+      const subscriptionId = subscription.id;
+      const paymentId = paymentIdInput || `public_pix_${normalizedPhone}_${Date.now()}`;
+
+      let duplicatesQuery = supabase
+        .from("payment_receipts")
+        .select("id, receipt_url")
+        .eq("subscription_id", subscriptionId)
+        .eq("status", "pending");
+
+      if (paymentIdInput) {
+        duplicatesQuery = duplicatesQuery.eq("mp_payment_id", paymentIdInput);
+      }
+
+      const { data: duplicateReceipts } = await duplicatesQuery;
+      if (duplicateReceipts && duplicateReceipts.length > 0) {
+        const pathsToRemove = duplicateReceipts
+          .map((receipt: any) => {
+            const url = String(receipt.receipt_url || "");
+            if (url.startsWith("receipts/")) return url;
+            const marker = "/payment-receipts/";
+            const idx = url.indexOf(marker);
+            return idx === -1 ? null : url.slice(idx + marker.length);
+          })
+          .filter(Boolean) as string[];
+
+        if (pathsToRemove.length > 0) {
+          await supabase.storage.from("payment-receipts").remove(pathsToRemove);
+        }
+
+        await supabase
+          .from("payment_receipts")
+          .delete()
+          .in("id", duplicateReceipts.map((receipt: any) => receipt.id));
+      }
+
+      const { error: bucketError } = await supabase.storage.getBucket("payment-receipts");
+      if (bucketError && bucketError.message?.includes("not found")) {
+        await supabase.storage.createBucket("payment-receipts", {
+          public: true,
+          fileSizeLimit: 50 * 1024 * 1024,
+        });
+      }
+
+      const safeOriginalName = file.originalname.replace(/[^\w.\-]+/g, "_");
+      const fileName = `receipts/public/${user.id}/${Date.now()}_${safeOriginalName}`;
+      const { error: uploadError } = await supabase.storage
+        .from("payment-receipts")
+        .upload(fileName, file.buffer, {
+          contentType: file.mimetype,
+          upsert: false,
+        });
+
+      if (uploadError) {
+        return res.status(500).json({ message: "Erro ao fazer upload do comprovante", error: uploadError.message });
+      }
+
+      const { data: urlData } = supabase.storage.from("payment-receipts").getPublicUrl(fileName);
+      const receiptUrl = urlData?.publicUrl || fileName;
+
+      const plan = subscription.plan || (await storage.getPlan(subscription.planId));
+      const parsedAmount = Number.parseFloat(String(amountInput || ""));
+      const fallbackAmount = Number.parseFloat(String((plan as any)?.preco || 99.99));
+      const amountValue = Number.isFinite(parsedAmount) && parsedAmount > 0 ? parsedAmount : fallbackAmount;
+
+      const { data: receipt, error: insertError } = await supabase
+        .from("payment_receipts")
+        .insert({
+          user_id: user.id,
+          subscription_id: subscriptionId,
+          plan_id: subscription.planId,
+          amount: amountValue,
+          receipt_url: receiptUrl,
+          receipt_filename: file.originalname,
+          receipt_mime_type: file.mimetype,
+          status: "pending",
+          mp_payment_id: paymentId,
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        return res.status(500).json({ message: "Erro ao salvar comprovante", error: insertError.message });
+      }
+
+      await supabase
+        .from("subscriptions")
+        .update({
+          status: "active",
+          pending_receipt: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", subscriptionId);
+
+      res.json({
+        success: true,
+        message: "Comprovante enviado com sucesso! Ja encaminhei para aprovacao no sistema.",
+        receiptId: receipt?.id || null,
+        userId: user.id,
+      });
+    } catch (error: any) {
+      console.error("[PUBLIC PAYMENT] Error uploading receipt:", error);
+      res.status(500).json({ message: "Erro ao processar comprovante", error: error?.message || String(error) });
+    }
+  });
 
   // Upload de comprovante de pagamento PIX
   app.post("/api/payment-receipts/upload", isAuthenticated, upload.single("receipt"), async (req: any, res) => {
@@ -20419,45 +20694,6 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-
-  // ==================== ADMIN: INTELLIGENT MODE CONFIG ====================
-  // Configuração do modo inteligente OpenClaw-style
-  app.get("/api/admin/intelligent-mode", isAdmin, async (_req, res) => {
-    try {
-      const config = await storage.getSystemConfig("admin_agent_intelligent_mode");
-      const enabled = config?.valor === "true";
-      
-      res.json({ 
-        enabled,
-        description: "Modo inteligente OpenClaw-style: Agente decide ações dinamicamente"
-      });
-    } catch (error) {
-      console.error("Error fetching intelligent mode config:", error);
-      res.status(500).json({ message: "Failed to fetch configuration" });
-    }
-  });
-
-  app.post("/api/admin/intelligent-mode", isAdmin, async (req, res) => {
-    try {
-      const { enabled } = req.body;
-      
-      await storage.setSystemConfig("admin_agent_intelligent_mode", enabled ? "true" : "false");
-      
-      console.log(`🧠 [ADMIN] Modo inteligente ${enabled ? "ATIVADO" : "DESATIVADO"}`);
-      
-      res.json({ 
-        success: true,
-        enabled,
-        message: `Modo inteligente ${enabled ? "ativado" : "desativado"} com sucesso`
-      });
-    } catch (error) {
-      console.error("Error updating intelligent mode:", error);
-      res.status(500).json({ message: "Failed to update configuration" });
-    }
-  });
-
-
-
       if (pix_key !== undefined) {
 
         await storage.updateSystemConfig("pix_key", pix_key.trim());
@@ -26879,8 +27115,10 @@ Responda APENAS com o JSON, sem texto adicional.`;
       if (phone) {
 
         const { clearClientSession } = await import("./adminAgentService");
+        const { cancelFollowUp } = await import("./followUpService");
 
         clearClientSession(phone);
+        cancelFollowUp(phone);
 
         console.log(`??? [ADMIN] HistÃ³rico limpo para conversa ${id} (telefone: ${phone})`);
 
@@ -26915,47 +27153,39 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { id } = req.params;
 
-      const conversation = await storage.getAdminConversation(id);
+      const requestedPhone = String(req.body?.contactNumber || "").replace(/\D/g, "");
 
+      let conversation = await storage.getAdminConversation(id);
 
+      if (!conversation && requestedPhone) {
 
-      if (!conversation) {
-
-        return res.status(404).json({ message: "Conversa nÃ£o encontrada" });
+        conversation = await storage.getAdminConversationByPhone(requestedPhone);
 
       }
 
+      if (!conversation && !requestedPhone) {
 
+        return res.status(404).json({ message: "Conversa nao encontrada" });
+
+      }
 
       // Extrair telefone da conversa
 
-      const phone = conversation.contactNumber || conversation.remoteJid?.split('@')[0]?.split(':')[0];
+      const phone = requestedPhone || conversation?.contactNumber || conversation?.remoteJid?.split('@')[0]?.split(':')[0];
 
       if (!phone) {
 
-        return res.status(400).json({ message: "NÃºmero de telefone nÃ£o encontrado na conversa" });
+        return res.status(400).json({ message: "Numero de telefone nao encontrado na conversa" });
 
       }
 
+      console.log(`?? [ADMIN] Solicitacao de RESET COMPLETO para ${phone}`);
 
-
-      // Capturar userId antes do reset (depois ele some do DB)
-
-      const user = await storage.getUserByPhone(phone);
-
-
-
-      console.log(`?? [ADMIN] SolicitaÃ§Ã£o de RESET COMPLETO para ${phone}`);
-
-
-
-      // Limpar sessÃ£o em memÃ³ria primeiro
+      // Limpar sessao em memoria primeiro
 
       const { clearClientSession } = await import("./adminAgentService");
 
       clearClientSession(phone);
-
-
 
       // Cancelar follow-ups
 
@@ -26963,19 +27193,15 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       cancelFollowUp(phone);
 
+      // Executar reset seguro com validacoes
 
-
-      // Executar reset seguro com validaÃ§Ãµes
-
-      const result = await storage.resetTestAccountSafely(phone);
-
-
+      const result = await storage.resetTestAccountSafely(phone, { forceAnyAccount: true });
 
       if (!result.success) {
 
         return res.status(400).json({
 
-          message: result.error || "NÃ£o foi possÃ­vel resetar a conta",
+          message: result.error || "Nao foi possivel resetar a conta",
 
           error: result.error
 
@@ -26983,51 +27209,13 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       }
 
-
-
-      // Se deletou o usuÃ¡rio no banco, deletar tambÃ©m no Supabase Auth
-
-      // (senÃ£o o email fica preso e gera email_exists no prÃ³ximo teste)
-
-      let authDeleted = false;
-
-      if (user?.id && result.result?.userDeleted) {
-
-        const { supabase } = await import("./supabaseAuth");
-
-        const { error: authDeleteError } = await supabase.auth.admin.deleteUser(user.id);
-
-        if (authDeleteError) {
-
-          console.error("[ADMIN] Falha ao deletar usuÃ¡rio no Supabase Auth:", authDeleteError);
-
-          return res.status(500).json({
-
-            success: false,
-
-            message: "Reset no banco OK, mas falha ao deletar usuÃ¡rio no Auth",
-
-            error: authDeleteError.message,
-
-          });
-
-        }
-
-        authDeleted = true;
-
-        console.log(`??? [ADMIN] UsuÃ¡rio ${user.id} deletado do Supabase Auth (complete)`);
-
-      }
-
-
-
       res.json({
 
         success: true,
 
         message: "Reset completo realizado com sucesso",
 
-        details: { ...result.result, authDeleted }
+        details: { ...result.result }
 
       });
 
@@ -30390,6 +30578,109 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       const { phones, message, contacts, settings } = req.body;
 
+      const useBroadcastService = true;
+
+      if (useBroadcastService) {
+
+        if (!phones || !Array.isArray(phones) || phones.length === 0) {
+
+          return res.status(400).json({ message: "Lista de telefones e obrigatoria" });
+
+        }
+
+        if (!message || typeof message !== "string" || !message.trim()) {
+
+          return res.status(400).json({ message: "Mensagem e obrigatoria" });
+
+        }
+
+        const connection = await storage.getConnectionByUserId(userId);
+
+        if (!connection || !connection.isConnected) {
+
+          return res.status(400).json({ message: "WhatsApp nao esta conectado" });
+
+        }
+
+        const contactsWithNames = phones
+
+          .map((phone: string) => {
+
+            const cleanPhone = String(phone).replace(/\D/g, "");
+
+            const contactData = contacts?.find((contact: any) =>
+
+              String(contact.phone || "").replace(/\D/g, "") === cleanPhone
+
+            );
+
+            return {
+
+              phone: cleanPhone,
+
+              name: contactData?.name || "",
+
+            };
+
+          })
+
+          .filter((contact: { phone: string }) => contact.phone.length >= 10 && contact.phone.length <= 15);
+
+        if (contactsWithNames.length === 0) {
+
+          return res.status(400).json({ message: "Nenhum numero valido encontrado" });
+
+        }
+
+        const result = await broadcastService.createAndRunCampaign(userId, {
+
+          contacts: contactsWithNames,
+
+          messageTemplate: message,
+
+          useAi: Boolean(settings?.useAI),
+
+          connectionId: connection.id,
+
+          delayMinMs: Number(settings?.delayMin || 0) * 1000,
+
+          delayMaxMs: Number(settings?.delayMax || 0) * 1000,
+
+          name: `Envio ${new Date().toLocaleString("pt-BR")}`,
+
+        });
+
+        return res.json({
+
+          success: true,
+
+          total: contactsWithNames.length,
+
+          sent: 0,
+
+          failed: 0,
+
+          campaignId: result.campaignId,
+
+          progress: {
+
+            total: contactsWithNames.length,
+
+            sent: 0,
+
+            failed: 0,
+
+            status: "running",
+
+          },
+
+          message: "Envio iniciado em background. Voce pode fechar a pagina que o envio continuara.",
+
+        });
+
+      }
+
+
 
 
       if (!phones || !Array.isArray(phones) || phones.length === 0) {
@@ -30659,6 +30950,120 @@ Responda APENAS com o JSON, sem texto adicional.`;
       const userId = getUserId(req);
 
       const { phones, message, contacts, media, settings } = req.body;
+
+      const useBroadcastService = true;
+
+      if (useBroadcastService) {
+
+        if (!phones || !Array.isArray(phones) || phones.length === 0) {
+
+          return res.status(400).json({ message: "Lista de telefones e obrigatoria" });
+
+        }
+
+        if (!media || !media.type || !media.data) {
+
+          return res.status(400).json({ message: "Midia e obrigatoria (type e data)" });
+
+        }
+
+        const validTypes = ["audio", "image", "video", "document"];
+
+        if (!validTypes.includes(media.type)) {
+
+          return res.status(400).json({ message: `Tipo de midia invalido: ${media.type}` });
+
+        }
+
+        const connection = await storage.getConnectionByUserId(userId);
+
+        if (!connection || !connection.isConnected) {
+
+          return res.status(400).json({ message: "WhatsApp nao esta conectado" });
+
+        }
+
+        const contactsWithNames = phones
+
+          .map((phone: string) => {
+
+            const cleanPhone = String(phone).replace(/\D/g, "");
+
+            const contactData = contacts?.find((contact: any) =>
+
+              String(contact.phone || "").replace(/\D/g, "") === cleanPhone
+
+            );
+
+            return {
+
+              phone: cleanPhone,
+
+              name: contactData?.name || "",
+
+            };
+
+          })
+
+          .filter((contact: { phone: string }) => contact.phone.length >= 10 && contact.phone.length <= 15);
+
+        if (contactsWithNames.length === 0) {
+
+          return res.status(400).json({ message: "Nenhum numero valido encontrado" });
+
+        }
+
+        const result = await broadcastService.createAndRunCampaign(userId, {
+
+          contacts: contactsWithNames,
+
+          messageTemplate: message || "",
+
+          useAi: Boolean(settings?.useAI),
+
+          mediaUrl: media.data,
+
+          mediaType: media.type,
+
+          connectionId: connection.id,
+
+          delayMinMs: Number(settings?.delayMin || 0) * 1000,
+
+          delayMaxMs: Number(settings?.delayMax || 0) * 1000,
+
+          name: `Midia ${media.type} ${new Date().toLocaleString("pt-BR")}`,
+
+        });
+
+        return res.json({
+
+          success: true,
+
+          total: contactsWithNames.length,
+
+          sent: 0,
+
+          failed: 0,
+
+          campaignId: result.campaignId,
+
+          progress: {
+
+            total: contactsWithNames.length,
+
+            sent: 0,
+
+            failed: 0,
+
+            status: "running",
+
+          },
+
+          message: `Envio de ${media.type} iniciado em background.`,
+
+        });
+
+      }
 
 
 
@@ -30932,6 +31337,113 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
     }
 
+  });
+
+
+
+  // ==================== BROADCAST CAMPAIGNS ROUTES ====================
+
+  // POST /api/campaigns - Criar e executar campanha
+  app.post("/api/campaigns", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { contacts, message, messageTemplate, useAi, mediaUrl, mediaType, name, connectionId, delayMin, delayMax, scheduledAt } = req.body;
+
+      if (!contacts || !Array.isArray(contacts) || contacts.length === 0) {
+        return res.status(400).json({ error: "Contatos é obrigatório" });
+      }
+
+      if (!messageTemplate && !message) {
+        return res.status(400).json({ error: "Mensagem é obrigatória" });
+      }
+
+      const finalTemplate = messageTemplate || message;
+
+      const result = await broadcastService.createAndRunCampaign(userId, {
+        contacts,
+        messageTemplate: finalTemplate,
+        useAi: useAi || false,
+        mediaUrl,
+        mediaType,
+        connectionId,
+        name,
+        delayMinMs: Number(delayMin || 0),
+        delayMaxMs: Number(delayMax || 0),
+        scheduledAt: scheduledAt || null,
+      });
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("[CAMPAIGNS] Erro ao criar campanha:", error);
+      res.status(500).json({ error: error.message || "Erro ao criar campanha" });
+    }
+  });
+
+  // GET /api/campaigns - Listar campanhas do usuário
+  app.get("/api/campaigns", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+
+      const campaigns = await db
+        .select({
+          id: broadcastCampaigns.id,
+          name: broadcastCampaigns.name,
+          status: broadcastCampaigns.status,
+          totalContacts: broadcastCampaigns.totalContacts,
+          sentCount: broadcastCampaigns.sentCount,
+          failedCount: broadcastCampaigns.failedCount,
+          createdAt: broadcastCampaigns.createdAt,
+          startedAt: broadcastCampaigns.startedAt,
+          completedAt: broadcastCampaigns.completedAt,
+        })
+        .from(broadcastCampaigns)
+        .where(eq(broadcastCampaigns.userId, userId))
+        .orderBy(desc(broadcastCampaigns.createdAt))
+        .limit(20);
+
+      res.json(campaigns);
+    } catch (error: any) {
+      console.error("[CAMPAIGNS] Erro ao listar campanhas:", error);
+      res.status(500).json({ error: error.message || "Erro ao listar campanhas" });
+    }
+  });
+
+  // GET /api/campaigns/:id - Obter status detalhado da campanha
+  app.get("/api/campaigns/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const campaignId = req.params.id;
+
+      const campaign = await broadcastService.getCampaignStatus(campaignId, userId);
+
+      if (!campaign) {
+        return res.status(404).json({ error: "Campanha não encontrada" });
+      }
+
+      res.json(campaign);
+    } catch (error: any) {
+      console.error("[CAMPAIGNS] Erro ao buscar campanha:", error);
+      res.status(500).json({ error: error.message || "Erro ao buscar campanha" });
+    }
+  });
+
+  // PUT /api/campaigns/:id/cancel - Cancelar campanha
+  app.put("/api/campaigns/:id/cancel", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const campaignId = req.params.id;
+
+      const success = await broadcastService.cancelCampaign(campaignId, userId);
+
+      if (!success) {
+        return res.status(404).json({ error: "Campanha não encontrada ou não pode ser cancelada" });
+      }
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("[CAMPAIGNS] Erro ao cancelar campanha:", error);
+      res.status(500).json({ error: error.message || "Erro ao cancelar campanha" });
+    }
   });
 
 
@@ -31408,13 +31920,34 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // REGRA: Somente clientes que jÃ¡ conversaram (hasResponded = true)
 
+  app.get("/api/contacts/synced/count", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const connection = await storage.getConnectionByUserId(userId);
+      
+      if (!connection) {
+        return res.json({ total: 0 });
+      }
+      
+      const result = await getSyncedContactsCount(connection.id);
+      res.json(result);
+    } catch (error) {
+      console.error("[SYNCED CONTACTS COUNT] Erro:", error);
+      res.status(500).json({ error: "Erro ao contar contatos", total: 0 });
+    }
+  });
+
   app.get("/api/contacts/synced", isAuthenticated, async (req: any, res) => {
 
     try {
 
       const userId = getUserId(req);
 
-      const returnAsArray = req.query.array === 'true' || req.query.format === 'array';
+
+      // Extrair parâmetros de paginação e busca
+      const page = parseInt(req.query.page as string || '1', 10);
+      const limit = Math.min(parseInt(req.query.limit as string || '50', 10), 50);
+      const search = (req.query.search as string || '').trim();
 
 
 
@@ -31424,7 +31957,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       if (!connection) {
 
-        return res.json(returnAsArray ? [] : { contacts: [], total: 0 });
+        return res.json({ contacts: [], total: 0, page: 1, totalPages: 0 });
 
       }
 
@@ -31450,21 +31983,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
       // Buscar contatos DIRETO DO BANCO (rÃ¡pido, sem processar)
 
-      const { contacts, total } = await getSyncedContactsFromDB(connection.id);
-
-
-
-      // Se pediu array (para Envio em Massa), retorna sÃ³ o array
-
-      if (returnAsArray) {
-
-        console.log(`[SYNCED CONTACTS] Retornando ${total} contatos como array`);
-
-        return res.json(contacts);
-
-      }
-
-
+      const { contacts, total, page: _page, totalPages } = await getSyncedContactsFromDB(connection.id, page, limit, search);
 
       // Pegar status da sincronizaÃ§Ã£o para informar o frontend
 
@@ -31472,7 +31991,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      console.log(`[SYNCED CONTACTS] Retornando ${total} contatos do banco (sync status: ${syncStatus.status})`);
+      console.log(`[SYNCED CONTACTS] Página ${page}/${totalPages}: Retornando ${contacts.length} de ${total} contatos (search: "${search}")`);
 
 
 
@@ -31483,6 +32002,10 @@ Responda APENAS com o JSON, sem texto adicional.`;
         contacts,
 
         total,
+
+        page,
+
+        totalPages,
 
         syncStatus: {
 
@@ -31884,12 +32407,86 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   });
 
-
-
+  // ============================================
+  //ContactImport Routes
   // ============================================
 
-  // ?? SINCRONIZAÃ‡ÃƒO COMPLETA DE CONTATOS
+  app.post("/api/contacts/import-preview", isAuthenticated, upload.single('file'), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "Arquivo não fornecido" });
+      }
 
+      const maxSize = 5 * 1024 * 1024; // 5MB
+      if (req.file.size > maxSize) {
+        return res.status(400).json({ message: "Arquivo deve ser menor que 5MB" });
+      }
+
+      if (!isSupportedContactImportFile(req.file)) {
+        return res.status(400).json({ message: "Tipo de arquivo não suportado. Use .xlsx ou .csv" });
+      }
+
+      const preview = await parseContactFile(req.file.buffer, req.file.mimetype);
+      res.json(preview);
+    } catch (error) {
+      console.error("Error previewing contact file:", error);
+      res.status(500).json({ message: error instanceof Error ? error.message : "Erro ao processar arquivo" });
+    }
+  });
+
+  app.post("/api/contacts/import-confirm", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = getUserId(req);
+      const { fileData, mimetype, mapping, destination, listName } = req.body;
+
+      if (!fileData || !mimetype || !mapping) {
+        return res.status(400).json({ message: "Dados incompletos" });
+      }
+
+      if (!isSupportedContactImportFile({ mimetype, originalname: `arquivo.${String(mimetype).includes('csv') ? 'csv' : 'xlsx'}` })) {
+        return res.status(400).json({ message: "Tipo de arquivo nÃ£o suportado. Use .xlsx ou .csv" });
+      }
+
+      const buffer = Buffer.from(fileData, 'base64');
+      const result = await extractContacts(buffer, mimetype, mapping);
+
+      if (destination === 'contact-list') {
+        if (!listName || typeof listName !== 'string') {
+          return res.status(400).json({ message: "Nome da lista é obrigatório" });
+        }
+
+        // Create the contact list
+        const newList = await storage.createContactList?.({
+          userId,
+          name: listName,
+          description: '',
+          contacts: result.contacts,
+        });
+        if (!newList) {
+          return res.status(500).json({ message: "Erro ao criar lista de contatos" });
+        }
+
+        res.json({
+          success: true,
+          listId: newList.id,
+          contactCount: result.contacts.length,
+          contacts: result.contacts,
+          skipped: result.skipped,
+          total: result.total,
+        });
+      } else if (destination === 'mass-send') {
+        res.json(result);
+      } else {
+        res.status(400).json({ message: "Destino inválido" });
+      }
+    } catch (error) {
+      console.error("Error confirming contact import:", error);
+      res.status(500).json({ message: error instanceof Error ? error.message : "Erro ao processar importação" });
+    }
+  });
+
+  // ============================================
+  // ?? SINCRONIZAÃ‡ÃƒO COMPLETA DE CONTATOS
   // Sistema de fila assÃ­ncrona global
 
   // Sincroniza TODOS os contatos (WhatsApp + Conversas)
@@ -32300,7 +32897,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // Get all campaigns for user
 
-  app.get("/api/campaigns", isAuthenticated, async (req: any, res) => {
+  app.get("/api/legacy/campaigns", isAuthenticated, async (req: any, res) => {
 
     try {
 
@@ -32324,7 +32921,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // Create campaign
 
-  app.post("/api/campaigns", isAuthenticated, async (req: any, res) => {
+  app.post("/api/legacy/campaigns", isAuthenticated, async (req: any, res) => {
 
     try {
 
@@ -32380,7 +32977,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // Get single campaign
 
-  app.get("/api/campaigns/:id", isAuthenticated, async (req: any, res) => {
+  app.get("/api/legacy/campaigns/:id", isAuthenticated, async (req: any, res) => {
 
     try {
 
@@ -32416,7 +33013,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // Update campaign
 
-  app.put("/api/campaigns/:id", isAuthenticated, async (req: any, res) => {
+  app.put("/api/legacy/campaigns/:id", isAuthenticated, async (req: any, res) => {
 
     try {
 
@@ -32446,7 +33043,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // Delete campaign
 
-  app.delete("/api/campaigns/:id", isAuthenticated, async (req: any, res) => {
+  app.delete("/api/legacy/campaigns/:id", isAuthenticated, async (req: any, res) => {
 
     try {
 
@@ -32474,7 +33071,7 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
   // Execute campaign now
 
-  app.post("/api/campaigns/:id/execute", isAuthenticated, async (req: any, res) => {
+  app.post("/api/legacy/campaigns/:id/execute", isAuthenticated, async (req: any, res) => {
 
     try {
 
@@ -33818,13 +34415,13 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
     try {
 
-      const { message, phoneNumber, testTrigger } = req.body;
+      const { message, phoneNumber, testTrigger, mediaType, mediaUrl } = req.body;
 
 
 
-      if (!message) {
+      if (!message && !mediaType) {
 
-        return res.status(400).json({ message: "Message is required" });
+        return res.status(400).json({ message: "Message or mediaType is required" });
 
       }
 
@@ -33848,7 +34445,7 @@ Foco: fazer o cliente TESTAR a ferramenta.`
 
 
 
-      const response = await processAdminMessage(testPhone, message, undefined, undefined, skipTriggerCheck);
+      const response = await processAdminMessage(testPhone, message || "", mediaType, mediaUrl, skipTriggerCheck);
 
 
 
@@ -37002,21 +37599,21 @@ LEMBRE-SE: VocÃª Ã© o Rodrigo, atendente humano. Seja natural e prestativo!`
 
           // Extrair nome do agente do prompt se possÃ­vel (ex: "VocÃª Ã© Maria, atendente...")
 
-          const promptMatch = userConfig[0].prompt?.match(/VocÃª Ã© (\w+)/i);
+          const normalizedPrompt = String(userConfig[0].prompt || "").replace(/\s+/g, " ").trim();
+          const promptMatch = normalizedPrompt.match(/Voc[�e]\s+[�e]\s+([^,\n.]+)(?:,\s*[^.\n]+)?\s+da\s+([^.\n]+)/i);
 
-          const agentName = promptMatch ? promptMatch[1] : "Agente";
-
-
+          const agentName = promptMatch?.[1]?.trim() || "Agente";
+          const companyName = promptMatch?.[2]?.trim() || userConfig[0].name || "Empresa";
 
           return res.json({
 
             agentName: agentName,
 
-            company: userConfig[0].name || "Empresa",
+            company: companyName,
 
             userId: userConfig[0].userId,
 
-            description: `Agente de ${userConfig[0].name || "teste"}`,
+            description: `Agente de ${companyName || "teste"}`,
 
           });
 
@@ -37054,17 +37651,15 @@ LEMBRE-SE: VocÃª Ã© o Rodrigo, atendente humano. Seja natural e prestativo!`
 
 
 
-      // Token nÃ£o encontrado ou expirado - retornar demo (Rodrigo)
+      // Token invalido/expirado: nao cair no demo automaticamente.
 
-      res.json({
+      return res.status(404).json({
 
-        agentName: "Rodrigo",
+        error: "TOKEN_NOT_FOUND",
 
-        company: "AgenteZap",
+        invalidToken: true,
 
-        description: "Agente de vendas inteligente (demo)",
-
-        isDemo: true,
+        message: "Esse link de teste e invalido ou expirou. Peca um novo link para o administrador.",
 
       });
 
@@ -47810,80 +48405,87 @@ LEMBRE-SE: VocÃª Ã© o Rodrigo, atendente humano. Seja natural e prestativo!`
 
 
       // Determinar destino
-
-      let targetJid: string;
+      let targetConversation;
 
       if (targetConversationId) {
+        targetConversation = await storage.getConversation(targetConversationId);
 
-        const targetConv = await storage.getConversation(targetConversationId);
-
-        if (!targetConv || targetConv.connectionId !== connection.id) {
-
+        if (!targetConversation || targetConversation.connectionId !== connection.id) {
           return res.status(404).json({ message: "Conversa de destino nÃ£o encontrada" });
-
+        }
+      } else {
+        // Limpar nÃºmero e formatar JID
+        const cleanNumber = String(targetNumber || '').replace(/\D/g, '');
+        if (!cleanNumber) {
+          return res.status(400).json({ message: "NÃºmero de destino invÃ¡lido" });
         }
 
-        targetJid = targetConv.remoteJid || `${targetConv.contactNumber}@s.whatsapp.net`;
+        const targetJid = `${cleanNumber}@s.whatsapp.net`;
+        targetConversation =
+          await storage.getActiveConversationByContactNumber(connection.id, cleanNumber) ||
+          await storage.getConversationByContactNumber(connection.id, cleanNumber);
 
-      } else {
-
-        // Limpar nÃºmero e formatar JID
-
-        const cleanNumber = targetNumber.replace(/\D/g, '');
-
-        targetJid = `${cleanNumber}@s.whatsapp.net`;
-
+        if (!targetConversation) {
+          targetConversation = await storage.createConversation({
+            connectionId: connection.id,
+            contactNumber: cleanNumber,
+            remoteJid: targetJid,
+            contactName: cleanNumber,
+            lastMessageText: null,
+            lastMessageTime: null,
+            unreadCount: 0,
+          });
+        }
       }
-
-
 
       // Encaminhar mensagem via WhatsApp
+      if (originalMessage.mediaType && (originalMessage.mediaUrl || originalMessage.mediaUrlOriginal)) {
+        const supportedMediaTypes = new Set(["audio", "image", "video", "document"]);
+        if (!supportedMediaTypes.has(originalMessage.mediaType)) {
+          return res.status(400).json({ message: "Tipo de mÃ­dia nÃ£o suportado para encaminhamento" });
+        }
 
-      if (originalMessage.mediaType && originalMessage.mediaUrl) {
+        let mediaData = originalMessage.mediaUrl || originalMessage.mediaUrlOriginal;
+        let mediaMimeType = originalMessage.mediaMimeType || undefined;
 
-        // Encaminhar mÃ­dia
-
-        await whatsappSendMessage(
-
-          userId,
-
-          targetJid,
-
-          originalMessage.mediaCaption || originalMessage.text || "",
-
-          {
-
-            mediaType: originalMessage.mediaType as any,
-
-            mediaUrl: originalMessage.mediaUrl,
-
+        if (mediaData && /^https?:\/\//i.test(mediaData)) {
+          const mediaResponse = await fetch(mediaData);
+          if (!mediaResponse.ok) {
+            throw new Error("NÃ£o foi possÃ­vel baixar a mÃ­dia original para encaminhar");
           }
 
-        );
+          const mediaBuffer = Buffer.from(await mediaResponse.arrayBuffer());
+          mediaMimeType = mediaMimeType || mediaResponse.headers.get("content-type") || undefined;
+          mediaData = `data:${mediaMimeType || "application/octet-stream"};base64,${mediaBuffer.toString("base64")}`;
+        }
 
+        if (!mediaData) {
+          return res.status(400).json({ message: "MÃ­dia indisponÃ­vel para encaminhamento" });
+        }
+
+        const { sendUserMediaMessage } = await import("./whatsapp");
+        await sendUserMediaMessage(userId, targetConversation.id, {
+          type: originalMessage.mediaType,
+          data: mediaData,
+          mimetype: mediaMimeType || "application/octet-stream",
+          caption: originalMessage.mediaCaption || originalMessage.text || undefined,
+          ptt: originalMessage.mediaType === "audio" ? true : undefined,
+        });
       } else if (originalMessage.text) {
-
-        // Encaminhar texto
-
         await whatsappSendMessage(
-
           userId,
-
-          targetJid,
-
+          targetConversation.id,
           `_Mensagem encaminhada:_\n\n${originalMessage.text}`
-
         );
-
       } else {
-
         return res.status(400).json({ message: "Mensagem nÃ£o pode ser encaminhada" });
-
       }
 
-
-
-      res.json({ success: true, message: "Mensagem encaminhada com sucesso" });
+      res.json({
+        success: true,
+        message: "Mensagem encaminhada com sucesso",
+        conversationId: targetConversation.id,
+      });
 
     } catch (error) {
 
@@ -47908,87 +48510,63 @@ LEMBRE-SE: VocÃª Ã© o Rodrigo, atendente humano. Seja natural e prestativo!`
     try {
 
       const userId = getUserId(req);
-
-      const { phoneNumber, name, message } = req.body;
-
-
+      const { phoneNumber, name, contactName, message, connectionId: requestedConnectionId } = req.body;
 
       if (!phoneNumber) {
-
         return res.status(400).json({ message: "NÃºmero de telefone Ã© obrigatÃ³rio" });
-
       }
 
+      let connection = requestedConnectionId
+        ? await storage.getConnectionByUserId(userId, requestedConnectionId)
+        : undefined;
 
-
-      const connection = await storage.getConnectionByUserId(userId);
+      if (!connection) {
+        const userConnections = await storage.getConnectionsByUserId(userId);
+        if (userConnections.length > 1 && !requestedConnectionId) {
+          return res.status(400).json({
+            message: "Selecione qual nÃºmero deve iniciar a nova conversa.",
+            requiresConnectionSelection: true,
+          });
+        }
+        connection = userConnections[0];
+      }
 
       if (!connection || !connection.isConnected) {
-
         return res.status(400).json({ message: "WhatsApp nÃ£o conectado" });
-
       }
-
-
 
       // Limpar e formatar nÃºmero
-
       const cleanNumber = phoneNumber.replace(/\D/g, '');
-
       const jid = `${cleanNumber}@s.whatsapp.net`;
 
-
-
       // Verificar se jÃ¡ existe conversa
-
-      let conversation = await storage.getConversationByRemoteJid(connection.id, jid);
-
-
+      let conversation =
+        await storage.getActiveConversationByContactNumber(connection.id, cleanNumber) ||
+        await storage.getConversationByContactNumber(connection.id, cleanNumber);
 
       if (!conversation) {
-
         // Criar nova conversa
-
         conversation = await storage.createConversation({
-
           connectionId: connection.id,
-
           contactNumber: cleanNumber,
-
           remoteJid: jid,
-
-          contactName: name || cleanNumber,
-
+          contactName: name || contactName || cleanNumber,
           lastMessageText: null,
-
           lastMessageTime: null,
-
           unreadCount: 0,
-
         });
-
       }
-
-
 
       // Se mensagem inicial fornecida, enviar
-
       if (message) {
-
-        await whatsappSendMessage(userId, jid, message);
-
+        await whatsappSendMessage(userId, conversation.id, message);
       }
 
-
-
       res.json({
-
         success: true,
-
+        conversationId: conversation.id,
         conversation,
-
         message: "Conversa criada com sucesso"
-
       });
 
     } catch (error) {

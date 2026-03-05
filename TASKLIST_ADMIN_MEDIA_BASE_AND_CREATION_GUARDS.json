@@ -1,0 +1,30 @@
+{
+  "task": "Alinhar o agente admin com a base do rodrigo4@gmail.com e impedir promessas de criacao sem entrega real",
+  "completedAt": "2026-02-27",
+  "items": [
+    {
+      "step": "Usar a biblioteca de midias do rodrigo4@gmail.com como base do admin em tempo de execucao",
+      "status": "completed"
+    },
+    {
+      "step": "Melhorar a captura do nome do negocio em mensagens mistas (ex.: 'pode criar? Barbearia X')",
+      "status": "completed"
+    },
+    {
+      "step": "Permitir criacao no mesmo turno quando houver intencao clara + nome valido, mesmo com interrogacao no texto",
+      "status": "completed"
+    },
+    {
+      "step": "Remover mencoes espontaneas de envio em massa quando o cliente nao tocar nesse assunto",
+      "status": "completed"
+    },
+    {
+      "step": "Reescrever promessas de criacao para modo condicional quando nao houve entrega de credenciais",
+      "status": "completed"
+    },
+    {
+      "step": "Validar build e cenarios locais de criacao e explicacao",
+      "status": "completed"
+    }
+  ]
+}

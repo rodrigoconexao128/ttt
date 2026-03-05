@@ -35,6 +35,67 @@ import { AccessBlocker, SubscriptionExpiringBanner } from "@/components/access-b
 import { PromoBar } from "@/components/promo-bar";
 // Plans, Subscribe and Settings are rendered inside Dashboard layout
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/lib/supabase";
+
+/**
+ * V17: Auto-login via URL params
+ * URL format: /plans?al=base64(email:password)
+ * Decodes credentials and signs in via Supabase, then removes the param from URL
+ */
+function useAutoLogin() {
+  const [autoLoginDone, setAutoLoginDone] = useState(false);
+  const [, setLocation] = useLocation();
+
+  useEffect(() => {
+    const doAutoLogin = async () => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const alParam = params.get("al");
+        if (!alParam) {
+          setAutoLoginDone(true);
+          return;
+        }
+
+        // Decode base64 credentials
+        const decoded = atob(alParam);
+        const colonIdx = decoded.indexOf(":");
+        if (colonIdx < 1) {
+          setAutoLoginDone(true);
+          return;
+        }
+
+        const email = decoded.substring(0, colonIdx);
+        const password = decoded.substring(colonIdx + 1);
+
+        console.log("[AUTO-LOGIN] Tentando login automático para:", email);
+
+        // Sign in via Supabase
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
+        if (error) {
+          console.error("[AUTO-LOGIN] Erro:", error.message);
+        } else if (data.session) {
+          console.log("[AUTO-LOGIN] Login automático realizado com sucesso!");
+          // Invalidate user cache so auth state updates
+          await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+        }
+
+        // Remove al param from URL (keep other params and hash)
+        params.delete("al");
+        const remaining = params.toString();
+        const cleanPath = window.location.pathname + (remaining ? `?${remaining}` : "") + window.location.hash;
+        window.history.replaceState({}, "", cleanPath);
+      } catch (err) {
+        console.error("[AUTO-LOGIN] Erro inesperado:", err);
+      }
+      setAutoLoginDone(true);
+    };
+
+    doAutoLogin();
+  }, []);
+
+  return autoLoginDone;
+}
 
 function RequireAuth({ component: Component }: { component: any }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -98,13 +159,14 @@ function RequireAdmin({ component: Component }: { component: any }) {
 function Router() {
   const { isAuthenticated, isLoading } = useAuth();
   const [location] = useLocation();
+  const autoLoginDone = useAutoLogin();
 
   // Lista de rotas que não precisam esperar o carregamento da autenticação
   const publicRoutes = ["/", "/login", "/cadastro", "/admin-simulator", "/model-tester", "/test", "/testar", "/termos-de-uso", "/p", "/membro-login", "/admin-login", "/ajuda"];
   const isPublicRoute = publicRoutes.some(route => location === route || location.startsWith(route + "/"));
 
-  // Se está carregando e não é rota pública, mostrar loading
-  if (isLoading && !isPublicRoute) {
+  // Se está carregando auto-login ou auth e não é rota pública, mostrar loading
+  if ((isLoading || !autoLoginDone) && !isPublicRoute) {
     return <LoadingScreen />;
   }
 

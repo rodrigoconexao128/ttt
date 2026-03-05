@@ -364,6 +364,15 @@ export const CATEGORY_KEYWORDS: Record<string, string[]> = {
   'hamburguer': ['hamburguer', 'hamburger', 'burger', 'lanche', 'lanches'],
   'doce': ['doce', 'doces', 'sobremesa', 'sobremesas'],
   'salgado': ['salgado', 'salgados'],
+  'tradicional': ['tradicional', 'tradicionais'],
+  'especial': ['especial', 'especiais'],
+  'adicional': ['adicional', 'adicionais'],
+  'combos': ['combo', 'combos'],
+  'porcao': ['porção', 'porcao', 'porções', 'porcoes'],
+  'entrada': ['entrada', 'entradas'],
+  'massa': ['massa', 'massas', 'macarrão', 'macarrao'],
+  'sushi': ['sushi', 'sushis', 'temaki', 'sashimi'],
+  'promo': ['promoção', 'promocao', 'promo', 'promoções', 'promocoes'],
 };
 
 function normalizeCategoryText(text: string): string {
@@ -375,6 +384,31 @@ function normalizeCategoryText(text: string): string {
     .replace(/[^a-z0-9\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/**
+ * 🆕 Smart category text matching com awareness de word-boundary.
+ * Previne falsos positivos como "tradicionais" matchando "adicionais"
+ * (substring na posição 2, sem ser fronteira de palavra).
+ */
+function smartCategoryMatch(text1: string, text2: string): boolean {
+  if (!text1 || !text2) return false;
+  
+  // Exact match
+  if (text1 === text2) return true;
+  
+  // Shorter text is a substring of longer text
+  const [shorter, longer] = text1.length <= text2.length ? [text1, text2] : [text2, text1];
+  
+  if (shorter.length >= 3 && longer.includes(shorter)) {
+    const idx = longer.indexOf(shorter);
+    // Match must start at beginning or after a word boundary (space)
+    if (idx === 0 || longer[idx - 1] === ' ') {
+      return true;
+    }
+  }
+  
+  return false;
 }
 
 function normalizeMenuSendMode(value?: string | null): string {
@@ -1008,9 +1042,19 @@ const INTENT_PATTERNS: Record<CustomerIntent, RegExp[]> = {
     /^(hamburguer|hamburger|burger|lanche)s?$/i,
     /^(doce|sobremesa)s?$/i,
     /^(salgado)s?$/i,
-    /quero ver (as )?(pizza|esfirra|bebida|a[çc]a[ií]|lanche|doce|salgado)s?/i,
-    /mostra (as )?(pizza|esfirra|bebida|a[çc]a[ií]|lanche|doce|salgado)s?/i,
-    /ver (as )?(pizza|esfirra|bebida|a[çc]a[ií]|lanche|doce|salgado)s?/i,
+    /^(borda)s?$/i,
+    /^(tradicion)ais?$/i,
+    /^(especia)is?l?$/i,
+    /^(adicion)ais?$/i,
+    /^(combo)s?$/i,
+    /^(por[çc][aã]o|por[çc][oõ]es)$/i,
+    /^(entrada)s?$/i,
+    /^(massa|macarr[aã]o)s?$/i,
+    /^(sushi|temaki|sashimi)s?$/i,
+    /^(promo[çc][aã]o|promo)s?$/i,
+    /quero ver (as? |os? )?(pizza|esfirra|bebida|a[çc]a[ií]|lanche|doce|salgado|borda|tradicion|especia|adicion|combo|entrada|massa|promo)\w*/i,
+    /mostra (as? |os? )?(pizza|esfirra|bebida|a[çc]a[ií]|lanche|doce|salgado|borda|tradicion|especia|adicion|combo|entrada|massa|promo)\w*/i,
+    /ver (as? |os? )?(pizza|esfirra|bebida|a[çc]a[ií]|lanche|doce|salgado|borda|tradicion|especia|adicion|combo|entrada|massa|promo)\w*/i,
   ],
   WANT_MENU: [
     /card[aá]pio/i,
@@ -1112,7 +1156,7 @@ export function detectCategoryFromMessage(message: string): string | null {
     for (const keyword of keywords) {
       const normalizedKeyword = normalizeCategoryText(keyword);
       if (!normalizedKeyword) continue;
-      if (normalizedMsg === normalizedKeyword || normalizedMsg.includes(normalizedKeyword)) {
+      if (smartCategoryMatch(normalizedMsg, normalizedKeyword)) {
         console.log(`🎯 [DeliveryAI] Categoria detectada: ${category} (keyword: ${keyword})`);
         return category;
       }
@@ -1746,7 +1790,7 @@ function findMatchingCategory(
     for (const candidate of keywordCandidates) {
       const normalizedCandidate = normalizeCategoryText(candidate);
       if (!normalizedCandidate) continue;
-      if (catNameNormalized.includes(normalizedCandidate) || normalizedCandidate.includes(catNameNormalized)) {
+      if (smartCategoryMatch(catNameNormalized, normalizedCandidate)) {
         return true;
       }
     }
@@ -1781,14 +1825,14 @@ export function formatCategoryAsBubbles(
     const catNameNormalized = normalizeCategoryText(cat.name);
     if (!catNameNormalized) return false;
 
-    if (catNameNormalized.includes(normalizedKeyword) || normalizedKeyword.includes(catNameNormalized)) {
+    if (smartCategoryMatch(catNameNormalized, normalizedKeyword)) {
       return true;
     }
 
     for (const candidate of keywordCandidates) {
       const normalizedCandidate = normalizeCategoryText(candidate);
       if (!normalizedCandidate) continue;
-      if (catNameNormalized.includes(normalizedCandidate) || normalizedCandidate.includes(catNameNormalized)) {
+      if (smartCategoryMatch(catNameNormalized, normalizedCandidate)) {
         return true;
       }
     }
@@ -2003,7 +2047,23 @@ export async function generateDeliveryResponse(
   // Quando cliente diz apenas "pizza", mostra só as pizzas!
   // ═══════════════════════════════════════════════════════════════════════
   if (intent === 'WANT_CATEGORY') {
-    const category = detectCategoryFromMessage(message);
+    let category = detectCategoryFromMessage(message);
+    
+    // 🆕 FALLBACK DINÂMICO: Se keywords hardcoded não acharam, busca por nome real da categoria no DB
+    if (!category) {
+      const normalizedMsg = normalizeCategoryText(message);
+      if (normalizedMsg) {
+        for (const cat of deliveryData.categories) {
+          const catNameNormalized = normalizeCategoryText(cat.name);
+          if (catNameNormalized && smartCategoryMatch(catNameNormalized, normalizedMsg)) {
+            category = normalizedMsg;
+            console.log(`🍕 [DeliveryAI] ✅ Categoria encontrada por nome do DB: "${cat.name}" → "${category}"`);
+            break;
+          }
+        }
+      }
+    }
+    
     console.log(`🍕 [DeliveryAI] Intent WANT_CATEGORY - mostrando apenas: ${category}`);
     
     if (category) {
@@ -2171,7 +2231,23 @@ export async function generateDeliveryResponse(
   if (intent === 'WANT_MENU') {
     console.log(`🍕 [DeliveryAI] Intent WANT_MENU - solicitando categoria antes do cardápio completo`);
     
-    const categoryFromMessage = detectCategoryFromMessage(message);
+    let categoryFromMessage = detectCategoryFromMessage(message);
+    
+    // 🆕 FALLBACK DINÂMICO: tentar match direto pelo nome da categoria no DB
+    if (!categoryFromMessage) {
+      const normalizedMsg = normalizeCategoryText(message);
+      if (normalizedMsg) {
+        for (const cat of deliveryData.categories) {
+          const catNameNormalized = normalizeCategoryText(cat.name);
+          if (catNameNormalized && smartCategoryMatch(catNameNormalized, normalizedMsg)) {
+            categoryFromMessage = normalizedMsg;
+            console.log(`🍕 [DeliveryAI] ✅ WANT_MENU: Categoria encontrada por nome DB: "${cat.name}" → "${categoryFromMessage}"`);
+            break;
+          }
+        }
+      }
+    }
+    
     if (categoryFromMessage) {
       const matchedCategory = findMatchingCategory(deliveryData, categoryFromMessage);
       const shouldImageOnly = normalizeMenuSendMode(deliveryData.config.menu_send_mode) === 'image' && !!matchedCategory?.image_url;
@@ -3471,10 +3547,16 @@ export function findItemByNameFuzzy(
   searchName: string,
   categoryFilter?: string  // NOVO: Filtrar por categoria específica
 ): MenuItem | null {
-  const normalized = searchName.toLowerCase().trim()
-    .replace(/refri\b/g, 'refrigerante')
-    .replace(/(\d)\s*l\b/gi, '$1 litros')
-    .replace(/(\d)\s*litro\b/gi, '$1 litros');
+  // 🆕 Normalização unificada: aplicar mesmas regras para busca E nomes de itens
+  const normalizeForItemMatch = (text: string): string => {
+    return text.toLowerCase().trim()
+      .replace(/coca[\s-]*cola/gi, 'coca')   // coca-cola → coca
+      .replace(/guarana/gi, 'guaraná')
+      .replace(/-/g, ' ')                     // hifens → espaço
+      .replace(/\s+/g, ' ');
+  };
+  
+  const normalized = normalizeForItemMatch(searchName);
   
   // Filtrar categorias se especificado
   const categoriesToSearch = categoryFilter 
@@ -3491,18 +3573,18 @@ export function findItemByNameFuzzy(
 
   const searchWords = normalized
     .split(/\s+/)
-    .filter(w => w.length > 2 && !['de', 'da', 'do', 'uma', 'um'].includes(w));
+    .filter(w => w.length > 1 && !['de', 'da', 'do', 'uma', 'um'].includes(w));
 
   const flavorWords = normalized
     .split(/\s+/)
-    .filter(w => w.length > 4 && !['pizza', 'esfiha', 'esfirra', 'quero', 'grande', 'media', 'pequena'].includes(w));
+    .filter(w => w.length > 3 && !['pizza', 'esfiha', 'esfirra', 'quero', 'grande', 'media', 'pequena'].includes(w));
 
   type Candidate = { item: MenuItem; categoryName: string; score: number; reason: string };
   const candidates: Candidate[] = [];
 
   for (const category of categoriesToSearch) {
     for (const item of category.items) {
-      const itemNameLower = item.name.toLowerCase();
+      const itemNameLower = normalizeForItemMatch(item.name);
       let score = 0;
       let reason = '';
 
@@ -3909,7 +3991,10 @@ export async function processDeliveryMessage(
     if (mediaActions.length > 0) {
       response.mediaActions = mediaActions;
       if (menuSendMode === 'image') {
-        response.bubbles = [];
+        // 🆕 Em vez de esvaziar as bubbles, manter um texto de referência
+        // para que o simulador e clientes sem suporte a imagem vejam algo
+        const catName = response.metadata?.categoryName || response.metadata?.categoryRequested || 'Cardápio';
+        response.bubbles = [`📷 *${catName}*\nConfira a imagem do cardápio acima! 👆\n\nO que você gostaria de pedir? 😊`];
       }
     }
   }

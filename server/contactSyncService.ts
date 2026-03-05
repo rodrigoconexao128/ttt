@@ -24,7 +24,7 @@ import { eq, and, desc, sql, isNotNull, ne } from "drizzle-orm";
 const CONFIG = {
   BATCH_SIZE: 10,          // Contatos por lote 
   DELAY_BETWEEN_BATCHES: 500,   // 500ms entre lotes
-  MAX_CONTACTS_PER_SYNC: 10000, // Limite de contatos por sync (10k)
+  MAX_CONTACTS_PER_SYNC: 2000,  // Limite de contatos por sync (2k)
   MAX_CONCURRENT_SYNCS: 2,      // 2 syncs por vez no servidor
   CACHE_TTL_MS: 5 * 60 * 1000,  // Cache de 5 minutos
 };
@@ -48,6 +48,9 @@ const syncStatusMap = new Map<string, SyncStatus>();
 // Fila GLOBAL de sincronização (todos os usuários)
 const globalSyncQueue: string[] = [];
 let activeSyncs = 0;
+
+// Cache de contagem de contatos (conexãoId:search => contagem + timestamp)
+const countCache = new Map<string, { count: number; timestamp: number }>();
 
 // Cache de contatos já no banco (evita queries repetidas)
 const contactExistsCache = new Map<string, { exists: boolean; timestamp: number }>();
@@ -312,13 +315,13 @@ async function syncContactsForUser(userId: string, connectionId: string) {
             .limit(1);
           
           if (existing.length === 0) {
-            // Inserir novo contato
-            await db.insert(whatsappContacts).values({
+            await storage.upsertContact({
               connectionId,
               contactId: `${contact.phone}@s.whatsapp.net`,
               phoneNumber: contact.phone,
               name: contact.name || null,
-              lastSyncedAt: new Date(),
+              imgUrl: null,
+              lid: null,
             });
             contactExistsCache.set(cacheKey, { exists: true, timestamp: Date.now() });
           } else {
@@ -369,13 +372,18 @@ async function syncContactsForUser(userId: string, connectionId: string) {
 }
 
 /**
- * Busca contatos sincronizados do banco de dados
+ * Busca contatos sincronizados do banco de dados com paginação e busca
  * RÁPIDO: Direto do banco, sem processar nada
  * 
  * FIX 2025: Agora busca TODOS os contatos e extrai número do contact_id
  * quando phone_number não está preenchido (ex: "553199999999@s.whatsapp.net")
  */
-export async function getSyncedContactsFromDB(connectionId: string): Promise<{
+export async function getSyncedContactsFromDB(
+  connectionId: string,
+  page: number = 1,
+  limit: number = 50,
+  search: string = ""
+): Promise<{
   contacts: Array<{
     id: string;
     name: string;
@@ -387,10 +395,51 @@ export async function getSyncedContactsFromDB(connectionId: string): Promise<{
     lastSeen?: Date;
   }>;
   total: number;
+  page: number;
+  totalPages: number;
 }> {
   try {
-    // Query otimizada - busca TODOS os contatos (não apenas com phone_number)
-    // O número pode ser extraído do contact_id no formato "numero@s.whatsapp.net"
+    const effectiveLimit = Math.min(limit, 50);
+    const offset = (page - 1) * effectiveLimit;
+    
+    // Construir condição base de filtro
+    const baseConditions = [
+      sql`${whatsappContacts.connectionId} = ${connectionId}`,
+      sql`${whatsappContacts.contactId} NOT LIKE '%@g.us%'`,
+      sql`(${whatsappContacts.contactId} LIKE '%@s.whatsapp.net' OR ${whatsappContacts.contactId} LIKE '%@c.us')`,
+    ];
+    
+    // Adicionar filtro de busca se fornecido
+    let whereClause = and(...baseConditions);
+    if (search && search.trim()) {
+      const searchTerm = `%${search.trim()}%`;
+      whereClause = and(
+        ...baseConditions,
+        sql`(${whatsappContacts.name} ILIKE ${searchTerm} OR ${whatsappContacts.phoneNumber} LIKE ${searchTerm})`
+      );
+    }
+    
+    // Obter contagem do cache ou executar query
+    const cacheKey = `${connectionId}:${search}`;
+    let total = 0;
+    
+    const cached = countCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CONFIG.CACHE_TTL_MS) {
+      total = cached.count;
+    } else {
+      // Executar contagem
+      const countResult = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(whatsappContacts)
+        .where(whereClause);
+      
+      total = countResult[0]?.count || 0;
+      
+      // Salvar no cache
+      countCache.set(cacheKey, { count: total, timestamp: Date.now() });
+    }
+    
+    // Query otimizada - busca contatos com paginação
     const dbContacts = await db
       .select({
         id: whatsappContacts.id,
@@ -400,15 +449,10 @@ export async function getSyncedContactsFromDB(connectionId: string): Promise<{
         lastSyncedAt: whatsappContacts.lastSyncedAt,
       })
       .from(whatsappContacts)
-      .where(and(
-        eq(whatsappContacts.connectionId, connectionId),
-        // Não filtrar por phone_number! Vamos extrair do contact_id
-        // Apenas ignorar grupos (@g.us) e contatos inválidos
-        sql`${whatsappContacts.contactId} NOT LIKE '%@g.us%'`,
-        sql`${whatsappContacts.contactId} LIKE '%@s.whatsapp.net' OR ${whatsappContacts.contactId} LIKE '%@c.us'`
-      ))
+      .where(whereClause)
       .orderBy(desc(whatsappContacts.lastSyncedAt))
-      .limit(50000);  // Limite alto - frontend vai paginar
+      .limit(effectiveLimit)
+      .offset(offset);
     
     // Extrair número do contact_id quando phone_number é nulo
     const contacts = dbContacts.map(c => {
@@ -449,12 +493,55 @@ export async function getSyncedContactsFromDB(connectionId: string): Promise<{
       lastSeen?: Date;
     }>;
     
-    console.log(`[SYNC] Retornando ${contacts.length} contatos válidos de ${dbContacts.length} total`);
-    return { contacts, total: contacts.length };
+    const totalPages = Math.ceil(total / effectiveLimit);
+    
+    console.log(
+      `[SYNC] Página ${page}/${totalPages}: Retornando ${contacts.length} contatos ` +
+      `(search: "${search}", total: ${total})`
+    );
+    
+    return { contacts, total, page, totalPages };
     
   } catch (error) {
     console.error('[SYNC] Erro ao buscar contatos:', error);
-    return { contacts: [], total: 0 };
+    return { contacts: [], total: 0, page: 1, totalPages: 0 };
+  }
+}
+
+/**
+ * Retorna a contagem de contatos sincronizados
+ * Usa cache com TTL para não sobrecarregar o banco
+ */
+export async function getSyncedContactsCount(connectionId: string): Promise<{ total: number }> {
+  try {
+    const cacheKey = `${connectionId}:`;
+    
+    const cached = countCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CONFIG.CACHE_TTL_MS) {
+      return { total: cached.count };
+    }
+    
+    // Executar contagem com filtros base
+    const countResult = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(whatsappContacts)
+      .where(and(
+        eq(whatsappContacts.connectionId, connectionId),
+        sql`${whatsappContacts.contactId} NOT LIKE '%@g.us%'`,
+        sql`(${whatsappContacts.contactId} LIKE '%@s.whatsapp.net' OR ${whatsappContacts.contactId} LIKE '%@c.us')`
+      ));
+    
+    const total = countResult[0]?.count || 0;
+    
+    // Salvar no cache
+    countCache.set(cacheKey, { count: total, timestamp: Date.now() });
+    
+    console.log(`[SYNC] Contagem total para ${connectionId}: ${total} contatos`);
+    
+    return { total };
+  } catch (error) {
+    console.error('[SYNC] Erro ao contar contatos:', error);
+    return { total: 0 };
   }
 }
 
@@ -484,5 +571,6 @@ export default {
   getSyncStatus,
   startBackgroundSync,
   getSyncedContactsFromDB,
+  getSyncedContactsCount,
   hasSyncedBefore,
 };

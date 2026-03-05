@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { Slider } from "@/components/ui/slider";
+import AdminWhatsAppSimulator from "@/components/admin-whatsapp-simulator";
 import { 
   Bot, Sparkles, TestTube, Save, AlertCircle, CheckCircle2, 
   Plus, X, Zap, Settings2, Image as ImageIcon, Music, Video, 
@@ -93,55 +94,6 @@ const mediaTypeIcons = {
 
 // ============== COMPONENTE PRINCIPAL ==============
 export default function AdminAgentConfig() {
-
-  // 🧠 INTELLIGENT MODE STATE
-  const [intelligentMode, setIntelligentMode] = useState(false);
-  const [loadingIntelligentMode, setLoadingIntelligentMode] = useState(false);
-
-  // Buscar estado do modo inteligente
-  useEffect(() => {
-    const fetchIntelligentMode = async () => {
-      try {
-        const res = await fetch("/api/admin/intelligent-mode", { credentials: "include" });
-        const data = await res.json();
-        setIntelligentMode(data.enabled);
-      } catch (error) {
-        console.error("Erro ao buscar modo inteligente:", error);
-      }
-    };
-    fetchIntelligentMode();
-  }, []);
-
-  // Mutation para alterar modo inteligente
-  const toggleIntelligentModeMutation = useMutation({
-    mutationFn: async (enabled: boolean) => {
-      const res = await fetch("/api/admin/intelligent-mode", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ enabled }),
-      });
-      if (!res.ok) throw new Error("Falha ao atualizar modo inteligente");
-      return res.json();
-    },
-    onMutate: () => setLoadingIntelligentMode(true),
-    onSuccess: (data) => {
-      setIntelligentMode(data.enabled);
-      setLoadingIntelligentMode(false);
-      toast({
-        title: data.enabled ? "🧠 Modo Inteligente Ativado!" : "⚙️ Modo Legacy Ativado",
-        description: data.enabled 
-          ? "O agente agora usa o sistema OpenClaw-style para decisões dinâmicas."
-          : "O agente voltou ao modo de fluxos pré-definidos.",
-      });
-    },
-    onError: () => {
-      setLoadingIntelligentMode(false);
-      toast({ title: "Erro ao alterar modo", variant: "destructive" });
-    },
-  });
-
-
   const { toast } = useToast();
   const queryClient = useQueryClient();
   
@@ -741,6 +693,8 @@ export default function AdminAgentConfig() {
               </div>
             </div>
           </Card>
+
+          <AdminWhatsAppSimulator />
         </TabsContent>
 
         {/* ============== ABA: MÍDIAS ============== */}
@@ -832,87 +786,6 @@ export default function AdminAgentConfig() {
 
         {/* ============== ABA: CONFIGURAÇÕES ============== */}
         <TabsContent value="settings" className="space-y-4">
-
-          {/* ============== MODO INTELIGENTE (OpenClaw-style) ============== */}
-          <Card className="p-6 border-2 border-primary/50 bg-gradient-to-br from-primary/5 to-purple-500/5">
-            <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <div className="p-2 rounded-lg bg-gradient-to-br from-primary/20 to-purple-500/20">
-                  <Sparkles className="w-6 h-6 text-primary" />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label className="text-base font-bold">🧠 Modo Inteligente (OpenClaw-style)</Label>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Sistema de agente autônomo que decide ações dinamicamente baseado na conversa
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      {loadingIntelligentMode && <Loader2 className="w-4 h-4 animate-spin" />}
-                      <Switch
-                        checked={intelligentMode}
-                        onCheckedChange={(checked) => toggleIntelligentModeMutation.mutate(checked)}
-                        disabled={loadingIntelligentMode}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Descrição expandida do modo */}
-              <div className="pl-11 space-y-3">
-                <div className="bg-white/50 dark:bg-black/20 rounded-lg p-4 space-y-2">
-                  <h4 className="font-semibold text-sm flex items-center gap-2">
-                    <Bot className="w-4 h-4" />
-                    O que o Modo Inteligente faz?
-                  </h4>
-                  <ul className="text-sm space-y-1.5 text-muted-foreground">
-                    <li className="flex items-start gap-2">
-                      <CheckCircle2 className="w-4 h-4 mt-0.5 text-green-500 flex-shrink-0" />
-                      <span><strong>Cria contas automaticamente</strong> quando cliente pede</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <CheckCircle2 className="w-4 h-4 mt-0.5 text-green-500 flex-shrink-0" />
-                      <span><strong>Configura agentes</strong> extraindo dados da conversa natural</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <CheckCircle2 className="w-4 h-4 mt-0.5 text-green-500 flex-shrink-0" />
-                      <span><strong>Gera links auto-login</strong> para conexão WhatsApp e planos</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <CheckCircle2 className="w-4 h-4 mt-0.5 text-green-500 flex-shrink-0" />
-                      <span><strong>Gerencia mídias</strong> (áudio, vídeo, imagem) via conversa</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <CheckCircle2 className="w-4 h-4 mt-0.5 text-green-500 flex-shrink-0" />
-                      <span><strong>Nunca se perde no contexto</strong> - memória persistente de sessão</span>
-                    </li>
-                  </ul>
-                </div>
-
-                {intelligentMode && (
-                  <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
-                    <p className="text-sm text-green-800 dark:text-green-200 flex items-center gap-2">
-                      <Zap className="w-4 h-4" />
-                      <strong>Modo Inteligente Ativado!</strong> O agente agora usa IA para decidir ações automaticamente.
-                    </p>
-                  </div>
-                )}
-
-                {!intelligentMode && (
-                  <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-3">
-                    <p className="text-sm text-orange-800 dark:text-orange-200 flex items-center gap-2">
-                      <Info className="w-4 h-4" />
-                      <strong>Modo Legacy Ativo:</strong> O agente usa fluxos pré-definidos tradicionais.
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </Card>
-
-
           {/* Tempo de Resposta */}
           <Card className="p-6">
             <div className="space-y-4">

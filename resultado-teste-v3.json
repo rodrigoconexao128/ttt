@@ -1,0 +1,113 @@
+{
+  "ts": "2026-02-28T16:45:36.690Z",
+  "total": 15,
+  "passed": 15,
+  "failed": 0,
+  "results": [
+    {
+      "id": "C1",
+      "name": "Novo 'oi' → Q1",
+      "pass": true,
+      "detail": "",
+      "resp": "Oi! Aqui e o Rodrigo, da AgenteZap. Eu consigo montar seu agente por aqui, sem voce precisar configurar nada sozinho agora. Pra eu criar do jeito certo, me responde 3 coisas rapidinho. 1) Qual e o nom"
+    },
+    {
+      "id": "C2",
+      "name": "Onboarding Q1-Q4 ok",
+      "pass": true,
+      "detail": "",
+      "resp": "Fechou. Já atualizei os dias e horários reais no módulo de agendamentos e também alinhei o agente. Agora ele só deve trabalhar dentro de segunda, terça, quarta, quinta, sexta, sábado, das 06:00 às 19:"
+    },
+    {
+      "id": "C3",
+      "name": "Edit detalhado (Pedro/Loja Solar)",
+      "pass": true,
+      "detail": "",
+      "resp": "Fechado. Já atualizei o prompt real do seu agente para ele se apresentar como Pedro da Loja Solar Pedro. Testa no mesmo link do simulador agora e, se quiser, eu sigo ajustando."
+    },
+    {
+      "id": "C4",
+      "name": "Edit sem detalhes → pedir",
+      "pass": true,
+      "detail": "",
+      "resp": "Consigo sim. Esse mesmo numero ja esta ligado ao seu agente. Me fala exatamente o que voce quer ajustar, que eu aplico por aqui."
+    },
+    {
+      "id": "C5",
+      "name": "Edit 'seja a Ana'",
+      "pass": true,
+      "detail": "",
+      "resp": "Fechou. Já atualizei os dias e horários reais no módulo de agendamentos e também alinhei o agente. Agora ele só deve trabalhar dentro de segunda a sexta, das 09:00 às 18:00. Se quiser, testa no mesmo "
+    },
+    {
+      "id": "C6",
+      "name": "Edit 'troca nome'",
+      "pass": true,
+      "detail": "",
+      "resp": "Fechado. Já atualizei o prompt real do seu agente para ele se apresentar como para Carlos da Elétrica Luz. Testa no mesmo link do simulador agora e, se quiser, eu sigo ajustando."
+    },
+    {
+      "id": "C7",
+      "name": "'Quem é você?' → apresentação",
+      "pass": true,
+      "detail": "",
+      "resp": "Oi! Aqui e o Rodrigo, da AgenteZap. Eu consigo montar seu agente por aqui, sem voce precisar configurar nada sozinho agora. Pra eu criar do jeito certo, me responde 3 coisas rapidinho. 1) Qual e o nom"
+    },
+    {
+      "id": "C8",
+      "name": "PIX copia-e-cola correto",
+      "pass": true,
+      "detail": "Não mencionou PIX nesta resposta",
+      "resp": "Consigo sim. Esse mesmo numero ja esta ligado ao seu agente. Me fala exatamente o que voce quer ajustar, que eu aplico por aqui."
+    },
+    {
+      "id": "C9",
+      "name": "Off-topic onboarding → não reseta",
+      "pass": true,
+      "detail": "",
+      "resp": "Oi! Tive uma lentidao aqui, mas sigo com voce. Me fala seu negocio e o que voce quer que o agente faca que eu continuo a configuracao e respondo qualquer duvida no caminho. Boa. 2) Como você quer que "
+    },
+    {
+      "id": "C10",
+      "name": "Onboarding detalhado → Q2",
+      "pass": true,
+      "detail": "",
+      "resp": "Boa. 2) Como você quer que esse agente trabalhe por você? Pode me dizer se ele vai só tirar dúvidas, fazer follow-up, fechar agendamento, fechar venda, cobrar, recuperar cliente, ou misturar tudo isso"
+    },
+    {
+      "id": "C11",
+      "name": "Existente 'oi' → reconhecido",
+      "pass": true,
+      "detail": "",
+      "resp": "Oi Rodrigo! Aqui e o Rodrigo, da AgenteZap. Vi que esse mesmo numero ja esta ligado ao seu agente. Se voce quiser, eu ajusto tudo por aqui. Me fala o que voce quer mudar ou qual duvida voce quer tirar"
+    },
+    {
+      "id": "C12",
+      "name": "FRASE BUG ORIGINAL → sem fallback",
+      "pass": true,
+      "detail": "",
+      "resp": "Fechou. Já atualizei os dias e horários reais no módulo de agendamentos e também alinhei o agente. Agora ele só deve trabalhar dentro de segunda a sexta, das 09:00 às 18:00. Se quiser, testa no mesmo "
+    },
+    {
+      "id": "C13",
+      "name": "Setup sem queimar quota",
+      "pass": true,
+      "detail": "",
+      "resp": "Fechou. Já atualizei os dias e horários reais no módulo de agendamentos e também alinhei o agente. Agora ele só deve trabalhar dentro de segunda a sexta, das 09:00 às 18:00. Se quiser, testa no mesmo "
+    },
+    {
+      "id": "C14",
+      "name": "Edit não-padrão → LLM classifier",
+      "pass": true,
+      "detail": "",
+      "resp": "Fechado. Já atualizei o prompt real do seu agente para ele se apresentar como Marcos e ser da empresa Construções ABC. Testa no mesmo link do simulador agora e, se quiser, eu sigo ajustando."
+    },
+    {
+      "id": "C15",
+      "name": "Verificação qualitativa dos edits",
+      "pass": true,
+      "detail": "Edits C3/C5/C6 responderam com confirmação - verificar DB separadamente",
+      "resp": "N/A - verificação qualitativa"
+    }
+  ]
+}

@@ -1,7 +1,6 @@
-import React, { useEffect, useState, lazy, Suspense } from "react";
+import React, { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,6 +33,48 @@ interface CategoryGroup {
   totalUsers: number;
   categories: BusinessCategory[];
 }
+
+const macroGroupOrder = [
+  "delivery",
+  "beleza",
+  "saude",
+  "imobiliario",
+  "automotivo",
+  "varejo",
+  "servicos",
+  "outros",
+] as const;
+
+type MacroGroupKey = typeof macroGroupOrder[number];
+
+const macroGroupLabels: Record<MacroGroupKey, string> = {
+  delivery: "Delivery",
+  beleza: "Beleza",
+  saude: "Saúde",
+  imobiliario: "Imobiliário",
+  automotivo: "Automotivo",
+  varejo: "Varejo",
+  servicos: "Serviços",
+  outros: "Outros",
+};
+
+const rawToMacroGroup: Record<string, MacroGroupKey> = {
+  delivery: "delivery",
+  beleza: "beleza",
+  saude: "saude",
+  imobiliario: "imobiliario",
+  automotivo: "automotivo",
+  varejo: "varejo",
+  servicos: "servicos",
+  // mapeamentos para consolidar grupos legados/adjacentes em macro-categorias
+  educacao: "servicos",
+  tecnologia: "servicos",
+  eventos: "servicos",
+  financeiro: "servicos",
+  construcao: "servicos",
+  juridico: "servicos",
+  geral: "outros",
+};
 
 // ─── Tool badge label per targetTool ──────────────────────────────────────────
 const toolBadge: Record<string, { label: string; color: string }> = {
@@ -161,7 +202,6 @@ function BusinessTypeModal({
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 export default function ToolsMenuPage() {
-  const { user } = useAuth();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
@@ -222,7 +262,40 @@ export default function ToolsMenuPage() {
     setLocation(`/ferramentas/${slug}`);
   };
 
-  const groups = groupsData?.groups || [];
+  const rawGroups = groupsData?.groups || [];
+
+  const macroGroupsMap = new Map<MacroGroupKey, CategoryGroup>();
+  for (const rawGroup of rawGroups) {
+    const macroKey = rawToMacroGroup[rawGroup.group] || "outros";
+    if (!macroGroupsMap.has(macroKey)) {
+      macroGroupsMap.set(macroKey, {
+        group: macroKey,
+        groupLabel: macroGroupLabels[macroKey],
+        totalUsers: 0,
+        categories: [],
+      });
+    }
+
+    const target = macroGroupsMap.get(macroKey)!;
+    target.totalUsers += rawGroup.totalUsers || 0;
+    target.categories.push(...rawGroup.categories);
+  }
+
+  let groups = macroGroupOrder
+    .map((key) => macroGroupsMap.get(key))
+    .filter((g): g is CategoryGroup => Boolean(g && g.categories.length));
+
+  // Com business_type definido, mantém todas as categorias mas prioriza a macro-categoria do cliente
+  if (userBusinessType) {
+    const highlightedGroupIndex = groups.findIndex((group) =>
+      group.categories.some((cat) => cat.slug === userBusinessType)
+    );
+
+    if (highlightedGroupIndex > 0) {
+      const [highlightedGroup] = groups.splice(highlightedGroupIndex, 1);
+      groups = [highlightedGroup, ...groups];
+    }
+  }
 
   return (
     <div className="flex-1 overflow-auto bg-background">

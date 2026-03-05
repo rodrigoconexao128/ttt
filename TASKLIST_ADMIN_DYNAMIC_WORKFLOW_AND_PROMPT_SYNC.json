@@ -1,0 +1,30 @@
+{
+  "title": "Admin Dynamic Workflow And Prompt Sync",
+  "updatedAt": "2026-02-28",
+  "items": [
+    {
+      "step": "Reproduzir a conversa real em que o varejo entrou em loop de pergunta de agendamento",
+      "status": "done"
+    },
+    {
+      "step": "Tornar a pergunta 3 dinâmica por nicho e por intenção detectada",
+      "status": "done"
+    },
+    {
+      "step": "Aceitar respostas naturais de varejo como 'somente vendas' sem cair em loop",
+      "status": "done"
+    },
+    {
+      "step": "Permitir atualização estruturada do prompt genérico para follow-up vs só vendas",
+      "status": "done"
+    },
+    {
+      "step": "Validar criação, link público e alteração real do prompt",
+      "status": "done"
+    },
+    {
+      "step": "Publicar na VPS",
+      "status": "done"
+    }
+  ]
+}

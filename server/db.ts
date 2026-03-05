@@ -244,9 +244,40 @@ setTimeout(async () => {
 
 // Configurar drizzle SEM prepared statements para compatibilidade com PgBouncer Transaction mode
 // PgBouncer em modo "transaction" não suporta prepared statements
+// V13: Disable verbose SQL query logging (was polluting stdout with multi-KB query dumps)
 export const db = drizzle({ 
   client: pool, 
   schema,
-  logger: process.env.NODE_ENV !== 'production',
+  logger: false,
   ...(isPoolerConnection ? { casing: undefined } : {}),
 });
+
+// ============================================================================
+// AUTO-MIGRATION: Garantir tabela admin_autologin_tokens
+// ============================================================================
+setTimeout(async () => {
+  try {
+    const client = await pool.connect();
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS admin_autologin_tokens (
+        token TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        expires_at TIMESTAMPTZ NOT NULL,
+        used_at TIMESTAMPTZ,
+        redirect_to TEXT NOT NULL DEFAULT '/conexao'
+      );
+      CREATE INDEX IF NOT EXISTS idx_autologin_user_id ON admin_autologin_tokens(user_id);
+      CREATE INDEX IF NOT EXISTS idx_autologin_expires ON admin_autologin_tokens(expires_at);
+      -- Migration: add redirect_to column if table already exists without it
+      ALTER TABLE admin_autologin_tokens ADD COLUMN IF NOT EXISTS redirect_to TEXT NOT NULL DEFAULT '/conexao';
+    `);
+
+    console.log('✅ [DB] Tabela admin_autologin_tokens garantida');
+
+    client.release();
+  } catch (error: any) {
+    console.error('❌ [DB] Erro ao garantir tabela admin_autologin_tokens:', error.message || error);
+  }
+}, 7000);

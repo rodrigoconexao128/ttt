@@ -34,6 +34,7 @@ import type { Plan, Subscription, Payment, User } from "@shared/schema";
 import AdminNotificationsPanel from "@/components/admin-notifications-panel";
 import AdminWhatsappPanel from "@/components/admin-whatsapp-panel";
 import AdminStatusPanel from "@/components/admin-status-panel";
+import AdminAgentConfig from "@/components/admin-agent-config";
 import AdminConversations from "@/components/admin-conversations";
 import FollowUpCalendar from "@/components/follow-up-calendar";
 import AdminFollowUpPanel from "@/components/admin-followup-panel";
@@ -326,6 +327,8 @@ export default function AdminPanel() {
         );
       case "status":
         return <AdminStatusPanel defaultSubTab={activeSubTab} onSubTabChange={handleSubTabChange} />;
+      case "agent":
+        return <AdminAgentConfig />;
       case "conversations":
         return null; // Renderizado fora do container
       case "calendar":

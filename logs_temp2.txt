@@ -122,13 +122,13 @@ Lipoless ÔÇô..."
 ­ƒÜ¿ [FORCE MEDIA] ­ƒÆí Raz├úo: Resposta n├úo ├® JSON v├ílido
 ­ƒÜ¿ [FORCE MEDIA] ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=cb9213c3-fde3-479e-a4aa-344171c59735
 ­ƒìò [DeliveryAI] DEBUG config: {"id":"758574ce-6000-4032-894d-27283633c04b","user_id":"cb9213c3-fde3-479e-a4aa-344171c59735","is_active":false,"send_to_ai":false,"business_name":null,"business_type":"restaurante","delivery_fee":0,"min_order_value":0,"estimated_delivery_time":45,"delivery_radius_km":10,"payment_methods":["dinheiro","cartao","pix"],"accepts_delivery":true,"accepts_pickup":true,"opening_hours":{"friday":{"open":"18:00","close":"23:59","is_open":true},"monday":{"open":"18:00","close":"23:00","is_open":true},"sunday":{"open":"18:00","close":"22:00","is_open":true},"tuesday":{"open":"18:00","close":"23:00","is_open":true},"saturday":{"open":"18:00","close":"23:59","is_open":true},"thursday":{"open":"18:00","close":"23:00","is_open":true},"wednesday":{"open":"18:00","close":"23:00","is_open":true}},"ai_instructions":"Voc├¬ ├® um atendente de delivery. Seja simp├ítico, ajude o cliente a escolher, anote os pedidos corretamente com todos os detalhes e sempre confirme antes de finalizar.","whatsapp_order_number":null,"created_at":"2026-01-19T01:33:39.745433","updated_at":"2026-01-19T01:38:20.527","display_instructions":"Quando o cliente pedir o card├ípio, liste cada item em uma linha separada com emoji, nome e pre├ºo. Organize por categoria.","accepts_cancellation":false}
 ­ƒÜ¿ [AI Agent] ÔØî IA de classifica├º├úo decidiu N├âO enviar m├¡dia
 ­ƒÜ¿ [AI Agent] ­ƒÆí Raz├úo: Resposta n├úo ├® JSON v├ílido
 ­ƒöä [AI Agent] Placeholders processados na resposta
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=841c32ed-95fe-4267-a37a-9262e2fcd993
 ­ƒìò [DeliveryAI] DEBUG config: null
 ­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
 ­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)
@@ -275,7 +275,7 @@ Da pra subir a programa├º├úo?..."
    ­ƒöä Contador de lote reiniciado
 ­ƒøí´©Å [ANTI-BAN v4.0] ­ƒæñ Mensagem MANUAL do DONO registrada - Bot aguardar├í antes de responder
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c
 ­ƒìò [DeliveryAI] DEBUG config: null
 ­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
 ­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)
@@ -768,7 +768,7 @@ Ignoring group/status message from: status@broadcast
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
 ­ƒøí´©Å [ANTI-BLOCK] ­ƒôñ Enviando mensagem para 553498332370@s....
 ­ƒøí´©Å [ANTI-BAN] Ôî¿´©Å Simulando digita├º├úo por 3s...
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=eefedb8c-c554-4517-8480-f2d54e317d45
 ­ƒìò [DeliveryAI] DEBUG config: null
 ­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
    Prompt length: 23472 chars

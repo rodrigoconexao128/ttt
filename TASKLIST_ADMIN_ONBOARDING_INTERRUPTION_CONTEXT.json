@@ -1,0 +1,30 @@
+{
+  "title": "Admin Onboarding Interruption Context",
+  "updatedAt": "2026-02-28",
+  "items": [
+    {
+      "step": "Reproduzir a conversa em que o cliente pergunta do plano no meio da criacao",
+      "status": "done"
+    },
+    {
+      "step": "Impedir que perguntas paralelas derrubem a etapa pendente do onboarding",
+      "status": "done"
+    },
+    {
+      "step": "Tratar mensagens de retomada como continuar do ponto certo",
+      "status": "done"
+    },
+    {
+      "step": "Evitar desvio para ajuda de vinculacao enquanto a criacao ainda esta em andamento",
+      "status": "done"
+    },
+    {
+      "step": "Registrar simulacao de regressao para esse fluxo",
+      "status": "done"
+    },
+    {
+      "step": "Build e deploy na VPS",
+      "status": "done"
+    }
+  ]
+}

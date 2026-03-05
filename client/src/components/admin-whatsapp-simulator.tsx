@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { formatWhatsAppTextForHtml } from "@/lib/whatsapp-format";
 
 type HistoryMessage = {
   role: "user" | "assistant";
@@ -450,7 +451,10 @@ export default function AdminWhatsAppSimulator() {
                   {msg.role === "user" ? <User className="w-3 h-3" /> : <Bot className="w-3 h-3" />}
                   <span>{msg.role === "user" ? "Cliente" : "Agente"}</span>
                 </div>
-                <p className="whitespace-pre-wrap text-sm">{msg.text}</p>
+                <p
+                  className="whitespace-pre-wrap text-sm"
+                  dangerouslySetInnerHTML={{ __html: formatWhatsAppTextForHtml(msg.text) }}
+                />
                 <div className="mt-1 text-[10px] opacity-60 text-right">{formatTime(msg.timestamp)}</div>
               </div>
             </div>

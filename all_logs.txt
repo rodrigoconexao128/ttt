@@ -97,7 +97,7 @@ Pastor consegue me dizer quan...
 [QR CODE] QR Code saved to database for user 1f2f40b5-fb3e-4d04-8136-611358c2283d (took 187ms)
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=eefedb8c-c554-4517-8480-f2d54e317d45
 ­ƒìò [DeliveryAI] DEBUG config: null
 ­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
 ­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)
@@ -631,7 +631,7 @@ Ignoring group/status message from: status@broadcast
 ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
 ­ƒìò [DeliveryAI] Processando mensagem: "Ola..."
 Ignoring group/status message from: status@broadcast
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c
 ­ƒìò [DeliveryAI] DEBUG config: null
 ­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
 ­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)
@@ -741,7 +741,7 @@ Ignoring group/status message from: status@broadcast
 ­ƒæñ [AI Agent] Nome do cliente: Luan
 ­ƒôü [AI Agent] M├¡dias j├í enviadas: nenhuma
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=d4a1d307-3d78-4bfe-8ab7-c4a0c3ccbb1c
 ­ƒìò [DeliveryAI] DEBUG config: null
 ­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
 ­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)
@@ -793,7 +793,7 @@ Ignoring group/status message from: status@broadcast
    Model (legacy, ignorado): openai/gpt-oss-20b ÔåÆ real: system_config.openrouter_model
 
 ­ƒñû [AI Agent] ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=eefedb8c-c554-4517-8480-f2d54e317d45
    Prompt (MD5 para debug): a5469330
 ­ƒñû [AI Agent] ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
 
@@ -898,7 +898,7 @@ Ignoring group/status message from: status@broadcast
 ?? [MSG CACHE] Armazenada mensagem 3EB0EDB7F58538BA92B70F para user d4a1d307... (cache size: 11)
 ?? [SYNC] Ignorando mensagem de sincroniza´┐¢´┐¢o (type: append)
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=eefedb8c-c554-4517-8480-f2d54e317d45
 ­ƒìò [DeliveryAI] DEBUG config: null
 ­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
 ­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)

@@ -12,6 +12,7 @@ import { Send, Bot, User, Phone, Loader2, ArrowLeft, Mic, Image, Smile, Papercli
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { formatWhatsAppTextForHtml } from "@/lib/whatsapp-format";
 
 interface Message {
   id: string;
@@ -31,6 +32,7 @@ export default function TestAgent() {
   const [isTyping, setIsTyping] = useState(false);
   const [agentName, setAgentName] = useState("Agente IA");
   const [agentCompany, setAgentCompany] = useState("AgenteZap");
+  const [invalidTokenMessage, setInvalidTokenMessage] = useState<string | null>(null);
   
   // 🔧 FIX: Ler userId da query string OU do path param
   const urlParams = new URLSearchParams(window.location.search);
@@ -47,13 +49,35 @@ export default function TestAgent() {
       const identifier = token || userIdFromQuery;
       if (!identifier) return null;
       const res = await fetch(`/api/test-agent/info/${identifier}`);
-      if (!res.ok) return null;
+      if (!res.ok) {
+        if (res.status === 404) {
+          const data = await res.json().catch(() => null);
+          return {
+            invalidToken: true,
+            message:
+              data?.message ||
+              "Esse link de teste e invalido ou expirou. Peca um novo link para o administrador.",
+          };
+        }
+        return null;
+      }
       return res.json();
     },
     enabled: !!(token || userIdFromQuery),
   });
 
   useEffect(() => {
+    if ((agentInfo as any)?.invalidToken) {
+      setInvalidTokenMessage(
+        (agentInfo as any)?.message ||
+          "Esse link de teste e invalido ou expirou. Peca um novo link para o administrador.",
+      );
+      setMessages([]);
+      setIsTyping(false);
+      return;
+    }
+
+    setInvalidTokenMessage(null);
     if (agentInfo) {
       setAgentName(agentInfo.agentName || "Agente IA");
       setAgentCompany(agentInfo.company || "AgenteZap");
@@ -70,6 +94,9 @@ export default function TestAgent() {
 
   // Simular interação inicial do cliente ("oie")
   useEffect(() => {
+    if (invalidTokenMessage) {
+      return;
+    }
     const timer = setTimeout(() => {
       const initialUserMessage: Message = {
         id: `msg_init_user`,
@@ -85,7 +112,7 @@ export default function TestAgent() {
       sendMessageMutation.mutate("oie");
     }, 1000);
     return () => clearTimeout(timer);
-  }, []); // Executar apenas uma vez na montagem
+  }, [invalidTokenMessage]); // Executar apenas quando o link for valido
 
   // Mutation para enviar mensagem
   const sendMessageMutation = useMutation({
@@ -167,7 +194,7 @@ export default function TestAgent() {
   });
 
   const handleSend = () => {
-    if (!inputText.trim() || sendMessageMutation.isPending) return;
+    if (!inputText.trim() || sendMessageMutation.isPending || invalidTokenMessage) return;
 
     const userMessage: Message = {
       id: `msg_${Date.now()}`,
@@ -221,6 +248,14 @@ export default function TestAgent() {
 
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-[#efeae2] bg-opacity-50" style={{ backgroundImage: "url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')", backgroundBlendMode: "overlay" }}>
+        {invalidTokenMessage && (
+          <div className="flex justify-center pt-8">
+            <div className="max-w-[90%] rounded-lg bg-white p-4 shadow-sm text-center">
+              <p className="text-sm font-medium text-gray-900">Link invalido ou expirado</p>
+              <p className="mt-2 text-sm text-gray-600">{invalidTokenMessage}</p>
+            </div>
+          </div>
+        )}
         {messages.map((msg) => (
           <div
             key={msg.id}
@@ -248,15 +283,10 @@ export default function TestAgent() {
                   </div>
               )}
 
-              <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed" dangerouslySetInnerHTML={{ 
-                __html: msg.text
-                  .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // Bold with **
-                  .replace(/\*(.*?)\*/g, '<strong>$1</strong>')     // Bold with *
-                  .replace(/_(.*?)_/g, '<em>$1</em>')               // Italic with _
-                  .replace(/~(.*?)~/g, '<del>$1</del>')             // Strikethrough with ~
-                  .replace(/```(.*?)```/gs, '<code class="block bg-gray-100 p-2 rounded my-1 text-xs font-mono">$1</code>') // Code block
-                  .replace(/`(.*?)`/g, '<code class="bg-gray-100 px-1 rounded text-xs font-mono">$1</code>') // Inline code
-              }} />
+              <p
+                className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed"
+                dangerouslySetInnerHTML={{ __html: formatWhatsAppTextForHtml(msg.text) }}
+              />
               <span className="text-[10px] text-gray-500 block text-right mt-1">
                 {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 {msg.fromMe && <span className="ml-1 text-blue-500">✓✓</span>}
@@ -289,8 +319,9 @@ export default function TestAgent() {
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSend()}
-          placeholder="Digite uma mensagem"
+          placeholder={invalidTokenMessage ? "Solicite um novo link ao administrador" : "Digite uma mensagem"}
           className="flex-1 bg-white border-none focus-visible:ring-0 rounded-lg"
+          disabled={Boolean(invalidTokenMessage)}
         />
         
         <Button
@@ -300,7 +331,7 @@ export default function TestAgent() {
             "rounded-full transition-all",
             inputText.trim() ? "bg-[#008069] hover:bg-[#006d59]" : "bg-gray-300 hover:bg-gray-400"
           )}
-          disabled={!inputText.trim()}
+          disabled={!inputText.trim() || Boolean(invalidTokenMessage)}
         >
           <Send className="w-5 h-5 text-white" />
         </Button>

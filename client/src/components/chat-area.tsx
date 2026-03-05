@@ -86,10 +86,35 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
     window.innerWidth < 768
   );
 
+  const { data: conversation } = useQuery<Conversation>({
+    queryKey: ["/api/conversation", conversationId],
+    enabled: !!conversationId,
+  });
+
+  const activeConnectionId = conversation?.connectionId || connectionId;
+
   // Query: Lista de conversas para encaminhar mensagem
   const { data: forwardContacts = [] } = useQuery<Conversation[]>({
-    queryKey: ["/api/conversations-with-tags"],
+    queryKey: ["/api/conversations-with-tags", "forward", activeConnectionId || "all"],
     enabled: forwardDialogOpen,
+    queryFn: async () => {
+      const memberToken = localStorage.getItem("memberToken");
+      const supabaseToken = await getAuthToken();
+      const token = memberToken || supabaseToken;
+      const qs = activeConnectionId
+        ? `?connectionId=${encodeURIComponent(activeConnectionId)}`
+        : "";
+      const response = await fetch(`/api/conversations-with-tags${qs}`, {
+        credentials: "include",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!response.ok) {
+        throw new Error("Falha ao carregar contatos para encaminhamento");
+      }
+      const result = await response.json();
+      if (Array.isArray(result)) return result;
+      return Array.isArray(result?.data) ? result.data : [];
+    },
   });
 
   // Filtrar contatos para encaminhar (excluir conversa atual)
@@ -140,11 +165,6 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
       setForwarding(false);
     }
   };
-
-  const { data: conversation } = useQuery<Conversation>({
-    queryKey: ["/api/conversation", conversationId],
-    enabled: !!conversationId,
-  });
 
   // Query para buscar dados do usuário logado (inclui assinatura)
   const { data: currentUser } = useQuery<{
@@ -995,7 +1015,7 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
   }
 
   // Minimalist onboarding: WhatsApp connection CTA when nothing selected
-  if (!conversationId && !connectionId) {
+  if (!conversationId && !activeConnectionId) {
     return (
       <div className="flex items-center justify-center h-full bg-muted/20">
         <div className="flex flex-col items-center justify-center h-full p-8 text-center">
@@ -1067,7 +1087,7 @@ export function ChatArea({ conversationId, connectionId, onBack, onOpenContactPa
     );
   }
 
-  if (!connectionId) {
+  if (!activeConnectionId) {
     return (
       <div className="flex items-center justify-center h-full bg-muted/20">
         <div className="text-center space-y-4 max-w-sm p-8">

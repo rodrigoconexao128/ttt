@@ -26,8 +26,9 @@ export async function apiRequest(
   const memberToken = localStorage.getItem("memberToken");
   const token = memberToken || await getAuthToken();
 
+  const isFormData = typeof FormData !== "undefined" && data instanceof FormData;
   const headers: Record<string, string> = {
-    ...(data ? { "Content-Type": "application/json" } : {}),
+    ...(!isFormData && data ? { "Content-Type": "application/json" } : {}),
   };
 
   if (token) {
@@ -37,7 +38,7 @@ export async function apiRequest(
   const res = await fetch(url, {
     method,
     headers,
-    body: data ? JSON.stringify(data) : undefined,
+    body: data ? (isFormData ? data : JSON.stringify(data)) : undefined,
     credentials: "include",
   });
 

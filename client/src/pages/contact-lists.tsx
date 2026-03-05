@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { ContactImportModal } from "@/components/contact-import-modal";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Plus,
@@ -25,6 +26,7 @@ import {
   X,
   Check,
   MoreHorizontal,
+  Upload,
 } from "lucide-react";
 import {
   Dialog,
@@ -97,6 +99,7 @@ export default function ContactListsPage() {
   const [showAddContactsDialog, setShowAddContactsDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
   const [selectedList, setSelectedList] = useState<ContactList | null>(null);
 
   // Form states
@@ -334,6 +337,10 @@ export default function ContactListsPage() {
             <Button onClick={() => setShowCreateDialog(true)} size="sm">
               <Plus className="w-4 h-4 mr-1.5" />
               Nova Lista
+            </Button>
+            <Button onClick={() => setShowImportModal(true)} variant="outline" size="sm" className="ml-2">
+              <Upload className="w-4 h-4 mr-1.5" />
+              Importar Planilha
             </Button>
           </div>
         </div>
@@ -822,6 +829,17 @@ export default function ContactListsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ContactImportModal
+        open={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        destination="contact-list"
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ["/api/contacts/lists"] });
+          toast({ title: "Lista importada com sucesso!" });
+          setShowImportModal(false);
+        }}
+      />
     </div>
   );
 }

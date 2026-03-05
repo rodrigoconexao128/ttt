@@ -1,0 +1,30 @@
+{
+  "task": "Ajustar reconhecimento de cliente recorrente no admin e expor telefone no settings",
+  "steps": [
+    {
+      "id": 1,
+      "title": "Validar conversa real e identificar a causa da abertura errada",
+      "status": "completed"
+    },
+    {
+      "id": 2,
+      "title": "Corrigir saudacao do onboarding e o reconhecimento por telefone no admin agent",
+      "status": "completed"
+    },
+    {
+      "id": 3,
+      "title": "Exibir e atualizar o telefone vinculado em /settings",
+      "status": "completed"
+    },
+    {
+      "id": 4,
+      "title": "Rodar simulacoes focadas em saudacao, edicao e conta nao vinculada",
+      "status": "in_progress"
+    },
+    {
+      "id": 5,
+      "title": "Publicar na VPS se os testes passarem",
+      "status": "pending"
+    }
+  ]
+}

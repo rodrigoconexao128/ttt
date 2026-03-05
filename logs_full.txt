@@ -27,7 +27,7 @@
 ­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
 12:32:51 AM [express] GET /api/usage 304 in 784ms :: {"agentMessagesCount":609,"limit":-1,"remaining"ÔÇª
 [QR CODE] QR Code saved to database for user 1f2f40b5-fb3e-4d04-8136-611358c2283d (took 191ms)
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=cb9213c3-fde3-479e-a4aa-344171c59735
 ­ƒìò [DeliveryAI] DEBUG config: {"id":"758574ce-6000-4032-894d-27283633c04b","user_id":"cb9213c3-fde3-479e-a4aa-344171c59735","is_active":false,"send_to_ai":false,"business_name":null,"business_type":"restaurante","delivery_fee":0,"min_order_value":0,"estimated_delivery_time":45,"delivery_radius_km":10,"payment_methods":["dinheiro","cartao","pix"],"accepts_delivery":true,"accepts_pickup":true,"opening_hours":{"friday":{"open":"18:00","close":"23:59","is_open":true},"monday":{"open":"18:00","close":"23:00","is_open":true},"sunday":{"open":"18:00","close":"22:00","is_open":true},"tuesday":{"open":"18:00","close":"23:00","is_open":true},"saturday":{"open":"18:00","close":"23:59","is_open":true},"thursday":{"open":"18:00","close":"23:00","is_open":true},"wednesday":{"open":"18:00","close":"23:00","is_open":true}},"ai_instructions":"Voc├¬ ├® um atendente de delivery. Seja simp├ítico, ajude o cliente a escolher, anote os pedidos corretamente com todos os detalhes e sempre confirme antes de finalizar.","whatsapp_order_number":null,"created_at":"2026-01-19T01:33:39.745433","updated_at":"2026-01-19T01:38:20.527","display_instructions":"Quando o cliente pedir o card├ípio, liste cada item em uma linha separada com emoji, nome e pre├ºo. Organize por categoria.","accepts_cancellation":false}
 ­ƒìò [DeliveryAI] DEBUG configError: null
 ­ƒìò [DeliveryAI] DEBUG is_active value: false (type: boolean)
@@ -115,7 +115,7 @@ Precisa falar com a gente?
 
 Este ├® um n├║mero para envio de mensagens a..."
 ?? [MSG CACHE] Armazenada mensagem AC266F12952CC19ACDF4628452414B06 para user 4bf0c68b... (cache size: 6)
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=f2cad81c-2f6c-456a-b731-e18c768af8f2
 ­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
 ­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
 
@@ -329,7 +329,7 @@ Este ├® um n├║mero para envio de mensagens a... (NOVA MENSAGEM)
 ?? [AI AGENT] Nome do cliente: TUDO POSSO EM DEUS
 ?? [AI AGENT] M´┐¢dias j´┐¢ enviadas: VIDA_FINANCEIRA_PR_RAPHAEL, E_BOOK_VIVENDO_PARA_ELE
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=eefedb8c-c554-4517-8480-f2d54e317d45
 ­ƒìò [DeliveryAI] DEBUG config: null
 ­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
@@ -385,7 +385,7 @@ Este ├® um n├║mero para envio de mensagens a... (NOVA MENSAGEM)
 ­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando 3.3s antes de enviar...
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=2c8c088d-1a52-43f2-98a7-0a70eca024d2
 ­ƒìò [DeliveryAI] DEBUG config: null
 ­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
 ­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)
@@ -530,7 +530,7 @@ Ignoring unsupported message type from 551221120286: [ 'messageContextInfo', 'li
 ­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
 ­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
 ­ƒöù [DB Pool] Conex├úo ADQUIRIDA do pool
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=f2cad81c-2f6c-456a-b731-e18c768af8f2
 ­ƒìò [DeliveryAI] DEBUG config: null
 ­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
 ­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)
@@ -634,7 +634,7 @@ Ignoring unsupported message type from 551221120286: [ 'messageContextInfo', 'li
 ­ƒìò [DeliveryAI] Delivery n├úo ativo para este usu├írio
 [LLM] Ô£à OpenRouter chatComplete respondeu
 ­ƒøí´©Å [ANTI-BLOCK v5.0] ÔÅ│ Aguardando fila de texto terminar antes de enviar notifica´┐¢´┐¢o NOTIFY...
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=4bf0c68b-78ee-4d8c-bca3-6644e51015c4
 ÔÜá´©Å [AI Agent] TAG N├âO DETECTADA! Response: 
 ­ƒìò [DeliveryAI] DEBUG config: null
 ­ƒìò [AI Agent] Delivery n├úo ativo ou sem resposta - continuando fluxo normal
@@ -743,7 +743,7 @@ RASTRO CITY RASTREAMENTO VEICULAR", tipo="el├®trica"
 ÔÜá´©Å [AI AGENT] Conversa 48173389-4eb6-4e62-a3e4-2248d2621b54 ficar├í pendente para retry no pr├│ximo ciclo
 ­ƒøí´©Å [ANTI-BLOCK] ­ƒôñ Enviando mensagem para 559491805978@s....
 ­ƒøí´©Å [ANTI-BAN] Ôî¿´©Å Simulando digita├º├úo por 3s...
-­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=ai-agent-builder-59
+­ƒìò [DeliveryAI] DEBUG getDeliveryData: userId=eefedb8c-c554-4517-8480-f2d54e317d45
 ­ƒìò [DeliveryAI] DEBUG config: null
 ­ƒìò [DeliveryAI] DEBUG configError: {"code":"PGRST116","details":"The result contains 0 rows","hint":null,"message":"Cannot coerce the result to a single JSON object"}
 ­ƒìò [DeliveryAI] DEBUG is_active value: undefined (type: undefined)
