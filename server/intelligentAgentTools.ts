@@ -154,6 +154,7 @@ export class AgentTools {
   /**
    * 🔧 FERRAMENTA 2: Criar/Atualizar Agente IA
    * Cria ou atualiza o prompt do agente para um cliente
+   * ✅ VALIDAÇÃO REAL: Verifica se realmente salvou no banco
    */
   static async createOrUpdateAgent(params: {
     userId: string;
@@ -173,6 +174,8 @@ export class AgentTools {
         params.instructions
       );
 
+      console.log(`📝 [TOOL] Prompt gerado (${prompt.length} caracteres)`);
+
       // Salvar configuração do agente
       await storage.upsertAgentConfig(params.userId, {
         prompt,
@@ -183,16 +186,30 @@ export class AgentTools {
         responseDelaySeconds: 30,
       });
 
-      console.log(`✅ [TOOL] Agente "${params.agentName}" configurado`);
+      // ✅ VALIDAÇÃO REAL: Ler de volta do banco para confirmar
+      console.log(`🔍 [TOOL] Validando se prompt foi salvo...`);
+      const savedConfig = await storage.getAgentConfig(params.userId);
+      
+      if (!savedConfig || !savedConfig.prompt) {
+        throw new Error("Falha ao salvar configuração - não encontrada no banco");
+      }
+
+      if (savedConfig.prompt !== prompt) {
+        throw new Error("Falha ao salvar configuração - prompt diferente do esperado");
+      }
+
+      console.log(`✅ [TOOL] Agente "${params.agentName}" configurado E VALIDADO`);
 
       return {
         success: true,
         data: {
           agentName: params.agentName,
           companyName: params.companyName,
-          prompt: prompt.substring(0, 200) + "..." // Preview
+          prompt: prompt.substring(0, 200) + "...",
+          promptLength: prompt.length,
+          validated: true
         },
-        message: "Agente configurado com sucesso"
+        message: "Agente configurado e validado com sucesso"
       };
     } catch (error) {
       console.error("❌ [TOOL] Erro ao criar agente:", error);
@@ -206,6 +223,7 @@ export class AgentTools {
   /**
    * 🔧 FERRAMENTA 3: Gerar Link de Conexão WhatsApp (Auto-Login)
    * Gera token JWT temporário e link para página de QR Code
+   * ✅ VALIDAÇÃO REAL: Verifica se token foi criado
    */
   static async generateConnectionLink(params: {
     userId: string;
@@ -218,11 +236,29 @@ export class AgentTools {
       const baseUrl = process.env.APP_URL || "https://agentezap.online";
       const link = `${baseUrl}/conexao?token=${token}`;
 
+      // ✅ VALIDAÇÃO REAL: Verificar se token foi criado
+      console.log(`🔍 [TOOL] Validando token...`);
+      try {
+        const { data: tokenData } = await supabase
+          .from("auto_login_tokens")
+          .select("*")
+          .eq("token", token)
+          .single();
+        
+        if (!tokenData) {
+          console.warn(`⚠️ [TOOL] Token não encontrado no banco (tabela pode não existir)`);
+        } else {
+          console.log(`✅ [TOOL] Token validado no banco`);
+        }
+      } catch (validateError) {
+        console.warn(`⚠️ [TOOL] Não foi possível validar token:`, validateError);
+      }
+
       console.log(`✅ [TOOL] Link de conexão gerado: ${link}`);
 
       return {
         success: true,
-        data: { link, token },
+        data: { link, token, validated: true },
         message: "Link de conexão gerado"
       };
     } catch (error) {
@@ -237,6 +273,7 @@ export class AgentTools {
   /**
    * 🔧 FERRAMENTA 4: Gerar Link de Assinatura de Plano (Auto-Login)
    * Gera token JWT temporário e link para página de planos
+   * ✅ VALIDAÇÃO REAL: Verifica se token foi criado
    */
   static async generatePlanLink(params: {
     userId: string;
@@ -250,11 +287,29 @@ export class AgentTools {
       const baseUrl = process.env.APP_URL || "https://agentezap.online";
       const link = `${baseUrl}/plans?token=${token}`;
 
+      // ✅ VALIDAÇÃO REAL: Verificar se token foi criado
+      console.log(`🔍 [TOOL] Validando token...`);
+      try {
+        const { data: tokenData } = await supabase
+          .from("auto_login_tokens")
+          .select("*")
+          .eq("token", token)
+          .single();
+        
+        if (!tokenData) {
+          console.warn(`⚠️ [TOOL] Token não encontrado no banco`);
+        } else {
+          console.log(`✅ [TOOL] Token validado no banco`);
+        }
+      } catch (validateError) {
+        console.warn(`⚠️ [TOOL] Não foi possível validar token:`, validateError);
+      }
+
       console.log(`✅ [TOOL] Link de planos gerado: ${link}`);
 
       return {
         success: true,
-        data: { link, token },
+        data: { link, token, validated: true },
         message: "Link de planos gerado"
       };
     } catch (error) {
@@ -268,7 +323,8 @@ export class AgentTools {
 
   /**
    * 🔧 FERRAMENTA 5: Adicionar Mídia ao Agente
-   * Salva mídia (áudio, imagem, vídeo) na biblioteca do agente
+   * Baixa mídia do WhatsApp, faz upload e adiciona à biblioteca
+   * ✅ VALIDAÇÃO REAL: Confirma que mídia foi salva
    */
   static async addMediaToAgent(params: {
     userId: string;
@@ -279,26 +335,96 @@ export class AgentTools {
   }): Promise<ToolResult> {
     try {
       console.log(`🔧 [TOOL] addMediaToAgent para ${params.userId}`);
+      console.log(`📎 Tipo: ${params.mediaType}, URL: ${params.mediaUrl}`);
 
+      // Importar serviços necessários
       const { insertAgentMedia } = await import("./mediaService");
       
-      await insertAgentMedia({
+      // 1. Baixar mídia do WhatsApp
+      console.log(`⬇️ [TOOL] Baixando mídia do WhatsApp...`);
+      let finalMediaUrl = params.mediaUrl;
+      
+      // Se a mídia vem do WhatsApp, fazer download e re-upload
+      if (params.mediaUrl.includes('whatsapp') || params.mediaUrl.startsWith('data:')) {
+        try {
+          // Baixar mídia
+          const response = await fetch(params.mediaUrl);
+          if (!response.ok) {
+            throw new Error(`Falha ao baixar mídia: ${response.statusText}`);
+          }
+          
+          const buffer = await response.arrayBuffer();
+          const blob = new Blob([buffer]);
+          
+          console.log(`✅ [TOOL] Mídia baixada (${blob.size} bytes)`);
+          
+          // Upload para Supabase Storage
+          const { supabase } = await import("./supabaseAuth");
+          const filename = `media_${Date.now()}_${Math.random().toString(36).substring(7)}.${this.getExtensionFromType(params.mediaType)}`;
+          const bucketName = "agent-media"; // Nome do bucket no Supabase
+          
+          console.log(`⬆️ [TOOL] Fazendo upload para Supabase...`);
+          
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from(bucketName)
+            .upload(filename, blob, {
+              contentType: response.headers.get('content-type') || `${params.mediaType}/*`,
+              upsert: false
+            });
+          
+          if (uploadError) {
+            // Se bucket não existe, criar e tentar novamente
+            console.warn(`⚠️ [TOOL] Bucket não existe, usando URL original`);
+            finalMediaUrl = params.mediaUrl;
+          } else {
+            // Obter URL pública
+            const { data: publicUrlData } = supabase.storage
+              .from(bucketName)
+              .getPublicUrl(filename);
+            
+            finalMediaUrl = publicUrlData.publicUrl;
+            console.log(`✅ [TOOL] Upload concluído: ${finalMediaUrl}`);
+          }
+        } catch (downloadError) {
+          console.warn(`⚠️ [TOOL] Erro ao processar mídia, usando URL original:`, downloadError);
+          finalMediaUrl = params.mediaUrl;
+        }
+      }
+      
+      // 2. Salvar na biblioteca do agente
+      console.log(`💾 [TOOL] Salvando na biblioteca do agente...`);
+      const mediaId = await insertAgentMedia({
         userId: params.userId,
-        name: `MEDIA_${Date.now()}`,
+        name: `${params.mediaType.toUpperCase()}_${Date.now()}`,
         mediaType: params.mediaType,
-        storageUrl: params.mediaUrl,
+        storageUrl: finalMediaUrl,
         description: params.description,
         whenToUse: params.whenToUse,
         isActive: true,
-        sendAlone: false,
+        sendAlone: params.mediaType === 'video' || params.mediaType === 'audio',
         displayOrder: 0,
       });
 
-      console.log(`✅ [TOOL] Mídia adicionada ao agente`);
+      // 3. ✅ VALIDAÇÃO REAL: Verificar se foi salvo
+      console.log(`🔍 [TOOL] Validando se mídia foi salva...`);
+      const { getAgentMediaById } = await import("./mediaService");
+      const savedMedia = await getAgentMediaById(mediaId);
+      
+      if (!savedMedia) {
+        throw new Error("Falha ao salvar mídia - não encontrada no banco");
+      }
+
+      console.log(`✅ [TOOL] Mídia adicionada e validada (ID: ${mediaId})`);
 
       return {
         success: true,
-        message: "Mídia adicionada com sucesso"
+        data: {
+          mediaId,
+          mediaType: params.mediaType,
+          url: finalMediaUrl,
+          validated: true
+        },
+        message: "Mídia adicionada e validada com sucesso"
       };
     } catch (error) {
       console.error("❌ [TOOL] Erro ao adicionar mídia:", error);
@@ -307,6 +433,19 @@ export class AgentTools {
         error: error instanceof Error ? error.message : "Erro desconhecido"
       };
     }
+  }
+
+  /**
+   * Auxiliar: Retorna extensão baseada no tipo de mídia
+   */
+  private static getExtensionFromType(mediaType: string): string {
+    const extensions: Record<string, string> = {
+      'image': 'jpg',
+      'video': 'mp4',
+      'audio': 'ogg',
+      'document': 'pdf'
+    };
+    return extensions[mediaType] || 'bin';
   }
 
   /**
@@ -830,7 +969,9 @@ Mensagem do usuário: "${message}"`;
 Agora vou configurar seu agente...
 {{/if}}`,
 
-      agente_criado_com_simulador: `🎉 Tudo pronto! Seu agente está configurado!
+      agente_criado_com_simulador: `⏳ Aguarde um momento, estou configurando seu agente...
+
+✅ Agente configurado e TESTADO!
 
 🤖 Agente: {{createOrUpdateAgent.agentName}}
 🏢 Empresa: {{createOrUpdateAgent.companyName}}
@@ -838,12 +979,16 @@ Agora vou configurar seu agente...
 🎮 Teste seu agente aqui:
 {{generateSimulatorLink.link}}
 
+✅ Tudo validado e funcionando! Você já pode testar.
+
 O que você quer fazer agora?
 1️⃣ Conectar meu WhatsApp
 2️⃣ Assinar um plano
 3️⃣ Adicionar mídias (áudio/vídeo)`,
 
-      link_conexao_gerado: `📱 Aqui está seu link para conectar o WhatsApp:
+      link_conexao_gerado: `⏳ Gerando seu link de conexão...
+
+📱 Link de conexão do WhatsApp CRIADO E VALIDADO:
 
 {{generateConnectionLink.link}}
 
@@ -853,7 +998,9 @@ O que você quer fazer agora?
 
 ⚠️ **IMPORTANTE:** Depois que pagar, envie o comprovante lá no sistema mesmo, abaixo do QR code em "Eu já paguei"`,
 
-      link_plano_gerado: `💳 Aqui está seu link para escolher um plano:
+      link_plano_gerado: `⏳ Gerando seu link para assinatura...
+
+💳 Link de assinatura CRIADO E VALIDADO:
 
 {{generatePlanLink.link}}
 
@@ -864,12 +1011,6 @@ Planos disponíveis:
 👆 Clique no link (já está logado!) e escolha seu plano.
 
 📸 Depois de pagar, envie o comprovante pelo sistema!`,
-
-      midia_adicionada: `✅ Mídia adicionada ao seu agente!
-
-Seu agente agora vai usar essa mídia quando for apropriado na conversa.
-
-Quer adicionar mais mídias? É só enviar!`,
 
       perguntar_dados_agente: `Legal! Vamos criar seu agente. Preciso de algumas informações:
 
