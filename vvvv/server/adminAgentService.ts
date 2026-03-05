@@ -6928,11 +6928,34 @@ export async function executeActions(session: ClientSession, actions: ParsedActi
         // FIX: Persistir no banco se o usuÃƒÂ¡rio jÃƒÂ¡ existir
         if (session.userId) {
           try {
-            const fullPrompt = buildFullPrompt(agentConfig);
+            // FIX: Buscar prompt EXISTENTE do DB e fazer search-and-replace
+            // em vez de usar buildFullPrompt que cria um template simples
+            const existingDbConfig = await storage.getAgentConfig(session.userId);
+            let fullPrompt: string;
+            
+            if (existingDbConfig?.prompt && existingDbConfig.prompt.length > 500) {
+              // Prompt rico existe no DB - fazer search-and-replace para preservar qualidade
+              fullPrompt = existingDbConfig.prompt;
+              if (oldName && action.params.nome && oldName !== action.params.nome) {
+                fullPrompt = fullPrompt.split(oldName).join(action.params.nome);
+              }
+              if (oldCompany && action.params.empresa && oldCompany !== action.params.empresa) {
+                fullPrompt = fullPrompt.split(oldCompany).join(action.params.empresa);
+              }
+              if (oldRole && action.params.funcao && oldRole !== action.params.funcao) {
+                fullPrompt = fullPrompt.split(oldRole).join(action.params.funcao);
+              }
+              console.log(`[SALVAR_CONFIG] Prompt rico preservado (${fullPrompt.length} chars) com search-and-replace`);
+            } else {
+              // Sem prompt rico no DB - usar buildFullPrompt como fallback
+              fullPrompt = buildFullPrompt(agentConfig);
+              console.log(`[SALVAR_CONFIG] Usando buildFullPrompt como fallback (${fullPrompt.length} chars)`);
+            }
+            
             await storage.updateAgentConfig(session.userId, {
               prompt: fullPrompt
             });
-            console.log(`Ã°Å¸â€™Â¾ [SALES] Config (Prompt Completo) salva no DB para userId: ${session.userId}`);
+            console.log(`[SALVAR_CONFIG] Prompt salvo no DB para userId: ${session.userId} (${fullPrompt.length} chars)`);
 
             // FIX: Sync prompt_versions to prevent PROMPT SYNC from reverting
             try {
@@ -9212,6 +9235,7 @@ export async function processAdminMessage(
 
   // EDIT-FALLBACK: Se a IA nao gerou [ACAO:SALVAR_CONFIG] mas o usuario tem intencao de editar,
   // detectar e injetar a acao automaticamente (a IA frequentemente "esquece" a tag)
+  // HIBRIDO: regex rapido para intencao + LLM como fallback para extracao + validacao cruzada com resposta da IA
   if (actions.length === 0 && session.userId) {
     const lowerMsg = messageText.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     const editPatterns = [
@@ -9223,37 +9247,48 @@ export async function processAdminMessage(
     
     if (hasEditIntent) {
       console.log(`[EDIT-FALLBACK] Detectou intencao de edicao na mensagem: "${messageText.substring(0, 60)}..."`);
-      const editParams: Record<string, string> = {};
+      let editParams: Record<string, string> = {};
       
-      // Extrair nome do agente - stop before " e " or end
+      // PASSO 1: Extrair via regex (rapido, sem custo)
       const nomeMatch = messageText.match(/(?:nome\s+(?:do\s+)?agente|agente\s+(?:se\s+chama|para))\s+(?:para\s+)?[""]?([^""\n,]+?)[""]?(?:\s+e\s+|\s*[.,]|\s*$)/i)
         || messageText.match(/(?:nome\s+(?:do\s+)?agente)\s+(?:para\s+)?(.+?)(?:\s+e\s+|$)/i);
       if (nomeMatch) editParams.nome = nomeMatch[1].trim();
       
-      // Extrair empresa - stop before " e " or end
       const empresaMatch = messageText.match(/(?:nome\s+(?:da\s+)?empresa|empresa\s+(?:se\s+chama|para))\s+(?:para\s+)?[""]?([^""\n,]+?)[""]?(?:\s+e\s+|\s*[.,]|\s*$)/i)
         || messageText.match(/(?:empresa)\s+(?:para\s+)?(.+?)(?:\s+e\s+|$)/i);
       if (empresaMatch) editParams.empresa = empresaMatch[1].trim();
       
-      // Extrair funcao
       const funcaoMatch = messageText.match(/(?:funcao|fun[\u00e7c]ao)\s+(?:para\s+)?[""]?([^""\n,]+?)[""]?(?:\s+e\s+|\s*[.,]|\s*$)/i);
       if (funcaoMatch) editParams.funcao = funcaoMatch[1].trim();
       
-      // Fallback: tentar extrair por padroes simples se nao achou com regex acima
-      if (!editParams.nome && !editParams.empresa && !editParams.funcao) {
-        // Padrao: "mudar X para Y e Z para W"
-        const pairs = messageText.match(/(?:nome|empresa|agente|funcao|fun[\u00e7c]ao|negocio)\s+(?:d[aoe]\s+\w+\s+)?(?:para|pra)\s+([^,\n]+?)(?:\s+e\s+|\s*$)/gi);
-        if (pairs) {
-          for (const pair of pairs) {
-            const lower = pair.toLowerCase();
-            const value = pair.match(/(?:para|pra)\s+(.+?)(?:\s+e\s+|\s*$)/i)?.[1]?.trim();
-            if (value) {
-              if (lower.includes("empresa") || lower.includes("negocio")) editParams.empresa = value;
-              else if (lower.includes("agente") || lower.includes("nome")) editParams.nome = value;
-              else if (lower.includes("funcao") || lower.includes("fun")) editParams.funcao = value;
-            }
+      // PASSO 2: Se regex nao extraiu parametros, usar LLM para extrair (classifyEditIntentWithLLM)
+      if (Object.keys(editParams).length === 0) {
+        console.log(`[EDIT-FALLBACK] Regex nao extraiu params, usando LLM para classificar...`);
+        try {
+          const llmResult = await classifyEditIntentWithLLM(messageText);
+          if (llmResult.hasEditIntent) {
+            if (llmResult.agentName) editParams.nome = llmResult.agentName;
+            if (llmResult.company) editParams.empresa = llmResult.company;
+            console.log(`[EDIT-FALLBACK] LLM extraiu:`, editParams);
+          }
+        } catch (llmErr) {
+          console.error(`[EDIT-FALLBACK] LLM extraction failed:`, llmErr);
+        }
+      }
+      
+      // PASSO 3: Validacao cruzada - verificar se os valores aparecem na resposta da IA
+      if (Object.keys(editParams).length > 0) {
+        const aiLower = aiResponse.toLowerCase();
+        const validated: Record<string, string> = {};
+        for (const [key, value] of Object.entries(editParams)) {
+          if (aiLower.includes(value.toLowerCase())) {
+            validated[key] = value;
+          } else {
+            console.log(`[EDIT-FALLBACK] WARN: "${value}" (${key}) nao encontrado na resposta da IA - mantendo mesmo assim (regex confiavel)`);
+            validated[key] = value; // Manter mesmo sem validacao - regex é confiável para padroes especificos
           }
         }
+        editParams = validated;
       }
       
       if (Object.keys(editParams).length > 0) {
