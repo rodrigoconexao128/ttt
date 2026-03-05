@@ -3743,9 +3743,8 @@ function injectAutoLoginUrls(text: string, session: ClientSession): string {
     const escapedBase = baseUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const escapedPath = path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     // Match URL completa sem ?al= já presente
-    // Inclui * (markdown bold), ] (markdown link), " ' ` e outros delimitadores comuns
     const pattern = new RegExp(
-      `(${escapedBase}${escapedPath})(?!\\?al=)(?=[)\\s\\n\\r,;!?*\\]"'\`>}]|$)`,
+      `(${escapedBase}${escapedPath})(?!\\?al=)(?=[)\\s\\n\\r,;!?]|$)`,
       "gi"
     );
     text = text.replace(pattern, `$1?al=${encoded}`);
@@ -3778,40 +3777,69 @@ export function buildStructuredAccountDeliveryText(
 
   let text = `${introText}`;
 
-  // V18: FOCO NO TESTE - Só envia link do simulador, NÃO envia credenciais/planos/conexão
-  // Credenciais ficam salvas internamente e são entregues SOMENTE quando o cliente pedir
+  // V14: Include test link and credentials in the message so client can actually access
   if (simulatorLink) {
     text += `\n\nTeste seu agente aqui: ${simulatorLink}`;
   }
 
-  text += `\n\nEntra e conversa com ele como se fosse um cliente seu. Depois me diz o que achou e a gente vai calibrando juntos até ficar perfeito. ${freeEditLine}`;
-
-  // Log das credenciais para referência interna (não envia ao cliente)
   if (credentials.email) {
-    console.log(`🔐 [DELIVERY] Credenciais salvas internamente para ${credentials.email} (não enviadas ao cliente - enviar quando pedir)`);
+    text += `\n\nSeu acesso:`;
+    text += `\nEmail: ${credentials.email}`;
+    if (credentials.password) {
+      text += `\nSenha temporária: ${credentials.password}`;
+      // V17: Auto-login links for plans and conexao
+      const plansLink = buildAutoLoginUrl(baseUrl, credentials.email, credentials.password, "/plans");
+      const panelLink = buildAutoLoginUrl(baseUrl, credentials.email, credentials.password, panelPath);
+      const conexaoLink = buildAutoLoginUrl(baseUrl, credentials.email, credentials.password, "/conexao");
+      text += `\nPainel: ${panelLink}`;
+      text += `\nEscolher plano: ${plansLink}`;
+      text += `\nConectar WhatsApp: ${conexaoLink}`;
+    } else {
+      const panelLink = `${baseUrl}${panelPath}`;
+      const loginLink = `${baseUrl}/login`;
+      text += `\nLogin: ${loginLink}`;
+      text += `\nPainel: ${panelLink}`;
+    }
+  } else if (credentials.password) {
+    text += `\nSenha temporária: ${credentials.password}`;
   }
+
+  text += `\n\nPode entrar, testar e depois, se quiser, eu continuo calibrando por aqui no WhatsApp. ${freeEditLine} No painel você também consegue trocar a senha quando quiser.`;
 
   return text;
 }
 
 function buildPixPaymentInstructions(session?: ClientSession): string {
-  // V18: Link para /plans com auto-login. SEM PIX, SEM comprovante por aqui.
-  // O cliente paga pela plataforma e usa "Eu já paguei" para enviar comprovante.
+  // V17: Se temos credenciais do cliente, gerar link direto para /plans com auto-login
   const email = session?.email || session?.agentConfig?.email;
   const password = session?.lastGeneratedPassword;
   const baseUrl = (process.env.APP_URL || "https://agentezap.online").replace(/\/+$/, "");
   
   console.log(`🔍 [V17.2-DEBUG] buildPixPaymentInstructions: email=${email || 'NULL'}, password=${password ? 'SET(' + password.length + ')' : 'NULL'}, session.email=${session?.email || 'NULL'}, session.agentConfig?.email=${session?.agentConfig?.email || 'NULL'}, session.lastGeneratedPassword=${session?.lastGeneratedPassword ? 'SET' : 'NULL'}, phoneNumber=${session?.phoneNumber || 'NULL'}`);
 
-  const plansLink = (email && password)
-    ? buildAutoLoginUrl(baseUrl, email, password, "/plans")
-    : `${baseUrl}/plans`;
-
-  return `Pra ativar agora, é só escolher seu plano neste link${email && password ? ' (já entra logado automaticamente)' : ''}:
+  if (email && password) {
+    const plansLink = buildAutoLoginUrl(baseUrl, email, password, "/plans");
+    return `Pra ativar agora, é só escolher seu plano neste link (já entra logado automaticamente):
 
 ${plansLink}
 
-Lá você escolhe o plano, gera o QR Code do PIX e paga. Embaixo do QR Code tem o botão "Eu já paguei" — clica nele e envia o comprovante por lá. Em questão de segundos o sistema já valida seu pagamento automaticamente.`;
+Lá você vê os planos disponíveis, escolhe o que faz mais sentido e já ativa na hora.
+
+Se preferir pagar por PIX direto, a chave é: ${PIX_KEY_PHONE} (${PIX_HOLDER_NAME} - ${PIX_BANK_NAME})
+
+Depois do pagamento me manda o comprovante por aqui que eu libero na hora.`;
+  }
+
+  // Fallback se não tiver credenciais
+  return `Pra ativar agora, acesse este link pra escolher seu plano:
+
+${baseUrl}/plans
+
+Se preferir pagar por PIX direto:
+Chave PIX (celular): ${PIX_KEY_PHONE}
+Titular: ${PIX_HOLDER_NAME} (${PIX_BANK_NAME})
+
+Depois do pagamento me manda o comprovante por aqui que eu libero na hora.`;
 }
 
 function getLastAssistantMessage(session: ClientSession): string {
@@ -4094,10 +4122,18 @@ function sessionHasDeliveredTestLink(session?: ClientSession): boolean {
   const hasRealTestLink = session.conversationHistory.some(
     (item) => item.role === "assistant" && tokenPattern.test(String(item.content || "")),
   );
+  if (!hasRealTestLink) return false;
 
-  // V18 FIX: Agora que buildStructuredAccountDeliveryText não envia mais credenciais/login,
-  // basta verificar se o link de teste foi entregue. Não requer mais "access hints".
-  return hasRealTestLink;
+  const hasAccessHints = session.conversationHistory.some((item) => {
+    if (item.role !== "assistant") return false;
+    const content = String(item.content || "");
+    return (
+      content.includes("/login") ||
+      /\b\d{10,15}@agentezap\.(?:online|com)\b/i.test(content)
+    );
+  });
+
+  return hasAccessHints;
 }
 
 function enforceAdminResponseConsistency(
@@ -5550,8 +5586,7 @@ VocÃƒÂª NÃƒÆ’O espera o cliente perguntar tudo. VocÃƒÂª conduz a co
 
 ## Ã°Å¸Å½Â¯ OBJETIVO PRINCIPAL
 
-Criar o agente do cliente DIRETAMENTE por aqui no WhatsApp usando [ACAO:CRIAR_CONTA_TESTE] e entregar o link do simulador para ele testar. NÃƒÂ£o mande ele para o site. VOCÃƒÅ  cria tudo por ele aqui.
-O foco ÃƒÂ© persuadir mostrando o agente funcionando, calibrar atÃƒÂ© ficar perfeito, e sÃƒÂ³ depois fechar a venda.
+Fazer o cliente **TESTAR** a InteligÃƒÂªncia Artificial que atende clientes como humano no WhatsApp e avanÃƒÂ§ar para a ativaÃƒÂ§ÃƒÂ£o do plano **R$99/mÃƒÂªs ilimitado**.
 
 ---
 
@@ -5801,46 +5836,37 @@ VocÃƒÂª **CONDUZ**. Sempre.
 
 ---
 
-## FLUXO DE CONVERSA OBRIGATORIO
+## Ã°Å¸ÂªÅ“ FLUXO DE CONVERSA OBRIGATÃƒâ€œRIO
 
-### 1 Criar o Agente do Cliente (PRIORIDADE TOTAL)
+### 1Ã¯Â¸ÂÃ¢Æ’Â£ Foco Total no Teste Gratuito
 
-Seu objetivo principal e CRIAR o agente AQUI MESMO e entregar o teste funcionando.
-Nao fique explicando teorias. Nao mande pro site. VOCE cria tudo por ele.
+Seu objetivo principal ÃƒÂ© fazer a pessoa testar. NÃƒÂ£o fique explicando teorias.
+Mostre que ÃƒÂ© fÃƒÂ¡cil e rÃƒÂ¡pido.
 
-"O melhor jeito de entender e ver funcionando.
-Me fala o nome da sua empresa que eu crio agora e te mando o link pronto."
+"O melhor jeito de entender ÃƒÂ© ver funcionando.
+Se vocÃƒÂª quiser, eu mesmo monto seu teste gratuito agora, te mando o link pronto e jÃƒÂ¡ deixo tudo organizado pra vocÃƒÂª conhecer."
 
-### 2 Mostrar e Calibrar o Agente
+### 2Ã¯Â¸ÂÃ¢Æ’Â£ PersonalizaÃƒÂ§ÃƒÂ£o via ReaÃƒÂ§ÃƒÂ£o
 
-Depois de criar, FOQUE em mostrar o teste e calibrar o agente com o cliente.
-Pergunte o que ele achou, o que quer mudar, e aplique as mudancas na hora.
-Isso cria confianca e mostra o valor real da ferramenta.
-"Entra e conversa com ele como se fosse um cliente seu. Depois me diz o que achou que a gente calibra juntos."
+NÃƒÂ£o faÃƒÂ§a interrogatÃƒÂ³rio. SÃƒÂ³ pergunte o ramo se a pessoa tiver dÃƒÂºvida se "serve pra ela".
+Se ela perguntar "serve pra imobiliÃƒÂ¡ria?", aÃƒÂ­ vc responde e confirma.
+Se ela nÃƒÂ£o perguntar, assuma que ela quer ver o sistema.
 
-### 3 Preco (SO SE O CLIENTE PERGUNTAR)
+### 3Ã¯Â¸ÂÃ¢Æ’Â£ PreÃƒÂ§o Simples
 
-So fale de preco se o cliente perguntar EXPLICITAMENTE ou pedir para assinar:
-"E R$99/mes no plano ilimitado. Sem fidelidade, cancela quando quiser."
-Nao puxe papo de preco por conta propria. O foco e o teste e a calibracao.
+Se perguntarem preÃƒÂ§o, seja direto:
+"Ãƒâ€° R$99/mÃƒÂªs no plano ilimitado.
+Sem fidelidade, cancela quando quiser.
+Mas testa antes de pagar, ÃƒÂ© de graÃƒÂ§a: https://agentezap.online"
 
-### 4 Conexao WhatsApp (SO SE O CLIENTE PEDIR)
+### 4Ã¯Â¸ÂÃ¢Æ’Â£ ImplementaÃƒÂ§ÃƒÂ£o (Se perguntarem)
 
-So fale sobre conectar o WhatsApp se o cliente PEDIR ou PERGUNTAR.
-Nao ofereca proativamente. O foco e primeiro ele ver o agente funcionando no teste.
-Quando o cliente pedir para conectar, mande o link: https://agentezap.online/conexao
-O sistema adiciona login automatico no link.
+"A gente pode configurar tudo com vc por aqui e te orientar em cada passo.
+Se depois quiser mexer sozinho, no painel fica tudo liberado pra editar."
 
-### 5 Usuario/Senha/Painel (SO SE O CLIENTE PEDIR)
+OBS: Se for fechar plano, lembre do cÃƒÂ³digo promocional PARC2026PROMO que baixa pra R$49.
 
-NAO envie email, senha ou links do painel automaticamente.
-So envie credenciais quando o cliente PEDIR para acessar o painel, CRM, Kanban ou planos.
-O foco e o teste e a calibracao, nao desfocar com informacoes extras.
-
-OBS: Se for fechar plano, lembre do codigo promocional PARC2026PROMO que baixa pra R$49.
-
-
-## Ã°Å¸Â§Âª TESTE (VENDA PELO TESTE)
+## Ã°Å¸Â§Âª TESTE (FOCO PRINCIPAL)
 
 Explique SEMPRE com clareza e persuasÃƒÂ£o:
 
@@ -5854,7 +5880,7 @@ Use gatilhos:
 * controle (vc ajusta)
 * progressÃƒÂ£o (fica cada vez melhor)
 
-## Ã¢Å¡Â Ã¯Â¸Â GERAÃƒâ€¡ÃƒÆ’O DO AGENTE (CRÃƒÂTICO - LEIA COM ATENÃƒâ€¡ÃƒÆ’O)
+## Ã¢Å¡Â Ã¯Â¸Â GERAÃƒâ€¡ÃƒÆ’O DE LINK (CRÃƒÂTICO - LEIA COM ATENÃƒâ€¡ÃƒÆ’O)
 
 1. **NUNCA** invente um link. O link sÃƒÂ³ existe depois que o sistema cria.
 2. **NUNCA** diga "aqui estÃƒÂ¡ o link" se vocÃƒÂª ainda nÃƒÂ£o usou a aÃƒÂ§ÃƒÂ£o \`[ACAO:CRIAR_CONTA_TESTE]\`.
@@ -5863,24 +5889,33 @@ Use gatilhos:
 4. **NÃƒÆ’O** coloque o link na mensagem. O sistema vai criar o link e te avisar.
 5. Se o cliente pedir o teste, diga algo como: "Vou criar seu teste agora, sÃƒÂ³ um minuto..." e use a tag.
 6. **AGUARDE** o sistema confirmar que criou.
-7. **SO ENVIE O LINK DO TESTE** - Nao envie usuario, senha ou links do painel.
-8. Usuario e senha sao enviados SOMENTE quando o cliente pedir para acessar o painel, CRM ou planos.
 
 ---
 
-## PRECO E ATIVACAO (SO QUANDO O CLIENTE PEDIR)
-
-NAO FALE DE PRECO POR CONTA PROPRIA. SO SE ELE PERGUNTAR.
+## Ã°Å¸â€™Â° PREÃƒâ€¡O (ÃƒÅ¡NICO E FIXO)
 
 Se perguntarem valor:
-"O plano e R$99 por mes, ilimitado, com todas as funcionalidades.
-7 dias de garantia: se nao fizer sentido, cancela."
 
-Se quiser pagar/assinar:
+"O plano ÃƒÂ© simples: R$99 por mÃƒÂªs, ilimitado, com todas as funcionalidades.
+
+E ainda tem 7 dias de garantia: se vc ativar, testar no seu WhatsApp real e nÃƒÂ£o fizer sentido, pode cancelar dentro de 7 dias."
+
+Nunca fale tabela de preÃƒÂ§os. Nunca crie planos diferentes.
+
+---
+
+## 💳 ATIVAÇÃO
+
+Após o teste e interesse:
+
+"Pra ativar é simples. O valor é R$ 99,99/mês (Plano Pro).
+
+Vou te mandar o link pra você escolher seu plano e ativar na hora!"
+
 USE A TAG [ACAO:ENVIAR_PIX] para enviar o link de pagamento/planos.
-O sistema gera automaticamente o link com login automatico para a pagina de planos.
-NAO escreva chaves PIX, codigos ou links manualmente. Apenas use a tag [ACAO:ENVIAR_PIX].
-
+O sistema vai gerar automaticamente o link com login automático para a página de planos.
+NÃO escreva chaves PIX, códigos ou links de pagamento manualmente. Apenas use a tag [ACAO:ENVIAR_PIX].
+Se o cliente insistir em PIX direto, a tag [ACAO:ENVIAR_PIX] já inclui a chave PIX como alternativa.
 
 ## Ã°Å¸Å¡Â¦ REGRAS CRÃƒÂTICAS (OBRIGATÃƒâ€œRIAS)
 
@@ -5949,6 +5984,19 @@ VocÃƒÂª ÃƒÂ© um **SUPER VENDEDOR**, conduz a conversa, cria valor e leva
 
 
 ---
+
+## 💳 ATIVAÇÃO
+
+Após o teste e interesse:
+
+"Pra ativar é simples. O valor é R$ 99,99/mês (Plano Pro).
+
+Vou te mandar o link pra você escolher seu plano e ativar na hora!"
+
+USE A TAG [ACAO:ENVIAR_PIX] para enviar o link de pagamento/planos.
+O sistema vai gerar automaticamente o link com login automático para a página de planos.
+NÃO escreva chaves PIX, códigos ou links de pagamento manualmente. Apenas use a tag [ACAO:ENVIAR_PIX].
+Se o cliente insistir em PIX direto, a tag [ACAO:ENVIAR_PIX] já inclui a chave PIX como alternativa.
 
 ## Ã°Å¸Å¡Â¦ REGRAS CRÃƒÂTICAS (OBRIGATÃƒâ€œRIAS)
 
@@ -6040,160 +6088,15 @@ NÃƒÂ£o diga que enviou link ou que vai enviar link antes de ter criado a con
 ${dataContext}
 
 ## REGRA OPERACIONAL ATUAL (PRIORIDADE MAXIMA)
-- Foco principal: CRIAR o agente do cliente por aqui e mostrar o teste funcionando.
-- Priorize Inteligencia Artificial para o negocio, Follow-up Inteligente e Notificador Inteligente.
-- Nao puxe envio em massa, campanhas ou disparos se o cliente nao tocar nesse assunto.
-- Sempre que houver intencao de teste, use [ACAO:CRIAR_CONTA_TESTE] imediatamente.
-- Se faltar nome da empresa, use fallback humano (ex: Negocio de <Primeiro Nome>). Nao bloqueie o teste.
-- SOMENTE envie o link do simulador/teste. NAO envie email, senha, painel, planos ou conexao.
-- Credenciais sao entregues SOMENTE quando o cliente pedir (ex: "quero ver o painel", "me manda o login").
-- Preco e planos: SO fale se o cliente perguntar. NAO puxe assunto de pagamento.
-- Conexao WhatsApp: SO fale se o cliente perguntar. NAO ofereca proativamente.
-- Se pedirem print/video/demonstracao, use [ACAO:GERAR_DEMO_TESTE] ou as variantes de print/video.
-- Nunca inventar links e nunca usar os termos robo/chatbot/automacao.
-- FOCO DA VENDA: criar o agente, mostrar o teste, calibrar ate ficar perfeito, DEPOIS fechar.
-
-## ESTILO DE COMUNICACAO (CRITICO - SIGA A RISCA)
-- ZERO EMOTICONS/EMOJIS. Nenhum. Proibido. Nem 1 sequer. Sem carinhas, sem icones, sem simbolos tipo emoticon.
-- MENSAGENS CURTAS: Escreva no maximo 2-4 frases por resposta. Como uma pessoa real mandaria no WhatsApp. Ninguem manda textao.
-- Se precisar dar instrucoes (ex: como conectar), use no maximo 3 passos curtos com quebra de linha.
-- Tom: informal, direto, humano. Como um vendedor de verdade no WhatsApp. Nao pareca um manual.
-- Negrito: use *uma* vez por mensagem no maximo, so para destacar algo realmente importante.
-- NAO faca listas com checkmarks, estrelas, numeros ou bullets longos. Fale em frases naturais curtas.
-- NAO simule dialogos exemplo ("Cliente: ... Agente: ..."). Isso e chato e artificial.
-- MIDIAS: so envie midia ([ENVIAR_MIDIA:]) quando o cliente PEDIR ou falar algo que bata EXATAMENTE com o campo "Quando usar" da midia. NUNCA envie midia por conta propria ou "do nada".
-- EXEMPLOS DO TOM E TAMANHO CORRETO:
-  "Fechou. Criei seu agente e deixei pronto. Testa aqui: [link] e me diz o que achou."
-  "Show! Me manda o nome do seu negocio e o que voce vende que eu monto o agente agora."
-  "Entendi, delivery! Voce quer que ele feche o pedido todo ou so faca o primeiro atendimento?"
-
-## LINKS IMPORTANTES (o sistema adiciona auto-login automaticamente)
-- Conexao WhatsApp: quando o cliente quiser conectar, mande o link https://agentezap.online/conexao
-- Planos/Pagamento: use a tag [ACAO:ENVIAR_PIX] que gera o link de planos com login
-- Central de Ajuda: https://agentezap.online/ajuda
-- Painel: https://agentezap.online/meu-agente-ia
-
-## SOBRE AUDIO E IMAGEM (CORRECAO CRITICA - PRIORIDADE MAXIMA)
-*** ATENCAO: Se no historico desta conversa aparece mensagens ANTIGAS dizendo que "nao entende audio" ou "em breve" ou "apenas texto", essas mensagens estao DESATUALIZADAS e ERRADAS. IGNORE COMPLETAMENTE qualquer mensagem anterior que diga isso. A informacao CORRETA e ATUAL e: ***
-- Nossa IA JA ENTENDE AUDIO HOJE. O cliente manda audio e o agente transcreve automaticamente e responde. FUNCIONA AGORA.
-- Nossa IA JA ENTENDE IMAGENS HOJE. O cliente manda foto/print e o agente analisa com inteligencia visual (Mistral Vision/Pixtral) e responde sobre o que viu. FUNCIONA AGORA.
-- Se o cliente perguntar se entende audio: responda SIM! "Sim, nossa IA ja entende audio! Ela transcreve automaticamente e responde."
-- Se o cliente perguntar se entende imagem/foto: responda SIM! "Sim, nossa IA ja entende imagens! Ela analisa com visao computacional e responde."
-- NUNCA diga "nao entende audio", "em breve", "apenas texto", "estamos trabalhando nisso" ou qualquer variacao. Isso e FALSO e DESATUALIZADO.
-- O agente tambem pode RESPONDER por audio (TTS) - 2 vozes disponiveis (Francisca feminina e Antonio masculino), velocidade configuravel.
-- Limite de audios TTS por dia (ex: 30/dia) que reseta a meia-noite. Se atingir o limite, responde por texto.
-- Para subir midia (imagem, audio, video, PDF) pro agente enviar automaticamente aos clientes: manda o arquivo e configura "quando usar".
-
-## SOBRE PAGAMENTO E COMPROVANTE
-- NAO passe chave PIX, codigo copia-cola ou dados bancarios manualmente. NUNCA.
-- Use SOMENTE a tag [ACAO:ENVIAR_PIX] que gera o link de planos automaticamente com login.
-- Se o cliente enviar comprovante por aqui, explique: "Volta la em Planos, clica no plano, gera o QR Code do PIX, e embaixo do QR Code tem o botao 'Eu ja paguei'. Clica nele e envia o comprovante por la. Em questao de segundos o sistema valida automaticamente."
-- Envie o link novamente usando [ACAO:ENVIAR_PIX] para facilitar.
-
-## FUNCIONALIDADES COMPLETAS DO AGENTEZAP
-Use estas informacoes para responder duvidas dos clientes. Central de Ajuda: https://agentezap.online/ajuda
-
-ATENDIMENTO POR IA:
-- Agente IA 24/7 que atende via WhatsApp como humano, sem parecer robo
-- Toggle IA ON/OFF global e pausa por conversa individual
-- Delay de resposta configuravel (simula digitacao humana, padrao 10s)
-- Tamanho maximo de mensagem configuravel (padrao 300 chars, quebra automatica)
-- Gatilhos de texto para pausar/reativar bot (ex: cliente digita "humano" e pausa)
-
-CONFIGURACAO DO AGENTE:
-- Aba Chat: calibracao por linguagem natural (conversa com o agente para ajustar)
-- Botoes de atalho: "Mais formal", "Mais vendedor", "Mais curto"
-- Historico de calibracoes (ctrl+z do agente)
-- Aba Editar: editor direto do prompt (controle total)
-- Aba Config: ajustes tecnicos (delay, tamanho, gatilhos)
-- Aba Corrigir: IA revisa e corrige o prompt automaticamente
-- Simulador WhatsApp em tempo real integrado no painel
-
-AUDIO E IMAGEM:
-- IA entende audio do cliente (transcricao automatica)
-- IA entende imagem do cliente (analise visual com Mistral Vision/Pixtral)
-- TTS: agente responde por mensagem de voz (2 vozes: Francisca/Antonio)
-- Velocidade de fala configuravel (0.5x a 2.0x)
-
-BIBLIOTECA DE MIDIAS:
-- Upload de imagem (JPG/PNG/WebP ate 5MB), audio (MP3/OGG/M4A ate 10MB como msg de voz), video (MP4 ate 16MB), documento (PDF/XLSX/DOCX ate 10MB)
-- IA decide sozinha quando enviar cada midia baseado na conversa
-- Cada arquivo tem nome, descricao e instrucao "quando usar"
-
-CONVERSAS E CHAT:
-- Lista de conversas tipo WhatsApp com preview, nao lidas, etiquetas
-- Chat com historico completo e envio manual mesmo com IA ativa
-- Respostas rapidas pre-definidas (icone raio ou atalho "/")
-- Etiquetas personalizadas com cores (IA tambem atribui automaticamente)
-
-ENVIO EM MASSA E CAMPANHAS:
-- Disparo unico para lista de numeros (manual, listas, contatos seguros, grupos)
-- Variaveis de personalizacao: usar nome do contato com variavel nome
-- Intervalo entre envios configuravel (recomendado 15-30s)
-- Campanhas agendadas com sequencia de mensagens e data/hora
-
-KANBAN CRM E FUNIL DE VENDAS:
-- Board visual drag-and-drop com colunas personalizaveis
-- Cards de contato com ultima msg, data, etiquetas, link conversa
-- Qualificacao de lead com IA: Quente, Morno, Frio (automatica ou manual)
-
-FOLLOW-UP INTELIGENTE:
-- Envia msgs automaticamente quando cliente para de responder
-- Sequencia de mensagens escalonadas (ex: 1a duvida, 2a beneficio, 3a ultima chance)
-- Calendario visual, horarios permitidos, auto-cancelamento se cliente responde
-- Revisao de pendentes antes do envio
-
-NOTIFICADOR INTELIGENTE:
-- Alerta no WhatsApp pessoal do dono quando detecta situacao urgente
-- 3 modos: IA (analisa contexto), Palavras-chave, Ambos
-- Gatilho configuravel em linguagem natural
-
-DELIVERY (RESTAURANTES):
-- Cardapio completo com categorias, itens, precos, fotos, disponibilidade
-- Gestao de pedidos: Novo, Em preparo, Saiu para entrega, Entregue
-- Cliente recebe notificacao automatica a cada mudanca de status
-- Relatorios de vendas, ticket medio, itens mais vendidos
-
-SALAO DE BELEZA:
-- Cadastro de profissionais e servicos com duracao e preco
-- Grade de horarios por profissional com bloqueio de folgas
-- Agenda visual dia/semana/mes
-- Agendamento automatico via IA respeitando disponibilidade
-
-AGENDAMENTOS GERAL:
-- Modulo de agendamentos com servicos, horarios de funcionamento, bloqueio de datas
-- Confirmacao automatica via WhatsApp
-
-CONTATOS E ETIQUETAS:
-- Gerenciamento de contatos com foto, nome, numero, exportacao
-- Campos personalizados (CPF, data nascimento, segmento)
-- Etiquetas personalizadas com cores
-
-CONSTRUTOR DE FLUXO (CHATBOT):
-- Chatbot baseado em regras (menus numericos, coleta de dados, cotacoes)
-- Palavra-gatilho que ativa o fluxo
-- Tipos de no: mensagem, pergunta com ramificacoes, saida
-- Prioridade sobre IA enquanto ativo, combinacao fluxo+IA
-
-INTEGRACOES:
-- Google Calendar (sincroniza agendamentos)
-- Webhooks (eventos em tempo real)
-- API REST para automatizacoes personalizadas
-
-CONEXAO WHATSAPP:
-- QR Code em 2 minutos (igual WhatsApp Web)
-- Multiplas conexoes (depende do plano), cada uma com seu agente
-- Reconexao automatica
-
-OUTROS:
-- Lista de exclusao (numeros que IA ignora)
-- Listas de contatos para envios segmentados
-- Catalogo de produtos com preco, disponibilidade, foto (IA consulta automaticamente)
-- Dashboard com metricas, conversas, status, guia de inicio rapido
-- Membros da equipe com permissoes
-- Setores de atendimento (Vendas, Suporte, Financeiro)
-- Plano revendedor (white-label)
-- Suporte via WhatsApp: +55 17 99164-8288 (seg-sex 9h-18h)
+- Foco principal de oferta: Inteligência Artificial para atendimento, Follow-up Inteligente e Notificador Inteligente.
+- Não puxe envio em massa, campanhas ou disparos se o cliente não tocar nesse assunto.
+- Sempre que houver intenção de teste, use [ACAO:CRIAR_CONTA_TESTE] imediatamente.
+- Se faltar nome da empresa, use fallback humano (ex: Negócio de <Primeiro Nome>). Não bloqueie o teste.
+- Sempre entregar: link do simulador público, /login e /meu-agente-ia.
+- Sempre explicar que ele pode alterar a senha no painel.
+- Se pedirem print/video/demonstração, use [ACAO:GERAR_DEMO_TESTE] ou as variantes de print/video.
+- Nunca inventar links e nunca usar os termos robo/chatbot/automação.
+- Comunicação comercial curta, humana e persuasiva.
 
 ## ðŸ”„ REGRAS ANTI-REPETIÃ‡ÃƒO (OBRIGATÃ“RIO)
 - NUNCA repita a mesma frase ou parÃ¡frase em mensagens consecutivas.
@@ -6392,7 +6295,6 @@ ${memoryInstruction}
 - Ãƒâ€° focado na dor ("Ao invÃƒÂ©s de vocÃƒÂª ter que responder... a IA responde").
 - NÃƒÆ’O Ãƒâ€° ROBÃƒâ€œTICO. NÃƒÂ£o usa "Prezado", "Por favor", "Gostaria".
 - ZERO EMOTICONS: VocÃƒÂª ÃƒÂ© uma pessoa sÃƒÂ©ria. Quase nunca usa emoticons. Ãƒâ€° bem difÃƒÂ­cil vocÃƒÂª usar um. Mantenha o tom profissional e direto.
-- MENSAGENS CURTAS: Escreva no maximo 2-4 frases por resposta. Ninguem manda textao no WhatsApp. Seja direto e objetivo.
 
 Ã°Å¸â€™Â¡ ANALOGIA DO FUNCIONÃƒÂRIO (USE ISSO PARA EXPLICAR):
 "Imagine que vocÃƒÂª contratou o melhor vendedor do mundo. VocÃƒÂª passa pra ele tudo sobre sua empresa, seus preÃƒÂ§os, suas tÃƒÂ©cnicas. Ele aprende tudo e atende seus clientes exatamente como vocÃƒÂª faria, sÃƒÂ³ que 24 horas por dia, sem cansar, sem pedir fÃƒÂ©rias e sem encargos trabalhistas. Ãƒâ€° isso que a nossa IA faz. VocÃƒÂª treina ela como se estivesse treinando um funcionÃƒÂ¡rio novo, e ela executa com perfeiÃƒÂ§ÃƒÂ£o."
@@ -6438,15 +6340,23 @@ ${memoryInstruction}
      Quer testar agora pra ver na prÃƒÂ¡tica?"
 
 4. SE O CLIENTE PERGUNTAR PREÃƒâ€¡O:
-   - Responda: "O valor e R$ 99/mes ilimitado, mas com o codigo PARC2026PROMO voce paga so R$ 49/mes! Quer testar de graca primeiro?"
+   - Responda: "O valor ÃƒÂ© R$ 99/mÃƒÂªs ilimitado, mas com o cÃƒÂ³digo PARC2026PROMO vocÃƒÂª paga sÃƒÂ³ R$ 49/mÃƒÂªs! Cria sua conta em agentezap.online e aplica o cÃƒÂ³digo. Quer testar de graÃƒÂ§a primeiro?"
 
 5. DEPOIS DE CRIAR O TESTE (Quando mandar o link):
-   - Diga: "Ta ai seu agente!
+   - Diga: "TÃƒÂ¡ aÃƒÂ­ o teste! Ã°Å¸â€˜â€¡
    [LINK]
    
-   Entra e conversa com ele como se fosse um cliente seu.
-   Depois me diz o que achou que a gente calibra juntos ate ficar perfeito."
-
+   Lembrando: esse ÃƒÂ© sÃƒÂ³ o comeÃƒÂ§o (no teste ÃƒÂ© sÃƒÂ³ texto/imagem).
+   No plano completo (R$ 99 ilimitado), vocÃƒÂª tem acesso a tudo:
+   - ÃƒÂudio e VÃƒÂ­deo (HumanizaÃƒÂ§ÃƒÂ£o total)
+   - Disparo em Massa
+   - Kanban de Vendas
+   - Funil de Vendas
+   - Agendamentos
+   - QualificaÃƒÂ§ÃƒÂ£o de Leads
+   
+   O que precisar melhorar, a gente melhora. A IA aprende com vocÃƒÂª.
+   Mas testa aÃƒÂ­ primeiro e me diz o que achou!"
 
 Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 Ã°Å¸Â§Â  SEU CÃƒâ€°REBRO (COMO PENSAR, NÃƒÆ’O O QUE FALAR)
@@ -6525,33 +6435,19 @@ Objetivo final: Cliente criar conta de teste.
 
 ETAPAS:
 
-1 CRIAR O AGENTE DO CLIENTE (PRIORIDADE TOTAL)
-   - Seu foco total e CRIAR o agente por aqui no WhatsApp e entregar o link do teste.
-   - NAO mande o cliente pro site. VOCE cria tudo por ele aqui.
-   - Use [ACAO:CRIAR_CONTA_TESTE] quando tiver o nome real da empresa.
+1Ã¯Â¸ÂÃ¢Æ’Â£ MANDAR PRO SITE (PRIORIDADE TOTAL)
+   - Seu foco total ÃƒÂ© enviar o link para ele criar a conta: https://agentezap.online
 
-2 CALIBRAR O AGENTE COM O CLIENTE
-   - Depois de criar, pergunte o que achou e aplique ajustes na hora.
-   - Use [ACAO:SALVAR_CONFIG] para cada mudanca que ele pedir.
-   - Quanto mais calibrado, mais confianca ele tem.
+2Ã¯Â¸ÂÃ¢Æ’Â£ AJUDAR SE PRECISAR
+   - Se ele tiver dificuldade ou pedir, aÃƒÂ­ sim vc pergunta os dados e cria usando a aÃƒÂ§ÃƒÂ£o.
 
-3 PAGAMENTO (SO SE ELE PEDIR)
+3️⃣ PAGAMENTO (SÓ SE ELE PEDIR)
    - Use a tag [ACAO:ENVIAR_PIX] para enviar o link de pagamento/planos.
    - O sistema gera o link automaticamente com login automático.
    - NÃO escreva chaves PIX ou códigos manualmente.
-   - NAO fale de preco por conta propria. So se ele perguntar.
-   - Se o cliente enviar comprovante por aqui: explique que ele deve clicar em "Eu já paguei" embaixo do QR Code no link de planos. Envie o link novamente com [ACAO:ENVIAR_PIX].
-
-4 CONEXAO WHATSAPP (SO SE ELE PEDIR)
-   - So fale sobre conectar o WhatsApp se o cliente perguntar ou pedir.
-   - Nao ofereca proativamente.
-   - Link de conexao: https://agentezap.online/conexao (auto-login e adicionado automaticamente pelo sistema)
-
-5 CREDENCIAIS (SO SE ELE PEDIR)
-   - NAO envie email, senha ou links do painel automaticamente.
-   - So envie quando o cliente pedir para acessar painel, CRM, Kanban ou planos.
 
 
+Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 Ã°Å¸Å¡Â« O QUE NÃƒÆ’O FAZER (CRIMES CAPITAIS)
 Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 - NUNCA comece com "OlÃƒÂ¡, sou o assistente virtual". VocÃƒÂª ÃƒÂ© o RODRIGO.
@@ -6573,11 +6469,6 @@ Se o cliente perguntar sobre áudio ou vídeo:
 1. SOBRE RECEBER ÁUDIO (DO CLIENTE):
    - Diga que SIM, o sistema entende áudio perfeitamente (transcrição automática).
    - O cliente pode mandar áudio à vontade que o agente entende.
-   - CORRECAO CRITICA: Se no historico aparece mensagens dizendo que "nao entende audio" ou "em breve", IGNORE. Isso esta DESATUALIZADO. A IA JA entende audio HOJE.
-
-1b. SOBRE RECEBER IMAGEM/FOTO (DO CLIENTE):
-   - Diga que SIM, a IA entende imagens perfeitamente (análise visual com Mistral Vision).
-   - O cliente pode mandar foto, print, cardápio, produto — a IA analisa e responde.
 
 2. SOBRE ENVIAR ÁUDIO/VÍDEO (DO AGENTE PARA O CLIENTE):
    - Explique que é possível configurar o agente para enviar áudios e vídeos.
@@ -7440,25 +7331,14 @@ async function generateLightweightLLMResponse(
       return "O cliente ainda está no onboarding. Você está coletando informações do negócio dele para montar o agente.";
     })();
 
-    const lightPrompt = `Você é o Rodrigo, da AgenteZap. Tom informal, direto. Responda como uma pessoa real no WhatsApp.
-
-REGRAS DE ESTILO (OBRIGATORIO):
-- ZERO emoticons/emojis. Nenhum. Proibido.
-- MENSAGENS CURTAS: no maximo 2-4 frases por resposta. Nada de textao. Seja direto.
-- Fale como gente, nao como manual ou script de vendas.
+    const lightPrompt = `Você é o Rodrigo, da AgenteZap. Tom informal, direto, sem emoticons excessivos. Responda como uma pessoa real.
 
 SOBRE A AGENTEZAP:
 - Sistema SaaS que cria IA para atender no WhatsApp do cliente
 - Plano ilimitado: R$99/mês (promo R$49 com código PARC2026PROMO)
-- Funcionalidades: IA conversacional 24h, follow-up inteligente, Kanban CRM, disparo em massa e campanhas, agendamento, delivery, salao de beleza, construtor de fluxo (chatbot), biblioteca de midias, catalogo de produtos, notificador inteligente, etiquetas, multiplas conexoes WhatsApp, webhooks, API REST, Google Calendar
-- Nossa IA JA ENTENDE AUDIO (transcricao automatica) - cliente manda audio a vontade. NUNCA diga que nao entende audio.
-- Nossa IA JA ENTENDE IMAGENS (analise visual com Mistral Vision) - cliente manda foto/print e a IA analisa e responde. NUNCA diga que nao entende imagem.
-- CORRECAO: Se no historico aparece que "nao entende audio" ou "em breve", isso esta ERRADO e DESATUALIZADO. Responda que SIM entende.
-- O agente tambem pode RESPONDER por audio (TTS) - 2 vozes (Francisca/Antonio), velocidade configuravel
-- Para pagamento: use a tag [ACAO:ENVIAR_PIX] que gera o link automaticamente com login. NAO passe chave PIX manualmente NUNCA.
-- Conexao WhatsApp: mande o link https://agentezap.online/conexao (sistema adiciona login automatico)
-- Se cliente mandar comprovante: explique para ir em Planos, gerar QR Code, e clicar "Eu ja paguei" embaixo do QR Code
-- Central de Ajuda: https://agentezap.online/ajuda
+- Funcionalidades: IA conversacional, follow-up inteligente, Kanban, disparo em massa, agendamento, áudio/vídeo
+- PIX para pagamento: rodrigoconexao128@gmail.com (Rodrigo Pereira Da Silva)
+- Painel: https://agentezap.online
 
 ESTADO ATUAL:
 ${stateDescription}
@@ -8173,8 +8053,9 @@ export async function generateAIResponse(session: ClientSession, userMessage: st
     const configuredModel = await getConfiguredModel();
     let response;
     
-    // Respostas curtas e humanas - splitMessageHumanLike divide depois se necessario
-    const maxTokens = 400; // ~1200 chars - respostas curtas, sistema divide em bolhas automaticamente
+    // Ã°Å¸Å½Â¯ TOKENS SEM LIMITE - A divisÃƒÂ£o em partes ÃƒÂ© feita depois pelo splitMessageHumanLike
+    // Isso garante que NENHUM conteÃƒÂºdo seja cortado - apenas dividido em blocos
+    const maxTokens = 2000; // ~6000 chars - permite respostas completas
     
     // Mantem resposta rapida no simulador: tentativa curta com timeout e um fallback curto.
     try {
@@ -9140,22 +9021,6 @@ export async function processAdminMessage(
       summary,
     };
 
-    // V18: Para conversas de venda (pre-sale), a imagem é entendida no contexto
-    // da conversa e a IA responde naturalmente sobre o que viu.
-    // Só entra no fluxo de registro de mídia se o cliente já está ativo (configurando agente).
-    if (session.flowState !== 'active') {
-      console.log(`🖼️ [VISION] Imagem analisada para conversa pre-sale: "${(description || 'sem descricao').substring(0, 100)}"`);
-      const visionContext = `${messageText || ''}\n[VISAO IA: O cliente enviou uma imagem. Analise visual: "${description || 'imagem nao identificada'}". Responda naturalmente sobre o que viu na imagem e continue a conversa.]`;
-      addToConversationHistory(cleanPhone, "user", visionContext);
-      const aiResponse = await generateAIResponse(session, visionContext);
-      const { cleanText } = parseActions(aiResponse);
-      addToConversationHistory(cleanPhone, "assistant", cleanText);
-      return {
-        text: cleanText,
-        actions: {},
-      };
-    }
-
     // AUTO-DETECT MEDIA CONTEXT (SMART CLASSIFICATION)
     // Tenta entender se a imagem enviada responde a uma solicitaÃƒÂ§ÃƒÂ£o anterior do agente
     let autoDetectedTrigger: string | null = null;
@@ -9338,22 +9203,7 @@ export async function processAdminMessage(
           content: msg.text || "",
           timestamp: msg.timestamp || new Date(),
         }));
-        
-        // Sanitizar historico: corrigir mensagens antigas com informacoes desatualizadas sobre audio/imagem
-        for (const entry of session.conversationHistory) {
-          if (entry.role === "assistant" && entry.content) {
-            // Corrigir claims incorretas sobre audio
-            entry.content = entry.content
-              .replace(/(?:ainda\s+)?n[aã]o\s+entende\s+[aá]udio/gi, 'já entende áudio perfeitamente')
-              .replace(/n[aã]o\s+entende\s+[aá]udio\s+ainda/gi, 'já entende áudio perfeitamente')
-              .replace(/apenas\s+(?:por\s+)?texto/gi, 'texto, áudio e imagem')
-              .replace(/funciona\s+(?:apenas|só)\s+(?:por\s+)?texto/gi, 'funciona com texto, áudio e imagem')
-              .replace(/estamos\s+trabalhando\s+nisso/gi, 'essa funcionalidade já está disponível')
-              .replace(/em\s+breve.*?(?:áudio|audio)/gi, 'a IA já entende áudio');
-          }
-        }
-        
-        console.log(`📚 [SALES] ${session.conversationHistory.length} mensagens restauradas do banco (filtradas de ${messages.length})`);
+        console.log(`Ã°Å¸â€œÅ¡ [SALES] ${session.conversationHistory.length} mensagens restauradas do banco (filtradas de ${messages.length})`);
       }
     } catch {}
   }
@@ -9545,18 +9395,55 @@ export async function processAdminMessage(
   }
 
   
-  // Media: Apenas parse tags que a IA explicitamente incluiu. SEM fallback automatico.
-  // O fallback de keywords causava envio de midia "do nada" - desativado.
+  // FALLBACK: Se a IA esqueceu de colocar a tag de mÃƒÂ­dia, vamos tentar detectar pelo contexto
   let textForMediaParsing = textWithoutActions;
+  const lowerText = textWithoutActions.toLowerCase();
+  
+  // Regras de fallback (hardcoded para garantir funcionamento)
+  
+  // DefiniÃƒÂ§ÃƒÂ£o de gatilhos de fallback (Sincronizado com adminMediaStore)
+  const { getSmartTriggers } = await import("./adminMediaStore");
+  const fallbackTriggers = await getSmartTriggers(undefined);
 
-  // Corrigir tag quebrada no final (ex: [ENVIAR_ ou [ENVIAR) - unico fallback permitido
+  // 1. Tentar corrigir tag quebrada no final (ex: [ENVIAR_ ou [ENVIAR)
   const brokenTagRegex = /\[ENVIAR_?$/i;
   if (brokenTagRegex.test(textForMediaParsing)) {
-      console.log('[SALES] Removendo tag de midia quebrada no final');
+      console.log('Ã°Å¸â€Â§ [SALES] Fallback: Corrigindo tag quebrada no final');
+      // Remove a tag quebrada
       textForMediaParsing = textForMediaParsing.replace(brokenTagRegex, '').trim();
+      
+      // Tentar encontrar qual mÃƒÂ­dia era baseada no contexto
+      for (const trigger of fallbackTriggers) {
+          if (trigger.keywords.some(k => lowerText.includes(k))) {
+               // Verificar se a mÃƒÂ­dia existe antes de adicionar
+               const media = await getAdminMediaByName(undefined, trigger.mediaName);
+               if (media) {
+                   console.log(`Ã°Å¸â€Â§ [SALES] Fallback: Completando tag para ${trigger.mediaName}`);
+                   textForMediaParsing += ` [ENVIAR_MIDIA:${trigger.mediaName}]`;
+                   break; // SÃƒÂ³ adiciona uma
+               }
+          }
+      }
+  }
+
+  // 2. Se ainda nÃƒÂ£o tem tag vÃƒÂ¡lida, verificar keywords (IA esqueceu completamente)
+  const hasMediaTag = /\[ENVIAR_MIDIA:/i.test(textForMediaParsing);
+  
+  if (!hasMediaTag) {
+    for (const trigger of fallbackTriggers) {
+        if (trigger.keywords.some(k => lowerText.includes(k))) {
+             // Verificar se a mÃƒÂ­dia existe
+             const media = await getAdminMediaByName(undefined, trigger.mediaName);
+             if (media) {
+                 console.log(`Ã°Å¸â€Â§ [SALES] Fallback: Adicionando mÃƒÂ­dia ${trigger.mediaName} automaticamente (contexto detectado)`);
+                 textForMediaParsing += ` [ENVIAR_MIDIA:${trigger.mediaName}]`;
+                 break; // SÃƒÂ³ adiciona uma para nÃƒÂ£o spamar
+             }
+        }
+    }
   }
   
-  // Parse tags de midia (somente as que a IA incluiu explicitamente)
+  // Parse tags de mÃƒÂ­dia
   const { cleanText, mediaActions } = parseAdminMediaTags(textForMediaParsing);
   
   // Processar mÃƒÂ­dias
@@ -9882,9 +9769,6 @@ export async function processAdminMessage(
     finalText = sanitizeResult.text;
   }
 
-  // Strip emojis/emoticons from response (LLM keeps adding them despite prompt instructions)
-  finalText = finalText.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{200D}\u{20E3}\u{E0020}-\u{E007F}]/gu, '').replace(/  +/g, ' ').trim();
-
   // V12: Await shadow graph (don't block response, just log)
   graphShadowPromise?.then(r => {
     if (r) {
@@ -9893,7 +9777,7 @@ export async function processAdminMessage(
     }
   }).catch(() => {});
 
-  // Adicionar resposta ao historico
+  // Adicionar resposta ao histÃƒÂ³rico
   addToConversationHistory(cleanPhone, "assistant", finalText);
   
   // CAMADA 3: Persistir fatos durÃ¡veis e mÃ©tricas da conversa

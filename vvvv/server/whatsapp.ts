@@ -2039,9 +2039,9 @@ async function processAdminAccumulatedMessages(params: {
           }
       }
 
-      // V18: BOLHAS HUMANAS - dividir resposta em múltiplas bolhas pelo separador |||
-      // A IA gera "parte1|||parte2|||parte3" e cada parte vira uma bolha separada no WhatsApp
-      const bubbles = fullText.split('|||').map((b: string) => b.trim()).filter((b: string) => b.length > 0);
+      // V19: BOLHAS HUMANAS - dividir automaticamente via splitMessageHumanLike
+      // Não depende da IA gerar separadores - o código divide por parágrafos/frases
+      const bubbles = splitMessageHumanLike(fullText, 350);
       
       console.log(`💬 [ADMIN AGENT] Enviando ${bubbles.length} bolha(s) para ${pending.contactNumber}`);
       
@@ -2078,8 +2078,8 @@ async function processAdminAccumulatedMessages(params: {
 
     console.log(`? [ADMIN AGENT] Resposta enviada para ${pending.contactNumber}`);
 
-    // ?? Salvar resposta do agente no banco de dados (sem separadores |||)
-    const cleanDbText = (response.text || '').replace(/\|\|\|/g, '\n\n').trim();
+    // Salvar resposta do agente no banco de dados
+    const cleanDbText = (response.text || '').trim();
     if (pending.conversationId && cleanDbText) {
       try {
         await storage.createAdminMessage({

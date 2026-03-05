@@ -1,17 +1,17 @@
 {
-  "baseUrl": "http://127.0.0.1:5000",
-  "timestamp": "2026-03-05T13:23:40.926Z",
+  "baseUrl": "https://agentezap.online",
+  "timestamp": "2026-03-05T13:22:30.586Z",
   "e2e": [
     {
       "role": "cliente",
-      "segmentPage": "http://127.0.0.1:5000/ferramentas/lanchonete",
-      "finalUrl": "http://127.0.0.1:5000/ajuda",
+      "segmentPage": "https://agentezap.online/ferramentas/lanchonete",
+      "finalUrl": "https://agentezap.online/ajuda",
       "flowOk": true
     },
     {
       "role": "admin",
-      "segmentPage": "http://127.0.0.1:5000/ferramentas/lanchonete",
-      "finalUrl": "http://127.0.0.1:5000/ajuda",
+      "segmentPage": "https://agentezap.online/ferramentas/lanchonete",
+      "finalUrl": "https://agentezap.online/ajuda",
       "flowOk": true
     }
   ],

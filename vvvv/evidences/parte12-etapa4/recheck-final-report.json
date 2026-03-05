@@ -1,0 +1,159 @@
+{
+  "timestamp": "2026-03-05T13:32:44.694Z",
+  "localhost": {
+    "health": {
+      "ok": true,
+      "database": true
+    },
+    "businessCategoriesGroups": {
+      "ok": true,
+      "groupCount": 14,
+      "totalCategories": 42
+    },
+    "categorySlugTests": {
+      "pizzaria": {
+        "ok": true,
+        "targetTool": "delivery",
+        "toolRoute": "/delivery-cardapio"
+      },
+      "salao_beleza": {
+        "ok": true,
+        "targetTool": "agendamento",
+        "toolRoute": "/agendamentos"
+      },
+      "imobiliaria": {
+        "ok": true,
+        "targetTool": "generic",
+        "toolRoute": "/meu-agente-ia"
+      },
+      "loja_roupas": {
+        "ok": true,
+        "targetTool": "vendas",
+        "toolRoute": "/produtos"
+      },
+      "negocio_geral": {
+        "ok": true,
+        "targetTool": "generic",
+        "toolRoute": "/meu-agente-ia"
+      },
+      "academia": {
+        "ok": true,
+        "targetTool": "agendamento",
+        "toolRoute": "/agendamentos"
+      },
+      "lanchonete": {
+        "ok": true,
+        "targetTool": "delivery",
+        "toolRoute": "/delivery-cardapio"
+      }
+    },
+    "authTests": {
+      "cliente": {
+        "loginOk": true,
+        "btGetOk": true,
+        "btPutOk": true,
+        "btSavedOk": true,
+        "analyticsOk": true,
+        "flowDelivery": "delivery→/delivery-cardapio",
+        "flowAgendamento": "agendamento→/agendamentos"
+      },
+      "admin": {
+        "loginOk": true,
+        "btGetOk": true,
+        "btPutOk": true,
+        "btSavedOk": true,
+        "analyticsOk": true,
+        "flowDelivery": "delivery→/delivery-cardapio",
+        "flowAgendamento": "agendamento→/agendamentos"
+      }
+    },
+    "toolDistribution": {
+      "agendamento": 24,
+      "delivery": 9,
+      "vendas": 2,
+      "generic": 7
+    },
+    "legacyRoutes": {
+      "/api/health": true,
+      "/api/business-categories/groups": true
+    }
+  },
+  "producao": {
+    "health": {
+      "ok": true,
+      "database": true
+    },
+    "businessCategoriesGroups": {
+      "ok": true,
+      "groupCount": 14,
+      "totalCategories": 42
+    },
+    "categorySlugTests": {
+      "pizzaria": {
+        "ok": true,
+        "targetTool": "delivery",
+        "toolRoute": "/delivery-cardapio"
+      },
+      "salao_beleza": {
+        "ok": true,
+        "targetTool": "agendamento",
+        "toolRoute": "/agendamentos"
+      },
+      "imobiliaria": {
+        "ok": true,
+        "targetTool": "generic",
+        "toolRoute": "/meu-agente-ia"
+      },
+      "loja_roupas": {
+        "ok": true,
+        "targetTool": "vendas",
+        "toolRoute": "/produtos"
+      },
+      "negocio_geral": {
+        "ok": true,
+        "targetTool": "generic",
+        "toolRoute": "/meu-agente-ia"
+      },
+      "academia": {
+        "ok": true,
+        "targetTool": "agendamento",
+        "toolRoute": "/agendamentos"
+      },
+      "lanchonete": {
+        "ok": true,
+        "targetTool": "delivery",
+        "toolRoute": "/delivery-cardapio"
+      }
+    },
+    "authTests": {
+      "cliente": {
+        "loginOk": true,
+        "btGetOk": true,
+        "btPutOk": true,
+        "btSavedOk": true,
+        "analyticsOk": true,
+        "flowDelivery": "delivery→/delivery-cardapio",
+        "flowAgendamento": "agendamento→/agendamentos"
+      },
+      "admin": {
+        "loginOk": true,
+        "btGetOk": true,
+        "btPutOk": true,
+        "btSavedOk": true,
+        "analyticsOk": true,
+        "flowDelivery": "delivery→/delivery-cardapio",
+        "flowAgendamento": "agendamento→/agendamentos"
+      }
+    },
+    "toolDistribution": {
+      "agendamento": 24,
+      "delivery": 9,
+      "vendas": 2,
+      "generic": 7
+    },
+    "legacyRoutes": {
+      "/api/health": true,
+      "/api/business-categories/groups": true
+    }
+  }
+}
