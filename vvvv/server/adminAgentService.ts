@@ -4993,14 +4993,19 @@ export async function createTestAccountWithCredentials(session: ClientSession): 
     const applyAgentConfig = async (targetUserId: string): Promise<{ agentName: string; companyName: string }> => {
       const existingConfig = await storage.getAgentConfig(targetUserId);
       const existingIdentity = parseExistingAgentIdentity(existingConfig?.prompt);
+      const incomingCompany = sanitizeCompanyName(session.agentConfig?.company);
+      const incomingName = normalizeContactName(session.agentConfig?.name);
+      const incomingPrompt = (session.agentConfig?.prompt || "").trim();
       const hasIncomingConfigValues = Boolean(
-        sanitizeCompanyName(session.agentConfig?.company) ||
-        normalizeContactName(session.agentConfig?.name) ||
-        (session.agentConfig?.prompt || "").trim(),
+        incomingCompany || incomingName || incomingPrompt,
       );
+
+      // TRACE LOGGING: Rastrear decisões de applyAgentConfig
+      console.log(`📋 [APPLY-CONFIG] userId=${targetUserId} | existingPromptLen=${existingConfig?.prompt?.length || 0} | existingCompany="${existingIdentity.company || 'N/A'}" | incomingCompany="${incomingCompany || 'N/A'}" | incomingName="${incomingName || 'N/A'}" | hasIncoming=${hasIncomingConfigValues} | flowState=${session.flowState}`);
       const setupProfileReady = isSetupProfileReady(session.setupProfile);
 
       if (!hasIncomingConfigValues && !setupProfileReady && existingConfig?.prompt && existingIdentity.company) {
+        console.log(`⏭️ [APPLY-CONFIG] EARLY RETURN — no incoming changes, keeping existing config for ${targetUserId}`);
         return {
           agentName: existingIdentity.agentName || "Atendente",
           companyName: existingIdentity.company,
@@ -5032,6 +5037,9 @@ export async function createTestAccountWithCredentials(session: ClientSession): 
         String(existingConfig?.prompt || "").trim() === fullPrompt.trim();
       const shouldApplyPromptUpdate = !promptAlreadyUpToDate;
       const shouldApplyStructuredSetup = setupProfileReady;
+
+      // TRACE: Log decisões de atualização
+      console.log(`📋 [APPLY-CONFIG] company="${companyName}" | agent="${agentName}" | workflow=${detectedWorkflowKind} | newPromptLen=${fullPrompt.length} | upToDate=${promptAlreadyUpToDate} | shouldUpdate=${shouldApplyPromptUpdate}`);
       // CORREÃ‡ÃƒO: CriaÃ§Ã£o inicial e setup guiado NÃƒO contam como calibraÃ§Ã£o.
       // SÃ³ conta como calibraÃ§Ã£o se o agente JÃ tinha um prompt configurado E real
       // e o usuÃ¡rio estÃ¡ pedindo uma ALTERAÃ‡ÃƒO explÃ­cita (nÃ£o o setup inicial).
@@ -5045,9 +5053,13 @@ export async function createTestAccountWithCredentials(session: ClientSession): 
         (shouldApplyPromptUpdate || shouldApplyStructuredSetup)
       );
 
+      console.log(`📋 [APPLY-CONFIG] isInitialSetup=${isInitialSetup} | isGuidedOnboarding=${isGuidedOnboardingSetup} | shouldCountEdit=${shouldCountEdit}`);
+
       if (shouldCountEdit) {
         const allowance = await getAdminEditAllowance(targetUserId);
+        console.log(`📋 [APPLY-CONFIG] Edit allowance: allowed=${allowance.allowed} | used=${allowance.used}/${allowance.limit} | hasSub=${allowance.hasActiveSubscription}`);
         if (!allowance.allowed) {
+          console.error(`❌ [APPLY-CONFIG] FREE_EDIT_LIMIT_REACHED for ${targetUserId} — prompt NOT updated!`);
           const limitError = new Error("FREE_EDIT_LIMIT_REACHED");
           (limitError as any).used = allowance.used;
           throw limitError;
@@ -5055,7 +5067,8 @@ export async function createTestAccountWithCredentials(session: ClientSession): 
       }
 
       if (shouldApplyPromptUpdate) {
-        await storage.upsertAgentConfig(targetUserId, {
+        console.log(`📝 [APPLY-CONFIG] Upserting prompt for ${targetUserId}: ${fullPrompt.length} chars, company="${companyName}"`);
+        const upsertResult = await storage.upsertAgentConfig(targetUserId, {
           prompt: fullPrompt,
           isActive: true,
           model: "mistral-large-latest",
@@ -5063,6 +5076,44 @@ export async function createTestAccountWithCredentials(session: ClientSession): 
           messageSplitChars: 400,
           responseDelaySeconds: 30,
         });
+        console.log(`📝 [APPLY-CONFIG] Upsert returned: promptLen=${upsertResult?.prompt?.length || 0}`);
+
+        // POST-UPDATE VERIFICATION: Ler do DB e confirmar que o prompt foi salvo
+        const verifyConfig = await storage.getAgentConfig(targetUserId);
+        const savedPromptLen = verifyConfig?.prompt?.length || 0;
+        const savedContainsCompany = (verifyConfig?.prompt || "").toLowerCase().includes(companyName.toLowerCase());
+        
+        if (savedPromptLen < 100 || !savedContainsCompany) {
+          console.error(`❌ [VERIFY] Prompt verification FAILED! savedLen=${savedPromptLen} | containsCompany=${savedContainsCompany} | expected="${companyName}"`);
+          // RETRY com upsert direto
+          console.log(`🔄 [VERIFY] Retrying prompt upsert for ${targetUserId}...`);
+          await storage.upsertAgentConfig(targetUserId, { prompt: fullPrompt, isActive: true, model: "mistral-large-latest" });
+          const retryVerify = await storage.getAgentConfig(targetUserId);
+          if (!(retryVerify?.prompt || "").toLowerCase().includes(companyName.toLowerCase())) {
+            console.error(`❌ [VERIFY] RETRY ALSO FAILED for ${targetUserId}! Critical bug.`);
+          } else {
+            console.log(`✅ [VERIFY] Retry succeeded for ${targetUserId}`);
+          }
+        } else {
+          console.log(`✅ [VERIFY] Prompt verified for ${targetUserId}: ${savedPromptLen} chars, company "${companyName}" found`);
+
+          // SYNC prompt_versions to prevent PROMPT SYNC from reverting
+          try {
+            const { salvarVersaoPrompt } = await import("./promptHistoryService");
+            await salvarVersaoPrompt({
+              userId: targetUserId,
+              configType: "ai_agent_config",
+              promptContent: fullPrompt,
+              editSummary: "Config via admin agent: " + companyName,
+              editType: "ia",
+            });
+            console.log("[APPLY-CONFIG] prompt_versions synced for " + targetUserId);
+          } catch (pvErr) {
+            console.warn("[APPLY-CONFIG] Failed to sync prompt_versions:", pvErr);
+          }
+        }
+      } else {
+        console.log(`⏭️ [APPLY-CONFIG] Prompt already up-to-date, skipping upsert for ${targetUserId}`);
       }
 
       if (shouldApplyStructuredSetup) {
@@ -5071,12 +5122,12 @@ export async function createTestAccountWithCredentials(session: ClientSession): 
 
       if (shouldCountEdit) {
         await consumeAdminPromptEdit(targetUserId);
-        console.log(`ðŸ“Š [QUOTA] CalibraÃ§Ã£o contada para ${targetUserId} (era alteraÃ§Ã£o real, nÃ£o setup inicial)`);
+        console.log(`📊 [QUOTA] Calibração contada para ${targetUserId} (alteração real, não setup inicial)`);
       } else if (!isInitialSetup && (shouldApplyPromptUpdate || shouldApplyStructuredSetup)) {
-        console.log(`ðŸ“Š [QUOTA] Setup guiado aplicado para ${targetUserId} - NÃƒO conta como calibraÃ§Ã£o`);
+        console.log(`📊 [QUOTA] Setup guiado aplicado para ${targetUserId} - NÃO conta como calibração`);
       }
 
-      console.log(`Ã¢Å“â€¦ [SALES] Agente "${agentName}" configurado para ${companyName}`);
+      console.log(`✅ [SALES] Agente "${agentName}" configurado para ${companyName} | promptUpdated=${shouldApplyPromptUpdate} | structuredSetup=${shouldApplyStructuredSetup}`);
       return { agentName, companyName };
     };
     
@@ -6028,6 +6079,15 @@ ${mediaBlock ? `Ã°Å¸â€˜â€¡ LISTA DE MÃƒÂDIAS DISPONÃƒÂVEIS
 - Gerar demo completa: [ACAO:GERAR_DEMO_TESTE]
 - Pix: [ACAO:ENVIAR_PIX]
 - Agendar: [ACAO:AGENDAR_CONTATO data="YYYY-MM-DD HH:mm"]
+- Retornar proativamente: [FOLLOWUP:tempo="X minutos" motivo="descricao"]
+
+## MENSAGEM PROATIVA (RETORNO AUTOMATICO)
+Quando voce executar uma acao que leva tempo (criar conta, gerar demo, configurar agente),
+AVISE o cliente para aguardar e use [FOLLOWUP] para retornar automaticamente:
+- Diga algo como "Aguarda so um instante que ja te aviso quando estiver pronto!"
+- Adicione a tag [FOLLOWUP:tempo="2 minutos" motivo="avisar que o agente esta pronto"]
+- O sistema vai retornar ao cliente automaticamente no tempo indicado, sem ele precisar digitar.
+- Tempos sugeridos: "2 minutos" para acoes rapidas, "5 minutos" para setup, "1 hora" para follow-up comercial.
 
 `;
 }
@@ -9190,8 +9250,16 @@ export async function processAdminMessage(
 
     const companyFromAction = sanitizeCompanyName(action.params.empresa);
     const companyFromSession = sanitizeCompanyName(session.agentConfig?.company);
-    if (!createAllowedThisTurn || (!companyFromAction && !companyFromSession)) {
-      console.log(`â¸ï¸ [SALES] AÃ§Ã£o CRIAR_CONTA_TESTE ignorada nesta rodada para evitar criaÃ§Ã£o prematura.`);
+
+    // Se a IA incluiu empresa valida na acao, confiar na decisao da IA
+    if (companyFromAction) {
+      console.log(`[SALES] CRIAR_CONTA_TESTE permitida - IA incluiu empresa valida: ${companyFromAction}`);
+      return true;
+    }
+
+    // Sem empresa da IA, verificar condicoes tradicionais
+    if (!createAllowedThisTurn || !companyFromSession) {
+      console.log(`[SALES] CRIAR_CONTA_TESTE ignorada - sem empresa valida (action=${companyFromAction}, session=${companyFromSession}, createAllowed=${createAllowedThisTurn})`);
       return false;
     }
 
@@ -9348,7 +9416,64 @@ export async function processAdminMessage(
         "Tive uma falha técnica e ainda não consegui gerar seu link real agora. Me manda \"gerar meu teste\" que eu tento novamente na hora sem perder suas informações.";
     }
   }
-  
+
+  // POST-ACTION VALIDATION: Verificar se o prompt no DB realmente corresponde ao que foi prometido
+  // Isso previne false positives onde o agente diz "atualizei" mas o DB não foi alterado
+  if (hasRealTestDelivery && actionResults.testAccountCredentials?.simulatorToken) {
+    try {
+      // Re-read session to get userId (may have been updated by executeActions)
+      const freshSession = getClientSession(session.phoneNumber) || session;
+      const postActionUserId = freshSession.userId || session.userId;
+      
+      if (postActionUserId) {
+        const postActionConfig = await storage.getAgentConfig(postActionUserId);
+        const expectedCompany = sanitizeCompanyName(freshSession.agentConfig?.company || session.agentConfig?.company);
+        
+        if (expectedCompany && postActionConfig?.prompt) {
+          const promptContainsCompany = postActionConfig.prompt.toLowerCase().includes(expectedCompany.toLowerCase());
+          
+          if (!promptContainsCompany) {
+            console.error(`❌ [POST-ACTION-VERIFY] FALSE POSITIVE DETECTED! Agent prompt for ${postActionUserId} does NOT contain expected company "${expectedCompany}". Current prompt starts with: "${postActionConfig.prompt.substring(0, 200)}"`);
+            
+            // RETRY: Gerar e salvar o prompt correto
+            try {
+              const retryAgentName = normalizeContactName(freshSession.agentConfig?.name || session.agentConfig?.name) || "Atendente";
+              const retryRole = (freshSession.agentConfig?.role || session.agentConfig?.role || inferRoleFromBusinessName(expectedCompany)).replace(/\s+/g, " ").trim().slice(0, 80) || "atendente virtual";
+              const retryInstructions = freshSession.agentConfig?.prompt || session.agentConfig?.prompt || "Seja prestativo, educado e ajude os clientes.";
+              const retryWorkflow = freshSession.setupProfile?.workflowKind || inferWorkflowKindFromProfile(expectedCompany) || "generic";
+              
+              console.log(`🔄 [POST-ACTION-VERIFY] Retrying prompt for company="${expectedCompany}", agent="${retryAgentName}"...`);
+              const correctedPrompt = await generateProfessionalAgentPrompt(retryAgentName, expectedCompany, retryRole, retryInstructions, retryWorkflow);
+              
+              await storage.upsertAgentConfig(postActionUserId, {
+                prompt: correctedPrompt,
+                isActive: true,
+                model: "mistral-large-latest",
+              });
+              
+              // Verify retry
+              const retryConfig = await storage.getAgentConfig(postActionUserId);
+              if ((retryConfig?.prompt || "").toLowerCase().includes(expectedCompany.toLowerCase())) {
+                console.log(`✅ [POST-ACTION-VERIFY] Retry SUCCEEDED! Prompt contains "${expectedCompany}" (${retryConfig?.prompt?.length} chars)`);
+              } else {
+                console.error(`❌ [POST-ACTION-VERIFY] Retry FAILED! Applying fallback template...`);
+                const fallbackPrompt = `<identidade>\nVocê é ${retryAgentName}, atendente virtual da ${expectedCompany}.\nCanal: WhatsApp.\nVocê fala como humano — experiente, carismático e direto.\n</identidade>\n\n<objetivo>\nAtender o cliente, tirar dúvidas sobre produtos/serviços da ${expectedCompany}.\n</objetivo>\n\n<tom_de_voz>\nInformal, caloroso, como um vendedor experiente.\n</tom_de_voz>\n\n<guardrails>\nNUNCA diga que é IA ou robô. Você é ${retryAgentName} da ${expectedCompany}.\nNUNCA invente preços ou informações. Se não souber, diga "vou verificar".\n</guardrails>\n\n<contexto_negocio>\n${retryInstructions}\n</contexto_negocio>`;
+                await storage.upsertAgentConfig(postActionUserId, { prompt: fallbackPrompt, isActive: true, model: "mistral-large-latest" });
+                console.log(`🔧 [POST-ACTION-VERIFY] Fallback template applied for "${expectedCompany}"`);
+              }
+            } catch (retryErr) {
+              console.error(`❌ [POST-ACTION-VERIFY] Retry error:`, retryErr);
+            }
+          } else {
+            console.log(`✅ [POST-ACTION-VERIFY] Prompt verified: contains "${expectedCompany}" (${postActionConfig.prompt.length} chars)`);
+          }
+        }
+      }
+    } catch (verifyErr) {
+      console.error(`❌ [POST-ACTION-VERIFY] Verification error:`, verifyErr);
+    }
+  }
+
   if (actionResults.sendPix) {
     finalText = buildPixPaymentInstructions(session);
   }
@@ -9454,18 +9579,15 @@ export async function processAdminMessage(
   
   if (session.flowState !== 'active') {
     if (followUp) {
-      // IA solicitou follow-up especÃƒÂ­fico
+      // IA solicitou follow-up proativo com delay customizado
       const delayMinutes = parseTimeToMinutes(followUp.tempo);
-      console.log(`Ã¢ÂÂ° [SALES] Follow-up solicitado pela IA: ${delayMinutes}min - ${followUp.motivo}`);
+      console.log(`[SALES] Follow-up PROATIVO solicitado pela IA: ${delayMinutes}min - ${followUp.motivo}`);
       
-      // ForÃƒÂ§ar ciclo padrÃƒÂ£o (resetar para 10min) pois a IA acabou de falar
-      await followUpService.scheduleInitialFollowUpByPhone(cleanPhone);
+      // Usar delay customizado da IA
+      await followUpService.scheduleCustomFollowUpByPhone(cleanPhone, delayMinutes, followUp.motivo);
     } else {
-      // IA nÃƒÂ£o pediu follow-up
-      console.log(`Ã°Å¸â€œÂ [SALES] IA nÃƒÂ£o solicitou follow-up para ${cleanPhone}`);
-
-      // ForÃƒÂ§ar ciclo padrÃƒÂ£o (resetar para 10min) pois a IA acabou de falar
-      console.log(`Ã°Å¸â€â€ž [SALES] Iniciando ciclo de follow-up (10min) para ${cleanPhone}`);
+      // IA nao pediu follow-up - usar ciclo padrao (10min)
+      console.log(`[SALES] Iniciando ciclo de follow-up padrao (10min) para ${cleanPhone}`);
       await followUpService.scheduleInitialFollowUpByPhone(cleanPhone);
     }
   }
