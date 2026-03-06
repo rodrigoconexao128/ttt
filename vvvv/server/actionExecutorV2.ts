@@ -292,11 +292,15 @@ export async function executeAction(
 
         const deliveryText = buildStructuredAccountDeliveryText(session, credentials as any);
 
+        // V23k: Include real credentials in tool result so LLM doesn't fabricate fake ones
+        const simulatorUrl = buildSimulatorUrl(credentials.simulatorToken);
+        const fullDelivery = `${deliveryText}\n\n📌 Credenciais da conta criada:\n📧 E-mail: ${credentials.email}\n🔑 Senha: ${credentials.password}\n🔗 Link do simulador: ${simulatorUrl}`;
+
         console.log(`[ExecutorV2] Agente criado: ${credentials.email} (token: ${credentials.simulatorToken})`);
 
         return {
           success: true,
-          responseText: deliveryText,
+          responseText: fullDelivery,
         };
       } catch (e: any) {
         console.error('[ExecutorV2] Erro ao criar agente:', e);

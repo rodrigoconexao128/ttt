@@ -273,7 +273,7 @@ REGRAS IMPORTANTES:
 17. Se o cliente pedir link para PLANOS/ASSINATURA → chame gerar_link_planos. Se pedir link para CONEXÃO/WHATSAPP → chame gerar_link_conexao. Se pedir para TESTAR/SIMULADOR → chame gerar_link_simulador. Se pedir para CRIAR CONTA → chame criar_agente. SEMPRE use a ferramenta, NUNCA gere o link na mensagem.
 18. URLs válidas SOMENTE vêm do resultado das ferramentas. Qualquer URL que você escrever diretamente será INVÁLIDA e causará erro para o cliente.
 19. Quando o resultado de uma ferramenta contiver URLs, copie-as EXATAMENTE como estão. NUNCA modifique, reescreva ou substitua as URLs retornadas pelas ferramentas.
-20. Após criar_agente, o resultado contém email, senha, link do simulador e links de acesso. Você DEVE incluir TODAS essas informações na resposta ao cliente — especialmente email e senha. NUNCA omita credenciais.
+20. Após criar_agente, o resultado contém email, senha e link do simulador (/test/TOKEN). Copie EXATAMENTE o email, a senha e o link do simulador que aparecem no resultado. NUNCA invente credenciais ou modifique o link. O link do simulador SEMPRE começa com /test/ — NUNCA substitua por /plans.
 
 CADASTRO DE MÍDIAS:
 21. Quando o cliente enviar uma mídia (imagem, áudio, documento, vídeo), PERGUNTE o nome que ele quer dar para essa mídia e em qual situação o agente deve enviá-la ao cliente dele. Exemplo: "Essa imagem é o quê? Em qual momento o agente deve enviar ela?"
@@ -410,6 +410,47 @@ function sanitizeFabricatedUrls(text: string): SanitizeResult {
   }
 
   return { text: result, hadFabricatedPlansUrl, hadFabricatedConexaoUrl, hadFabricatedSimulatorUrl };
+}
+
+/**
+ * V23k: Ensure simulator URLs from tool results are preserved in the LLM response.
+ * The LLM sometimes replaces /test/TOKEN with bare /plans — this catches that.
+ */
+function preserveSimulatorUrlFromToolResults(
+  responseText: string,
+  toolResultMessages: Array<{ role: string; content: string }>,
+): string {
+  // Extract /test/TOKEN URLs from tool results
+  const testUrlPattern = /https?:\/\/[^\s"'\]>]+\/test\/[a-f0-9]+/gi;
+  let simulatorUrl: string | null = null;
+
+  for (const msg of toolResultMessages) {
+    const match = msg.content.match(testUrlPattern);
+    if (match) {
+      simulatorUrl = match[0];
+      break;
+    }
+  }
+
+  if (!simulatorUrl) return responseText; // No simulator URL in tool results
+
+  // Check if the response already contains a /test/ URL
+  if (/\/test\/[a-f0-9]+/i.test(responseText)) return responseText;
+
+  // The LLM dropped the simulator URL. Replace bare /plans URLs with simulator URL.
+  const barePlansRegex = /https?:\/\/agentezap\.online\/plans(?![?\w/])/gi;
+  if (barePlansRegex.test(responseText)) {
+    console.log(`[ToolCalling] LLM substituiu /test/ por /plans — corrigindo para: ${simulatorUrl}`);
+    return responseText.replace(/https?:\/\/agentezap\.online\/plans(?![?\w/])/gi, simulatorUrl);
+  }
+
+  // If response mentions testing/simulator but no URL, append it
+  if (/test[ae]|simulador|simulat/i.test(responseText)) {
+    console.log(`[ToolCalling] LLM mencionou teste mas omitiu URL — adicionando: ${simulatorUrl}`);
+    return responseText + `\n\n🔗 Link do simulador: ${simulatorUrl}`;
+  }
+
+  return responseText;
 }
 
 /**
@@ -794,7 +835,10 @@ export async function processToolCallingMessage(
 
     if (finalResponse) {
       const sanitized = await sanitizeAndInjectRealLinks(finalResponse, userId, phoneNumber);
-      return { responseText: sanitized };
+      // V23k: Ensure simulator URLs from tool results survive LLM reformatting
+      const toolMsgs = messages.filter((m: any) => m.role === 'tool');
+      const preserved = preserveSimulatorUrlFromToolResults(sanitized, toolMsgs);
+      return { responseText: preserved };
     }
   } catch (err: any) {
     console.error('[ToolCalling] Erro no tool calling nativo, tentando fallback JSON-in-text:', err?.message || err);
@@ -816,7 +860,8 @@ export async function processToolCallingMessage(
       const combinedResult = results.join('\n\n');
       if (combinedResult && combinedResult.length > 10) {
         const sanitizedCombined = await sanitizeAndInjectRealLinks(combinedResult, userId, phoneNumber);
-        return { responseText: sanitizedCombined };
+        const preservedCombined = preserveSimulatorUrlFromToolResults(sanitizedCombined, toolResultMessages);
+        return { responseText: preservedCombined };
       }
     }
   }
@@ -885,7 +930,9 @@ Se NÃO precisar de ação, responda normalmente sem JSON.`;
       // If we have remaining text, return it enriched with tool results
       if (rawText) {
         const sanitizedFallback = await sanitizeAndInjectRealLinks(rawText, userId, phoneNumber);
-        return { responseText: sanitizedFallback };
+        const toolMsgsFallback = results.map(r => ({ role: 'tool', content: r }));
+        const preservedFallback = preserveSimulatorUrlFromToolResults(sanitizedFallback, toolMsgsFallback);
+        return { responseText: preservedFallback };
       }
 
       // Otherwise, generate a response incorporating tool results

@@ -4056,6 +4056,24 @@ export async function connectWhatsApp(
           return;
         }
 
+        if (_isShuttingDown) {
+          console.log(`[CONNECTION CLOSE] Planned shutdown active for conn ${session.connectionId.substring(0, 8)} - skipping DB disconnect/reconnect side effects`);
+          if (session.openTimeout) {
+            clearTimeout(session.openTimeout);
+            session.openTimeout = undefined;
+          }
+          session.isOpen = false;
+          sessions.delete(session.connectionId);
+          clearPendingConnectionLock(session.connectionId, 'planned_shutdown');
+          clearPendingConnectionLock(userId, 'planned_shutdown');
+          settleConnectionPromise(
+            "reject",
+            "planned_shutdown",
+            new Error(`Planned shutdown closed connection ${session.connectionId}`),
+          );
+          return;
+        }
+
         // -----------------------------------------------------------------------
         // ??? SISTEMA DE RECUPERA��O: Registrar desconex�o
         // -----------------------------------------------------------------------
@@ -9164,6 +9182,7 @@ export function getSessions(): Map<string, WhatsAppSession> {
 
 // V23f: Graceful shutdown - fecha todas as sessões Baileys antes de sair
 export async function closeAllSessions(): Promise<void> {
+  _isShuttingDown = true;
   console.log(`🛑 [GRACEFUL] Fechando ${sessions.size} sessões WhatsApp + ${adminSessions.size} admin sessions...`);
   const closePromises: Promise<void>[] = [];
   
@@ -10356,6 +10375,19 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
           return;
         }
 
+        if (_isShuttingDown) {
+          console.log(`[ADMIN CONNECTION CLOSE] Planned shutdown active for admin ${adminId.substring(0, 8)} - skipping DB disconnect/reconnect side effects`);
+          stopAdminHeartbeat(adminId);
+          adminSessions.delete(adminId);
+          clearPendingAdminConnectionLock(adminId, "planned_shutdown");
+          settleConnectionPromise(
+            "reject",
+            "planned_shutdown",
+            new Error(`Planned shutdown closed admin connection ${adminId}`),
+          );
+          return;
+        }
+
         // ??? SESSION STABILITY - Update consecutive disconnects counter
         if (currentSession) {
           currentSession.consecutiveDisconnects = (currentSession.consecutiveDisconnects || 0) + 1;
@@ -10910,6 +10942,9 @@ export async function restoreExistingSessions(): Promise<void> {
     _isRestoringInProgress = false;
     _restoreStartedAt = 0;
     console.log(`[RESTORE] ?? Restore guard released � health check can now run`);
+    setTimeout(() => {
+      void connectionHealthCheck();
+    }, 2000);
   }
 }
 
@@ -12503,6 +12538,46 @@ async function connectionHealthCheck(): Promise<void> {
         } catch (healErr) {
           console.error(`? [HEALTH CHECK] Erro ao curar user ${connection.userId.substring(0, 8)}...:`, healErr);
         }
+      } else if (!isDbConnected && !hasActiveSocket) {
+        // -----------------------------------------------------------------------
+        // ?? 4th branch: DB=false, no socket, but auth files exist on disk
+        // Common after graceful deploy/restart when auth is valid but restore
+        // did not rehydrate this connection in the initial pass.
+        // -----------------------------------------------------------------------
+        let hasAuthFiles = false;
+
+        try {
+          const userAuthPath = path.join(SESSIONS_BASE, `auth_${connection.userId}`);
+          const authFiles = await fs.readdir(userAuthPath);
+          hasAuthFiles = authFiles.some((file) => file === 'creds.json');
+        } catch (e) {
+          // Directory doesn't exist
+        }
+
+        if (!hasAuthFiles && connection.id !== connection.userId) {
+          try {
+            const connAuthPath = path.join(SESSIONS_BASE, `auth_${connection.id}`);
+            const connAuthFiles = await fs.readdir(connAuthPath);
+            hasAuthFiles = connAuthFiles.some((file) => file === 'creds.json');
+          } catch (e) {
+            // Directory doesn't exist
+          }
+        }
+
+        if (hasAuthFiles) {
+          console.log(`?? [HEALTH CHECK] User ${connection.userId.substring(0, 8)}... DB=false sem socket, mas auth existe. Tentando reconectar ${connection.id.substring(0, 8)}...`);
+          try {
+            await connectWhatsApp(connection.userId, connection.id, { source: "health_check" });
+            reconnectedUsers++;
+            console.log(`? [HEALTH CHECK] User ${connection.userId.substring(0, 8)}... reconectado a partir de auth files!`);
+          } catch (error: any) {
+            if (error?.code === "WA_OPEN_TIMEOUT_COOLDOWN") {
+              console.log(`[HEALTH CHECK] Cooldown ativo para connection ${connection.id} - tentativa adiada`);
+            } else {
+              console.error(`? [HEALTH CHECK] Falha ao reconectar user ${connection.userId.substring(0, 8)}... (DB=false + auth):`, error);
+            }
+          }
+        }
       }
     }
 
@@ -13363,6 +13438,29 @@ export async function redownloadMedia(
 // que chegaram durante instabilidade/deploys do Railway
 // 
 // IMPORTANTE: Este c�digo deve ficar no FINAL do arquivo para garantir que
+// todas as fun��es necess�rias j� foram definidas
+// -------------------------------------------------------------------------------
+
+setTimeout(() => {
+  try {
+    registerMessageProcessor(async (userId: string, connectionId: string, waMessage: WAMessage) => {
+      // Buscar sess�o ativa
+      const session = sessions.get(connectionId);
+      
+      if (!session?.socket) {
+        console.log(`?? [RECOVERY] Sess�o n�o encontrada para ${userId.substring(0, 8)}... conn=${connectionId.substring(0, 8)} - pulando`);
+        throw new Error('Sess�o n�o dispon�vel');
+      }
+      
+      // Usar a fun��o handleIncomingMessage existente
+      await handleIncomingMessage(session, waMessage);
+    });
+    
+    console.log(`?? [RECOVERY] ? Message processor registrado com sucesso!`);
+  } catch (err) {
+    console.error(`?? [RECOVERY] ? Erro ao registrar message processor:`, err);
+  }
+}, 1000); // Aguardar 1 segundo para garantir que tudo foi inicializado
 // todas as fun��es necess�rias j� foram definidas
 // -------------------------------------------------------------------------------
 
