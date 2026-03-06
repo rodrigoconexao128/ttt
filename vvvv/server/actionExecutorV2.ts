@@ -20,7 +20,7 @@ import { generatePixQRCode } from './pixService';
 /**
  * Busca o token de simulador mais recente para um userId
  */
-async function getSimulatorTokenForUser(userId: string): Promise<string | null> {
+export async function getSimulatorTokenForUser(userId: string): Promise<string | null> {
   try {
     const result = await pool.query(
       `SELECT token FROM admin_test_tokens
@@ -38,7 +38,7 @@ async function getSimulatorTokenForUser(userId: string): Promise<string | null> 
 /**
  * Monta o link do simulador a partir de um token
  */
-function buildSimulatorUrl(token: string): string {
+export function buildSimulatorUrl(token: string): string {
   const baseUrl = (process.env.APP_URL || 'https://agentezap.online').replace(/\/+$/, '');
   return `${baseUrl}/test/${token}`;
 }

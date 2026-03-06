@@ -144,6 +144,13 @@ export function registerAutologinRoutes(app: Express): void {
         return res.status(500).json({ error: 'Erro ao criar sessão' });
       }
 
+      // V23k: Set Express session so cookie-based auth also works
+      // This prevents session drops when navigating between pages
+      if (req.session) {
+        (req.session as any).user = { id: userId, email: userEmail };
+        console.log(`[Autologin] Express session sincronizada para userId=${userId} email=${userEmail}`);
+      }
+
       return res.json({ access_token, refresh_token, redirect_to: redirectTo });
     } catch (error: any) {
       console.error('[Autologin]', error);

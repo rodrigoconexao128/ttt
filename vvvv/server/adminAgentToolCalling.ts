@@ -19,6 +19,7 @@
 import { getMistralClient } from './mistralClient';
 import { chatComplete, type ChatMessage } from './llm';
 import { executeAction, type PendingAction } from './actionExecutorV2';
+import { getSimulatorTokenForUser, buildSimulatorUrl } from './actionExecutorV2';
 import { storage } from './storage';
 import { listarVersoes } from './promptHistoryService';
 import { db } from './db';
@@ -241,9 +242,9 @@ ${clientTypeInstructions}
 REGRAS IMPORTANTES:
 1. Seja natural, empático e conversacional — como um atendente humano real
 2. NUNCA mencione JSON, ferramentas, tool_calls, parâmetros ou termos técnicos internos
-3. Use as ferramentas disponíveis quando a situação exigir — não peça "confirmação" antes de usar, execute direto
+3. Use as ferramentas disponíveis quando a situação exigir. Para criar_agente, informar_planos, gerar_link_conexao e gerar_link_planos: execute direto. Para editar_prompt e salvar_midia: SEMPRE peça confirmação antes (veja regra 5).
 4. Para CRIAR AGENTE: colete pelo menos o nome da empresa antes. Se o cliente já disse o tipo de negócio, crie direto
-5. Para EDITAR PROMPT: execute direto quando o cliente pedir uma mudança específica
+5. Para EDITAR PROMPT ou SALVAR MÍDIA: SEMPRE confirme com o cliente ANTES de executar. Diga o que pretende fazer e pergunte "Posso prosseguir?" ou "Confirma?". Só execute DEPOIS que o cliente confirmar. NUNCA edite ou salve sem confirmação explícita.
 6. Para clientes NOVOS: apresente-se brevemente, pergunte sobre o negócio, e quando tiver informação suficiente, crie o agente
 7. Para clientes que já TÊM CONTA: ajude com configurações, edições de prompt, mídia, planos
 8. Emojis são bem-vindos em contextos leves e amigáveis
@@ -253,17 +254,19 @@ REGRAS IMPORTANTES:
 12. Após executar uma ferramenta, SEMPRE apresente o resultado completo ao cliente na mesma mensagem. Nunca diga que vai buscar algo sem mostrar o resultado.
 13. Após informar os planos, OFEREÇA enviar o link direto para assinar usando gerar_link_planos (se o cliente tiver conta).
 14. NUNCA diga que ativou, liberou ou assinou o plano do cliente. A ativação SEMPRE exige pagamento no site. Se o cliente pagar por PIX, use registrar_pagamento.
-15. Após criar ou editar o agente, SEMPRE inclua o link do simulador para o cliente testar as mudanças.
+15. Após criar ou editar o agente, SEMPRE inclua o link do simulador para o cliente testar as mudanças. O link do simulador é o que vem no resultado da ferramenta (formato /test/TOKEN). NÃO substitua por link de planos.
 16. PROIBIDO FABRICAR URLs: NUNCA invente, crie ou escreva URLs manualmente. Links de planos, conexão e simulador são gerados EXCLUSIVAMENTE pelas ferramentas gerar_link_planos, gerar_link_conexao e criar_agente. Se o cliente pedir um link, CHAME a ferramenta correspondente — NUNCA escreva uma URL por conta própria.
 17. Se o cliente pedir link para PLANOS/ASSINATURA → chame gerar_link_planos. Se pedir link para CONEXÃO/WHATSAPP → chame gerar_link_conexao. Se pedir para CRIAR CONTA → chame criar_agente. SEMPRE use a ferramenta, NUNCA gere o link na mensagem.
 18. URLs válidas SOMENTE vêm do resultado das ferramentas. Qualquer URL que você escrever diretamente será INVÁLIDA e causará erro para o cliente.
+19. Quando o resultado de uma ferramenta contiver URLs, copie-as EXATAMENTE como estão. NUNCA modifique, reescreva ou substitua as URLs retornadas pelas ferramentas.
+20. Após criar_agente, o resultado contém email, senha, link do simulador e links de acesso. Você DEVE incluir TODAS essas informações na resposta ao cliente — especialmente email e senha. NUNCA omita credenciais.
 
 CADASTRO DE MÍDIAS:
-19. Quando o cliente enviar uma mídia (imagem, áudio, documento, vídeo), PERGUNTE o nome que ele quer dar para essa mídia e em qual situação o agente deve enviá-la ao cliente dele. Exemplo: "Essa imagem é o quê? Em qual momento o agente deve enviar ela?"
-20. Quando tiver o nome e o contexto de uso, use salvar_midia imediatamente. Preencha TODOS os campos: name (nome descritivo), whenToUse (quando o agente deve enviar esta mídia — esse campo é OBRIGATÓRIO), description (descrição do conteúdo), mediaType (image/audio/video/document).
-21. A URL da mídia já é preenchida automaticamente pelo sistema — NÃO invente URLs de mídia. Se o campo mediaUrl não vier automaticamente, peça ao cliente para reenviar a mídia.
-22. Para clientes que já têm conta, o userId é usado automaticamente. A mídia fica vinculada ao agente do cliente.
-23. Se o cliente enviar uma mídia sem contexto, SEMPRE pergunte antes de salvar. Nunca salve mídia sem saber o nome e quando usar.`;
+21. Quando o cliente enviar uma mídia (imagem, áudio, documento, vídeo), PERGUNTE o nome que ele quer dar para essa mídia e em qual situação o agente deve enviá-la ao cliente dele. Exemplo: "Essa imagem é o quê? Em qual momento o agente deve enviar ela?"
+22. Quando tiver o nome e o contexto de uso, CONFIRME com o cliente antes de salvar (regra 5). Ao salvar, preencha TODOS os campos: name (nome descritivo), whenToUse (quando o agente deve enviar esta mídia — esse campo é OBRIGATÓRIO), description (descrição do conteúdo), mediaType (image/audio/video/document).
+23. A URL da mídia já é preenchida automaticamente pelo sistema — NÃO invente URLs de mídia. Se o campo mediaUrl não vier automaticamente, peça ao cliente para reenviar a mídia.
+24. Para clientes que já têm conta, o userId é usado automaticamente. A mídia fica vinculada ao agente do cliente.
+25. Se o cliente enviar uma mídia sem contexto, SEMPRE pergunte antes de salvar. Nunca salve mídia sem saber o nome e quando usar.`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -339,6 +342,7 @@ interface SanitizeResult {
   text: string;
   hadFabricatedPlansUrl: boolean;
   hadFabricatedConexaoUrl: boolean;
+  hadFabricatedSimulatorUrl: boolean;
 }
 
 function sanitizeFabricatedUrls(text: string): SanitizeResult {
@@ -348,8 +352,9 @@ function sanitizeFabricatedUrls(text: string): SanitizeResult {
   let result = text;
   let hadFabricatedPlansUrl = false;
   let hadFabricatedConexaoUrl = false;
+  let hadFabricatedSimulatorUrl = false;
   const matches = text.match(urlPattern);
-  if (!matches) return { text, hadFabricatedPlansUrl: false, hadFabricatedConexaoUrl: false };
+  if (!matches) return { text, hadFabricatedPlansUrl: false, hadFabricatedConexaoUrl: false, hadFabricatedSimulatorUrl: false };
 
   for (const url of matches) {
     try {
@@ -370,16 +375,16 @@ function sanitizeFabricatedUrls(text: string): SanitizeResult {
       if (isFabricated) {
         console.warn(`[ToolCalling] URL fabricada detectada e removida: ${url}`);
 
-        // Classify: plans-related or conexao-related?
+        // Classify: simulator, plans-related or conexao-related?
         const lowerUrl = url.toLowerCase();
-        if (lowerUrl.includes('plan') || lowerUrl.includes('assin') || lowerUrl.includes('pricing') || lowerUrl.includes('checkout')) {
+        if (lowerUrl.includes('simulador') || lowerUrl.includes('simulator') || lowerUrl.includes('/test/') || lowerUrl.includes('teste')) {
+          hadFabricatedSimulatorUrl = true;
+        } else if (lowerUrl.includes('plan') || lowerUrl.includes('assin') || lowerUrl.includes('pricing') || lowerUrl.includes('checkout')) {
           hadFabricatedPlansUrl = true;
-        }
-        if (lowerUrl.includes('conex') || lowerUrl.includes('qr') || lowerUrl.includes('parear') || lowerUrl.includes('whatsapp')) {
+        } else if (lowerUrl.includes('conex') || lowerUrl.includes('qr') || lowerUrl.includes('parear') || lowerUrl.includes('whatsapp')) {
           hadFabricatedConexaoUrl = true;
-        }
-        // If not classified, default to plans (most common)
-        if (!hadFabricatedPlansUrl && !hadFabricatedConexaoUrl) {
+        } else {
+          // Default to plans (most common)
           hadFabricatedPlansUrl = true;
         }
 
@@ -390,7 +395,7 @@ function sanitizeFabricatedUrls(text: string): SanitizeResult {
     }
   }
 
-  return { text: result, hadFabricatedPlansUrl, hadFabricatedConexaoUrl };
+  return { text: result, hadFabricatedPlansUrl, hadFabricatedConexaoUrl, hadFabricatedSimulatorUrl };
 }
 
 /**
@@ -402,13 +407,46 @@ async function sanitizeAndInjectRealLinks(
   userId: string | undefined,
   phoneNumber: string,
 ): Promise<string> {
-  const { text, hadFabricatedPlansUrl, hadFabricatedConexaoUrl } = sanitizeFabricatedUrls(responseText);
+  const { text, hadFabricatedPlansUrl, hadFabricatedConexaoUrl, hadFabricatedSimulatorUrl } = sanitizeFabricatedUrls(responseText);
 
-  if (!hadFabricatedPlansUrl && !hadFabricatedConexaoUrl) {
+  if (!hadFabricatedPlansUrl && !hadFabricatedConexaoUrl && !hadFabricatedSimulatorUrl) {
     return text; // No fabrication detected, return as-is
   }
 
   let result = text;
+
+  // Auto-inject real simulator link
+  if (hadFabricatedSimulatorUrl && userId) {
+    try {
+      console.log('[ToolCalling] Auto-injetando link REAL de simulador (LLM fabricou URL)');
+      const simToken = await getSimulatorTokenForUser(userId);
+      if (simToken) {
+        const realSimUrl = buildSimulatorUrl(simToken);
+        result = result.replace(/\{\{LINK_PLACEHOLDER\}\}/g, realSimUrl);
+        console.log(`[ToolCalling] Link real de simulador injetado: ${realSimUrl}`);
+      } else {
+        // No simulator token — fall back to plans link
+        console.warn('[ToolCalling] Sem token de simulador, usando link de planos como fallback');
+        const toolResult = await executeToolCall('gerar_link_planos', {}, userId, phoneNumber);
+        const parsed = JSON.parse(toolResult);
+        if (parsed.success && parsed.message) {
+          const realUrlMatch = parsed.message.match(/https?:\/\/[^\s\)>\]"']+/i);
+          if (realUrlMatch) {
+            result = result.replace(/\{\{LINK_PLACEHOLDER\}\}/g, realUrlMatch[0]);
+          } else {
+            result = result.replace(/\{\{LINK_PLACEHOLDER\}\}/g, `${APP_BASE_URL}/plans`);
+          }
+        } else {
+          result = result.replace(/\{\{LINK_PLACEHOLDER\}\}/g, `${APP_BASE_URL}/plans`);
+        }
+      }
+    } catch (err) {
+      console.error('[ToolCalling] Erro ao gerar link real de simulador:', err);
+      result = result.replace(/\{\{LINK_PLACEHOLDER\}\}/g, `${APP_BASE_URL}/plans`);
+    }
+  } else if (hadFabricatedSimulatorUrl) {
+    result = result.replace(/\{\{LINK_PLACEHOLDER\}\}/g, `${APP_BASE_URL}/plans`);
+  }
 
   // Auto-inject real plans link
   if (hadFabricatedPlansUrl && userId) {
