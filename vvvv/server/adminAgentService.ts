@@ -3767,6 +3767,7 @@ async function injectAutoLoginUrls(text: string, session: ClientSession): Promis
   // Cache de links gerados nesta chamada (para não gerar múltiplos tokens para mesmo path)
   const linkCache = new Map<string, string>();
   
+  // PASSO 1: Substituir URLs BARE (sem ?al= ou ?token=) com auto-login
   for (const path of autoLoginPaths) {
     const escapedBase = baseUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const escapedPath = path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -3778,8 +3779,7 @@ async function injectAutoLoginUrls(text: string, session: ClientSession): Promis
     );
     
     if (pattern.test(text)) {
-      // Gerar link de autologin para este path (reutilizar se já gerado)
-      const normalizedPath = path.replace(/ã/g, 'a'); // /conexão -> /conexao
+      const normalizedPath = path.replace(/ã/g, 'a');
       if (!linkCache.has(normalizedPath)) {
         try {
           const autologinUrl = await generateAutologinLink(userId, normalizedPath);
@@ -3793,9 +3793,40 @@ async function injectAutoLoginUrls(text: string, session: ClientSession): Promis
       
       const autologinUrl = linkCache.get(normalizedPath);
       if (autologinUrl) {
-        // Reset pattern desde que .test() avançou lastIndex
         pattern.lastIndex = 0;
         text = text.replace(pattern, autologinUrl);
+      }
+    }
+  }
+  
+  // PASSO 2: Substituir URLs com ?al=Base64 antigo pelo novo formato com token
+  for (const path of autoLoginPaths) {
+    const escapedBase = baseUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const escapedPath = path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    
+    // Match URL com ?al=<base64> (formato antigo)
+    const oldFormatPattern = new RegExp(
+      `${escapedBase}${escapedPath}\\?al=[A-Za-z0-9+/=]+`,
+      "gi"
+    );
+    
+    if (oldFormatPattern.test(text)) {
+      const normalizedPath = path.replace(/ã/g, 'a');
+      if (!linkCache.has(normalizedPath)) {
+        try {
+          const autologinUrl = await generateAutologinLink(userId, normalizedPath);
+          linkCache.set(normalizedPath, autologinUrl);
+          console.log(`🔑 [V22c] Auto-login substituindo ?al= antigo: ${normalizedPath} -> ${autologinUrl.substring(0, 60)}...`);
+        } catch (e) {
+          console.error(`❌ [V22c] Erro ao gerar autologin para ${path}:`, e);
+          continue;
+        }
+      }
+      
+      const autologinUrl = linkCache.get(normalizedPath);
+      if (autologinUrl) {
+        oldFormatPattern.lastIndex = 0;
+        text = text.replace(oldFormatPattern, autologinUrl);
       }
     }
   }
