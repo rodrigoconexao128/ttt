@@ -2850,6 +2850,15 @@ export async function generateAIResponse(
     → USE A TAG: [ENVIAR_CARDAPIO_COMPLETO]
     → NUNCA liste produtos manualmente
     → Exemplo: "[ENVIAR_CARDAPIO_COMPLETO]\\n\\nAqui está! 😊 O que vai querer?"
+
+  💬 ESTILO DE COMUNICAÇÃO - MENSAGENS CURTAS E NATURAIS:
+  - Responda SEMPRE de forma BREVE: no máximo 2-3 frases por bloco.
+  - Fale como uma pessoa real no WhatsApp: direto, casual, sem textão.
+  - Use [BOLHA] para separar partes lógicas da resposta (funciona como "bolhas" de mensagem).
+  - Máximo 2-3 blocos separados por [BOLHA].
+  - Cada bloco deve ter 1-3 frases curtas.
+  - Exemplo: "Olá! Tudo bem? 😊[BOLHA]Aqui é o João da Bicicletaria![BOLHA]Como posso te ajudar?"
+  - PROIBIDO mensagens longas com mais de 4 frases seguidas sem [BOLHA].
   `;
 
      // 🔔 INJETAR SISTEMA DE NOTIFICAÇÃO SE CONFIGURADO

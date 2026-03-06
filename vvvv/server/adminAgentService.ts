@@ -3734,73 +3734,74 @@ function buildAutoLoginUrl(baseUrl: string, email: string, password: string, tar
 }
 
 /**
- * V17.2: Post-processing - injeta auto-login em TODAS as URLs do AgenteZap
- * Quando a LLM gera respostas com URLs como /plans, /conexao, /login, /meu-agente-ia
- * sem o parâmetro ?al=, este post-processor adiciona automaticamente o auto-login.
- * Isso garante consistência 100% independente da LLM emitir [ACAO:ENVIAR_PIX] ou não.
+ * V22: Post-processing - injeta auto-login em TODAS as URLs do AgenteZap
+ * Usa o autologinService para gerar tokens DB-backed (sobrevive PM2 restart)
+ * Quando a LLM gera respostas com URLs como /plans, /conexao, /login, /meu-agente-ia,
+ * este post-processor substitui por links com auto-login real via token no banco.
  */
 async function injectAutoLoginUrls(text: string, session: ClientSession): Promise<string> {
-  let email = session.email || session.agentConfig?.email;
-  let password = session.lastGeneratedPassword;
+  // Primeiro: precisamos saber o userId para gerar o autologin token
+  let userId: string | undefined;
   
-  // V22: Recuperar senha do banco se não estiver na sessão em memória (ex: após PM2 restart)
-  if (email && !password) {
+  // Tentar obter userId da sessão ou do banco
+  if (session.phoneNumber) {
     try {
       const user = await findUserByPhone(session.phoneNumber);
-      if (user?.id) {
-        const { data } = await supabase.from('users').select('password').eq('id', user.id).single();
-        if (data?.password) {
-          password = data.password;
-          updateClientSession(session.phoneNumber, { lastGeneratedPassword: password, email });
-          console.log(`🔑 [V22] Senha recuperada do banco para ${session.phoneNumber}`);
-        }
-      }
-    } catch (e) {
-      // Silencioso - não bloquear o fluxo
-    }
-  }
-  
-  // V22: Se temos telefone mas não email, tentar recuperar do banco
-  if (!email && session.phoneNumber) {
-    try {
-      const user = await findUserByPhone(session.phoneNumber);
-      if (user?.email) {
-        email = user.email;
-        if (user?.id && !password) {
-          const { data } = await supabase.from('users').select('password').eq('id', user.id).single();
-          if (data?.password) password = data.password;
-        }
-        if (password) {
-          updateClientSession(session.phoneNumber, { lastGeneratedPassword: password, email });
-          console.log(`🔑 [V22] Email+Senha recuperados do banco para ${session.phoneNumber}`);
-        }
-      }
+      userId = user?.id;
     } catch (e) {}
   }
   
-  console.log(`🔍 [V22-DEBUG] injectAutoLoginUrls: email=${email || 'NULL'}, password=${password ? 'SET(' + password.length + ')' : 'NULL'}, phoneNumber=${session.phoneNumber || 'NULL'}`);
-  
-  if (!email || !password) return text;
+  if (!userId) {
+    console.log(`🔍 [V22] injectAutoLoginUrls: sem userId para ${session.phoneNumber || 'NULL'}, pulando`);
+    return text;
+  }
   
   const baseUrl = (process.env.APP_URL || "https://agentezap.online").replace(/\/+$/, "");
-  const credentials = `${email}:${password}`;
-  const encoded = Buffer.from(credentials, "utf-8").toString("base64");
   
   // Paths que devem ter auto-login
   const autoLoginPaths = ["/plans", "/conexao", "/conexão", "/login", "/meu-agente-ia"];
   
+  // Importar o serviço de autologin
+  const { generateAutologinLink } = await import("./autologinService");
+  
+  // Cache de links gerados nesta chamada (para não gerar múltiplos tokens para mesmo path)
+  const linkCache = new Map<string, string>();
+  
   for (const path of autoLoginPaths) {
-    // Regex: match baseUrl + path (com ou sem trailing slash) que NÃO já tem ?al=
-    // Captura variantes com/sem parênteses markdown, etc.
     const escapedBase = baseUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const escapedPath = path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    // Match URL completa sem ?al= já presente
-    // Inclui * (markdown bold), ] (markdown link), " ' ` e outros delimitadores comuns
+    
+    // Match URL completa sem ?token= ou ?al= já presente
     const pattern = new RegExp(
-      `(${escapedBase}${escapedPath})(?!\\?al=)(?=[)\\s\\n\\r,;!?*\\]"'\`>}]|$)`,
+      `(${escapedBase}${escapedPath})(?!\\?(al|token)=)(?=[)\\s\\n\\r,;!?*\\]"'\`>}]|$)`,
       "gi"
     );
-    text = text.replace(pattern, `$1?al=${encoded}`);
+    
+    if (pattern.test(text)) {
+      // Gerar link de autologin para este path (reutilizar se já gerado)
+      const normalizedPath = path.replace(/ã/g, 'a'); // /conexão -> /conexao
+      if (!linkCache.has(normalizedPath)) {
+        try {
+          const autologinUrl = await generateAutologinLink(userId, normalizedPath);
+          linkCache.set(normalizedPath, autologinUrl);
+          console.log(`🔑 [V22] Auto-login gerado: ${normalizedPath} -> ${autologinUrl.substring(0, 60)}...`);
+        } catch (e) {
+          console.error(`❌ [V22] Erro ao gerar autologin para ${path}:`, e);
+          continue;
+        }
+      }
+      
+      const autologinUrl = linkCache.get(normalizedPath);
+      if (autologinUrl) {
+        // Reset pattern desde que .test() avançou lastIndex
+        pattern.lastIndex = 0;
+        text = text.replace(pattern, autologinUrl);
+      }
+    }
+  }
+  
+  if (linkCache.size > 0) {
+    console.log(`🔑 [V22] Auto-login injetado: ${linkCache.size} link(s) substituídos`);
   }
   
   return text;
@@ -3846,20 +3847,28 @@ export function buildStructuredAccountDeliveryText(
   return text;
 }
 
-function buildPixPaymentInstructions(session?: ClientSession): string {
-  // V18: Link para /plans com auto-login. SEM PIX, SEM comprovante por aqui.
-  // O cliente paga pela plataforma e usa "Eu já paguei" para enviar comprovante.
-  const email = session?.email || session?.agentConfig?.email;
-  const password = session?.lastGeneratedPassword;
+async function buildPixPaymentInstructions(session?: ClientSession): Promise<string> {
+  // V22: Link para /plans com auto-login via token DB-backed
   const baseUrl = (process.env.APP_URL || "https://agentezap.online").replace(/\/+$/, "");
+  let plansLink = `${baseUrl}/plans`;
+  let hasAutoLogin = false;
   
-  console.log(`🔍 [V17.2-DEBUG] buildPixPaymentInstructions: email=${email || 'NULL'}, password=${password ? 'SET(' + password.length + ')' : 'NULL'}, session.email=${session?.email || 'NULL'}, session.agentConfig?.email=${session?.agentConfig?.email || 'NULL'}, session.lastGeneratedPassword=${session?.lastGeneratedPassword ? 'SET' : 'NULL'}, phoneNumber=${session?.phoneNumber || 'NULL'}`);
+  // Tentar gerar link de auto-login via autologinService
+  if (session?.phoneNumber) {
+    try {
+      const user = await findUserByPhone(session.phoneNumber);
+      if (user?.id) {
+        const { generateAutologinLink } = await import("./autologinService");
+        plansLink = await generateAutologinLink(user.id, "/plans");
+        hasAutoLogin = true;
+        console.log(`🔑 [V22] Auto-login gerado para /plans: ${plansLink.substring(0, 60)}...`);
+      }
+    } catch (e) {
+      console.error(`❌ [V22] Erro ao gerar auto-login para /plans:`, e);
+    }
+  }
 
-  const plansLink = (email && password)
-    ? buildAutoLoginUrl(baseUrl, email, password, "/plans")
-    : `${baseUrl}/plans`;
-
-  return `Pra ativar agora, é só escolher seu plano neste link${email && password ? ' (já entra logado automaticamente)' : ''}:
+  return `Pra ativar agora, é só escolher seu plano neste link${hasAutoLogin ? ' (já entra logado automaticamente)' : ''}:
 
 ${plansLink}
 
@@ -9220,12 +9229,26 @@ export async function processAdminMessage(
     // (Antes pedia "sim" para confirmar, mas a IA gerava resposta que implicava conclusao,
     //  o cliente nunca confirmava, e a midia nao era salva)
     const whenToUse = refinedTrigger;
-    const userId = session.userId;
+    // V22c: Fallback robusto - se session.userId nao esta setado, tentar resolver via phone
+    let userId = session.userId;
+    if (!userId) {
+      console.log(`[MEDIA-AUTOSAVE] session.userId vazio, tentando findUserByPhone(${cleanPhone})...`);
+      try {
+        const userByPhone = await findUserByPhone(cleanPhone);
+        if (userByPhone) {
+          userId = userByPhone.id;
+          updateClientSession(cleanPhone, { userId: userByPhone.id });
+          console.log(`[MEDIA-AUTOSAVE] userId resolvido via phone: ${userId}`);
+        }
+      } catch (e) {
+        console.error(`[MEDIA-AUTOSAVE] Erro ao buscar userId via phone:`, e);
+      }
+    }
     console.log(`[MEDIA-AUTOSAVE] Auto-save midia. userId: ${userId}, whenToUse: "${whenToUse}"`);
 
     try {
       if (!userId) {
-        console.log(`[MEDIA-AUTOSAVE] userId nao encontrado! Salvando em memoria para associar depois.`);
+        console.log(`[MEDIA-AUTOSAVE] userId nao encontrado mesmo apos fallback! Salvando em memoria para associar depois.`);
         const currentUploaded = session.uploadedMedia || [];
         currentUploaded.push({
           url: media.url,
@@ -10127,7 +10150,7 @@ export async function processAdminMessage(
   }
 
   if (actionResults.sendPix) {
-    finalText = buildPixPaymentInstructions(session);
+    finalText = await buildPixPaymentInstructions(session);
   }
 
   if (actionResults.demoAssets?.screenshotUrl) {
