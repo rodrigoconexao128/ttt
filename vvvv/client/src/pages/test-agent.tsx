@@ -167,8 +167,21 @@ export default function TestAgent() {
         }
       }
       
-      // Adicionar resposta de texto do agente
-      if (typeof data.response === 'string' && data.response.trim()) {
+      // Adicionar resposta de texto do agente - V22: suporte a bolhas separadas
+      if (data.splitResponses && Array.isArray(data.splitResponses) && data.splitResponses.length > 1) {
+        // Múltiplas bolhas da IA
+        for (const part of data.splitResponses) {
+          if (part.trim()) {
+            newMessages.push({
+              id: `msg_${Date.now()}_${Math.random()}`,
+              text: part.trim(),
+              fromMe: false,
+              timestamp: new Date(),
+              status: 'read',
+            });
+          }
+        }
+      } else if (typeof data.response === 'string' && data.response.trim()) {
         newMessages.push({
           id: `msg_${Date.now()}`,
           text: data.response,

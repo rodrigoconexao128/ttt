@@ -2039,14 +2039,33 @@ async function processAdminAccumulatedMessages(params: {
           }
       }
 
-      // V21: Enviar mensagem COMPLETA sem dividir em bolhas
-      // O texto da LLM deve chegar no WhatsApp exatamente como foi gerado
-      console.log(`💬 [ADMIN AGENT] Enviando mensagem completa para ${pending.contactNumber} (${fullText.length} chars)`);
+      // V22: Enviar em bolhas separadas se a IA usou [BOLHA], senão mensagem única
+      const messageParts = response.splitMessages && response.splitMessages.length > 1
+        ? response.splitMessages
+        : [fullText];
       
-      const sentMessage = await sendWithQueue('ADMIN_AGENT', `admin resposta completa`, async () => {
-        return await socket.sendMessage(pending.remoteJid, { text: fullText });
-      });
-      trackAdminAgentMessageId((sentMessage as any)?.key?.id);
+      console.log(`💬 [ADMIN AGENT] Enviando ${messageParts.length} bolha(s) para ${pending.contactNumber} (${fullText.length} chars total)`);
+      
+      for (let i = 0; i < messageParts.length; i++) {
+        const part = messageParts[i].trim();
+        if (!part) continue;
+        
+        // Verificar se cliente voltou a digitar entre bolhas
+        if (i > 0) {
+          const current2 = pendingAdminResponses.get(key);
+          if (!current2 || current2.generation !== generation) {
+            console.log(`⚠️ [ADMIN AGENT] Cancelando bolha ${i+1}/${messageParts.length} (novas mensagens)`);
+            break;
+          }
+          // Pequeno delay entre bolhas para parecer natural
+          await new Promise(r => setTimeout(r, 800 + Math.random() * 700));
+        }
+        
+        const sentMessage = await sendWithQueue('ADMIN_AGENT', `admin bolha ${i+1}/${messageParts.length}`, async () => {
+          return await socket.sendMessage(pending.remoteJid, { text: part });
+        });
+        trackAdminAgentMessageId((sentMessage as any)?.key?.id);
+      }
     }
 
     console.log(`? [ADMIN AGENT] Resposta enviada para ${pending.contactNumber}`);

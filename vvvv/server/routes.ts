@@ -16342,56 +16342,26 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // ?? DIVIDIR RESPOSTA IGUAL AO WHATSAPP PARA CONSISTÃŠNCIA DO SIMULADOR
-
-      // Busca config do agente para obter messageSplitChars
-
-      const agentConfig = await storage.getAgentConfig(userId);
-
-      const messageSplitChars = agentConfig?.messageSplitChars ?? 400;
-
-
-
-      // ?? PRESERVAR QUEBRAS DE LINHA NA RESPOSTA DO SIMULADOR
-
-      // O texto original jÃ¡ pode ter formataÃ§Ã£o intencional (quebras de linha)
-
-      // Apenas dividir em bolhas se necessÃ¡rio, mas preservar as quebras internas
-
+      // V22: Dividir resposta por [BOLHA] da IA (splitting inteligente)
       const responseText = testResult.text || "";
-
-
-
-      // Se a mensagem Ã© pequena (cabe no limite), retorna como estÃ¡
-
-      // Se Ã© grande, divide mas preserva quebras de linha em cada parte
-
       let splitMessages: string[];
-
-      if (responseText.length <= messageSplitChars || messageSplitChars === 0) {
-
-        splitMessages = [responseText];
-
+      
+      if (responseText.includes('[BOLHA]')) {
+        // IA decidiu onde dividir - usar marcadores [BOLHA]
+        splitMessages = responseText
+          .split(/\[BOLHA\]/gi)
+          .map((s: string) => s.trim())
+          .filter((s: string) => s.length > 0);
+        console.log(`📱 [SIMULADOR] IA dividiu em ${splitMessages.length} bolhas via [BOLHA]`);
       } else {
-
-        splitMessages = splitMessageHumanLike(responseText, messageSplitChars);
-
+        // Sem marcadores - enviar como mensagem única
+        splitMessages = [responseText];
       }
 
-
-
-      console.log(`?? [SIMULADOR] Resposta dividida em ${splitMessages.length} partes (limit: ${messageSplitChars} chars)`);
-
-
-
       res.json({
-
-        response: testResult.text, // MantÃ©m resposta completa para backward compatibility
-
-        splitResponses: splitMessages, // Novo: array de mensagens divididas
-
+        response: splitMessages.join('\n\n'), // Texto limpo sem [BOLHA] para backward compat
+        splitResponses: splitMessages,
         mediaActions
-
       });
 
     } catch (error: any) {
@@ -37544,10 +37514,24 @@ LEMBRE-SE: VocÃª Ã© o Rodrigo, atendente humano. Seja natural e prestativo!`
       );
 
 
+      // V22: Dividir resposta por [BOLHA] para simulador de teste
+      const responseText = result.response || "";
+      let splitResponses: string[];
+      
+      if (responseText.includes('[BOLHA]')) {
+        splitResponses = responseText
+          .split(/\[BOLHA\]/gi)
+          .map((s: string) => s.trim())
+          .filter((s: string) => s.length > 0);
+      } else {
+        splitResponses = [responseText];
+      }
 
       res.json({
 
-        response: result.response,
+        response: splitResponses.join('\n\n'),
+
+        splitResponses,
 
         mediaActions: result.mediaActions,
 

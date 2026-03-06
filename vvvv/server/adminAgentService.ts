@@ -3739,11 +3739,46 @@ function buildAutoLoginUrl(baseUrl: string, email: string, password: string, tar
  * sem o parâmetro ?al=, este post-processor adiciona automaticamente o auto-login.
  * Isso garante consistência 100% independente da LLM emitir [ACAO:ENVIAR_PIX] ou não.
  */
-function injectAutoLoginUrls(text: string, session: ClientSession): string {
-  const email = session.email || session.agentConfig?.email;
-  const password = session.lastGeneratedPassword;
+async function injectAutoLoginUrls(text: string, session: ClientSession): Promise<string> {
+  let email = session.email || session.agentConfig?.email;
+  let password = session.lastGeneratedPassword;
   
-  console.log(`🔍 [V17.2-DEBUG] injectAutoLoginUrls: email=${email || 'NULL'}, password=${password ? 'SET(' + password.length + ')' : 'NULL'}, phoneNumber=${session.phoneNumber || 'NULL'}`);
+  // V22: Recuperar senha do banco se não estiver na sessão em memória (ex: após PM2 restart)
+  if (email && !password) {
+    try {
+      const user = await findUserByPhone(session.phoneNumber);
+      if (user?.id) {
+        const { data } = await supabase.from('users').select('password').eq('id', user.id).single();
+        if (data?.password) {
+          password = data.password;
+          updateClientSession(session.phoneNumber, { lastGeneratedPassword: password, email });
+          console.log(`🔑 [V22] Senha recuperada do banco para ${session.phoneNumber}`);
+        }
+      }
+    } catch (e) {
+      // Silencioso - não bloquear o fluxo
+    }
+  }
+  
+  // V22: Se temos telefone mas não email, tentar recuperar do banco
+  if (!email && session.phoneNumber) {
+    try {
+      const user = await findUserByPhone(session.phoneNumber);
+      if (user?.email) {
+        email = user.email;
+        if (user?.id && !password) {
+          const { data } = await supabase.from('users').select('password').eq('id', user.id).single();
+          if (data?.password) password = data.password;
+        }
+        if (password) {
+          updateClientSession(session.phoneNumber, { lastGeneratedPassword: password, email });
+          console.log(`🔑 [V22] Email+Senha recuperados do banco para ${session.phoneNumber}`);
+        }
+      }
+    } catch (e) {}
+  }
+  
+  console.log(`🔍 [V22-DEBUG] injectAutoLoginUrls: email=${email || 'NULL'}, password=${password ? 'SET(' + password.length + ')' : 'NULL'}, phoneNumber=${session.phoneNumber || 'NULL'}`);
   
   if (!email || !password) return text;
   
@@ -6072,17 +6107,25 @@ ${dataContext}
 
 ## ESTILO DE COMUNICACAO (CRITICO - SIGA A RISCA)
 - ZERO EMOTICONS/EMOJIS. Nenhum. Proibido. Nem 1 sequer. Sem carinhas, sem icones, sem simbolos tipo emoticon.
-- MENSAGENS CURTAS: Escreva no maximo 2-4 frases por resposta. Como uma pessoa real mandaria no WhatsApp. Ninguem manda textao.
-- Se precisar dar instrucoes (ex: como conectar), use no maximo 3 passos curtos com quebra de linha.
+- MENSAGENS BEM CURTAS: Maximo 2-3 frases por bolha. Ninguem manda textao no WhatsApp. Seja direto e humano.
 - Tom: informal, direto, humano. Como um vendedor de verdade no WhatsApp. Nao pareca um manual.
 - Negrito: use *uma* vez por mensagem no maximo, so para destacar algo realmente importante.
 - NAO faca listas com checkmarks, estrelas, numeros ou bullets longos. Fale em frases naturais curtas.
 - NAO simule dialogos exemplo ("Cliente: ... Agente: ..."). Isso e chato e artificial.
 - MIDIAS: quando o contexto da conversa corresponder ao campo "Quando usar" de uma midia disponivel, USE a tag [ENVIAR_MIDIA:NOME] no final da resposta. Na primeira saudacao do cliente, use [ENVIAR_MIDIA:MENSAGEM_DE_INICIO_QUANDO_O_CLIENTE_VEM_CONVERSAR]. Apos o cliente descrever o negocio dele, use [ENVIAR_MIDIA:COMO_FUNCIONA]. NAO envie midia repetida (se ja enviou, nao envie de novo).
-- EXEMPLOS DO TOM E TAMANHO CORRETO:
-  "Fechou. Criei seu agente e deixei pronto. Testa aqui: [link] e me diz o que achou."
-  "Show! Me manda o nome do seu negocio e o que voce vende que eu monto o agente agora."
-  "Entendi, delivery! Voce quer que ele feche o pedido todo ou so faca o primeiro atendimento?"
+
+## BOLHAS DE MENSAGEM (OBRIGATORIO)
+Voce DEVE separar sua resposta em bolhas usando [BOLHA] entre cada parte.
+Cada bolha vira uma mensagem separada no WhatsApp, como uma pessoa real faria.
+REGRAS:
+- Use [BOLHA] para separar partes logicas da resposta (maximo 2-3 bolhas por resposta).
+- Cada bolha deve ser CURTA (1-3 frases no maximo).
+- NEM TODA resposta precisa de bolha. Se for uma frase simples, mande sem [BOLHA].
+- Coloque as tags de acao e midia SEMPRE na ULTIMA bolha.
+EXEMPLOS CORRETOS:
+"Fechou. Criei seu agente e deixei pronto.[BOLHA]Testa aqui e me diz o que achou."
+"Show! Voce tem delivery ne?[BOLHA]Me manda o nome do seu negocio que eu monto o agente agora."
+"Oi! Aqui e o Rodrigo, do AgenteZap.[BOLHA]A gente cria um funcionario digital que atende seus clientes no WhatsApp 24h, igualzinho humano. Me conta seu negocio que eu te mostro funcionando."
 
 ## LINKS IMPORTANTES (o sistema adiciona auto-login automaticamente)
 - Conexao WhatsApp: quando o cliente quiser conectar, mande o link https://agentezap.online/conexao
@@ -8505,6 +8548,7 @@ Mensagem original do cliente: "${userMessage}"` }
 
 export interface AdminAgentResponse {
   text: string;
+  splitMessages?: string[]; // V22: bolhas separadas por [BOLHA] da IA
   mediaActions?: Array<{
     type: 'send_media';
     media_name: string;
@@ -10139,8 +10183,8 @@ export async function processAdminMessage(
     .replace(/\n{4,}/g, "\n\n\n")
     .trim();
 
-  // V17.2: Injetar auto-login em TODAS as URLs do AgenteZap na resposta
-  finalText = injectAutoLoginUrls(finalText, session);
+  // V22: Injetar auto-login em TODAS as URLs do AgenteZap na resposta (agora async com recuperação do banco)
+  finalText = await injectAutoLoginUrls(finalText, session);
 
   // V21: Emojis mantidos - LLM output chega direto ao WhatsApp sem alteração
 
@@ -10197,8 +10241,21 @@ export async function processAdminMessage(
     }
   }
   
+  // V22: Separar bolhas da IA - split por [BOLHA]
+  let splitMessages: string[] | undefined;
+  if (finalText.includes('[BOLHA]')) {
+    splitMessages = finalText
+      .split(/\[BOLHA\]/gi)
+      .map(s => s.trim())
+      .filter(s => s.length > 0);
+    // O texto completo fica sem os marcadores para o histórico
+    finalText = splitMessages.join('\n\n');
+    console.log(`📱 [V22] Bolhas da IA: ${splitMessages.length} partes`);
+  }
+  
   return {
     text: finalText,
+    splitMessages,
     mediaActions: processedMediaActions.length > 0 ? processedMediaActions : undefined,
     actions: actionResults,
   };
