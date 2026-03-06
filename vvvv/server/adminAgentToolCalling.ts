@@ -174,6 +174,19 @@ const TOOL_DEFINITIONS = [
       },
     },
   },
+  {
+    type: 'function' as const,
+    function: {
+      name: 'gerar_link_simulador',
+      description:
+        'Gera o link do simulador de teste do agente IA do cliente. Use quando o cliente pedir para testar o agente, ver o simulador, link de teste, ou quiser experimentar como o agente atende. O link abre o simulador onde o cliente pode conversar com o agente como se fosse um cliente real dele.',
+      parameters: {
+        type: 'object' as const,
+        properties: {},
+        required: [] as string[],
+      },
+    },
+  },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -216,7 +229,8 @@ CLIENTE EXISTENTE (já tem conta):
 - Se ele pedir mudanças no agente, use editar_prompt diretamente.
 - Se quiser assinar um plano, use gerar_link_planos para enviar o link com auto-login.
 - Se quiser conectar o WhatsApp, use gerar_link_conexao.
-- Após editar o prompt, sempre informe o link do simulador para testar as mudanças.`
+- Após editar o prompt, sempre informe o link do simulador para testar as mudanças.
+- Se o cliente pedir para testar o agente ou pedir o link do simulador, use gerar_link_simulador.`
     : `
 CLIENTE NOVO (sem conta):
 - Este é um lead novo. Apresente-se brevemente como Rodrigo do AgenteZap.
@@ -256,7 +270,7 @@ REGRAS IMPORTANTES:
 14. NUNCA diga que ativou, liberou ou assinou o plano do cliente. A ativação SEMPRE exige pagamento no site. Se o cliente pagar por PIX, use registrar_pagamento.
 15. Após criar ou editar o agente, SEMPRE inclua o link do simulador para o cliente testar as mudanças. O link do simulador é o que vem no resultado da ferramenta (formato /test/TOKEN). NÃO substitua por link de planos.
 16. PROIBIDO FABRICAR URLs: NUNCA invente, crie ou escreva URLs manualmente. Links de planos, conexão e simulador são gerados EXCLUSIVAMENTE pelas ferramentas gerar_link_planos, gerar_link_conexao e criar_agente. Se o cliente pedir um link, CHAME a ferramenta correspondente — NUNCA escreva uma URL por conta própria.
-17. Se o cliente pedir link para PLANOS/ASSINATURA → chame gerar_link_planos. Se pedir link para CONEXÃO/WHATSAPP → chame gerar_link_conexao. Se pedir para CRIAR CONTA → chame criar_agente. SEMPRE use a ferramenta, NUNCA gere o link na mensagem.
+17. Se o cliente pedir link para PLANOS/ASSINATURA → chame gerar_link_planos. Se pedir link para CONEXÃO/WHATSAPP → chame gerar_link_conexao. Se pedir para TESTAR/SIMULADOR → chame gerar_link_simulador. Se pedir para CRIAR CONTA → chame criar_agente. SEMPRE use a ferramenta, NUNCA gere o link na mensagem.
 18. URLs válidas SOMENTE vêm do resultado das ferramentas. Qualquer URL que você escrever diretamente será INVÁLIDA e causará erro para o cliente.
 19. Quando o resultado de uma ferramenta contiver URLs, copie-as EXATAMENTE como estão. NUNCA modifique, reescreva ou substitua as URLs retornadas pelas ferramentas.
 20. Após criar_agente, o resultado contém email, senha, link do simulador e links de acesso. Você DEVE incluir TODAS essas informações na resposta ao cliente — especialmente email e senha. NUNCA omita credenciais.
@@ -519,6 +533,28 @@ async function executeToolCall(
   mediaUrl?: string,
 ): Promise<string> {
   console.log(`[ToolCalling] Executando tool: ${toolName}`, JSON.stringify(toolArgs).slice(0, 200));
+
+  // V23k: Handle gerar_link_simulador directly (no PendingAction type needed)
+  if (toolName === 'gerar_link_simulador') {
+    if (!userId) {
+      return JSON.stringify({ success: false, error: 'Cliente não tem conta ativa. Crie uma conta primeiro com criar_agente.' });
+    }
+    try {
+      const simToken = await getSimulatorTokenForUser(userId);
+      if (simToken) {
+        const simUrl = buildSimulatorUrl(simToken);
+        return JSON.stringify({
+          success: true,
+          message: `🔗 Link do simulador para testar seu agente:\n${simUrl}\n\n💡 Abra o link e converse com o agente como se fosse um cliente. Teste diferentes perguntas para ver como ele responde!`,
+        });
+      } else {
+        return JSON.stringify({ success: false, error: 'Nenhum token de simulador encontrado. Tente criar o agente novamente com criar_agente.' });
+      }
+    } catch (e: any) {
+      console.error('[ToolCalling] Erro ao gerar link do simulador:', e);
+      return JSON.stringify({ success: false, error: 'Erro ao gerar link do simulador.' });
+    }
+  }
 
   // Map tool names to PendingAction types
   const toolToActionType: Record<string, PendingAction['type']> = {
