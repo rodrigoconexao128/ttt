@@ -6794,6 +6794,12 @@ SÃƒÂ³ use a aÃƒÂ§ÃƒÂ£o quando tiver os dados:
 
 Se faltar dado, pergunte naturalmente:
 "Boa! Me passa o nome da empresa e como vc quer chamar seu funcionÃƒÂ¡rio digital que eu monto isso pra vc."
+
+
+## REGRA FINAL OBRIGATORIA (LEIA POR ULTIMO)
+FORMATO DA RESPOSTA: Se sua resposta tiver mais de 1 frase, OBRIGATORIAMENTE use [BOLHA] para separar.
+ZERO EMOJIS na resposta. ZERO listas numeradas. MAXIMO 400 caracteres por bolha.
+Exemplo: "Texto parte 1[BOLHA]Texto parte 2"
 `;
 }
 
@@ -7105,9 +7111,9 @@ function parseActions(response: string): { cleanText: string; actions: ParsedAct
     }
   }
 
-  // Limpar tags da resposta (acoes e follow-up)
+  // Limpar tags da resposta (acoes e follow-up) - mas PRESERVAR [BOLHA]
   const cleanText = response
-    .replace(/\[(?:A[^:\]]*:)?[A-Z_]+[^\]]*\]/gi, "")
+    .replace(/\[(?!BOLHA\])(?:A[^:\]]*:)?[A-Z_]+[^\]]*\]/gi, "")
     .replace(/\[FOLLOWUP:[^\]]*\]/gi, "")
     .trim();
 
@@ -7796,6 +7802,9 @@ REGRAS:
       messages.push({ role: "user", content: userMessage });
     }
 
+    // V23b: Injetar lembrete de [BOLHA] no lightweight path
+    messages.push({ role: "system", content: "FORMATO OBRIGATORIO: Separe CADA frase usando [BOLHA]. Exemplo: Texto1[BOLHA]Texto2. ZERO emojis. Max 300 chars por bolha." });
+
     console.log(`🧠 [LIGHTWEIGHT-LLM] Gerando resposta leve para: "${userMessage.substring(0, 50)}..." (state: ${flowState})`);
 
     const response = await Promise.race([
@@ -8477,13 +8486,17 @@ export async function generateAIResponse(session: ClientSession, userMessage: st
         messages.push({ role: "user", content: userMessage });
     }
     
+    // V23b: Injetar lembrete de [BOLHA] como ULTIMA mensagem antes da geracao
+    // Mistral ignora instrucoes no system prompt longo, mas segue mensagens recentes
+    messages.push({ role: "system", content: "FORMATO OBRIGATORIO DA SUA RESPOSTA: Separe CADA frase ou ideia em bolhas usando [BOLHA]. Exemplo: Oi, tudo bem?[BOLHA]Vi que voce tem interesse no nosso servico.[BOLHA]Posso te ajudar com isso! --- SEMPRE use [BOLHA] entre frases. NUNCA escreva um bloco unico. ZERO emojis. Max 300 caracteres por bolha." });
+    
     console.log(`Ã°Å¸Â¤â€“ [SALES] Gerando resposta para: "${userMessage.substring(0, 50)}..." (state: ${session.flowState})`);
     
     const configuredModel = await getConfiguredModel();
     let response;
     
     // Respostas curtas e humanas - splitMessageHumanLike divide depois se necessario
-    const maxTokens = 200; // V23: ~600 chars - respostas curtas, auto-split garante bolhas de 350 chars max
+    const maxTokens = 350; // V23b: 350 tokens (~1000 chars) - precisa de espaco para [BOLHA] tags
     
     // Mantem resposta rapida no simulador: tentativa curta com timeout e um fallback curto.
     try {
@@ -10357,6 +10370,41 @@ export async function processAdminMessage(
   // V23: Remover emojis/emoticons que o LLM insiste em usar
   finalText = finalText.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{200D}\u{20E3}\u{E0020}-\u{E007F}✅❌⭐🌟💡🔥✨📌📍🎯💰🏆🎉🎊👉👈👆👇💪🤝🙌👏🔹🔸▶️◀️➡️⬅️⬆️⬇️☑️✔️❗❓‼️⁉️🔔🔊📢📣💬💭🗨️📱💻📧📩📲🔗📊📈📉🏪🏢🏠🛒🛍️💳💵💲🔒🔓🔑⚡⚙️🔧🛠️📋📝📄📃🗂️📂📁🗃️🗄️🗑️🗓️📅📆🕐🕑🕒🕓🕔🕕🕖🕗🕘🕙🕚🕛]/gu, '').replace(/\s{2,}/g, ' ').trim();
   
+  // V23b: Se o LLM nao usou [BOLHA] e texto > 200 chars, fazer segunda chamada LLM para dividir em bolhas
+  // Isso garante que a IA entende o contexto e divide de forma inteligente (nao regex)
+  if (!finalText.includes('[BOLHA]') && finalText.length > 200) {
+    try {
+      console.log(`🔄 [V23b] Texto sem [BOLHA] (${finalText.length} chars) - chamando LLM para dividir em bolhas...`);
+      const configuredModel = await getConfiguredModel();
+      const splitMistralClient = await getLLMClient();
+      const splitResponse = await Promise.race([
+        splitMistralClient.chat.complete({
+          model: configuredModel,
+          messages: [
+            { role: "system", content: "Voce e um formatador de texto. Sua UNICA tarefa: receber um texto e devolver o MESMO texto dividido em partes usando [BOLHA] como separador. Regras: 1) Cada parte deve ter no maximo 300 caracteres. 2) Divida em pontos logicos (fim de frase, mudanca de assunto). 3) NAO mude nenhuma palavra do texto original. 4) NAO adicione nada novo. 5) Apenas insira [BOLHA] nos pontos de divisao. 6) ZERO emojis." },
+            { role: "user", content: `Divida este texto em partes de no maximo 300 caracteres usando [BOLHA] como separador. NAO mude NENHUMA palavra, apenas insira [BOLHA] nos pontos de divisao:\n\n${finalText}` }
+          ],
+          maxTokens: 600,
+          temperature: 0.0,
+          randomSeed: 42,
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("SPLIT_LLM_TIMEOUT")), 15000),
+        ),
+      ]);
+      const splitText = splitResponse.choices?.[0]?.message?.content;
+      if (splitText && typeof splitText === 'string' && splitText.includes('[BOLHA]')) {
+        // Limpar emojis do resultado tambem
+        finalText = splitText.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{200D}\u{20E3}\u{E0020}-\u{E007F}✅❌⭐🌟💡🔥✨📌📍🎯💰🏆🎉🎊👉👈👆👇💪🤝🙌👏🔹🔸▶️◀️➡️⬅️⬆️⬇️☑️✔️❗❓‼️⁉️🔔🔊📢📣💬💭🗨️📱💻📧📩📲🔗📊📈📉🏪🏢🏠🛒🛍️💳💵💲🔒🔓🔑⚡⚙️🔧🛠️📋📝📄📃🗂️📂📁🗃️🗄️🗑️🗓️📅📆🕐🕑🕒🕓🕔🕕🕖🕗🕘🕙🕚🕛]/gu, '').replace(/\s{2,}/g, ' ').trim();
+        console.log(`✅ [V23b] LLM dividiu texto em bolhas com sucesso!`);
+      } else {
+        console.log(`⚠️ [V23b] LLM de split nao retornou [BOLHA] - mantendo texto original`);
+      }
+    } catch (splitErr: any) {
+      console.log(`⚠️ [V23b] Falha no LLM de split: ${splitErr?.message || splitErr} - mantendo texto original`);
+    }
+  }
+  
   if (finalText.includes('[BOLHA]')) {
     splitMessages = finalText
       .split(/\[BOLHA\]/gi)
@@ -10365,28 +10413,6 @@ export async function processAdminMessage(
     // O texto completo fica sem os marcadores para o histórico
     finalText = splitMessages.join('\n\n');
     console.log(`📱 [V22] Bolhas da IA: ${splitMessages.length} partes`);
-  } else if (finalText.length > 400) {
-    // V23: Fallback - se LLM não usou [BOLHA] e texto > 400 chars, auto-split
-    // Split por frases (. ! ?) OU por quebras de linha
-    const segments = finalText.split(/(?<=[.!?\n])\s*/);
-    const bubbles: string[] = [];
-    let current = '';
-    for (const seg of segments) {
-      const trimSeg = seg.trim();
-      if (!trimSeg) continue;
-      if (current && (current + ' ' + trimSeg).length > 350) {
-        bubbles.push(current.trim());
-        current = trimSeg;
-      } else {
-        current = current ? current + ' ' + trimSeg : trimSeg;
-      }
-    }
-    if (current.trim()) bubbles.push(current.trim());
-    if (bubbles.length > 1) {
-      splitMessages = bubbles;
-      finalText = splitMessages.join('\n\n');
-      console.log(`📱 [V23] Auto-split fallback: ${splitMessages.length} bolhas`);
-    }
   }
   
   return {
