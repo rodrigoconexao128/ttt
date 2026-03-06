@@ -119,6 +119,11 @@ export interface ClientSession {
   }>;
   awaitingMediaContext?: boolean;
   awaitingMediaConfirmation?: boolean;
+  // V23i: Armazena URL do último áudio/vídeo recebido para uso pelo LLM via SALVAR_MIDIA
+  lastReceivedMedia?: {
+    url: string;
+    type: 'audio' | 'video';
+  };
   // V17: Armazena a última senha gerada para auto-login URLs
   lastGeneratedPassword?: string;
   
@@ -7620,9 +7625,9 @@ Responda APENAS com JSON: {"agentName": "...", "company": "..."}`;
             break;
           }
 
-          // A URL da mídia vem de: pendingMedia (mídia recém enviada) OU parâmetro explícito
-          const mediaUrl = session.pendingMedia?.url || action.params.url || '';
-          const mediaType = session.pendingMedia?.type || action.params.tipo || 'image';
+          // A URL da mídia vem de: pendingMedia (mídia recém enviada) OU lastReceivedMedia (V23i) OU parâmetro explícito
+          const mediaUrl = session.pendingMedia?.url || session.lastReceivedMedia?.url || action.params.url || '';
+          const mediaType = session.pendingMedia?.type || session.lastReceivedMedia?.type || action.params.tipo || 'image';
           const mediaName = action.params.nome || session.pendingMedia?.summary || `MEDIA_${Date.now()}`;
           const mediaDesc = action.params.descricao || session.pendingMedia?.description || 'Mídia enviada via WhatsApp';
           const mediaWhenToUse = action.params.quando_usar || session.pendingMedia?.whenCandidate || '';
@@ -7647,8 +7652,8 @@ Responda APENAS com JSON: {"agentName": "...", "company": "..."}`;
 
             if (savedMedia) {
               console.log(`✅ [SALES] SALVAR_MIDIA: Mídia "${savedMedia.name}" salva para userId ${saveMediaUserId}`);
-              // Limpar pendingMedia após salvar
-              updateClientSession(session.phoneNumber, { pendingMedia: undefined });
+              // Limpar pendingMedia e lastReceivedMedia após salvar
+              updateClientSession(session.phoneNumber, { pendingMedia: undefined, lastReceivedMedia: undefined });
             } else {
               console.error(`❌ [SALES] SALVAR_MIDIA: Falha ao salvar mídia para userId ${saveMediaUserId}`);
             }
@@ -9754,42 +9759,21 @@ export async function processAdminMessage(
   }
 
   // 3. Recebimento de Áudio ou Vídeo
-  if (!(ADMIN_V2_ENABLED && (session.flowState === 'active' || session.flowState === 'post_test') && session.userId) && (mediaType === 'audio' || mediaType === 'video') && mediaUrl && !session.awaitingPaymentProof) {
-    console.log(`📎 [ADMIN] Recebido ${mediaType} de ${cleanPhone}. URL: ${mediaUrl}`);
+  // V23i: NÃO interceptar automaticamente. Armazenar URL e deixar o fluxo normal (LLM) decidir.
+  // A IA já tem instruções de [ACAO:SALVAR_MIDIA] no prompt - ela decide se é mídia para salvar.
+  if ((mediaType === 'audio' || mediaType === 'video') && mediaUrl && !session.awaitingPaymentProof) {
+    console.log(`📎 [ADMIN] Recebido ${mediaType} de ${cleanPhone}. URL: ${mediaUrl}. Processando via fluxo normal (sem interceptar).`);
 
-    const mediaLabel = mediaType === 'audio' ? 'áudio' : 'vídeo';
-    const pendingMedia = {
-      url: mediaUrl,
-      type: mediaType as 'audio' | 'video',
-      description: messageText || `${mediaLabel} enviado via WhatsApp`,
-      summary: mediaLabel,
-    };
-
+    // Armazenar URL temporariamente para caso a IA decida salvar via SALVAR_MIDIA
     updateClientSession(cleanPhone, {
-      pendingMedia,
-      awaitingMediaContext: true,
-      awaitingMediaConfirmation: false,
+      lastReceivedMedia: { url: mediaUrl, type: mediaType as 'audio' | 'video' },
     });
 
-    // Perguntar para o admin quando enviar esse áudio/vídeo
-    const mediaContext = `[SISTEMA: O usuário enviou um ${mediaLabel}. ${messageText ? `Legenda: "${messageText}".` : ''}
-    
-    SUA MISSÃO AGORA:
-    1. Diga que recebeu o ${mediaLabel} e que ficou bom.
-    2. Pergunte em que situação o agente deve enviar esse ${mediaLabel} pro cliente. Exemplo: "quando pedirem preço", "quando perguntarem sobre cancelamento", etc.
-    3. Seja casual e direto.
-    
-    NÃO use linguagem de bot. Fale como gente.]`;
-    
-    addToConversationHistory(cleanPhone, "user", mediaContext);
-    const aiResponse = await generateAIResponse(session, mediaContext);
-    const { cleanText } = parseActions(aiResponse);
-    addToConversationHistory(cleanPhone, "assistant", cleanText);
-
-    return {
-      text: cleanText,
-      actions: {},
-    };
+    // Se não há transcrição, usar nota genérica para o LLM
+    if (!messageText || messageText.trim() === '') {
+      messageText = `[enviou um ${mediaType === 'audio' ? 'áudio' : 'vídeo'}]`;
+    }
+    // NÃO retorna aqui - continua para o fluxo normal abaixo
   }
 
   

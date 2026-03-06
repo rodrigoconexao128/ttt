@@ -3880,9 +3880,10 @@ Cliente: ${newMessageText.trim()}`;
     }
     
     // 📁 PROCESSAR MÍDIAS: Detectar tags [ENVIAR_MIDIA:NOME] na resposta
+    // V23i: Sempre limpar tags da resposta, mesmo sem mídia na biblioteca
     let mediaActions: MistralResponse['actions'] = [];
     
-    if (hasMedia && responseText) {
+    if (responseText) {
       const parsedResponse = parseMistralResponse(responseText);
       
       if (parsedResponse) {

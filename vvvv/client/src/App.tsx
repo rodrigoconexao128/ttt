@@ -135,7 +135,19 @@ function RequireAuth({ component: Component }: { component: any }) {
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      setLocation("/login");
+      // V23i: Verificar sessão Supabase antes de redirecionar imediatamente
+      const checkAndRedirect = async () => {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.access_token) {
+            // Sessão existe mas react-query não detectou ainda - invalidar
+            queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+            return;
+          }
+        } catch {}
+        setLocation("/login");
+      };
+      checkAndRedirect();
     }
   }, [isLoading, isAuthenticated, setLocation]);
 

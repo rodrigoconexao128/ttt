@@ -376,68 +376,56 @@ export default function Dashboard() {
     }
   };
 
-  // Autologin effect: tries to exchange token from URL for a session
+  // V23i: Auto-login é tratado pelo useAutoLogin() em App.tsx.
+  // Dashboard apenas verifica se havia token na URL para mostrar erro caso App.tsx não consiga.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get("token");
     if (!token) return;
-
-    let mounted = true;
-    (async () => {
-      setAutologinLoading(true);
-      try {
-        const res = await fetch("/api/autologin/" + encodeURIComponent(token));
-        if (res.ok) {
-          const data = await res.json();
-          const { access_token, refresh_token } = data || {};
-          if (access_token && refresh_token) {
-            await supabase.auth.setSession({ access_token, refresh_token });
-            // Remove only the `token` param; preserve remaining params and hash
-            const cleanParams = new URLSearchParams(window.location.search);
-            cleanParams.delete("token");
-            const cleanSearch = cleanParams.toString();
-            const cleanUrl = window.location.pathname + (cleanSearch ? "?" + cleanSearch : "") + window.location.hash;
-            window.history.replaceState({}, "", cleanUrl);
-            try {
-              await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-            } catch {}
-            return;
-          }
-        }
-        setAutologinError("⚠️ Este link expirou ou já foi usado. Solicite um novo link pelo WhatsApp.");
-      } catch (e) {
-        setAutologinError("⚠️ Este link expirou ou já foi usado. Solicite um novo link pelo WhatsApp.");
-      } finally {
-        if (mounted) setAutologinLoading(false);
-      }
-    })();
-
-    return () => {
-      mounted = false;
-    };
+    // Se o token ainda está na URL, significa que App.tsx ainda não processou.
+    // Esperar um pouco antes de tentar — dar prioridade ao App.tsx.
+    const timer = setTimeout(() => {
+      // Verificar se token foi removido da URL (App.tsx já processou)
+      const currentParams = new URLSearchParams(window.location.search);
+      if (!currentParams.get("token")) return; // App.tsx já tratou
+      // Se ainda está aqui, mostrar erro
+      setAutologinError("⚠️ Este link expirou ou já foi usado. Solicite um novo link pelo WhatsApp.");
+    }, 3000);
+    return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
-    // Aguardar antes de redirecionar para login
-    // Isso dá tempo para o token ser recuperado/refreshed do localStorage
+    // V23i: Aguardar antes de redirecionar para login
+    // Verifica sessão Supabase em localStorage antes de redirecionar
     if (!isLoading && !isAuthenticated && !autologinLoading && !autologinError) {
       const timer = setTimeout(async () => {
+        // V23i: Verificar se existe sessão Supabase persistida (localStorage)
+        // Pode ser que o react-query ainda não buscou, mas a sessão existe
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.access_token) {
+            console.log("[DASHBOARD] Sessão Supabase encontrada em localStorage, invalidando query...");
+            await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+            return; // NÃO redirecionar - sessão existe
+          }
+        } catch (e) {
+          console.warn("[DASHBOARD] Erro ao verificar sessão Supabase:", e);
+        }
+
         // 🔄 ANTES de redirecionar, tenta refresh da sessão
-        // (pode ser que o token expirou mas o refresh token ainda é válido)
         try {
           console.log("[DASHBOARD] Não autenticado, tentando refresh antes de redirecionar...");
           const refreshed = await refreshSession();
           if (refreshed) {
             console.log("[DASHBOARD] ✅ Refresh bem sucedido, cancelando redirect");
-            // Invalidar query para re-fetch com novo token
             queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-            return; // NÃO redirecionar - sessão foi recuperada
+            return;
           }
         } catch (e) {
           console.warn("[DASHBOARD] Erro ao tentar refresh:", e);
         }
 
-        // Verificar novamente se virou autenticado (pode ter mudado enquanto refreshava)
+        // Verificar novamente se virou autenticado
         const currentUser = queryClient.getQueryData(["/api/auth/user"]);
         if (currentUser) {
           console.log("[DASHBOARD] Usuário encontrado no cache após refresh, cancelando redirect");
@@ -453,7 +441,7 @@ export default function Dashboard() {
         setTimeout(() => {
           setLocation("/login");
         }, 500);
-      }, 2000); // ⚡ 2 segundos (antes 4s) - getAuthToken() agora faz refresh proativo
+      }, 3000); // V23i: 3 segundos (antes 2s) - mais tempo para sessão propagar
       
       return () => clearTimeout(timer);
     }
