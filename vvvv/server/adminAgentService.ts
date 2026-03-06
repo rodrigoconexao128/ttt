@@ -800,7 +800,24 @@ function convertAdminMarkdownToWhatsApp(text: string): string {
   converted = converted.replace(/\n{3,}/g, "\n\n");
   converted = converted.replace(/,\s*,/g, ",");
   converted = converted.replace(/^\s*,\s*/gm, "");
+  // V18: Markdown -> WhatsApp bold conversion
+  // 1. Convert ### headers to *bold* (WhatsApp doesnt support markdown headers)
+  converted = converted.replace(/^#{1,6}\s+(.+)$/gm, "*$1*");
+
+  // 2. Convert markdown bullet points (* item) to bullet BEFORE bold conversion
+  converted = converted.replace(/^\*\s+/gm, "\u2022 ");
+
+  // 3. Convert **bold** to *bold* (WhatsApp single asterisk)
   converted = converted.replace(/\*\*(?!\*)(.+?)\*\*(?!\*)/g, "*$1*");
+
+  // 4. Fix double ** that survived (e.g. from ### *text* producing **text**)
+  converted = converted.replace(/\*{2,}([^*\n]+?)\*{2,}/g, "*$1*");
+
+  // 5. Fix bold with trailing/leading spaces: *text * or * text*
+  // WhatsApp needs * touching text directly, no spaces
+  converted = converted.replace(/\*\s+([^*\n]+?)\*/g, "*$1*");
+  converted = converted.replace(/\*([^*\n]+?)\s+\*/g, "*$1*");
+
   converted = converted.replace(/~~(.+?)~~/g, "~$1~");
   converted = converted.replace(/(?<!`)\`(?!``)(.+?)\`(?!`)/g, "```$1```");
   converted = repairCommonMojibake(converted);
@@ -8964,36 +8981,60 @@ export async function processAdminMessage(
     }
     // ------------------------------------------------------------------
 
-    // Armazenar candidato e solicitar confirmaÃƒÂ§ÃƒÂ£o explÃƒÂ­cita
-    const updatedPending = {
-      ...media,
-      whenCandidate: refinedTrigger,
-    };
+    // V18: AUTO-SAVE - Salvar midia diretamente sem etapa de confirmacao
+    // (Antes pedia "sim" para confirmar, mas a IA gerava resposta que implicava conclusao,
+    //  o cliente nunca confirmava, e a midia nao era salva)
+    const whenToUse = refinedTrigger;
+    const userId = session.userId;
+    console.log(`[MEDIA-AUTOSAVE] Auto-save midia. userId: ${userId}, whenToUse: "${whenToUse}"`);
 
+    try {
+      if (!userId) {
+        console.log(`[MEDIA-AUTOSAVE] userId nao encontrado! Salvando em memoria para associar depois.`);
+        const currentUploaded = session.uploadedMedia || [];
+        currentUploaded.push({
+          url: media.url,
+          type: media.type,
+          description: media.description || "Midia enviada via WhatsApp",
+          whenToUse: whenToUse,
+        });
+        updateClientSession(cleanPhone, { uploadedMedia: currentUploaded });
+      } else {
+        const mediaData = {
+          userId: userId,
+          name: `MEDIA_${Date.now()}`,
+          mediaType: media.type,
+          storageUrl: media.url,
+          description: media.description || "Midia enviada via WhatsApp",
+          whenToUse: whenToUse,
+          isActive: true,
+          sendAlone: false,
+          displayOrder: 0,
+        };
+        console.log(`[MEDIA-AUTOSAVE] Salvando midia para usuario ${userId}:`, mediaData);
+        await insertAgentMedia(mediaData);
+        console.log(`[MEDIA-AUTOSAVE] Midia salva com sucesso na agent_media_library!`);
+      }
+    } catch (err) {
+      console.error(`[MEDIA-AUTOSAVE] Erro ao salvar midia:`, err);
+    }
+
+    // Limpar estado de midia pendente
     updateClientSession(cleanPhone, {
-      pendingMedia: updatedPending,
+      pendingMedia: undefined,
       awaitingMediaContext: false,
-      awaitingMediaConfirmation: true,
+      awaitingMediaConfirmation: false,
     });
 
-    // Passa para a IA decidir como confirmar naturalmente
-    const confirmContext = `[SISTEMA: O admin enviou uma imagem (${media.description}).
-    Ele disse: "${context}".
-    Eu interpretei que devemos enviar essa imagem quando o cliente falar: "${refinedTrigger}".
-    
-    SUA TAREFA:
-    1. Confirme se ÃƒÂ© isso mesmo.
-    2. DÃƒÂª exemplos de como o cliente pediria, baseados no trigger refinado.
-    3. Seja natural.
-    
-    Exemplo: "Entendi! EntÃƒÂ£o quando perguntarem sobre cardÃƒÂ¡pio ou menu, eu mando essa foto, pode ser?"
-    ]`;
-    addToConversationHistory(cleanPhone, "user", confirmContext);
-    
-    const aiResponse = await generateAIResponse(session, confirmContext);
+    // Gerar resposta natural sobre sucesso
+    const mediaTypeLabel = media.type === 'audio' ? 'audio' : media.type === 'video' ? 'video' : 'imagem';
+    const successContext = `[SISTEMA: A ${mediaTypeLabel} do cliente foi salva com sucesso! Trigger/quando usar: "${whenToUse}". Avisa pro cliente de forma casual e BREVE que ja esta configurado. Exemplo: "Pronto, ja configurei!" Seja breve, 1-2 frases. Nao use linguagem de bot.]`;
+    addToConversationHistory(cleanPhone, "user", successContext);
+
+    const aiResponse = await generateAIResponse(session, successContext);
     const { cleanText } = parseActions(aiResponse);
     addToConversationHistory(cleanPhone, "assistant", cleanText);
-    
+
     return {
       text: cleanText,
       actions: {},
