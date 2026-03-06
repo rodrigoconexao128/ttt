@@ -289,21 +289,33 @@ export default function TestAgent() {
                       <img 
                         src={msg.mediaUrl} 
                         alt="Imagem"
-                        className="max-w-full rounded-lg"
+                        className="max-w-full rounded-lg object-cover"
                         style={{ maxHeight: '300px' }}
                       />
                     )}
                     {msg.mediaType === 'audio' && (
-                      <audio controls className="w-full" src={msg.mediaUrl}>
-                        Seu navegador não suporta áudio.
-                      </audio>
+                      <div className="flex items-center gap-2 bg-[#F0F2F5] rounded-lg p-2 min-w-[200px]">
+                        <audio 
+                          src={msg.mediaUrl} 
+                          controls 
+                          controlsList="nodownload"
+                          className="w-full"
+                          style={{
+                            height: '32px',
+                            accentColor: '#00A884'
+                          }}
+                        />
+                      </div>
                     )}
                     {msg.mediaType === 'video' && (
                       <video controls className="max-w-full rounded-lg bg-black" src={msg.mediaUrl} style={{ maxHeight: '300px' }} />
                     )}
                     {msg.mediaType === 'document' && (
-                      <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 underline flex items-center gap-1">
-                        📄 Baixar documento
+                      <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" 
+                         className="flex items-center gap-2 bg-[#F0F2F5] rounded-lg p-3 text-sm text-gray-700 hover:bg-gray-200 transition-colors">
+                        <span className="text-xl">📄</span>
+                        <span className="flex-1 truncate">Abrir documento</span>
+                        <span className="text-blue-600 text-xs">Baixar</span>
                       </a>
                     )}
                   </div>

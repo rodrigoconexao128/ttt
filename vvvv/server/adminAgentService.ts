@@ -4439,6 +4439,41 @@ async function maybeGenerateDemoAssets(
  * AGORA PERSISTE NO SUPABASE para funcionar no Railway apÃƒÂ³s reinÃƒÂ­cio
  */
 export async function generateTestToken(userId: string, agentName: string, company: string): Promise<TestToken> {
+  await ensureAdminTestTokensTable();
+  
+  // V23c: Reutilizar token existente se houver um ativo para este userId
+  try {
+    const existingResult = await pool.query(
+      `SELECT token, user_id, agent_name, company, created_at, expires_at
+       FROM ${ADMIN_TEST_TOKENS_TABLE}
+       WHERE user_id = $1
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [userId]
+    );
+    if (existingResult.rows.length > 0) {
+      const existing = existingResult.rows[0];
+      // Atualizar nome/empresa e renovar expiry para 100 anos (permanente)
+      await pool.query(
+        `UPDATE ${ADMIN_TEST_TOKENS_TABLE} 
+         SET agent_name = $1, company = $2, expires_at = $3
+         WHERE token = $4`,
+        [agentName, company, new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000).toISOString(), existing.token]
+      );
+      console.log(`🎫 [SALES] Token existente reutilizado: ${existing.token} para userId: ${userId}`);
+      return {
+        token: existing.token,
+        userId,
+        agentName,
+        company,
+        createdAt: new Date(existing.created_at),
+        expiresAt: new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000),
+      };
+    }
+  } catch (err) {
+    console.error(`[SALES] Erro ao buscar token existente, criando novo:`, err);
+  }
+  
   const token = uuidv4().replace(/-/g, '').substring(0, 16);
   
   const testToken: TestToken = {
@@ -4447,10 +4482,9 @@ export async function generateTestToken(userId: string, agentName: string, compa
     agentName,
     company,
     createdAt: new Date(),
-    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24h
+    expiresAt: new Date(Date.now() + 100 * 365 * 24 * 60 * 60 * 1000), // V23c: permanente (100 anos)
   };
-  
-  await ensureAdminTestTokensTable();
+
 
   await withRetry(async () => {
     await pool.query(
@@ -4494,7 +4528,6 @@ export async function getTestToken(token: string): Promise<TestToken | undefined
           SELECT token, user_id, agent_name, company, created_at, expires_at
           FROM ${ADMIN_TEST_TOKENS_TABLE}
           WHERE token = $1
-            AND expires_at > NOW()
           LIMIT 1
         `,
         [token],
@@ -6155,21 +6188,18 @@ ${dataContext}
 - NAO use emojis como checkmarks, setas, estrelas, medalhas. PROIBIDO qualquer simbolo visual.
 - MIDIAS: quando o contexto da conversa corresponder ao campo "Quando usar" de uma midia disponivel, USE a tag [ENVIAR_MIDIA:NOME] no final da resposta. Na primeira saudacao do cliente, use [ENVIAR_MIDIA:MENSAGEM_DE_INICIO_QUANDO_O_CLIENTE_VEM_CONVERSAR]. Apos o cliente descrever o negocio dele, use [ENVIAR_MIDIA:COMO_FUNCIONA]. NAO envie midia repetida (se ja enviou, nao envie de novo).
 
-## BOLHAS DE MENSAGEM (OBRIGATORIO - REGRA PRINCIPAL)
-ATENCAO: Voce SEMPRE deve usar [BOLHA] para dividir sua resposta.
+## BOLHAS DE MENSAGEM (REGRA DE DIVISAO)
 Cada [BOLHA] cria uma mensagem separada no WhatsApp.
-SE VOCE NAO USAR [BOLHA], SUA RESPOSTA SERA REJEITADA.
 REGRAS:
-- SEMPRE use [BOLHA] entre cada parte logica (maximo 2-3 bolhas por resposta).
-- LIMITE MAXIMO: cada bolha deve ter NO MAXIMO 400 caracteres (2-3 frases curtas).
-- NEM TODA resposta precisa de bolha. Se for uma frase simples, mande sem [BOLHA].
-- Coloque as tags de acao e midia SEMPRE na ULTIMA bolha.
-- NAO faca listas numeradas longas - resuma em frases curtas.
-- NAO explique passo-a-passo detalhado - seja direto.
+- SO use [BOLHA] quando a resposta TOTAL ultrapassar 400 caracteres. Se a resposta inteira couber em 400 chars, NAO use [BOLHA].
+- Quando precisar dividir, cada bolha deve ter NO MAXIMO 400 caracteres.
+- MAXIMO 2-3 bolhas por resposta. Nao fragmente demais.
+- Coloque tags de acao e midia SEMPRE na ULTIMA bolha.
+- Seja DIRETO e CURTO. Nao explique demais.
 EXEMPLOS CORRETOS:
-"Fechou. Criei seu agente e deixei pronto.[BOLHA]Testa aqui e me diz o que achou."
-"Show! Voce tem delivery ne?[BOLHA]Me manda o nome do seu negocio que eu monto o agente agora."
-"Seu link de conexao ta pronto.[BOLHA]So clicar, escanear o QR Code e ja era. https://agentezap.online/conexao"
+"Fechou. Criei seu agente e deixei pronto. Testa aqui e me diz o que achou."
+"Show! Me manda o nome do seu negocio que eu monto o agente agora.[BOLHA]Ah, voce trabalha com delivery? Ja configuro isso tambem."
+"Seu link de conexao ta pronto. So clicar e escanear o QR Code. https://agentezap.online/conexao"
 
 ## LINKS IMPORTANTES (o sistema adiciona auto-login automaticamente)
 - Conexao WhatsApp: quando o cliente quiser conectar, mande o link https://agentezap.online/conexao
@@ -6797,9 +6827,11 @@ Se faltar dado, pergunte naturalmente:
 
 
 ## REGRA FINAL OBRIGATORIA (LEIA POR ULTIMO)
-FORMATO DA RESPOSTA: Se sua resposta tiver mais de 1 frase, OBRIGATORIAMENTE use [BOLHA] para separar.
-ZERO EMOJIS na resposta. ZERO listas numeradas. MAXIMO 400 caracteres por bolha.
-Exemplo: "Texto parte 1[BOLHA]Texto parte 2"
+FORMATO: Seja CONCISO e DIRETO. Respostas curtas de vendedor no WhatsApp.
+SO use [BOLHA] se a resposta total ultrapassar 400 caracteres. Se couber em 400 chars, mande tudo junto.
+ZERO EMOJIS. ZERO listas numeradas. Max 400 chars por bolha. Max 2-3 bolhas.
+Exemplo curto (sem bolha): "Fechou, criei seu agente. Testa aqui e me diz o que achou."
+Exemplo longo (com bolha): "Texto parte 1 que tem bastante conteudo.[BOLHA]Texto parte 2 com mais info."
 `;
 }
 
@@ -7802,8 +7834,8 @@ REGRAS:
       messages.push({ role: "user", content: userMessage });
     }
 
-    // V23b: Injetar lembrete de [BOLHA] no lightweight path
-    messages.push({ role: "system", content: "FORMATO OBRIGATORIO: Separe CADA frase usando [BOLHA]. Exemplo: Texto1[BOLHA]Texto2. ZERO emojis. Max 300 chars por bolha." });
+    // V23c: Injetar lembrete de [BOLHA] no lightweight path - so dividir quando longo
+    messages.push({ role: "system", content: "REGRA DE FORMATO OBRIGATORIA: Seja MUITO CONCISO e DIRETO. Responda em NO MAXIMO 2-3 frases curtas. NAO faca listas longas. NAO repita informacoes. SO use [BOLHA] se resposta > 400 chars. ZERO emojis. Max 2-3 bolhas de 400 chars cada." });
 
     console.log(`🧠 [LIGHTWEIGHT-LLM] Gerando resposta leve para: "${userMessage.substring(0, 50)}..." (state: ${flowState})`);
 
@@ -8486,9 +8518,8 @@ export async function generateAIResponse(session: ClientSession, userMessage: st
         messages.push({ role: "user", content: userMessage });
     }
     
-    // V23b: Injetar lembrete de [BOLHA] como ULTIMA mensagem antes da geracao
-    // Mistral ignora instrucoes no system prompt longo, mas segue mensagens recentes
-    messages.push({ role: "system", content: "FORMATO OBRIGATORIO DA SUA RESPOSTA: Separe CADA frase ou ideia em bolhas usando [BOLHA]. Exemplo: Oi, tudo bem?[BOLHA]Vi que voce tem interesse no nosso servico.[BOLHA]Posso te ajudar com isso! --- SEMPRE use [BOLHA] entre frases. NUNCA escreva um bloco unico. ZERO emojis. Max 300 caracteres por bolha." });
+    // V23c: Injetar lembrete de [BOLHA] - so dividir quando > 400 chars
+    messages.push({ role: "system", content: "REGRA DE FORMATO OBRIGATORIA: Seja MUITO CONCISO e DIRETO. Responda em NO MAXIMO 2-3 frases curtas. NAO faca listas longas. NAO repita informacoes. SO use [BOLHA] se a resposta total ultrapassar 400 caracteres. Se couber em 400 chars, NAO use [BOLHA]. Quando usar, max 2-3 bolhas de ate 400 chars cada. ZERO emojis." });
     
     console.log(`Ã°Å¸Â¤â€“ [SALES] Gerando resposta para: "${userMessage.substring(0, 50)}..." (state: ${session.flowState})`);
     
@@ -8496,7 +8527,7 @@ export async function generateAIResponse(session: ClientSession, userMessage: st
     let response;
     
     // Respostas curtas e humanas - splitMessageHumanLike divide depois se necessario
-    const maxTokens = 350; // V23b: 350 tokens (~1000 chars) - precisa de espaco para [BOLHA] tags
+    const maxTokens = 250; // V23c: 250 tokens (~700 chars) - respostas mais concisas
     
     // Mantem resposta rapida no simulador: tentativa curta com timeout e um fallback curto.
     try {
@@ -10370,19 +10401,19 @@ export async function processAdminMessage(
   // V23: Remover emojis/emoticons que o LLM insiste em usar
   finalText = finalText.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{200D}\u{20E3}\u{E0020}-\u{E007F}✅❌⭐🌟💡🔥✨📌📍🎯💰🏆🎉🎊👉👈👆👇💪🤝🙌👏🔹🔸▶️◀️➡️⬅️⬆️⬇️☑️✔️❗❓‼️⁉️🔔🔊📢📣💬💭🗨️📱💻📧📩📲🔗📊📈📉🏪🏢🏠🛒🛍️💳💵💲🔒🔓🔑⚡⚙️🔧🛠️📋📝📄📃🗂️📂📁🗃️🗄️🗑️🗓️📅📆🕐🕑🕒🕓🕔🕕🕖🕗🕘🕙🕚🕛]/gu, '').replace(/\s{2,}/g, ' ').trim();
   
-  // V23b: Se o LLM nao usou [BOLHA] e texto > 200 chars, fazer segunda chamada LLM para dividir em bolhas
+  // V23c: Se o LLM nao usou [BOLHA] e texto > 400 chars, fazer segunda chamada LLM para dividir em bolhas
   // Isso garante que a IA entende o contexto e divide de forma inteligente (nao regex)
-  if (!finalText.includes('[BOLHA]') && finalText.length > 200) {
+  if (!finalText.includes('[BOLHA]') && finalText.length > 400) {
     try {
-      console.log(`🔄 [V23b] Texto sem [BOLHA] (${finalText.length} chars) - chamando LLM para dividir em bolhas...`);
+      console.log(`🔄 [V23c] Texto sem [BOLHA] (${finalText.length} chars) - chamando LLM para dividir em bolhas...`);
       const configuredModel = await getConfiguredModel();
       const splitMistralClient = await getLLMClient();
       const splitResponse = await Promise.race([
         splitMistralClient.chat.complete({
           model: configuredModel,
           messages: [
-            { role: "system", content: "Voce e um formatador de texto. Sua UNICA tarefa: receber um texto e devolver o MESMO texto dividido em partes usando [BOLHA] como separador. Regras: 1) Cada parte deve ter no maximo 300 caracteres. 2) Divida em pontos logicos (fim de frase, mudanca de assunto). 3) NAO mude nenhuma palavra do texto original. 4) NAO adicione nada novo. 5) Apenas insira [BOLHA] nos pontos de divisao. 6) ZERO emojis." },
-            { role: "user", content: `Divida este texto em partes de no maximo 300 caracteres usando [BOLHA] como separador. NAO mude NENHUMA palavra, apenas insira [BOLHA] nos pontos de divisao:\n\n${finalText}` }
+            { role: "system", content: "Voce e um formatador de texto. Sua UNICA tarefa: receber um texto e devolver o MESMO texto dividido em NO MAXIMO 2 ou 3 partes usando [BOLHA] como separador. Regras: 1) Cada parte deve ter no maximo 400 caracteres. 2) Divida em NO MAXIMO 2-3 partes. 3) NAO mude nenhuma palavra do texto original. 4) NAO adicione nada novo. 5) Apenas insira [BOLHA] nos pontos de divisao. 6) ZERO emojis." },
+            { role: "user", content: `Divida este texto em NO MAXIMO 2-3 partes de ate 400 caracteres usando [BOLHA] como separador. NAO mude NENHUMA palavra, apenas insira [BOLHA] nos pontos de divisao:\n\n${finalText}` }
           ],
           maxTokens: 600,
           temperature: 0.0,
@@ -10396,12 +10427,12 @@ export async function processAdminMessage(
       if (splitText && typeof splitText === 'string' && splitText.includes('[BOLHA]')) {
         // Limpar emojis do resultado tambem
         finalText = splitText.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{200D}\u{20E3}\u{E0020}-\u{E007F}✅❌⭐🌟💡🔥✨📌📍🎯💰🏆🎉🎊👉👈👆👇💪🤝🙌👏🔹🔸▶️◀️➡️⬅️⬆️⬇️☑️✔️❗❓‼️⁉️🔔🔊📢📣💬💭🗨️📱💻📧📩📲🔗📊📈📉🏪🏢🏠🛒🛍️💳💵💲🔒🔓🔑⚡⚙️🔧🛠️📋📝📄📃🗂️📂📁🗃️🗄️🗑️🗓️📅📆🕐🕑🕒🕓🕔🕕🕖🕗🕘🕙🕚🕛]/gu, '').replace(/\s{2,}/g, ' ').trim();
-        console.log(`✅ [V23b] LLM dividiu texto em bolhas com sucesso!`);
+        console.log(`[V23c] LLM dividiu texto em bolhas com sucesso!`);
       } else {
-        console.log(`⚠️ [V23b] LLM de split nao retornou [BOLHA] - mantendo texto original`);
+        console.log(`[V23c] LLM de split nao retornou [BOLHA] - mantendo texto original`);
       }
     } catch (splitErr: any) {
-      console.log(`⚠️ [V23b] Falha no LLM de split: ${splitErr?.message || splitErr} - mantendo texto original`);
+      console.log(`[V23c] Falha no LLM de split: ${splitErr?.message || splitErr} - mantendo texto original`);
     }
   }
   
