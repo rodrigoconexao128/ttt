@@ -454,6 +454,59 @@ function preserveSimulatorUrlFromToolResults(
 }
 
 /**
+ * V23k: Ensure real credentials from criar_agente tool results are preserved.
+ * The LLM often fabricates "nicer-looking" emails/passwords instead of using the real ones.
+ */
+function preserveCredentialsFromToolResults(
+  responseText: string,
+  toolResultMessages: Array<{ role: string; content: string }>,
+): string {
+  // Look for real credentials in tool results
+  let realEmail: string | null = null;
+  let realPassword: string | null = null;
+
+  for (const msg of toolResultMessages) {
+    const emailMatch = msg.content.match(/E-mail(?:\s+REAL)?:\s*(\S+@\S+)/i);
+    if (emailMatch) realEmail = emailMatch[1];
+    const passMatch = msg.content.match(/Senha(?:\s+REAL)?:\s*(\S+)/i);
+    if (passMatch) realPassword = passMatch[1];
+  }
+
+  if (!realEmail && !realPassword) return responseText;
+
+  let result = responseText;
+
+  // Replace any fabricated email with the real one
+  if (realEmail) {
+    // Match any email that's NOT the real one, near "mail" or "📧" context
+    const emailPattern = /(?:📧|e-?mail|E-?mail)[^\n]*?(\S+@\S+\.\S+)/gi;
+    let match;
+    while ((match = emailPattern.exec(result)) !== null) {
+      const foundEmail = match[1];
+      if (foundEmail !== realEmail) {
+        console.log(`[ToolCalling] LLM fabricou email "${foundEmail}" — corrigindo para: ${realEmail}`);
+        result = result.replace(foundEmail, realEmail);
+      }
+    }
+  }
+
+  // Replace any fabricated password with the real one
+  if (realPassword) {
+    const passPattern = /(?:🔑|senha|Senha|password)[^\n]*?(\S+)$/gmi;
+    let match;
+    while ((match = passPattern.exec(result)) !== null) {
+      const foundPass = match[1];
+      if (foundPass !== realPassword && foundPass.length > 2 && !foundPass.includes('*')) {
+        console.log(`[ToolCalling] LLM fabricou senha "${foundPass}" — corrigindo para: ${realPassword}`);
+        result = result.replace(foundPass, realPassword);
+      }
+    }
+  }
+
+  return result;
+}
+
+/**
  * Sanitize response and auto-inject real links when LLM fabricates URLs.
  * If fabricated plan/conexao URLs are detected, calls the real tool and replaces placeholder.
  */
@@ -838,7 +891,8 @@ export async function processToolCallingMessage(
       // V23k: Ensure simulator URLs from tool results survive LLM reformatting
       const toolMsgs = messages.filter((m: any) => m.role === 'tool');
       const preserved = preserveSimulatorUrlFromToolResults(sanitized, toolMsgs);
-      return { responseText: preserved };
+      const withCreds = preserveCredentialsFromToolResults(preserved, toolMsgs);
+      return { responseText: withCreds };
     }
   } catch (err: any) {
     console.error('[ToolCalling] Erro no tool calling nativo, tentando fallback JSON-in-text:', err?.message || err);
@@ -861,7 +915,8 @@ export async function processToolCallingMessage(
       if (combinedResult && combinedResult.length > 10) {
         const sanitizedCombined = await sanitizeAndInjectRealLinks(combinedResult, userId, phoneNumber);
         const preservedCombined = preserveSimulatorUrlFromToolResults(sanitizedCombined, toolResultMessages);
-        return { responseText: preservedCombined };
+        const withCredsCombined = preserveCredentialsFromToolResults(preservedCombined, toolResultMessages);
+        return { responseText: withCredsCombined };
       }
     }
   }
@@ -932,7 +987,8 @@ Se NÃO precisar de ação, responda normalmente sem JSON.`;
         const sanitizedFallback = await sanitizeAndInjectRealLinks(rawText, userId, phoneNumber);
         const toolMsgsFallback = results.map(r => ({ role: 'tool', content: r }));
         const preservedFallback = preserveSimulatorUrlFromToolResults(sanitizedFallback, toolMsgsFallback);
-        return { responseText: preservedFallback };
+        const withCredsFallback = preserveCredentialsFromToolResults(preservedFallback, toolMsgsFallback);
+        return { responseText: withCredsFallback };
       }
 
       // Otherwise, generate a response incorporating tool results

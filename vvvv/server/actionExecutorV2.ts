@@ -294,7 +294,7 @@ export async function executeAction(
 
         // V23k: Include real credentials in tool result so LLM doesn't fabricate fake ones
         const simulatorUrl = buildSimulatorUrl(credentials.simulatorToken);
-        const fullDelivery = `${deliveryText}\n\n📌 Credenciais da conta criada:\n📧 E-mail: ${credentials.email}\n🔑 Senha: ${credentials.password}\n🔗 Link do simulador: ${simulatorUrl}`;
+        const fullDelivery = `${deliveryText}\n\n⚠️ CREDENCIAIS REAIS (copiar EXATAMENTE — NÃO modifique):\n📧 E-mail REAL: ${credentials.email}\n🔑 Senha REAL: ${credentials.password}\n🔗 Link do simulador: ${simulatorUrl}\n⚠️ O cliente SÓ consegue acessar com este email e senha exatos. NÃO invente outros.`;
 
         console.log(`[ExecutorV2] Agente criado: ${credentials.email} (token: ${credentials.simulatorToken})`);
 
