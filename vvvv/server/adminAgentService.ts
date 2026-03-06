@@ -28,7 +28,7 @@ import {
   parseScheduleFromText,
   followUpService,
 } from "./followUpService";
-import { insertAgentMedia } from "./mediaService";
+import { insertAgentMedia, updateAgentMedia, deleteAgentMedia, getAgentMediaLibrary, getMediaByName } from "./mediaService";
 import { generateSimulatorDemoCapture, type DemoCaptureResult } from "./adminDemoCaptureService";
 import { pool, withRetry } from "./db";
 import { supabase } from "./supabaseAuth";
@@ -6753,6 +6753,23 @@ async function getReturningClientContext(session: ClientSession, existingUser: a
     console.error("[SALES] Erro ao buscar info do cliente:", e);
   }
 
+  // V20: Buscar biblioteca de midias do cliente
+  let mediaLibraryInfo = "";
+  try {
+    const mediaLibrary = await getAgentMediaLibrary(existingUser.id);
+    if (mediaLibrary && mediaLibrary.length > 0) {
+      const mediaList = mediaLibrary.map((m: any) => 
+        `  - ${m.name} (${m.mediaType}) - ${m.description || 'sem descricao'} | Quando usar: ${m.whenToUse || 'nao definido'}`
+      ).join('\n');
+      mediaLibraryInfo = `\nMIDIAS DO AGENTE (${mediaLibrary.length} cadastradas):\n${mediaList}`;
+    } else {
+      mediaLibraryInfo = "\nMIDIAS DO AGENTE: Nenhuma midia cadastrada ainda.";
+    }
+  } catch (e) {
+    console.error("[SALES] Erro ao buscar midias do cliente:", e);
+    mediaLibraryInfo = "";
+  }
+
   const hasConfiguredAgent = agentInfo.startsWith("Ã¢Å“â€¦");
   
   return `
@@ -6774,6 +6791,8 @@ ${agentPrompt ? `
 Ã°Å¸â€œÂ RESUMO DO AGENTE CONFIGURADO:
 "${agentPrompt}"
 ` : ''}
+
+${mediaLibraryInfo}
 
 Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 Ã°Å¸â€™Â¬ COMO ABORDAR ESTE CLIENTE
@@ -6814,6 +6833,16 @@ OPÃƒâ€¡ÃƒÆ’O 2 - Se cliente mencionou problema:
 4. DESATIVAR/REATIVAR: Se cliente quer pausar o agente
    -> Orientar como fazer no painel
 
+5. GERENCIAR MIDIAS DO AGENTE: Se cliente quer adicionar, editar ou remover midias do agente
+   -> ADICIONAR: Quando cliente ENVIAR uma midia (foto/audio/video/documento), use:
+      [ACAO:SALVAR_MIDIA nome="NOME_DA_MIDIA" descricao="descricao da midia" quando_usar="quando o agente deve enviar"]
+      IMPORTANTE: O cliente PRECISA enviar a midia ANTES! A URL vem automaticamente da midia enviada.
+   -> EDITAR: Para alterar nome, descricao ou quando usar:
+      [ACAO:EDITAR_MIDIA nome="NOME_ATUAL" novo_nome="NOVO_NOME" descricao="nova descricao" quando_usar="nova regra"]
+   -> REMOVER: Para excluir uma midia:
+      [ACAO:REMOVER_MIDIA nome="NOME_DA_MIDIA"]
+   -> Consulte a lista de MIDIAS DO AGENTE acima para saber quais midias o cliente ja tem cadastradas.
+
 Ã¢ÂÅ’ NÃƒÆ’O FAÃƒâ€¡A:
 - NÃƒÆ’O pergunte tudo do zero como se fosse cliente novo
 - NÃƒÆ’O ignore que ele jÃƒÂ¡ tem conta
@@ -6844,6 +6873,25 @@ async function getActiveClientContext(session: ClientSession): Promise<string> {
     } catch {}
   }
   
+
+  // V20: Buscar biblioteca de midias do cliente
+  let mediaLibraryInfo = "";
+  if (session.userId) {
+    try {
+      const mediaLibrary = await getAgentMediaLibrary(session.userId);
+      if (mediaLibrary && mediaLibrary.length > 0) {
+        const mediaList = mediaLibrary.map((m: any) => 
+          `  - ${m.name} (${m.mediaType}) - ${m.description || 'sem descricao'} | Quando usar: ${m.whenToUse || 'nao definido'}`
+        ).join('\n');
+        mediaLibraryInfo = `\nMIDIAS DO AGENTE (${mediaLibrary.length} cadastradas):\n${mediaList}`;
+      } else {
+        mediaLibraryInfo = "\nMIDIAS DO AGENTE: Nenhuma midia cadastrada ainda.";
+      }
+    } catch (e) {
+      console.error("[SALES] Erro ao buscar midias do cliente:", e);
+      mediaLibraryInfo = "";
+    }
+  }
   return `
 Ã°Å¸â€œâ€¹ ESTADO ATUAL: CLIENTE ATIVO (jÃƒÂ¡ tem conta)
 
@@ -6859,6 +6907,16 @@ DADOS DA CONTA:
 - Processar pagamentos
 - Resolver problemas tÃƒÂ©cnicos
 - Ativar/desativar agente
+- Gerenciar midias do agente (adicionar, editar, remover)
+
+${mediaLibraryInfo}
+
+ACOES DE MIDIA DISPONIVEIS:
+- ADICIONAR MIDIA: Quando cliente enviar foto/audio/video/doc, use:
+  [ACAO:SALVAR_MIDIA nome="NOME" descricao="descricao" quando_usar="regra de envio"]
+  (a URL da midia vem automaticamente do arquivo que o cliente enviou)
+- EDITAR MIDIA: [ACAO:EDITAR_MIDIA nome="NOME_ATUAL" novo_nome="NOVO" descricao="nova desc" quando_usar="nova regra"]
+- REMOVER MIDIA: [ACAO:REMOVER_MIDIA nome="NOME"]
 
 Ã¢ÂÅ’ NÃƒÆ’O FAÃƒâ€¡A:
 - NÃƒÆ’O pergunte email novamente
@@ -6897,6 +6955,9 @@ function parseActions(response: string): { cleanText: string; actions: ParsedAct
     "GERAR_PRINT_TESTE",
     "GERAR_VIDEO_TESTE",
     "GERAR_DEMO_TESTE",
+    "SALVAR_MIDIA",
+    "EDITAR_MIDIA",
+    "REMOVER_MIDIA",
   ];
 
   let match: RegExpExecArray | null;
@@ -7397,6 +7458,136 @@ Responda APENAS com JSON: {"agentName": "...", "company": "..."}`;
         }
         break;
         
+      // ══════════════════════════════════════════════════════════
+      // V20: GERENCIAMENTO DE MÍDIAS DO AGENTE DO CLIENTE
+      // ══════════════════════════════════════════════════════════
+      case "SALVAR_MIDIA":
+        {
+          if (!session.userId) {
+            console.log(`⚠️ [SALES] SALVAR_MIDIA ignorada - cliente sem conta (userId ausente)`);
+            break;
+          }
+
+          // A URL da mídia vem de: pendingMedia (mídia recém enviada) OU parâmetro explícito
+          const mediaUrl = session.pendingMedia?.url || action.params.url || '';
+          const mediaType = session.pendingMedia?.type || action.params.tipo || 'image';
+          const mediaName = action.params.nome || session.pendingMedia?.summary || `MEDIA_${Date.now()}`;
+          const mediaDesc = action.params.descricao || session.pendingMedia?.description || 'Mídia enviada via WhatsApp';
+          const mediaWhenToUse = action.params.quando_usar || session.pendingMedia?.whenCandidate || '';
+
+          if (!mediaUrl) {
+            console.log(`⚠️ [SALES] SALVAR_MIDIA ignorada - sem URL de mídia disponível`);
+            break;
+          }
+
+          try {
+            const savedMedia = await insertAgentMedia({
+              userId: session.userId,
+              name: mediaName,
+              mediaType: mediaType as any,
+              storageUrl: mediaUrl,
+              description: mediaDesc,
+              whenToUse: mediaWhenToUse,
+              isActive: true,
+              sendAlone: false,
+              displayOrder: 0,
+            });
+
+            if (savedMedia) {
+              console.log(`✅ [SALES] SALVAR_MIDIA: Mídia "${savedMedia.name}" salva para userId ${session.userId}`);
+              // Limpar pendingMedia após salvar
+              updateClientSession(session.phoneNumber, { pendingMedia: undefined });
+            } else {
+              console.error(`❌ [SALES] SALVAR_MIDIA: Falha ao salvar mídia para userId ${session.userId}`);
+            }
+          } catch (err) {
+            console.error(`❌ [SALES] SALVAR_MIDIA erro:`, err);
+          }
+        }
+        break;
+
+      case "EDITAR_MIDIA":
+        {
+          if (!session.userId) {
+            console.log(`⚠️ [SALES] EDITAR_MIDIA ignorada - cliente sem conta`);
+            break;
+          }
+
+          const targetName = action.params.nome;
+          if (!targetName) {
+            console.log(`⚠️ [SALES] EDITAR_MIDIA ignorada - nome da mídia não informado`);
+            break;
+          }
+
+          try {
+            // Buscar mídia pelo nome
+            const existingMedia = await getMediaByName(session.userId, targetName);
+            if (!existingMedia) {
+              console.log(`⚠️ [SALES] EDITAR_MIDIA: Mídia "${targetName}" não encontrada para userId ${session.userId}`);
+              break;
+            }
+
+            // Montar objeto de atualização
+            const updateData: Partial<{ name: string; description: string; whenToUse: string; storageUrl: string; mediaType: string }> = {};
+            if (action.params.novo_nome) updateData.name = action.params.novo_nome;
+            if (action.params.descricao) updateData.description = action.params.descricao;
+            if (action.params.quando_usar) updateData.whenToUse = action.params.quando_usar;
+            // Se o cliente enviou nova mídia junto, atualizar a URL
+            if (session.pendingMedia?.url) {
+              updateData.storageUrl = session.pendingMedia.url;
+              updateData.mediaType = session.pendingMedia.type;
+              updateClientSession(session.phoneNumber, { pendingMedia: undefined });
+            }
+
+            if (Object.keys(updateData).length === 0) {
+              console.log(`⚠️ [SALES] EDITAR_MIDIA: Nenhum campo para atualizar`);
+              break;
+            }
+
+            const updated = await updateAgentMedia(existingMedia.id, session.userId, updateData as any);
+            if (updated) {
+              console.log(`✅ [SALES] EDITAR_MIDIA: Mídia "${targetName}" atualizada para userId ${session.userId} → ${updated.name}`);
+            } else {
+              console.error(`❌ [SALES] EDITAR_MIDIA: Falha ao atualizar mídia "${targetName}"`);
+            }
+          } catch (err) {
+            console.error(`❌ [SALES] EDITAR_MIDIA erro:`, err);
+          }
+        }
+        break;
+
+      case "REMOVER_MIDIA":
+        {
+          if (!session.userId) {
+            console.log(`⚠️ [SALES] REMOVER_MIDIA ignorada - cliente sem conta`);
+            break;
+          }
+
+          const mediaNameToRemove = action.params.nome;
+          if (!mediaNameToRemove) {
+            console.log(`⚠️ [SALES] REMOVER_MIDIA ignorada - nome da mídia não informado`);
+            break;
+          }
+
+          try {
+            const mediaToRemove = await getMediaByName(session.userId, mediaNameToRemove);
+            if (!mediaToRemove) {
+              console.log(`⚠️ [SALES] REMOVER_MIDIA: Mídia "${mediaNameToRemove}" não encontrada para userId ${session.userId}`);
+              break;
+            }
+
+            const deleted = await deleteAgentMedia(session.userId, mediaToRemove.id);
+            if (deleted) {
+              console.log(`✅ [SALES] REMOVER_MIDIA: Mídia "${mediaNameToRemove}" removida para userId ${session.userId}`);
+            } else {
+              console.error(`❌ [SALES] REMOVER_MIDIA: Falha ao remover mídia "${mediaNameToRemove}"`);
+            }
+          } catch (err) {
+            console.error(`❌ [SALES] REMOVER_MIDIA erro:`, err);
+          }
+        }
+        break;
+
       case "CRIAR_CONTA":
         // Criar conta real (apÃƒÂ³s pagamento)
         if (action.params.email) {
