@@ -126,7 +126,9 @@ export function registerTestAdminRoutes(app: Express): void {
         result?.text ??
         "[sem resposta — processAdminMessage retornou null]";
 
-      res.json({ text, actions: result?.actions ?? {} });
+      // V23: Return splitMessages for bubble rendering
+      const splitMessages = result?.splitMessages;
+      res.json({ text, actions: result?.actions ?? {}, splitMessages });
     } catch (err: any) {
       console.error("[test/admin-chat] Erro ao processar mensagem:", err);
       res

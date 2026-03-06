@@ -2856,9 +2856,10 @@ export async function generateAIResponse(
   - Fale como uma pessoa real no WhatsApp: direto, casual, sem textão.
   - Use [BOLHA] para separar partes lógicas da resposta (funciona como "bolhas" de mensagem).
   - Máximo 2-3 blocos separados por [BOLHA].
-  - Cada bloco deve ter 1-3 frases curtas.
+  - LIMITE MÁXIMO: cada bloco deve ter NO MÁXIMO 400 caracteres (2-3 frases curtas).
   - Exemplo: "Olá! Tudo bem? 😊[BOLHA]Aqui é o João da Bicicletaria![BOLHA]Como posso te ajudar?"
   - PROIBIDO mensagens longas com mais de 4 frases seguidas sem [BOLHA].
+  - NÃO faça listas numeradas longas. Resuma em frases curtas e diretas.
   `;
 
      // 🔔 INJETAR SISTEMA DE NOTIFICAÇÃO SE CONFIGURADO
@@ -3511,10 +3512,9 @@ Cliente: ${newMessageText.trim()}`;
     // 1 token ≈ 3-4 caracteres em português
     // 2000 tokens ≈ 6000-8000 chars (mensagens bem longas)
     // 🔧 FIX: Se pedir lista, usar 8000 tokens (≈24000-32000 chars) para listas MUITO grandes como 71 categorias
-    // 🔧 FIX 2026-02-26: Aumentado mínimos para evitar respostas cortadas pela metade
-    // Antes: 1200/1500/2000 - causava corte de listas numeradas e respostas sobre planos
-    // Agora: 2500/3000/4000 - garante respostas completas, splitMessageHumanLike divide depois
-    const baseMaxTokens = isAskingForList ? 8000 : (questionLength < 20 ? 2500 : questionLength < 50 ? 3000 : 4000);
+    // V23: Reduzido para gerar respostas curtas com [BOLHA] de 400 chars max
+    // Listas continuam com tokens altos para não cortar
+    const baseMaxTokens = isAskingForList ? 8000 : (questionLength < 20 ? 500 : questionLength < 50 ? 600 : 800);
     
     if (isAskingForList) {
       console.log(`📋 [AI Agent] Detectado pedido de LISTA - usando maxTokens aumentado: ${baseMaxTokens}`);

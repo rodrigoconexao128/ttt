@@ -6146,26 +6146,30 @@ ${dataContext}
 - FOCO DA VENDA: criar o agente, mostrar o teste, calibrar ate ficar perfeito, DEPOIS fechar.
 
 ## ESTILO DE COMUNICACAO (CRITICO - SIGA A RISCA)
-- ZERO EMOTICONS/EMOJIS. Nenhum. Proibido. Nem 1 sequer. Sem carinhas, sem icones, sem simbolos tipo emoticon.
-- MENSAGENS BEM CURTAS: Maximo 2-3 frases por bolha. Ninguem manda textao no WhatsApp. Seja direto e humano.
+- ZERO EMOTICONS/EMOJIS. Nenhum. Proibido. Nem 1 sequer. Sem carinhas, sem icones, sem simbolos tipo emoticon. Sem checkmarks, sem estrelas. NADA.
+- MENSAGENS BEM CURTAS: Maximo 2-3 frases por bolha, maximo 400 caracteres por bolha. Ninguem manda textao no WhatsApp. Seja direto e humano.
 - Tom: informal, direto, humano. Como um vendedor de verdade no WhatsApp. Nao pareca um manual.
 - Negrito: use *uma* vez por mensagem no maximo, so para destacar algo realmente importante.
 - NAO faca listas com checkmarks, estrelas, numeros ou bullets longos. Fale em frases naturais curtas.
 - NAO simule dialogos exemplo ("Cliente: ... Agente: ..."). Isso e chato e artificial.
+- NAO use emojis como checkmarks, setas, estrelas, medalhas. PROIBIDO qualquer simbolo visual.
 - MIDIAS: quando o contexto da conversa corresponder ao campo "Quando usar" de uma midia disponivel, USE a tag [ENVIAR_MIDIA:NOME] no final da resposta. Na primeira saudacao do cliente, use [ENVIAR_MIDIA:MENSAGEM_DE_INICIO_QUANDO_O_CLIENTE_VEM_CONVERSAR]. Apos o cliente descrever o negocio dele, use [ENVIAR_MIDIA:COMO_FUNCIONA]. NAO envie midia repetida (se ja enviou, nao envie de novo).
 
-## BOLHAS DE MENSAGEM (OBRIGATORIO)
-Voce DEVE separar sua resposta em bolhas usando [BOLHA] entre cada parte.
-Cada bolha vira uma mensagem separada no WhatsApp, como uma pessoa real faria.
+## BOLHAS DE MENSAGEM (OBRIGATORIO - REGRA PRINCIPAL)
+ATENCAO: Voce SEMPRE deve usar [BOLHA] para dividir sua resposta.
+Cada [BOLHA] cria uma mensagem separada no WhatsApp.
+SE VOCE NAO USAR [BOLHA], SUA RESPOSTA SERA REJEITADA.
 REGRAS:
-- Use [BOLHA] para separar partes logicas da resposta (maximo 2-3 bolhas por resposta).
-- Cada bolha deve ser CURTA (1-3 frases no maximo).
+- SEMPRE use [BOLHA] entre cada parte logica (maximo 2-3 bolhas por resposta).
+- LIMITE MAXIMO: cada bolha deve ter NO MAXIMO 400 caracteres (2-3 frases curtas).
 - NEM TODA resposta precisa de bolha. Se for uma frase simples, mande sem [BOLHA].
 - Coloque as tags de acao e midia SEMPRE na ULTIMA bolha.
+- NAO faca listas numeradas longas - resuma em frases curtas.
+- NAO explique passo-a-passo detalhado - seja direto.
 EXEMPLOS CORRETOS:
 "Fechou. Criei seu agente e deixei pronto.[BOLHA]Testa aqui e me diz o que achou."
 "Show! Voce tem delivery ne?[BOLHA]Me manda o nome do seu negocio que eu monto o agente agora."
-"Oi! Aqui e o Rodrigo, do AgenteZap.[BOLHA]A gente cria um funcionario digital que atende seus clientes no WhatsApp 24h, igualzinho humano. Me conta seu negocio que eu te mostro funcionando."
+"Seu link de conexao ta pronto.[BOLHA]So clicar, escanear o QR Code e ja era. https://agentezap.online/conexao"
 
 ## LINKS IMPORTANTES (o sistema adiciona auto-login automaticamente)
 - Conexao WhatsApp: quando o cliente quiser conectar, mande o link https://agentezap.online/conexao
@@ -7546,7 +7550,21 @@ Responda APENAS com JSON: {"agentName": "...", "company": "..."}`;
       // ══════════════════════════════════════════════════════════
       case "SALVAR_MIDIA":
         {
-          if (!session.userId) {
+          // V23: Fallback userId via findUserByPhone
+          let saveMediaUserId = session.userId;
+          if (!saveMediaUserId) {
+            try {
+              const userByPhone = await findUserByPhone(session.phoneNumber);
+              if (userByPhone) {
+                saveMediaUserId = userByPhone.id;
+                updateClientSession(session.phoneNumber, { userId: userByPhone.id });
+                console.log(`[SALVAR_MIDIA] userId resolvido via phone: ${saveMediaUserId}`);
+              }
+            } catch (e) {
+              console.error(`[SALVAR_MIDIA] Erro ao buscar userId:`, e);
+            }
+          }
+          if (!saveMediaUserId) {
             console.log(`⚠️ [SALES] SALVAR_MIDIA ignorada - cliente sem conta (userId ausente)`);
             break;
           }
@@ -7565,7 +7583,7 @@ Responda APENAS com JSON: {"agentName": "...", "company": "..."}`;
 
           try {
             const savedMedia = await insertAgentMedia({
-              userId: session.userId,
+              userId: saveMediaUserId,
               name: mediaName,
               mediaType: mediaType as any,
               storageUrl: mediaUrl,
@@ -7577,11 +7595,11 @@ Responda APENAS com JSON: {"agentName": "...", "company": "..."}`;
             });
 
             if (savedMedia) {
-              console.log(`✅ [SALES] SALVAR_MIDIA: Mídia "${savedMedia.name}" salva para userId ${session.userId}`);
+              console.log(`✅ [SALES] SALVAR_MIDIA: Mídia "${savedMedia.name}" salva para userId ${saveMediaUserId}`);
               // Limpar pendingMedia após salvar
               updateClientSession(session.phoneNumber, { pendingMedia: undefined });
             } else {
-              console.error(`❌ [SALES] SALVAR_MIDIA: Falha ao salvar mídia para userId ${session.userId}`);
+              console.error(`❌ [SALES] SALVAR_MIDIA: Falha ao salvar mídia para userId ${saveMediaUserId}`);
             }
           } catch (err) {
             console.error(`❌ [SALES] SALVAR_MIDIA erro:`, err);
@@ -8465,7 +8483,7 @@ export async function generateAIResponse(session: ClientSession, userMessage: st
     let response;
     
     // Respostas curtas e humanas - splitMessageHumanLike divide depois se necessario
-    const maxTokens = 400; // ~1200 chars - respostas curtas, sistema divide em bolhas automaticamente
+    const maxTokens = 200; // V23: ~600 chars - respostas curtas, auto-split garante bolhas de 350 chars max
     
     // Mantem resposta rapida no simulador: tentativa curta com timeout e um fallback curto.
     try {
@@ -9535,14 +9553,52 @@ export async function processAdminMessage(
     if (autoDetectedTrigger) {
         console.log(`Ã°Å¸â€œÂ¸ [ADMIN] MÃƒÂ­dia auto-detectada! Salvando automaticamente.`);
         
-        const currentUploaded = session.uploadedMedia || [];
-        currentUploaded.push({
+        // V23: Salvar diretamente no banco via insertAgentMedia (antes salvava em RAM e perdia no restart)
+        let imgUserId = session.userId;
+        if (!imgUserId) {
+          try {
+            const userByPhone = await findUserByPhone(cleanPhone);
+            if (userByPhone) {
+              imgUserId = userByPhone.id;
+              updateClientSession(cleanPhone, { userId: userByPhone.id });
+              console.log(`[IMG-AUTOSAVE] userId resolvido via phone: ${imgUserId}`);
+            }
+          } catch (e) {
+            console.error(`[IMG-AUTOSAVE] Erro ao buscar userId via phone:`, e);
+          }
+        }
+
+        if (imgUserId) {
+          try {
+            await insertAgentMedia({
+              userId: imgUserId,
+              name: `IMG_${Date.now()}`,
+              mediaType: 'image',
+              storageUrl: mediaUrl,
+              description: description || "MÃƒÂ­dia enviada",
+              whenToUse: autoDetectedTrigger,
+              isActive: true,
+              sendAlone: false,
+              displayOrder: 0,
+            });
+            console.log(`[IMG-AUTOSAVE] Imagem salva no banco para userId ${imgUserId}`);
+          } catch (err) {
+            console.error(`[IMG-AUTOSAVE] Erro ao salvar imagem:`, err);
+          }
+        } else {
+          // Fallback: salvar em memoria para associar depois
+          const currentUploaded = session.uploadedMedia || [];
+          currentUploaded.push({
             url: mediaUrl,
             type: 'image',
             description: description || "MÃƒÂ­dia enviada",
             whenToUse: autoDetectedTrigger
-        });
-        updateClientSession(cleanPhone, { uploadedMedia: currentUploaded, pendingMedia: undefined, awaitingMediaContext: false });
+          });
+          updateClientSession(cleanPhone, { uploadedMedia: currentUploaded });
+          console.log(`[IMG-AUTOSAVE] userId nao encontrado, salvando em memoria`);
+        }
+
+        updateClientSession(cleanPhone, { pendingMedia: undefined, awaitingMediaContext: false });
         
         const autoSaveContext = `[SISTEMA: O usuÃƒÂ¡rio enviou uma imagem.
         Ã¢Å“â€¦ IDENTIFIQUEI AUTOMATICAMENTE QUE Ãƒâ€°: "${description}".
@@ -10297,6 +10353,10 @@ export async function processAdminMessage(
   
   // V22: Separar bolhas da IA - split por [BOLHA]
   let splitMessages: string[] | undefined;
+  
+  // V23: Remover emojis/emoticons que o LLM insiste em usar
+  finalText = finalText.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{200D}\u{20E3}\u{E0020}-\u{E007F}✅❌⭐🌟💡🔥✨📌📍🎯💰🏆🎉🎊👉👈👆👇💪🤝🙌👏🔹🔸▶️◀️➡️⬅️⬆️⬇️☑️✔️❗❓‼️⁉️🔔🔊📢📣💬💭🗨️📱💻📧📩📲🔗📊📈📉🏪🏢🏠🛒🛍️💳💵💲🔒🔓🔑⚡⚙️🔧🛠️📋📝📄📃🗂️📂📁🗃️🗄️🗑️🗓️📅📆🕐🕑🕒🕓🕔🕕🕖🕗🕘🕙🕚🕛]/gu, '').replace(/\s{2,}/g, ' ').trim();
+  
   if (finalText.includes('[BOLHA]')) {
     splitMessages = finalText
       .split(/\[BOLHA\]/gi)
@@ -10305,6 +10365,28 @@ export async function processAdminMessage(
     // O texto completo fica sem os marcadores para o histórico
     finalText = splitMessages.join('\n\n');
     console.log(`📱 [V22] Bolhas da IA: ${splitMessages.length} partes`);
+  } else if (finalText.length > 400) {
+    // V23: Fallback - se LLM não usou [BOLHA] e texto > 400 chars, auto-split
+    // Split por frases (. ! ?) OU por quebras de linha
+    const segments = finalText.split(/(?<=[.!?\n])\s*/);
+    const bubbles: string[] = [];
+    let current = '';
+    for (const seg of segments) {
+      const trimSeg = seg.trim();
+      if (!trimSeg) continue;
+      if (current && (current + ' ' + trimSeg).length > 350) {
+        bubbles.push(current.trim());
+        current = trimSeg;
+      } else {
+        current = current ? current + ' ' + trimSeg : trimSeg;
+      }
+    }
+    if (current.trim()) bubbles.push(current.trim());
+    if (bubbles.length > 1) {
+      splitMessages = bubbles;
+      finalText = splitMessages.join('\n\n');
+      console.log(`📱 [V23] Auto-split fallback: ${splitMessages.length} bolhas`);
+    }
   }
   
   return {
