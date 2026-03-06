@@ -235,22 +235,14 @@ export function generateMediaPromptBlock(mediaList: AgentMedia[]): string {
 
   let mediaBlock = `
 
-╔══════════════════════════════════════════════════════════════════════════════╗
-║  🚨🚨🚨 PRIORIDADE MÁXIMA - SISTEMA DE MÍDIAS 🚨🚨🚨                         ║
-║  VOCÊ TEM ARQUIVOS DE ÁUDIO/VÍDEO/IMAGEM PARA ENVIAR!                        ║
-║  ENVIAR MÍDIAS É MAIS IMPORTANTE QUE TEXTO LONGO!                            ║
-╚══════════════════════════════════════════════════════════════════════════════╝
+=== SISTEMA DE MIDIAS DISPONIVEIS ===
 
-⚠️⚠️⚠️ INSTRUÇÃO CRÍTICA - LEIA E OBEDEÇA! ⚠️⚠️⚠️
+Voce tem arquivos para enviar ao cliente SOMENTE quando ele pedir ou quando o contexto
+da conversa corresponder EXATAMENTE ao campo "QUANDO ENVIAR" abaixo.
+NAO envie midias por conta propria. SOMENTE envie quando o cliente PEDIR EXPLICITAMENTE
+ou quando a conversa for DIRETAMENTE sobre o tema descrito em "QUANDO ENVIAR".
 
-VOCÊ TEM ARQUIVOS PRONTOS PARA ENVIAR! Use-os SEMPRE que aplicável.
-Um áudio/vídeo vale mais que mil palavras de texto.
-
-🎯 QUANDO VER UM GATILHO ABAIXO, ENVIE A MÍDIA IMEDIATAMENTE!
-🎯 Não fique só falando - ENVIE o arquivo usando a tag!
-🎯 A tag DEVE estar na sua resposta: [MEDIA:NOME] ou [ENVIAR_MIDIA:NOME]
-
-📁 SEUS ARQUIVOS DISPONÍVEIS:
+ARQUIVOS DISPONIVEIS:
 `;
 
   // Lista cada mídia com gatilhos explícitos extraídos do whenToUse
@@ -277,64 +269,23 @@ Um áudio/vídeo vale mais que mil palavras de texto.
     const keywords = [...new Set(keywordsRaw)].slice(0, 8);
     
     mediaBlock += `
-┌─────────────────────────────────────────────────────────────────────────────┐
-│ ${mediaType}: ${(media.name + (flowSummary ? ' ' + flowSummary : '')).substring(0, 58).padEnd(58)}│
-├─────────────────────────────────────────────────────────────────────────────┤
-│ 🎯 GATILHO: ${whenToUse.substring(0, 60).padEnd(60)}│
-│ 🔑 KEYWORDS: ${(keywords.length > 0 ? keywords.join(', ') : media.name.toLowerCase().replace(/_/g, ', ')).substring(0, 58).padEnd(58)}│
-│                                                                             │
-│ ✅ PARA ENVIAR ESTE ARQUIVO, INCLUA NA SUA RESPOSTA:                        │
-│    [MEDIA:${media.name}] ou [ENVIAR_MIDIA:${media.name}]${' '.repeat(Math.max(0, 30 - media.name.length))}│
-│                                                                             │
-│ 📝 EXEMPLO: "Vou te enviar agora! [MEDIA:${media.name}]"${' '.repeat(Math.max(0, 22 - media.name.length))}│
-└─────────────────────────────────────────────────────────────────────────────┘
+- ${mediaType}: ${media.name}${flowSummary ? ' ' + flowSummary : ''}
+  QUANDO ENVIAR: ${whenToUse}
+  TAG: [MEDIA:${media.name}]
 `;
   }
 
   mediaBlock += `
-╔══════════════════════════════════════════════════════════════════════════════╗
-║  🔴🔴🔴 REGRAS OBRIGATÓRIAS - CUMPRA OU O CLIENTE NÃO RECEBE! 🔴🔴🔴        ║
-╚══════════════════════════════════════════════════════════════════════════════╝
+=== REGRAS DE ENVIO DE MIDIA ===
 
-🔴 REGRA #1 - TAG É OBRIGATÓRIA PARA ENVIAR:
-   → Inclua [MEDIA:NOME] ou [ENVIAR_MIDIA:NOME] na sua resposta
-   → Sem a tag = arquivo NÃO é enviado = cliente não recebe nada!
-   → Dizer "vou enviar" sem a tag = MENTIRA (nada é enviado)
-   → NUNCA diga "vou te enviar" sem colocar a tag logo em seguida!
-   → Se você mencionou que vai enviar algo, OBRIGATÓRIO colocar a tag
+1. SO envie midia quando o cliente PEDIR EXPLICITAMENTE ou a conversa for DIRETAMENTE sobre o tema.
+2. Para enviar, inclua a tag [MEDIA:NOME] na resposta. Sem a tag, nada e enviado.
+3. Max 1 midia por resposta. Nao repita midias ja enviadas.
+4. NAO envie midia em saudacoes genericas a menos que o "QUANDO ENVIAR" diga especificamente para fazer isso.
+5. Se voce mencionou que vai enviar, OBRIGATORIO colocar a tag.
 
-🔴 REGRA #2 - PRIORIZE ENVIAR MÍDIA SOBRE TEXTO:
-   → Se o gatilho for detectado, ENVIE A MÍDIA primeiro!
-   → Um áudio de 30s explica melhor que 5 parágrafos de texto
-   → Cliente prefere receber conteúdo visual/áudio do que ler texto longo
-   → Se o prompt diz para enviar um vídeo/áudio, USE A TAG!
-
-🔴 REGRA #3 - UMA MÍDIA POR VEZ:
-   → Envie 1 mídia por resposta (máx 2 se relacionadas)
-   → Não bombardeie com vários arquivos
-
-🔴 REGRA #4 - NÃO REPITA MÍDIAS JÁ ENVIADAS:
-   → Verifique se já enviou na conversa
-   → Se sim, diga "já enviei acima" ou pergunte se recebeu
-
-⚡ FORMATO ACEITO PARA TAGS:
-   [MEDIA:NOME_DA_MIDIA]  ← funciona
-   [ENVIAR_MIDIA:NOME]    ← funciona
-   [MIDIA:NOME]           ← funciona
-
-💡 EXEMPLO DE RESPOSTA CORRETA:
-   "Opa! Deixa eu te mostrar como funciona na prática! [MEDIA:VIDEO_DEMO]"
-
-❌ EXEMPLO DE RESPOSTA ERRADA (NÃO FUNCIONA):
-   "Vou te enviar um vídeo mostrando..." (FALTA A TAG! NADA É ENVIADO!)
-   "Segue o áudio explicando..." (FALTA A TAG! NADA É ENVIADO!)
-   "Já te mando o material..." (FALTA A TAG! NADA É ENVIADO!)
-
-✅ CORRETO: Sempre que mencionar envio, INCLUA A TAG:
-   "Vou te enviar! [MEDIA:VIDEO_DEMO]"
-   "Segue o áudio! [MEDIA:AUDIO_EXPLICACAO]"
-
-╚══════════════════════════════════════════════════════════════════════════════╝
+Formato: [MEDIA:NOME_DA_MIDIA]
+Exemplo: "Aqui esta o que voce pediu! [MEDIA:VIDEO_DEMO]"
 `;
 
   return mediaBlock;

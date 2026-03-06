@@ -3741,13 +3741,26 @@ function buildAutoLoginUrl(baseUrl: string, email: string, password: string, tar
  */
 async function injectAutoLoginUrls(text: string, session: ClientSession): Promise<string> {
   // Primeiro: precisamos saber o userId para gerar o autologin token
-  let userId: string | undefined;
+  let userId: string | undefined = session.userId; // V23d: Tentar session.userId primeiro
   
   // Tentar obter userId da sessão ou do banco
-  if (session.phoneNumber) {
+  if (!userId && session.phoneNumber) {
     try {
       const user = await findUserByPhone(session.phoneNumber);
       userId = user?.id;
+    } catch (e) {}
+  }
+  
+  // V23d: Fallback - buscar por email padrao <phone>@agentezap.online
+  if (!userId && session.phoneNumber) {
+    try {
+      const tempEmail = generateTempEmail(session.phoneNumber);
+      const allUsers = await storage.getAllUsers();
+      const emailMatch = allUsers.find((u: any) => u.email === tempEmail);
+      if (emailMatch) {
+        userId = emailMatch.id;
+        console.log(`[V23d] injectAutoLoginUrls: userId encontrado via email ${tempEmail}: ${userId}`);
+      }
     } catch (e) {}
   }
   
@@ -8518,8 +8531,8 @@ export async function generateAIResponse(session: ClientSession, userMessage: st
         messages.push({ role: "user", content: userMessage });
     }
     
-    // V23c: Injetar lembrete de [BOLHA] - so dividir quando > 400 chars
-    messages.push({ role: "system", content: "REGRA DE FORMATO OBRIGATORIA: Seja MUITO CONCISO e DIRETO. Responda em NO MAXIMO 2-3 frases curtas. NAO faca listas longas. NAO repita informacoes. SO use [BOLHA] se a resposta total ultrapassar 400 caracteres. Se couber em 400 chars, NAO use [BOLHA]. Quando usar, max 2-3 bolhas de ate 400 chars cada. ZERO emojis." });
+    // V23d: Injetar lembrete de [BOLHA] - AI deve devolver ja com bolhas
+    messages.push({ role: "system", content: "REGRA DE FORMATO OBRIGATORIA: Seja MUITO CONCISO e DIRETO. Responda em NO MAXIMO 2-3 frases curtas. NAO faca listas longas. NAO repita informacoes. Quando a resposta ultrapassar 400 caracteres, VOCE MESMO deve dividir usando [BOLHA] entre as partes (max 2-3 bolhas de ate 400 chars cada). Se couber em 400 chars, NAO use [BOLHA]. ZERO emojis." });
     
     console.log(`Ã°Å¸Â¤â€“ [SALES] Gerando resposta para: "${userMessage.substring(0, 50)}..." (state: ${session.flowState})`);
     

@@ -2629,32 +2629,8 @@ export async function generateAIResponse(
         console.log(`🍕 [AI Agent] Total chars: ${combinedResponse.length}`);
         
         let mediaActions: MistralResponse['actions'] = deliveryResponse.mediaActions || [];
-        if (mediaActions.length === 0) {
-          try {
-            const deliveryMediaLibrary = testDependencies?.getAgentMediaLibrary
-              ? await testDependencies.getAgentMediaLibrary(userId)
-              : await getAgentMediaLibrary(userId);
-            if (deliveryMediaLibrary.length > 0) {
-              const forceResult = await forceMediaDetection(
-                newMessageText,
-                conversationHistory,
-                deliveryMediaLibrary,
-                sentMedias
-              );
-              if (forceResult.shouldSendMedia && forceResult.mediaToSend) {
-                mediaActions = [
-                  ...mediaActions,
-                  {
-                  type: 'send_media',
-                  media_name: forceResult.mediaToSend.name,
-                  }
-                ];
-              }
-            }
-          } catch (mediaError) {
-            console.log(`⚠️ [AI Agent] Falha ao escolher mídia para delivery:`, mediaError);
-          }
-        }
+        // V23e: Delivery já decide suas próprias mídias via processDeliveryMessage.
+        // Não forçar mídia adicional via forceMediaDetection.
 
         return {
           text: combinedResponse,
@@ -3941,42 +3917,38 @@ Cliente: ${newMessageText.trim()}`;
       }
     }
     
-    // 🚨🚨🚨 FORÇAR ENVIO DE MÍDIA - SISTEMA AUTOMÁTICO COM IA 🚨🚨🚨
-    // Se a IA NÃO incluiu tag de mídia na resposta, mas deveria ter,
-    // este sistema usa uma SEGUNDA CHAMADA DE IA para decidir qual mídia enviar.
-    // FUNCIONA PARA TODOS OS AGENTES - INDEPENDENTE DO PROMPT!
-    // A IA analisa: mensagem, histórico, biblioteca e campo whenToUse.
+    // 🚨 RESGATE DE MÍDIA - Apenas quando IA DISSE que vai enviar mas ESQUECEU a tag
+    // V23e: Removido o sistema agressivo que fazia SEGUNDA chamada LLM para forçar mídia.
+    // Agora confiamos na decisão da IA principal (que já tem o prompt de mídia).
+    // Só intervém se a IA EXPLICITAMENTE disse "vou te enviar um áudio/vídeo/foto" mas não incluiu [MEDIA:].
     if (hasMedia && mediaActions.length === 0) {
       const aiHadMediaIntent = responseText ? detectMediaSendingIntent(responseText) : false;
       if (aiHadMediaIntent) {
         console.log(`\n🚨 [AI Agent] ⚡ IA disse que vai enviar mídia mas NÃO incluiu tag! RESGATE ATIVADO!`);
         console.log(`🚨 [AI Agent] 💬 Resposta: "${responseText!.substring(0, 200)}..."`);
-      } else {
-        console.log(`\n🚨 [AI Agent] IA principal não detectou mídia - CONSULTANDO IA DE CLASSIFICAÇÃO...`);
-      }
-      
-      const forceResult = await forceMediaDetection(
-        newMessageText,
-        conversationHistory,
-        mediaLibrary,
-        sentMedias,
-        responseText || undefined // 🎯 Passar resposta da IA para a classificação saber se ela quis enviar mídia
-      );
-      
-      if (forceResult.shouldSendMedia && forceResult.mediaToSend) {
-        console.log(`🚨 [AI Agent] 🎯 IA DECIDIU ENVIAR MÍDIA: ${forceResult.mediaToSend.name}`);
-        console.log(`🚨 [AI Agent] 💡 Razão: ${forceResult.reason}`);
         
-        // Adicionar a mídia forçada às ações
-        mediaActions.push({
-          type: 'send_media',
-          media_name: forceResult.mediaToSend.name,
-        });
+        const forceResult = await forceMediaDetection(
+          newMessageText,
+          conversationHistory,
+          mediaLibrary,
+          sentMedias,
+          responseText || undefined
+        );
         
-        console.log(`🚨 [AI Agent] ✅ Mídia ${forceResult.mediaToSend.name} ADICIONADA às ações!`);
+        if (forceResult.shouldSendMedia && forceResult.mediaToSend) {
+          console.log(`🚨 [AI Agent] 🎯 RESGATE: ${forceResult.mediaToSend.name}`);
+          
+          mediaActions.push({
+            type: 'send_media',
+            media_name: forceResult.mediaToSend.name,
+          });
+          
+          console.log(`🚨 [AI Agent] ✅ Mídia ${forceResult.mediaToSend.name} ADICIONADA via resgate!`);
+        } else {
+          console.log(`🚨 [AI Agent] ❌ Resgate não encontrou mídia adequada`);
+        }
       } else {
-        console.log(`🚨 [AI Agent] ❌ IA de classificação decidiu NÃO enviar mídia`);
-        console.log(`🚨 [AI Agent] 💡 Razão: ${forceResult.reason}`);
+        console.log(`📁 [AI Agent] IA não incluiu mídia - decisão respeitada (sem forçar)`);
       }
     }
     
