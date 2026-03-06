@@ -280,6 +280,19 @@ export default function TestAgent() {
                         style={{ maxHeight: '300px' }}
                       />
                     )}
+                    {msg.mediaType === 'audio' && (
+                      <audio controls className="w-full" src={msg.mediaUrl}>
+                        Seu navegador não suporta áudio.
+                      </audio>
+                    )}
+                    {msg.mediaType === 'video' && (
+                      <video controls className="max-w-full rounded-lg bg-black" src={msg.mediaUrl} style={{ maxHeight: '300px' }} />
+                    )}
+                    {msg.mediaType === 'document' && (
+                      <a href={msg.mediaUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 underline flex items-center gap-1">
+                        📄 Baixar documento
+                      </a>
+                    )}
                   </div>
               )}
 
@@ -333,7 +346,7 @@ export default function TestAgent() {
           )}
           disabled={!inputText.trim() || Boolean(invalidTokenMessage)}
         >
-          <Send className="w-5 h-5 text-white" />
+          {inputText.trim() ? <Send className="w-5 h-5 text-white" /> : <Mic className="w-5 h-5 text-white" />}
         </Button>
       </div>
     </div>
