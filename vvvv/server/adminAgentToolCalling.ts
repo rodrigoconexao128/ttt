@@ -461,14 +461,20 @@ function preserveCredentialsFromToolResults(
   responseText: string,
   toolResultMessages: Array<{ role: string; content: string }>,
 ): string {
-  // Look for real credentials in tool results
+  // Look for real credentials in tool results (parse JSON first to get actual text)
   let realEmail: string | null = null;
   let realPassword: string | null = null;
 
   for (const msg of toolResultMessages) {
-    const emailMatch = msg.content.match(/E-mail(?:\s+REAL)?:\s*(\S+@\S+)/i);
+    let textContent = msg.content;
+    try {
+      const parsed = JSON.parse(msg.content);
+      textContent = parsed.message || msg.content;
+    } catch { /* not JSON, use raw */ }
+
+    const emailMatch = textContent.match(/E-mail(?:\s+REAL)?:\s*([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]+)/i);
     if (emailMatch) realEmail = emailMatch[1];
-    const passMatch = msg.content.match(/Senha(?:\s+REAL)?:\s*(\S+)/i);
+    const passMatch = textContent.match(/Senha(?:\s+REAL)?:\s*([^\s\n]+)/i);
     if (passMatch) realPassword = passMatch[1];
   }
 
@@ -478,8 +484,7 @@ function preserveCredentialsFromToolResults(
 
   // Replace any fabricated email with the real one
   if (realEmail) {
-    // Match any email that's NOT the real one, near "mail" or "📧" context
-    const emailPattern = /(?:📧|e-?mail|E-?mail)[^\n]*?(\S+@\S+\.\S+)/gi;
+    const emailPattern = /(?:📧|e-?mail|E-?mail)[^\n]*?([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]+)/gi;
     let match;
     while ((match = emailPattern.exec(result)) !== null) {
       const foundEmail = match[1];
@@ -492,11 +497,11 @@ function preserveCredentialsFromToolResults(
 
   // Replace any fabricated password with the real one
   if (realPassword) {
-    const passPattern = /(?:🔑|senha|Senha|password)[^\n]*?(\S+)$/gmi;
+    const passPattern = /(?:🔑|senha|Senha|password)[^\n]*?([^\s\n*]+)$/gmi;
     let match;
     while ((match = passPattern.exec(result)) !== null) {
       const foundPass = match[1];
-      if (foundPass !== realPassword && foundPass.length > 2 && !foundPass.includes('*')) {
+      if (foundPass !== realPassword && foundPass.length > 2) {
         console.log(`[ToolCalling] LLM fabricou senha "${foundPass}" — corrigindo para: ${realPassword}`);
         result = result.replace(foundPass, realPassword);
       }
