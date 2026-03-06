@@ -18,6 +18,7 @@ type ChatMessage = {
   role: "user" | "assistant";
   text: string;
   timestamp: Date;
+  mediaActions?: TestMediaAction[];
 };
 
 type SimulatorCredentials = {
@@ -216,6 +217,7 @@ export default function AdminWhatsAppSimulator() {
         data.reason ||
         "Mensagem recebida, mas nao houve resposta do agente neste passo.";
 
+      const resolvedMediaActions = Array.isArray(data.mediaActions) ? data.mediaActions : [];
       setMessages((prev) => [
         ...prev,
         {
@@ -223,6 +225,7 @@ export default function AdminWhatsAppSimulator() {
           role: "assistant",
           text: assistantText,
           timestamp: new Date(),
+          mediaActions: resolvedMediaActions.length > 0 ? resolvedMediaActions : undefined,
         },
       ]);
 
@@ -250,7 +253,18 @@ export default function AdminWhatsAppSimulator() {
         }
       }
 
-      await fetchHistory(cleanPhone);
+      // Sync flowState from server without overwriting messages (which carry mediaActions)
+      try {
+        const histRes = await fetch(`/api/admin/agent/test/history?phoneNumber=${cleanPhone}`, {
+          credentials: "include",
+        });
+        if (histRes.ok) {
+          const histData = (await histRes.json()) as HistoryResponse;
+          setFlowState(histData.flowState || null);
+        }
+      } catch {
+        // ignore - flowState sync is best-effort
+      }
     } catch (error) {
       console.error("[ADMIN SIM] Erro ao enviar mensagem:", error);
       toast({
@@ -455,6 +469,38 @@ export default function AdminWhatsAppSimulator() {
                   className="whitespace-pre-wrap text-sm"
                   dangerouslySetInnerHTML={{ __html: formatWhatsAppTextForHtml(msg.text) }}
                 />
+                {msg.mediaActions && msg.mediaActions.length > 0 && (
+                  <div className="mt-2 space-y-2">
+                    {msg.mediaActions.map((action, idx) => {
+                      const url = action.mediaData?.storageUrl;
+                      const mType = action.mediaData?.mediaType;
+                      if (!url) return null;
+                      return (
+                        <div key={idx} className="rounded-lg overflow-hidden border bg-gray-50 p-1">
+                          <div className="text-[10px] font-medium text-emerald-700 mb-1 px-1">
+                            📎 {action.media_name || "Mídia"}
+                          </div>
+                          {mType === "audio" && (
+                            <audio controls className="w-full h-8" src={url}>
+                              Seu navegador não suporta áudio.
+                            </audio>
+                          )}
+                          {mType === "image" && (
+                            <img src={url} alt={action.media_name || "Imagem"} className="max-h-40 w-full object-contain rounded" />
+                          )}
+                          {mType === "video" && (
+                            <video controls className="max-h-40 w-full rounded bg-black" src={url} />
+                          )}
+                          {mType === "document" && (
+                            <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 underline px-1">
+                              📄 Baixar documento
+                            </a>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
                 <div className="mt-1 text-[10px] opacity-60 text-right">{formatTime(msg.timestamp)}</div>
               </div>
             </div>
