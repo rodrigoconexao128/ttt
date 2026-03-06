@@ -2039,41 +2039,14 @@ async function processAdminAccumulatedMessages(params: {
           }
       }
 
-      // V19: BOLHAS HUMANAS - dividir automaticamente via splitMessageHumanLike
-      // Não depende da IA gerar separadores - o código divide por parágrafos/frases
-      const bubbles = splitMessageHumanLike(fullText, 350);
+      // V21: Enviar mensagem COMPLETA sem dividir em bolhas
+      // O texto da LLM deve chegar no WhatsApp exatamente como foi gerado
+      console.log(`💬 [ADMIN AGENT] Enviando mensagem completa para ${pending.contactNumber} (${fullText.length} chars)`);
       
-      console.log(`💬 [ADMIN AGENT] Enviando ${bubbles.length} bolha(s) para ${pending.contactNumber}`);
-      
-      for (let i = 0; i < bubbles.length; i++) {
-        const bubble = bubbles[i];
-        
-        // Check se novas mensagens chegaram (cancelar se sim)
-        const stillValid = pendingAdminResponses.get(key);
-        if (!stillValid || stillValid.generation !== generation) {
-          console.log(`⚠️ [ADMIN AGENT] Cancelando envio de bolha ${i+1}/${bubbles.length} (nova mensagem chegou)`);
-          break;
-        }
-        
-        // Typing delay entre bolhas (simula digitação humana)
-        if (i > 0) {
-          // Delay proporcional ao tamanho da bolha: ~30ms por caractere, mínimo 800ms, máximo 3000ms
-          const typingMs = Math.min(3000, Math.max(800, bubble.length * 30));
-          // Simular typing indicator
-          try {
-            await socket.sendPresenceUpdate('composing', pending.remoteJid);
-          } catch {}
-          await new Promise(r => setTimeout(r, typingMs));
-          try {
-            await socket.sendPresenceUpdate('paused', pending.remoteJid);
-          } catch {}
-        }
-        
-        const sentMessage = await sendWithQueue('ADMIN_AGENT', `admin bolha ${i+1}/${bubbles.length}`, async () => {
-          return await socket.sendMessage(pending.remoteJid, { text: bubble });
-        });
-        trackAdminAgentMessageId((sentMessage as any)?.key?.id);
-      }
+      const sentMessage = await sendWithQueue('ADMIN_AGENT', `admin resposta completa`, async () => {
+        return await socket.sendMessage(pending.remoteJid, { text: fullText });
+      });
+      trackAdminAgentMessageId((sentMessage as any)?.key?.id);
     }
 
     console.log(`? [ADMIN AGENT] Resposta enviada para ${pending.contactNumber}`);

@@ -10122,33 +10122,27 @@ export async function processAdminMessage(
     messageText,
     hasRealTestDelivery,
   );
-  finalText = cleanupAdminResponseArtifacts(finalText);
+  // V21: Cleanup mínimo - texto da LLM chega no WhatsApp sem alterações pesadas
+  // Apenas: **bold** → *bold* (WhatsApp), controle chars, e linhas separadoras
+  finalText = finalText
+    // Markdown **bold** → WhatsApp *bold*
+    .replace(/\*\*(?!\*)(.+?)\*\*(?!\*)/g, "*$1*")
+    // Headers ### → *bold*
+    .replace(/^#{1,6}\s+(.+)$/gm, "*$1*")
+    // Remove control chars (non-printable)
+    .replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, " ")
+    // Remove replacement chars
+    .replace(/\uFFFD/g, "")
+    // Remove separator lines (━━━, ═══, ---, etc.)
+    .replace(/^[\s]*[━═─—\-_]{3,}[\s]*$/gm, "")
+    // Excess newlines
+    .replace(/\n{4,}/g, "\n\n\n")
+    .trim();
 
   // V17.2: Injetar auto-login em TODAS as URLs do AgenteZap na resposta
-  // Garante que /plans, /conexao, /login, /meu-agente-ia sempre tenham ?al= quando temos credenciais
   finalText = injectAutoLoginUrls(finalText, session);
 
-  // V12: Additional sanitizer pass with new OutputSanitizer module
-  {
-    // V13: Use session flag to override isExistingAccount when user was created this session
-    // V14: Also check forceOnboarding - if phone was reset/cleaned, treat as new user
-    const rawIsExisting = hasRealTestDelivery ? (actionResults as any)?.testAccountCredentials?.isExistingAccount : false;
-    const wasForceOnboardingSanitizer = shouldForceOnboarding(session.phoneNumber);
-    const effectiveIsExisting = (session.accountCreatedThisSession || wasForceOnboardingSanitizer) ? false : rawIsExisting;
-    const sanitizeResult = sanitizeOutput(finalText, {
-      isExistingAccount: effectiveIsExisting,
-    });
-    if (sanitizeResult.hadMojibake) {
-      console.log(`[SANITIZER-V12] Mojibake corrigido para ${cleanPhone}`);
-    }
-    if (sanitizeResult.hadFalseExisting) {
-      console.log(`[SANITIZER-V12] Falso "conta existente" removido para ${cleanPhone}`);
-    }
-    finalText = sanitizeResult.text;
-  }
-
-  // Strip emojis/emoticons from response (LLM keeps adding them despite prompt instructions)
-  finalText = finalText.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{200D}\u{20E3}\u{E0020}-\u{E007F}]/gu, '').replace(/  +/g, ' ').trim();
+  // V21: Emojis mantidos - LLM output chega direto ao WhatsApp sem alteração
 
   // V12: Await shadow graph (don't block response, just log)
   graphShadowPromise?.then(r => {
