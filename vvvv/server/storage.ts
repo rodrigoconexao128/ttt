@@ -5293,6 +5293,7 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
       userId,
       isEnabled: false, // DESATIVADO por padrão - ativar via toggle
       voiceType: "female",
+      responseMode: "audio_text",
       speed: "1.00",
     }).returning();
     return config;
@@ -5301,7 +5302,10 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
   /**
    * Atualizar configuração de áudio
    */
-  async updateAudioConfig(userId: string, data: Partial<{ isEnabled: boolean; voiceType: string; speed: string }>): Promise<AudioConfig> {
+  async updateAudioConfig(
+    userId: string,
+    data: Partial<{ isEnabled: boolean; voiceType: string; responseMode: string; speed: string }>
+  ): Promise<AudioConfig> {
     const existing = await this.getAudioConfig(userId);
     
     if (!existing) {
@@ -5310,6 +5314,7 @@ Responda de forma concisa (máximo 3 frases) descrevendo o que você vê.`;
         userId,
         isEnabled: data.isEnabled ?? false, // DESATIVADO por padrão
         voiceType: data.voiceType ?? "female",
+        responseMode: data.responseMode ?? "audio_text",
         speed: data.speed ?? "1.00",
       }).returning();
       return config;

@@ -869,6 +869,18 @@ export async function processToolCallingMessage(
 
         const toolResult = await executeToolCall(fnName, fnArgs, userId, phoneNumber, mediaType, mediaUrl);
 
+        // V23k: For criar_agente, return tool result DIRECTLY — bypasses LLM reformatting
+        // which was fabricating fake emails/passwords and replacing simulator URLs
+        if (fnName === 'criar_agente') {
+          try {
+            const parsed = JSON.parse(toolResult);
+            if (parsed.success && parsed.message) {
+              console.log('[ToolCalling] criar_agente: retornando resultado direto (bypass LLM reformat)');
+              return { responseText: parsed.message };
+            }
+          } catch { /* parse failed, continue normal flow */ }
+        }
+
         // Add tool result to messages for next round
         messages.push({
           role: 'tool',
@@ -985,6 +997,17 @@ Se NÃO precisar de ação, responda normalmente sem JSON.`;
       for (const tc of toolCalls) {
         const result = await executeToolCall(tc.tool, tc.arguments, userId, phoneNumber, mediaType, mediaUrl);
         results.push(result);
+
+        // V23k: For criar_agente, return tool result DIRECTLY (bypass LLM reformatting)
+        if (tc.tool === 'criar_agente') {
+          try {
+            const parsed = JSON.parse(result);
+            if (parsed.success && parsed.message) {
+              console.log('[ToolCalling-Fallback] criar_agente: retornando resultado direto');
+              return { responseText: parsed.message };
+            }
+          } catch { /* continue */ }
+        }
       }
 
       // If we have remaining text, return it enriched with tool results

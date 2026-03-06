@@ -7,6 +7,7 @@ import type { Express, Request, Response } from "express";
 import { storage } from "./storage";
 import { isAuthenticated } from "./supabaseAuth";
 import { generateTTS, generateWithEdgeTTS } from "./ttsService";
+import { audioResponseModes } from "@shared/schema";
 import fs from "fs";
 import path from "path";
 
@@ -46,6 +47,7 @@ export function registerAudioConfigRoutes(app: Express): void {
         config: {
           isEnabled: config.isEnabled,
           voiceType: config.voiceType,
+          responseMode: config.responseMode,
           speed: parseFloat(config.speed as unknown as string),
         },
         usage: {
@@ -69,7 +71,7 @@ export function registerAudioConfigRoutes(app: Express): void {
     try {
       const userId = getUserId(req);
 
-      const { isEnabled, voiceType, speed } = req.body;
+      const { isEnabled, voiceType, responseMode, speed } = req.body;
 
       // Validar speed
       if (speed !== undefined) {
@@ -84,9 +86,16 @@ export function registerAudioConfigRoutes(app: Express): void {
         return res.status(400).json({ message: "Tipo de voz inválido. Use 'female' ou 'male'" });
       }
 
+      if (responseMode && !audioResponseModes.includes(responseMode)) {
+        return res.status(400).json({
+          message: "Modo de resposta inválido. Use 'audio_on_customer_audio', 'audio_only' ou 'audio_text'",
+        });
+      }
+
       const config = await storage.updateAudioConfig(userId, {
         isEnabled: isEnabled !== undefined ? isEnabled : undefined,
         voiceType: voiceType || undefined,
+        responseMode: responseMode || undefined,
         speed: speed !== undefined ? String(speed) : undefined,
       });
 
@@ -95,6 +104,7 @@ export function registerAudioConfigRoutes(app: Express): void {
         config: {
           isEnabled: config.isEnabled,
           voiceType: config.voiceType,
+          responseMode: config.responseMode,
           speed: parseFloat(config.speed as unknown as string),
         },
       });

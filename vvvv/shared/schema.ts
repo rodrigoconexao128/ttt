@@ -3371,11 +3371,15 @@ export type TeamMemberSession = typeof teamMemberSessions.$inferSelect;
 // Usa tabelas existentes: audio_config e audio_message_counter
 // =====================================================
 
+export const audioResponseModes = ["audio_on_customer_audio", "audio_only", "audio_text"] as const;
+export type AudioResponseMode = typeof audioResponseModes[number];
+
 export const audioConfig = pgTable("audio_config", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: varchar("user_id", { length: 255 }).notNull().unique().references(() => users.id, { onDelete: "cascade" }),
   isEnabled: boolean("is_enabled").default(true).notNull(),
   voiceType: text("voice_type").default("female").notNull(), // "female" ou "male"
+  responseMode: text("response_mode").$type<AudioResponseMode>().default("audio_text").notNull(),
   speed: numeric("speed", { precision: 3, scale: 2 }).default("1.00").notNull(), // 0.5 a 2.0
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
@@ -3416,6 +3420,7 @@ export const insertAudioConfigSchema = createInsertSchema(audioConfig).omit({
 export const updateAudioConfigSchema = z.object({
   isEnabled: z.boolean().optional(),
   voiceType: z.enum(["female", "male"]).optional(),
+  responseMode: z.enum(audioResponseModes).optional(),
   speed: z.string().optional(), // String porque é numeric no DB
 });
 

@@ -38,7 +38,7 @@ import { db } from "./db";
 import { conversations } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
 import { uploadMediaToStorage } from "./mediaStorageService";
-import { processAudioResponseForAgent } from "./audioResponseService";
+import { getAudioResponseSettings, processAudioResponseForAgent } from "./audioResponseService";
 // ?? ANTI-REENVIO: Importar servi�o de deduplica��o para prote��o contra instabilidade
 import { isIncomingMessageProcessed, markIncomingMessageProcessed, canSendMessage, getDeduplicationStats, MessageType, MessageSource } from "./messageDeduplicationService";
 // ?? v4.0 ANTI-BAN: Servi�o de prote��o contra bloqueio (rate limiting, safe mode, etc)

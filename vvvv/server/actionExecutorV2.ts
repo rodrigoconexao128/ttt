@@ -292,9 +292,9 @@ export async function executeAction(
 
         const deliveryText = buildStructuredAccountDeliveryText(session, credentials as any);
 
-        // V23k: Include real credentials in tool result so LLM doesn't fabricate fake ones
+        // V23k: Include real credentials in tool result — returned DIRECTLY to user (not reformatted by LLM)
         const simulatorUrl = buildSimulatorUrl(credentials.simulatorToken);
-        const fullDelivery = `${deliveryText}\n\n⚠️ CREDENCIAIS REAIS (copiar EXATAMENTE — NÃO modifique):\n📧 E-mail REAL: ${credentials.email}\n🔑 Senha REAL: ${credentials.password}\n🔗 Link do simulador: ${simulatorUrl}\n⚠️ O cliente SÓ consegue acessar com este email e senha exatos. NÃO invente outros.`;
+        const fullDelivery = `${deliveryText}\n\n📌 *Seus dados de acesso:*\n📧 E-mail: ${credentials.email}\n🔑 Senha: ${credentials.password}\n\n🔗 *Teste seu agente agora:*\n${simulatorUrl}\n\nEntre no link acima e converse com o agente como se fosse um cliente. Depois me diz o que achou!`;
 
         console.log(`[ExecutorV2] Agente criado: ${credentials.email} (token: ${credentials.simulatorToken})`);
 

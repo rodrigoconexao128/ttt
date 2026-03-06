@@ -7,7 +7,7 @@
 
 import { storage } from "./storage";
 import { generateWithEdgeTTS } from "./ttsService";
-import { messageQueueService } from "./messageQueueService";
+import type { AudioResponseMode } from "@shared/schema";
 import fs from "fs/promises";
 import path from "path";
 
@@ -16,6 +16,22 @@ const VOICE_MAP = {
   female: "pt-BR-FranciscaNeural",
   male: "pt-BR-AntonioNeural",
 };
+
+type AudioResponseDecisionMode = AudioResponseMode | "disabled";
+
+export interface AudioResponseContext {
+  customerMessageWasAudio?: boolean;
+}
+
+export interface AudioResponseSettings {
+  responseMode: AudioResponseDecisionMode;
+  shouldSendText: boolean;
+  shouldGenerateAudio: boolean;
+  fallbackToTextIfAudioFails: boolean;
+  voice?: string;
+  speed?: string;
+  rate?: string;
+}
 
 // Diretório temporário para arquivos de áudio
 const TMP_DIR = path.join(process.cwd(), "tmp", "tts-responses");
@@ -224,27 +240,49 @@ function removeUrlsFromText(text: string): string {
  * @param userId - ID do usuário
  * @returns Configuração de áudio ou null se desabilitado/sem cota
  */
-export async function shouldGenerateAudioResponse(userId: string): Promise<{
-  shouldGenerate: boolean;
-  voice: string;
-  speed: string;
-  rate: string;
-} | null> {
+export async function getAudioResponseSettings(
+  userId: string,
+  context?: AudioResponseContext
+): Promise<AudioResponseSettings> {
   try {
-    // 1. Verificar se o usuário tem TTS habilitado
     const config = await storage.getAudioConfig(userId);
     
     if (!config || !config.isEnabled) {
       console.log(`🔇 [TTS-RESPONSE] Áudio desabilitado para usuário ${userId.substring(0, 8)}...`);
-      return null;
+      return {
+        responseMode: "disabled",
+        shouldSendText: true,
+        shouldGenerateAudio: false,
+        fallbackToTextIfAudioFails: false,
+      };
     }
+
+    const responseMode = (config.responseMode ?? "audio_text") as AudioResponseMode;
+    const customerMessageWasAudio = Boolean(context?.customerMessageWasAudio);
+
+    if (responseMode === "audio_on_customer_audio" && !customerMessageWasAudio) {
+      return {
+        responseMode,
+        shouldSendText: true,
+        shouldGenerateAudio: false,
+        fallbackToTextIfAudioFails: false,
+      };
+    }
+
+    const shouldSendText = responseMode === "audio_text";
+    const fallbackToTextIfAudioFails = !shouldSendText;
 
     // 2. Verificar se ainda tem cota diária
     const usage = await storage.canSendAudio(userId);
     
     if (!usage.canSend) {
       console.log(`⚠️ [TTS-RESPONSE] Limite diário atingido para usuário ${userId.substring(0, 8)}... (${usage.limit}/${usage.limit})`);
-      return null;
+      return {
+        responseMode,
+        shouldSendText: true,
+        shouldGenerateAudio: false,
+        fallbackToTextIfAudioFails: false,
+      };
     }
 
     // 3. Preparar configurações
@@ -253,18 +291,51 @@ export async function shouldGenerateAudioResponse(userId: string): Promise<{
     const ratePercent = Math.round((speedNum - 1) * 100);
     const rate = ratePercent >= 0 ? `+${ratePercent}%` : `${ratePercent}%`;
 
-    console.log(`🎤 [TTS-RESPONSE] Áudio habilitado - Voice: ${voice}, Speed: ${speedNum}x, Restante: ${usage.remaining}/${usage.limit}`);
+    console.log(
+      `🎤 [TTS-RESPONSE] Áudio habilitado - Mode: ${responseMode}, Voice: ${voice}, Speed: ${speedNum}x, Restante: ${usage.remaining}/${usage.limit}`
+    );
 
     return {
-      shouldGenerate: true,
+      responseMode,
+      shouldSendText,
+      shouldGenerateAudio: true,
+      fallbackToTextIfAudioFails,
       voice,
       speed: config.speed as unknown as string,
       rate,
     };
   } catch (error) {
     console.error("[TTS-RESPONSE] Erro ao verificar config:", error);
+    return {
+      responseMode: "disabled",
+      shouldSendText: true,
+      shouldGenerateAudio: false,
+      fallbackToTextIfAudioFails: false,
+    };
+  }
+}
+
+export async function shouldGenerateAudioResponse(
+  userId: string,
+  context?: AudioResponseContext
+): Promise<{
+  shouldGenerate: boolean;
+  voice: string;
+  speed: string;
+  rate: string;
+} | null> {
+  const settings = await getAudioResponseSettings(userId, context);
+
+  if (!settings.shouldGenerateAudio || !settings.voice || !settings.speed || !settings.rate) {
     return null;
   }
+
+  return {
+    shouldGenerate: true,
+    voice: settings.voice,
+    speed: settings.speed,
+    rate: settings.rate,
+  };
 }
 
 /**
@@ -386,11 +457,12 @@ export async function processAudioResponseForAgent(
   userId: string,
   jid: string,
   responseText: string,
-  socket: any
+  socket: any,
+  context?: AudioResponseContext
 ): Promise<boolean> {
   try {
     // 1. Verificar se deve gerar áudio
-    const audioConfig = await shouldGenerateAudioResponse(userId);
+    const audioConfig = await shouldGenerateAudioResponse(userId, context);
     
     if (!audioConfig || !audioConfig.shouldGenerate) {
       return false;
