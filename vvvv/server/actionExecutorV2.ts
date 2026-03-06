@@ -283,11 +283,11 @@ export async function executeAction(
         };
 
         // Update session with account info
+        // V23j: NÃO sobrescrever userId — createTestAccountWithCredentials já definiu o UUID correto
         updateClientSession(phoneNumber, {
           flowState: 'active',
           email: credentials.email,
           lastGeneratedPassword: credentials.password,
-          userId: testResult.email, // userId comes from createTestAccountWithCredentials
         });
 
         const deliveryText = buildStructuredAccountDeliveryText(session, credentials as any);

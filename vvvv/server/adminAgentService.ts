@@ -65,7 +65,8 @@ import { processToolCallingMessage } from './adminAgentToolCalling';
 // ============================================================================
 
 const ADMIN_V2_ENABLED = process.env.ADMIN_V2 === 'true';
-const ADMIN_TOOL_CALLING_ENABLED = process.env.ADMIN_TOOL_CALLING === 'true';
+// V23j: Tool calling SEMPRE ativo — motor autônomo LLM com ferramentas
+const ADMIN_TOOL_CALLING_ENABLED = true;
 
 export interface ClientSession {
   id: string;
@@ -8804,7 +8805,8 @@ export async function processAdminMessage(
   mediaType?: string,
   mediaUrl?: string,
   skipTriggerCheck: boolean = false,
-  contactName?: string
+  contactName?: string,
+  sendIntermediateMessage?: (text: string) => Promise<void>,
 ): Promise<AdminAgentResponse | null> {
   const cleanPhone = phoneNumber.replace(/\D/g, "");
   
@@ -8951,6 +8953,7 @@ export async function processAdminMessage(
         session.agentConfig,
         mediaType,
         mediaUrl,
+        sendIntermediateMessage,
       );
 
       // Adicionar resposta ao histórico

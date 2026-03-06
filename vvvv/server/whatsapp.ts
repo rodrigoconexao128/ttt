@@ -1963,9 +1963,33 @@ async function processAdminAccumulatedMessages(params: {
 
     const { processAdminMessage, getOwnerNotificationNumber } = await import("./adminAgentService");
 
+    // V23j: Callback para enviar mensagens intermediárias durante operações longas
+    const sendIntermediateMessage = async (text: string) => {
+      try {
+        await sendWithQueue('ADMIN_AGENT', 'mensagem intermediária', async () => {
+          return await socket.sendMessage(pending.remoteJid, { text });
+        });
+        // Salvar no banco também
+        if (pending.conversationId) {
+          await storage.createAdminMessage({
+            conversationId: pending.conversationId,
+            messageId: `agent_intermediate_${Date.now()}`,
+            fromMe: true,
+            text,
+            timestamp: new Date(),
+            status: "sent",
+            isFromAgent: true,
+          });
+        }
+      } catch (err) {
+        console.warn('[ADMIN AGENT] Falha ao enviar mensagem intermediária:', err);
+      }
+    };
+
     // V23f: Passar mídia acumulada (se houver) para processAdminMessage
     // skipTriggerCheck = false para aplicar validação de frases gatilho no WhatsApp real
-    const response = await processAdminMessage(pending.contactNumber, combinedText, accMediaType, accMediaUrl, false);
+    // V23j: Passar sendIntermediateMessage para operações longas
+    const response = await processAdminMessage(pending.contactNumber, combinedText, accMediaType, accMediaUrl, false, undefined, sendIntermediateMessage);
 
     // Se response ? null, significa que n?o passou na valida??o de frase gatilho
     if (response === null) {
@@ -10111,10 +10135,50 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
           }
         } else if (msg?.videoMessage) {
           mediaType = "video";
-          messageText = msg.videoMessage.caption || "?? V?deo";
+          messageText = msg.videoMessage.caption || "🎥 Vídeo";
+          // V23j: Baixar e fazer upload de vídeo para Storage
+          try {
+            const buffer = await downloadMediaMessage(message, "buffer", {});
+            const mimeType = msg.videoMessage.mimetype || "video/mp4";
+            const result = await uploadMediaToStorage(buffer, mimeType, adminId);
+            if (result?.url) {
+              mediaUrl = result.url;
+              console.log(`✅ [ADMIN] Vídeo salvo no Storage: ${result.url}`);
+            }
+          } catch (err) {
+            console.error("[ADMIN] Erro ao baixar vídeo:", err);
+          }
+        } else if (msg?.documentWithCaptionMessage?.message?.documentMessage) {
+          // V23j: Documento com legenda
+          const docMsg = msg.documentWithCaptionMessage.message.documentMessage;
+          mediaType = "document";
+          messageText = docMsg.caption || `📎 ${docMsg.fileName || "Documento"}`;
+          try {
+            const buffer = await downloadMediaMessage(message, "buffer", {});
+            const mimeType = docMsg.mimetype || "application/octet-stream";
+            const result = await uploadMediaToStorage(buffer, mimeType, adminId);
+            if (result?.url) {
+              mediaUrl = result.url;
+              console.log(`✅ [ADMIN] Documento (com legenda) salvo no Storage: ${result.url}`);
+            }
+          } catch (err) {
+            console.error("[ADMIN] Erro ao baixar documento (com legenda):", err);
+          }
         } else if (msg?.documentMessage) {
           mediaType = "document";
-          messageText = `?? ${msg.documentMessage.fileName || "Documento"}`;
+          messageText = `📎 ${msg.documentMessage.fileName || "Documento"}`;
+          // V23j: Baixar e fazer upload de documento para Storage
+          try {
+            const buffer = await downloadMediaMessage(message, "buffer", {});
+            const mimeType = msg.documentMessage.mimetype || "application/octet-stream";
+            const result = await uploadMediaToStorage(buffer, mimeType, adminId);
+            if (result?.url) {
+              mediaUrl = result.url;
+              console.log(`✅ [ADMIN] Documento salvo no Storage: ${result.url}`);
+            }
+          } catch (err) {
+            console.error("[ADMIN] Erro ao baixar documento:", err);
+          }
         } else {
           // Suprimir logs de protocolMessage (system messages) para evitar spam
           const msgTypes = Object.keys(msg || {});

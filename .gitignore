@@ -1,3 +1,6 @@
+# ─── Archive de scripts temporários ──────────────────────────────────────────
+_archive_temp/
+
 # ─── Playwright MCP artefatos ────────────────────────────────────────────────
 .playwright-mcp/
 

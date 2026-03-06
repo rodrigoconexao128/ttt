@@ -256,7 +256,14 @@ REGRAS IMPORTANTES:
 15. Após criar ou editar o agente, SEMPRE inclua o link do simulador para o cliente testar as mudanças.
 16. PROIBIDO FABRICAR URLs: NUNCA invente, crie ou escreva URLs manualmente. Links de planos, conexão e simulador são gerados EXCLUSIVAMENTE pelas ferramentas gerar_link_planos, gerar_link_conexao e criar_agente. Se o cliente pedir um link, CHAME a ferramenta correspondente — NUNCA escreva uma URL por conta própria.
 17. Se o cliente pedir link para PLANOS/ASSINATURA → chame gerar_link_planos. Se pedir link para CONEXÃO/WHATSAPP → chame gerar_link_conexao. Se pedir para CRIAR CONTA → chame criar_agente. SEMPRE use a ferramenta, NUNCA gere o link na mensagem.
-18. URLs válidas SOMENTE vêm do resultado das ferramentas. Qualquer URL que você escrever diretamente será INVÁLIDA e causará erro para o cliente.`;
+18. URLs válidas SOMENTE vêm do resultado das ferramentas. Qualquer URL que você escrever diretamente será INVÁLIDA e causará erro para o cliente.
+
+CADASTRO DE MÍDIAS:
+19. Quando o cliente enviar uma mídia (imagem, áudio, documento, vídeo), PERGUNTE o nome que ele quer dar para essa mídia e em qual situação o agente deve enviá-la ao cliente dele. Exemplo: "Essa imagem é o quê? Em qual momento o agente deve enviar ela?"
+20. Quando tiver o nome e o contexto de uso, use salvar_midia imediatamente. Preencha TODOS os campos: name (nome descritivo), whenToUse (quando o agente deve enviar esta mídia — esse campo é OBRIGATÓRIO), description (descrição do conteúdo), mediaType (image/audio/video/document).
+21. A URL da mídia já é preenchida automaticamente pelo sistema — NÃO invente URLs de mídia. Se o campo mediaUrl não vier automaticamente, peça ao cliente para reenviar a mídia.
+22. Para clientes que já têm conta, o userId é usado automaticamente. A mídia fica vinculada ao agente do cliente.
+23. Se o cliente enviar uma mídia sem contexto, SEMPRE pergunte antes de salvar. Nunca salve mídia sem saber o nome e quando usar.`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -580,6 +587,7 @@ export async function processToolCallingMessage(
   agentConfig?: { name?: string; company?: string; role?: string },
   mediaType?: string,
   mediaUrl?: string,
+  sendIntermediateMessage?: (text: string) => Promise<void>,
 ): Promise<{ responseText: string }> {
   console.log(`[ToolCalling] Processando mensagem de ${phoneNumber}, userId=${userId || 'novo'}, msg="${messageText.slice(0, 60)}"`);
 
@@ -675,6 +683,16 @@ export async function processToolCallingMessage(
         }
 
         console.log(`[ToolCalling] Tool call: ${fnName}(${JSON.stringify(fnArgs).slice(0, 150)})`);
+
+        // V23j: Enviar mensagem intermediária ANTES de operações longas
+        if (fnName === 'criar_agente' && sendIntermediateMessage) {
+          try {
+            await sendIntermediateMessage('⏳ Estou preparando sua conta de teste agora, um momento...');
+            console.log('[ToolCalling] Mensagem intermediária enviada antes de criar_agente');
+          } catch (err) {
+            console.warn('[ToolCalling] Falha ao enviar mensagem intermediária:', err);
+          }
+        }
 
         const toolResult = await executeToolCall(fnName, fnArgs, userId, phoneNumber, mediaType, mediaUrl);
 
