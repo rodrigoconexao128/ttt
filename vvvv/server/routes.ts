@@ -2960,10 +2960,13 @@ Sitemap: https://agentezap.online/sitemap.xml
 
 
 
+      // V23g: splitMessages da IA (se usou [BOLHA])
+      const splitMessages = typeof response === 'object' ? response?.splitMessages : undefined;
+
       res.json({
 
         text: responseText,
-
+        splitMessages,
         actions,
 
         mediaActions,
@@ -37534,7 +37537,7 @@ LEMBRE-SE: VocÃª Ã© o Rodrigo, atendente humano. Seja natural e prestativo!`
       );
 
 
-      // V22: Dividir resposta por [BOLHA] para simulador de teste
+      // V23g: Dividir resposta SOMENTE por [BOLHA] - a IA decide quando dividir
       const responseText = result.response || "";
       let splitResponses: string[];
       
@@ -37543,35 +37546,14 @@ LEMBRE-SE: VocÃª Ã© o Rodrigo, atendente humano. Seja natural e prestativo!`
           .split(/\[BOLHA\]/gi)
           .map((s: string) => s.trim())
           .filter((s: string) => s.length > 0);
-      } else if (responseText.length > 400) {
-        // V23: Fallback auto-split por frases/newlines se > 400 chars
-        const segments = responseText.split(/(?<=[.!?\n])\s*/);
-        const bubbles: string[] = [];
-        let current = '';
-        for (const seg of segments) {
-          const trimSeg = seg.trim();
-          if (!trimSeg) continue;
-          if (current && (current + ' ' + trimSeg).length > 350) {
-            bubbles.push(current.trim());
-            current = trimSeg;
-          } else {
-            current = current ? current + ' ' + trimSeg : trimSeg;
-          }
-        }
-        if (current.trim()) bubbles.push(current.trim());
-        splitResponses = bubbles.length > 1 ? bubbles : [responseText];
       } else {
         splitResponses = [responseText];
       }
 
       res.json({
-
         response: splitResponses.join('\n\n'),
-
         splitResponses,
-
         mediaActions: result.mediaActions,
-
       });
 
     } catch (error: any) {

@@ -71,18 +71,16 @@ pool.on('remove', () => {
 });
 
 // 🔄 Graceful shutdown - libera conexões no PgBouncer
-const gracefulShutdown = async (signal: string) => {
-  console.log(`\n🛑 [DB] Recebido ${signal}, encerrando pool de conexões...`);
+// V23f: NÃO chama process.exit() - o full-app.ts coordena o shutdown
+export const closeDbPool = async () => {
+  console.log('🛑 [DB] Encerrando pool de conexões...');
   try {
     await pool.end();
     console.log('✅ [DB] Pool encerrado com sucesso');
   } catch (err: any) {
     console.error('❌ [DB] Erro ao encerrar pool:', err.message);
   }
-  process.exit(0);
 };
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 // 🧪 Teste de autenticação inicial único
 setTimeout(async () => {

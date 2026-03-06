@@ -1392,10 +1392,17 @@ function registerSentMessageCache(conversationId: string, text: string): void {
   recentlySentMessages.set(conversationId, recent);
 }
 
-// ?? SISTEMA DE ACUMULA??O (ADMIN AUTO-ATENDIMENTO)
+// 📦 SISTEMA DE ACUMULAÇÃO (ADMIN AUTO-ATENDIMENTO)
+// V23f: Agora acumula TODOS os tipos de mensagem (texto, áudio, imagem)
+interface PendingAdminMessage {
+  text: string;
+  mediaType?: string;
+  mediaUrl?: string;
+}
+
 interface PendingAdminResponse {
   timeout: NodeJS.Timeout | null;
-  messages: string[];
+  messages: PendingAdminMessage[];
   remoteJid: string;
   contactNumber: string;
   generation: number;
@@ -1834,13 +1841,15 @@ async function scheduleAdminAccumulatedResponse(params: {
   contactNumber: string;
   messageText: string;
   conversationId?: string;
+  mediaType?: string;
+  mediaUrl?: string;
 }): Promise<void> {
-  const { socket, remoteJid, contactNumber, messageText, conversationId } = params;
+  const { socket, remoteJid, contactNumber, messageText, conversationId, mediaType, mediaUrl } = params;
   const config = await getAdminAgentRuntimeConfig();
   const key = contactNumber;
 
-  console.log(`\n?? [ADMIN AGENT] Mensagem recebida de ${contactNumber}`);
-  console.log(`   ?? Delay configurado: ${config.responseDelayMs}ms (${config.responseDelayMs/1000}s)`);
+  console.log(`\n📦 [ADMIN AGENT] Mensagem recebida de ${contactNumber}${mediaType ? ` (${mediaType})` : ''}`);
+  console.log(`   ⏱️ Delay configurado: ${config.responseDelayMs}ms (${config.responseDelayMs/1000}s)`);
 
   // ?? FIX: Inscrever-se explicitamente para receber atualiza??es de presen?a (digitando/pausado)
   // Sem isso, o Baileys pode n?o receber os eventos 'presence.update'
@@ -1858,22 +1867,22 @@ async function scheduleAdminAccumulatedResponse(params: {
     if (existing.timeout) {
       clearTimeout(existing.timeout);
     }
-    existing.messages.push(messageText);
+    existing.messages.push({ text: messageText, mediaType, mediaUrl });
     existing.generation += 1;
-    console.log(`   ?? Acumulando msg ${existing.messages.length}. Reset do timer para ${config.responseDelayMs}ms`);
+    console.log(`   📎 Acumulando msg ${existing.messages.length}${mediaType ? ` (${mediaType})` : ''}. Reset do timer para ${config.responseDelayMs}ms`);
     existing.timeout = setTimeout(() => {
       void processAdminAccumulatedMessages({ socket, key, generation: existing.generation });
     }, config.responseDelayMs);
     return;
   }
 
-  // Verificar se conversa j? existe no banco
+  // Verificar se conversa já existe no banco
   const existingConversation = conversationId ? await storage.getAdminConversation(conversationId) : null;
   const isNewConversation = !existingConversation;
 
   const pending: PendingAdminResponse = {
     timeout: null,
-    messages: [messageText],
+    messages: [{ text: messageText, mediaType, mediaUrl }],
     remoteJid,
     contactNumber,
     generation: 1,
@@ -1908,13 +1917,17 @@ async function processAdminAccumulatedMessages(params: {
   pending.timeout = null;
 
   const config = await getAdminAgentRuntimeConfig();
-  const combinedText = pending.messages.join("\n\n");
+  // V23f: Combinar textos e extrair última mídia do lote acumulado
+  const combinedText = pending.messages.map(m => m.text).join("\n\n");
+  const lastMedia = [...pending.messages].reverse().find(m => m.mediaType && m.mediaUrl);
+  const accMediaType = lastMedia?.mediaType;
+  const accMediaUrl = lastMedia?.mediaUrl;
 
   const waitSeconds = ((Date.now() - pending.startTime) / 1000).toFixed(1);
-  console.log(`\n?? [ADMIN AGENT] =========== PROCESSANDO RESPOSTA ==========`);
-  console.log(`   ?? Aguardou ${waitSeconds}s | ${pending.messages.length} msg(s) acumulada(s)`);
-  console.log(`   ?? Cliente: ${pending.contactNumber}`);
-  console.log(`   ?? Config carregada:`);
+  console.log(`\n🤖 [ADMIN AGENT] =========== PROCESSANDO RESPOSTA ==========`);
+  console.log(`   ⏱️ Aguardou ${waitSeconds}s | ${pending.messages.length} msg(s) acumulada(s)${accMediaType ? ` | mídia: ${accMediaType}` : ''}`);
+  console.log(`   📱 Cliente: ${pending.contactNumber}`);
+  console.log(`   📋 Config carregada:`);
   console.log(`      - Tempo resposta: ${config.responseDelayMs}ms`);
   console.log(`      - Typing delay: ${config.typingDelayMinMs}-${config.typingDelayMaxMs}ms`);
   console.log(`      - Split chars: ${config.messageSplitChars}`);
@@ -1950,8 +1963,9 @@ async function processAdminAccumulatedMessages(params: {
 
     const { processAdminMessage, getOwnerNotificationNumber } = await import("./adminAgentService");
 
-    // skipTriggerCheck = false para aplicar valida??o de frases gatilho no WhatsApp real
-    const response = await processAdminMessage(pending.contactNumber, combinedText, undefined, undefined, false);
+    // V23f: Passar mídia acumulada (se houver) para processAdminMessage
+    // skipTriggerCheck = false para aplicar validação de frases gatilho no WhatsApp real
+    const response = await processAdminMessage(pending.contactNumber, combinedText, accMediaType, accMediaUrl, false);
 
     // Se response ? null, significa que n?o passou na valida??o de frase gatilho
     if (response === null) {
@@ -2106,6 +2120,25 @@ async function processAdminAccumulatedMessages(params: {
         await socket.sendMessage(ownerJid, { text: notificationText });
       });
       console.log(`?? [ADMIN AGENT] Notifica??o enviada para ${ownerNumber}`);
+
+      // V23f: Encaminhar comprovante (imagem) ao dono se houver
+      if (accMediaType === "image" && accMediaUrl) {
+        try {
+          const base64Data = accMediaUrl.split(",")[1];
+          if (base64Data) {
+            const buffer = Buffer.from(base64Data, "base64");
+            await sendWithQueue('ADMIN_AGENT', 'comprovante imagem', async () => {
+              await socket.sendMessage(ownerJid, {
+                image: buffer,
+                caption: `?? Comprovante do cliente ${pending.contactNumber}`,
+              });
+            });
+            console.log(`?? [ADMIN AGENT] Comprovante encaminhado para ${ownerNumber}`);
+          }
+        } catch (err) {
+          console.error("[ADMIN AGENT] Erro ao encaminhar comprovante:", err);
+        }
+      }
     }
 
     // ?? Enviar m?dias se houver
@@ -9100,9 +9133,50 @@ export async function sendMessageToGroups(
   return { sent, failed, errors, details };
 }
 
-// Fun��o auxiliar para obter sess�es (usado em rotas de debug)
+// Função auxiliar para obter sessões (usado em rotas de debug)
 export function getSessions(): Map<string, WhatsAppSession> {
   return sessions;
+}
+
+// V23f: Graceful shutdown - fecha todas as sessões Baileys antes de sair
+export async function closeAllSessions(): Promise<void> {
+  console.log(`🛑 [GRACEFUL] Fechando ${sessions.size} sessões WhatsApp + ${adminSessions.size} admin sessions...`);
+  const closePromises: Promise<void>[] = [];
+  
+  // Fechar sessões de clientes
+  for (const [connId, session] of sessions.entries()) {
+    if (session?.socket) {
+      closePromises.push(
+        (async () => {
+          try {
+            session.socket.end(undefined);
+            console.log(`  ✅ Sessão ${connId.substring(0, 8)} fechada`);
+          } catch (e) {
+            console.log(`  ⚠️ Erro ao fechar sessão ${connId.substring(0, 8)}:`, e);
+          }
+        })()
+      );
+    }
+  }
+  
+  // Fechar sessões admin
+  for (const [adminId, session] of adminSessions.entries()) {
+    if (session?.socket) {
+      closePromises.push(
+        (async () => {
+          try {
+            session.socket.end(undefined);
+            console.log(`  ✅ Admin sessão ${adminId.substring(0, 8)} fechada`);
+          } catch (e) {
+            console.log(`  ⚠️ Erro ao fechar admin sessão ${adminId.substring(0, 8)}:`, e);
+          }
+        })()
+      );
+    }
+  }
+  
+  await Promise.allSettled(closePromises);
+  console.log('✅ [GRACEFUL] Todas as sessões WhatsApp fechadas');
 }
 
 // =========================================================================
@@ -10136,228 +10210,20 @@ export async function connectAdminWhatsApp(adminId: string): Promise<void> {
           return;
         }
         
-        // Para m?dias (ex: comprovante) processar imediatamente.
-        // Para textos (inclusive v?rias mensagens em linhas separadas), acumular e responder uma vez.
-        // ?UDIOS: Tratar como TEXTO pois s?o transcritos - mesmas regras de acumula??o, delay, trigger
-        // IMAGENS: Processar imediatamente pois podem ser comprovantes de pagamento
-        const shouldAccumulate = !mediaType || mediaType === 'audio';
-        
-        if (shouldAccumulate) {
-          // ?udios e textos usam o sistema de acumula??o
-          // Isso garante: tempo de resposta, delay humanizado, verifica??o de trigger
-          await scheduleAdminAccumulatedResponse({
-            socket,
-            remoteJid: realRemoteJid,  // IMPORTANTE: Usar JID real para envio
-            contactNumber,
-            messageText,  // Para ?udios, j? ? o texto transcrito
-            conversationId: conversation?.id,
-          });
-          return;
-        }
-
-        // Para IMAGENS APENAS:
-        // - N?o acumular (processar imediatamente)
-        // - N?o verificar trigger (podem ser comprovantes)
-        console.log(`?? [ADMIN] M?dia ${mediaType} - processamento imediato (poss?vel comprovante)`);
-        
-        const response = await processAdminMessage(contactNumber, messageText, mediaType, mediaUrl, true);
-
-        if (response && response.text) {
-          const cfg = await getAdminAgentRuntimeConfig();
-          const typingDelay = randomBetween(cfg.typingDelayMinMs, cfg.typingDelayMaxMs);
-          await new Promise(resolve => setTimeout(resolve, typingDelay));
-
-          // V17: Enviar mensagem completa sem dividir (igual ao admin chat)
-          const fullResponseText = (response.text || "").trim();
-          if (fullResponseText) {
-            const sentMessage = await sendWithQueue('ADMIN_AGENT', `m?dia resposta completa`, async () => {
-              return await socket.sendMessage(realRemoteJid, { text: fullResponseText });  // IMPORTANTE: Usar JID real
-            });
-            trackAdminAgentMessageId((sentMessage as any)?.key?.id);
-          }
-          console.log(`? [ADMIN AGENT] Resposta enviada para ${contactNumber}`);
-          
-          // ?? Salvar resposta do agente no banco de dados
-          if (conversation?.id) {
-            try {
-              await storage.createAdminMessage({
-                conversationId: conversation.id,
-                messageId: `agent_media_${Date.now()}`,
-                fromMe: true,
-                text: response.text,
-                timestamp: new Date(),
-                status: "sent",
-                isFromAgent: true,
-              });
-              
-              await storage.updateAdminConversation(conversation.id, {
-                lastMessageText: response.text.substring(0, 255),
-                lastMessageTime: new Date(),
-              });
-              
-              console.log(`?? [ADMIN AGENT] Resposta (m?dia) salva na conversa ${conversation.id}`);
-            } catch (dbError) {
-              console.error(`? [ADMIN AGENT] Erro ao salvar resposta no banco:`, dbError);
-            }
-          }
-        }
-
-        if (response && response.actions?.notifyOwner) {
-          const ownerNumber = await getOwnerNotificationNumber();
-          const ownerJid = `${ownerNumber}@s.whatsapp.net`;
-
-          const notificationText = `?? *NOTIFICA??O DE PAGAMENTO*\n\n?? Cliente: ${contactNumber}\n? ${new Date().toLocaleString("pt-BR")}\n\n?? Verificar comprovante e liberar conta`;
-          // ??? ANTI-BLOQUEIO
-          await sendWithQueue('ADMIN_AGENT', 'notifica??o pagamento m?dia', async () => {
-            await socket.sendMessage(ownerJid, { text: notificationText });
-          });
-          console.log(`?? [ADMIN AGENT] Notifica??o enviada para ${ownerNumber}`);
-
-          if (mediaType === "image" && mediaUrl) {
-            try {
-              const base64Data = mediaUrl.split(",")[1];
-              const buffer = Buffer.from(base64Data, "base64");
-              // ??? ANTI-BLOQUEIO
-              await sendWithQueue('ADMIN_AGENT', 'comprovante imagem', async () => {
-                await socket.sendMessage(ownerJid, {
-                  image: buffer,
-                  caption: `?? Comprovante do cliente ${contactNumber}`,
-                });
-              });
-            } catch (err) {
-              console.error("[ADMIN AGENT] Erro ao encaminhar comprovante:", err);
-            }
-          }
-        }
-        
-        // ?? Enviar m?dias se houver (para handler de m?dia)
-        if (response && response.mediaActions && response.mediaActions.length > 0) {
-          console.log(`?? [ADMIN AGENT MEDIA] Enviando ${response.mediaActions.length} m?dia(s)...`);
-          console.log(`?? [ADMIN AGENT MEDIA] JID de destino: ${realRemoteJid}`);
-          
-          for (const action of response.mediaActions) {
-            if (action.mediaData) {
-              try {
-                const media = action.mediaData;
-                console.log(`?? [ADMIN AGENT MEDIA] ========================================`);
-                console.log(`?? [ADMIN AGENT MEDIA] Preparando envio de m?dia:`);
-                console.log(`   - Nome: ${media.name}`);
-                console.log(`   - Tipo: ${media.mediaType}`);
-                console.log(`   - MimeType: ${media.mimeType}`);
-                console.log(`   - URL: ${media.storageUrl}`);
-                
-                const mediaBuffer = await downloadMediaAsBuffer(media.storageUrl);
-                
-                if (mediaBuffer) {
-                  console.log(`?? [ADMIN AGENT MEDIA] Buffer baixado: ${mediaBuffer.length} bytes`);
-                  
-                  let sendResult: any;
-                  
-                  switch (media.mediaType) {
-                    case 'image':
-                      console.log(`?? [ADMIN AGENT MEDIA] Enviando como IMAGEM...`);
-                      // ??? ANTI-BLOQUEIO
-                      sendResult = await sendWithQueue('ADMIN_AGENT', 'm?dia handler imagem', async () => {
-                        return await socket.sendMessage(realRemoteJid, {
-                          image: mediaBuffer,
-                          caption: media.caption || undefined,
-                        });
-                      });
-                      break;
-                    case 'audio':
-                      console.log(`?? [ADMIN AGENT MEDIA] Enviando como ?UDIO PTT...`);
-                      // ??? ANTI-BLOQUEIO
-                      try {
-                        sendResult = await sendWithQueue('ADMIN_AGENT', 'm?dia handler ?udio', async () => {
-                          return await socket.sendMessage(realRemoteJid, {
-                            audio: mediaBuffer,
-                            mimetype: media.mimeType || 'audio/ogg; codecs=opus',
-                            ptt: true,
-                          });
-                        });
-                      } catch (audioErr: any) {
-                        console.log(`?? [ADMIN AGENT MEDIA] Erro ao enviar como PTT, tentando como audio normal...`);
-                        console.log(`   Erro: ${audioErr.message}`);
-                        // ??? ANTI-BLOQUEIO
-                        sendResult = await sendWithQueue('ADMIN_AGENT', 'm?dia handler ?udio fallback', async () => {
-                          return await socket.sendMessage(realRemoteJid, {
-                            audio: mediaBuffer,
-                            mimetype: 'audio/mpeg',
-                          });
-                        });
-                      }
-                      break;
-                    case 'video':
-                      console.log(`?? [ADMIN AGENT MEDIA] Enviando como V?DEO...`);
-                      // ??? ANTI-BLOQUEIO
-                      sendResult = await sendWithQueue('ADMIN_AGENT', 'm?dia handler v?deo', async () => {
-                        return await socket.sendMessage(realRemoteJid, {
-                          video: mediaBuffer,
-                          caption: media.caption || undefined,
-                        });
-                      });
-                      break;
-                    case 'document':
-                      console.log(`?? [ADMIN AGENT MEDIA] Enviando como DOCUMENTO...`);
-                      // ??? ANTI-BLOQUEIO
-                      sendResult = await sendWithQueue('ADMIN_AGENT', 'm?dia handler documento', async () => {
-                        return await socket.sendMessage(realRemoteJid, {
-                          document: mediaBuffer,
-                          fileName: media.fileName || media.name || 'document',
-                          mimetype: media.mimeType || 'application/octet-stream',
-                        });
-                      });
-                      break;
-                    default:
-                      console.log(`?? [ADMIN AGENT MEDIA] Tipo de m?dia n?o suportado: ${media.mediaType}`);
-                  }
-                  
-                  if (sendResult) {
-                    console.log(`? [ADMIN AGENT MEDIA] M?dia ${media.name} enviada com sucesso!`);
-                    console.log(`   - Message ID: ${sendResult.key?.id || 'N/A'}`);
-                    console.log(`   - Status: ${sendResult.status || 'N/A'}`);
-                  } else {
-                    console.log(`?? [ADMIN AGENT MEDIA] sendMessage retornou null/undefined para ${media.name}`);
-                  }
-                } else {
-                  console.log(`? [ADMIN AGENT MEDIA] Falha ao baixar m?dia: buffer vazio`);
-                }
-              } catch (mediaError: any) {
-                console.error(`? [ADMIN AGENT MEDIA] Erro ao enviar m?dia ${action.media_name}:`);
-                console.error(`   - Mensagem: ${mediaError.message}`);
-                console.error(`   - Stack: ${mediaError.stack?.substring(0, 300)}`);
-              }
-              await new Promise(r => setTimeout(r, 500));
-            } else {
-              console.log(`?? [ADMIN AGENT MEDIA] action.mediaData ? null para ${action.media_name}`);
-            }
-          }
-          console.log(`?? [ADMIN AGENT MEDIA] ========================================`);
-        }
-
-        // ?? Desconectar WhatsApp se solicitado (para handler de m?dia)
-        if (response && response.actions?.disconnectWhatsApp) {
-          try {
-            const { getClientSession } = await import("./adminAgentService");
-            const clientSession = getClientSession(contactNumber);
-            
-            if (clientSession?.userId) {
-              console.log(`?? [ADMIN AGENT MEDIA] Desconectando WhatsApp do usu?rio ${clientSession.userId}...`);
-              await disconnectWhatsApp(clientSession.userId);
-              // ??? ANTI-BLOQUEIO
-              await sendWithQueue('ADMIN_AGENT', 'desconex?o m?dia', async () => {
-                await socket.sendMessage(realRemoteJid, { text: "Pronto! ?? Seu WhatsApp foi desconectado. Quando quiser reconectar, ? s? me avisar!" });
-              });
-            } else {
-              // ??? ANTI-BLOQUEIO
-              await sendWithQueue('ADMIN_AGENT', 'desconex?o n?o encontrada m?dia', async () => {
-                await socket.sendMessage(realRemoteJid, { text: "N?o encontrei uma conex?o ativa para desconectar." });
-              });
-            }
-          } catch (disconnectError) {
-            console.error("? [ADMIN AGENT MEDIA] Erro ao desconectar WhatsApp:", disconnectError);
-          }
-        }
+        // V23f: TODOS os tipos de mensagem passam pelo sistema de acumulação.
+        // Texto, áudio (transcrito), imagem, vídeo, documento — tudo acumula.
+        // Isso garante que quando cliente manda texto + imagem + áudio rápido,
+        // o agente processa TUDO como UMA mensagem combinada.
+        await scheduleAdminAccumulatedResponse({
+          socket,
+          remoteJid: realRemoteJid,
+          contactNumber,
+          messageText,
+          conversationId: conversation?.id,
+          mediaType,
+          mediaUrl,
+        });
+        return;
         
       } catch (error) {
         console.error(`? [ADMIN AGENT] Erro ao processar mensagem:`, error);

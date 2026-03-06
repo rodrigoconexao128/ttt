@@ -10,7 +10,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import cors from "cors";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { restoreExistingSessions, restoreAdminSessions, restorePendingAITimers, startConnectionHealthCheck, startPendingTimersCron, startAutoRecoveryCron } from "./whatsapp";
+import { restoreExistingSessions, restoreAdminSessions, restorePendingAITimers, startConnectionHealthCheck, startPendingTimersCron, startAutoRecoveryCron, closeAllSessions } from "./whatsapp";
 import { startWhatsAppLeaderElection } from "./whatsappLeaderLock";
 import { followUpService } from "./followUpService";
 import { appointmentReminderService } from "./appointmentReminderService";
@@ -21,6 +21,7 @@ import { startDailySyncCron } from "./fullContactSyncService";
 import { startMediaCleanupService } from "./mediaCleanupService";
 import { startNotificationScheduler } from "./notificationSchedulerService";
 import { seedDatabase } from "./seed";
+import { closeDbPool } from "./db";
 import path from "path";
 import fs from "fs";
 
@@ -239,5 +240,34 @@ export async function startFullApp() {
         startNotificationScheduler();
       },
     });
+
+    // V23f: Graceful shutdown centralizado
+    // Ao receber SIGTERM (pm2 restart), fecha Baileys → DB → HTTP → sai
+    let shuttingDown = false;
+    const gracefulShutdown = async (signal: string) => {
+      if (shuttingDown) return;
+      shuttingDown = true;
+      console.log(`\n🛑 [GRACEFUL SHUTDOWN] Recebido ${signal}...`);
+      
+      try {
+        // 1. Parar de aceitar novas conexões HTTP
+        server.close(() => console.log('  ✅ HTTP server fechado'));
+        
+        // 2. Fechar todas as sessões WhatsApp/Baileys (mais importante!)
+        await closeAllSessions();
+        
+        // 3. Fechar pool de conexões DB
+        await closeDbPool();
+        
+        console.log('✅ [GRACEFUL SHUTDOWN] Tudo fechado. Saindo...');
+      } catch (err) {
+        console.error('❌ [GRACEFUL SHUTDOWN] Erro:', err);
+      }
+      
+      process.exit(0);
+    };
+    
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
   });
 }

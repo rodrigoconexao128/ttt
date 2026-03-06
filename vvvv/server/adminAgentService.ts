@@ -9545,6 +9545,54 @@ export async function processAdminMessage(
       summary,
     };
 
+    // V23f: Sempre persistir pendingMedia na sessão para que fique disponível
+    // quando a próxima mensagem de texto chegar com instruções de salvamento
+    updateClientSession(cleanPhone, { pendingMedia });
+
+    // V23f: AUTO-SAVE — Se o texto acumulado contém instrução de salvamento
+    // (ex: "insira esta imagem quando o cliente querer saber mais"), 
+    // salvar diretamente na media library SEM esperar confirmação.
+    const saveIntentRegex = /\b(insir[aeo]|coloque?|use|adicione|salve?|cadastr[aeo]|bote?|mand[aeo]r?\s+essa?\s+(imagem|foto|midia)|quando\s+o\s+cliente)\b/i;
+    const combinedUserText = (messageText || '').replace(/^\[IMAGEM ANALISADA:.*?\]\s*/i, '').trim();
+    const hasSaveIntent = saveIntentRegex.test(combinedUserText);
+    
+    if (hasSaveIntent && session.userId) {
+      // Extrair "quando usar" do texto do usuário
+      const whenMatch = combinedUserText.match(/quando\s+(?:o\s+cliente\s+)?(.+?)(?:\.|$)/i);
+      const whenToUse = whenMatch ? whenMatch[1].trim() : combinedUserText.substring(0, 100);
+      const mediaName = (summary || 'IMAGEM').toUpperCase().replace(/\s+/g, '_').substring(0, 30) + `_${Date.now()}`;
+      
+      try {
+        const savedMedia = await insertAgentMedia({
+          userId: session.userId,
+          name: mediaName,
+          mediaType: 'image',
+          storageUrl: mediaUrl,
+          description: description || 'Imagem enviada pelo cliente via WhatsApp',
+          whenToUse,
+          isActive: true,
+          sendAlone: false,
+          displayOrder: 0,
+        });
+        
+        if (savedMedia) {
+          console.log(`✅ [MEDIA-AUTOSAVE] Mídia "${savedMedia.name}" salva para userId ${session.userId} (intent detectado)`);
+          updateClientSession(cleanPhone, { pendingMedia: undefined });
+          
+          // Responder confirmando que a mídia foi salva
+          const confirmText = `Pronto! ✅ Salvei essa imagem na biblioteca de mídias do seu agente.\n\n📋 *Nome:* ${savedMedia.name}\n🎯 *Quando usar:* ${whenToUse}\n\nSeu agente vai enviar essa imagem automaticamente quando o cliente ${whenToUse}.\n\nQuer ajustar algo? Pode me dizer outro momento para usar essa imagem.`;
+          addToConversationHistory(cleanPhone, "user", `${messageText}\n[SISTEMA: Usuário enviou imagem com instrução de salvamento]`);
+          addToConversationHistory(cleanPhone, "assistant", confirmText);
+          return {
+            text: confirmText,
+            actions: {},
+          };
+        }
+      } catch (err) {
+        console.error(`❌ [MEDIA-AUTOSAVE] Erro ao salvar mídia:`, err);
+      }
+    }
+
     // V18: Para conversas de venda (pre-sale), a imagem é entendida no contexto
     // da conversa e a IA responde naturalmente sobre o que viu.
     // Só entra no fluxo de registro de mídia se o cliente já está ativo (configurando agente).
@@ -10414,40 +10462,8 @@ export async function processAdminMessage(
   // V23: Remover emojis/emoticons que o LLM insiste em usar
   finalText = finalText.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{200D}\u{20E3}\u{E0020}-\u{E007F}✅❌⭐🌟💡🔥✨📌📍🎯💰🏆🎉🎊👉👈👆👇💪🤝🙌👏🔹🔸▶️◀️➡️⬅️⬆️⬇️☑️✔️❗❓‼️⁉️🔔🔊📢📣💬💭🗨️📱💻📧📩📲🔗📊📈📉🏪🏢🏠🛒🛍️💳💵💲🔒🔓🔑⚡⚙️🔧🛠️📋📝📄📃🗂️📂📁🗃️🗄️🗑️🗓️📅📆🕐🕑🕒🕓🕔🕕🕖🕗🕘🕙🕚🕛]/gu, '').replace(/\s{2,}/g, ' ').trim();
   
-  // V23c: Se o LLM nao usou [BOLHA] e texto > 400 chars, fazer segunda chamada LLM para dividir em bolhas
-  // Isso garante que a IA entende o contexto e divide de forma inteligente (nao regex)
-  if (!finalText.includes('[BOLHA]') && finalText.length > 400) {
-    try {
-      console.log(`🔄 [V23c] Texto sem [BOLHA] (${finalText.length} chars) - chamando LLM para dividir em bolhas...`);
-      const configuredModel = await getConfiguredModel();
-      const splitMistralClient = await getLLMClient();
-      const splitResponse = await Promise.race([
-        splitMistralClient.chat.complete({
-          model: configuredModel,
-          messages: [
-            { role: "system", content: "Voce e um formatador de texto. Sua UNICA tarefa: receber um texto e devolver o MESMO texto dividido em NO MAXIMO 2 ou 3 partes usando [BOLHA] como separador. Regras: 1) Cada parte deve ter no maximo 400 caracteres. 2) Divida em NO MAXIMO 2-3 partes. 3) NAO mude nenhuma palavra do texto original. 4) NAO adicione nada novo. 5) Apenas insira [BOLHA] nos pontos de divisao. 6) ZERO emojis." },
-            { role: "user", content: `Divida este texto em NO MAXIMO 2-3 partes de ate 400 caracteres usando [BOLHA] como separador. NAO mude NENHUMA palavra, apenas insira [BOLHA] nos pontos de divisao:\n\n${finalText}` }
-          ],
-          maxTokens: 600,
-          temperature: 0.0,
-          randomSeed: 42,
-        }),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("SPLIT_LLM_TIMEOUT")), 15000),
-        ),
-      ]);
-      const splitText = splitResponse.choices?.[0]?.message?.content;
-      if (splitText && typeof splitText === 'string' && splitText.includes('[BOLHA]')) {
-        // Limpar emojis do resultado tambem
-        finalText = splitText.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F1E0}-\u{1F1FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{200D}\u{20E3}\u{E0020}-\u{E007F}✅❌⭐🌟💡🔥✨📌📍🎯💰🏆🎉🎊👉👈👆👇💪🤝🙌👏🔹🔸▶️◀️➡️⬅️⬆️⬇️☑️✔️❗❓‼️⁉️🔔🔊📢📣💬💭🗨️📱💻📧📩📲🔗📊📈📉🏪🏢🏠🛒🛍️💳💵💲🔒🔓🔑⚡⚙️🔧🛠️📋📝📄📃🗂️📂📁🗃️🗄️🗑️🗓️📅📆🕐🕑🕒🕓🕔🕕🕖🕗🕘🕙🕚🕛]/gu, '').replace(/\s{2,}/g, ' ').trim();
-        console.log(`[V23c] LLM dividiu texto em bolhas com sucesso!`);
-      } else {
-        console.log(`[V23c] LLM de split nao retornou [BOLHA] - mantendo texto original`);
-      }
-    } catch (splitErr: any) {
-      console.log(`[V23c] Falha no LLM de split: ${splitErr?.message || splitErr} - mantendo texto original`);
-    }
-  }
+  // V23g: A IA já deve usar [BOLHA] no prompt - NÃO fazer segunda chamada LLM
+  // Se a IA não usou [BOLHA], respeitar a decisão da IA e enviar como mensagem única
   
   if (finalText.includes('[BOLHA]')) {
     splitMessages = finalText

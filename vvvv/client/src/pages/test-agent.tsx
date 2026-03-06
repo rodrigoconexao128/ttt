@@ -22,6 +22,7 @@ interface Message {
   status: 'sending' | 'sent' | 'delivered' | 'read';
   mediaUrl?: string;
   mediaType?: 'image' | 'video' | 'audio' | 'document';
+  mediaName?: string; // V23g: nome da mídia para dedup
 }
 
 export default function TestAgent() {
@@ -117,17 +118,24 @@ export default function TestAgent() {
   // Mutation para enviar mensagem
   const sendMessageMutation = useMutation({
     mutationFn: async (text: string) => {
+      // V23g: Rastrear mídias já enviadas para evitar repetição
+      const alreadySentMedias = messages
+        .filter(m => !m.fromMe && m.mediaName)
+        .map(m => m.mediaName!)
+        .filter(Boolean);
+
       const res = await fetch("/api/test-agent/message", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           message: text,
           token: token || "demo",
-          userId: userId, // Enviar userId para usar o agente do cliente
+          userId: userId,
           history: messages.slice(-10).map(m => ({
             role: m.fromMe ? "user" : "assistant",
             content: m.text
-          }))
+          })),
+          sentMedias: alreadySentMedias,
         }),
       });
       if (!res.ok) throw new Error("Erro ao enviar");
@@ -145,9 +153,10 @@ export default function TestAgent() {
           if (action.type === 'send_media' && action.media_url) {
             newMessages.push({
               id: `msg_media_${Date.now()}_${Math.random()}`,
-              text: '', // Não exibir caption/description - apenas a imagem
+              text: '',
               mediaUrl: action.media_url,
               mediaType: action.media_type || 'image',
+              mediaName: action.media_name || '', // V23g: guardar nome para dedup
               fromMe: false,
               timestamp: new Date(),
               status: 'read',
@@ -159,6 +168,7 @@ export default function TestAgent() {
               text: '',
               mediaUrl: action.media_url,
               mediaType: action.media_type || 'image',
+              mediaName: action.media_name || '',
               fromMe: false,
               timestamp: new Date(),
               status: 'read',
