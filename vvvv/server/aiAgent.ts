@@ -2830,11 +2830,11 @@ export async function generateAIResponse(
   💬 ESTILO DE COMUNICAÇÃO - MENSAGENS CURTAS E NATURAIS:
   - Responda SEMPRE de forma BREVE: no máximo 2-3 frases por bloco.
   - Fale como uma pessoa real no WhatsApp: direto, casual, sem textão.
-  - Use [BOLHA] para separar partes lógicas da resposta (funciona como "bolhas" de mensagem).
-  - Máximo 2-3 blocos separados por [BOLHA].
-  - LIMITE MÁXIMO: cada bloco deve ter NO MÁXIMO 400 caracteres (2-3 frases curtas).
-  - Exemplo: "Olá! Tudo bem? 😊[BOLHA]Aqui é o João da Bicicletaria![BOLHA]Como posso te ajudar?"
-  - PROIBIDO mensagens longas com mais de 4 frases seguidas sem [BOLHA].
+  - SO use [BOLHA] quando a resposta TOTAL ultrapassar 400 caracteres. Se a resposta inteira couber em 400 chars, NAO use [BOLHA].
+  - Quando precisar dividir, cada bolha deve ter NO MAXIMO 400 caracteres.
+  - Máximo 2-3 blocos separados por [BOLHA]. Nao fragmente demais.
+  - Exemplo SEM bolha (curto): "Olá! Tudo bem? Aqui é o João da Bicicletaria! Como posso te ajudar?"
+  - Exemplo COM bolha (longo): "Temos vários modelos de bicicleta disponíveis, desde urbanas até mountain bike. Todas com garantia de 1 ano.[BOLHA]Me conta o que você precisa que te indico o modelo ideal!"
   - NÃO faça listas numeradas longas. Resuma em frases curtas e diretas.
   `;
 

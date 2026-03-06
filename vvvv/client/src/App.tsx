@@ -38,9 +38,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/lib/supabase";
 
 /**
- * V17: Auto-login via URL params
- * URL format: /plans?al=base64(email:password)
- * Decodes credentials and signs in via Supabase, then removes the param from URL
+ * V23h: Auto-login via URL params
+ * Supports two formats:
+ * 1. ?al=base64(email:password) — legacy V17 format
+ * 2. ?token=UUID — V23+ token-based auto-login via /api/autologin/:token
  */
 function useAutoLogin() {
   const [autoLoginDone, setAutoLoginDone] = useState(false);
@@ -50,13 +51,47 @@ function useAutoLogin() {
     const doAutoLogin = async () => {
       try {
         const params = new URLSearchParams(window.location.search);
+
+        // V23h: Token-based auto-login (priority)
+        const tokenParam = params.get("token");
+        if (tokenParam) {
+          console.log("[AUTO-LOGIN] Token detectado, chamando /api/autologin...");
+          try {
+            const resp = await fetch(`/api/autologin/${encodeURIComponent(tokenParam)}`);
+            if (resp.ok) {
+              const { access_token, refresh_token } = await resp.json();
+              if (access_token && refresh_token) {
+                const { error } = await supabase.auth.setSession({ access_token, refresh_token });
+                if (error) {
+                  console.error("[AUTO-LOGIN] Erro ao setar sessão:", error.message);
+                } else {
+                  console.log("[AUTO-LOGIN] Login via token realizado com sucesso!");
+                  await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
+                }
+              }
+            } else {
+              console.error("[AUTO-LOGIN] Token inválido ou expirado:", resp.status);
+            }
+          } catch (tokenErr) {
+            console.error("[AUTO-LOGIN] Erro no login via token:", tokenErr);
+          }
+
+          // Remove token param from URL
+          params.delete("token");
+          const remaining = params.toString();
+          const cleanPath = window.location.pathname + (remaining ? `?${remaining}` : "") + window.location.hash;
+          window.history.replaceState({}, "", cleanPath);
+          setAutoLoginDone(true);
+          return;
+        }
+
+        // Legacy: ?al=base64(email:password)
         const alParam = params.get("al");
         if (!alParam) {
           setAutoLoginDone(true);
           return;
         }
 
-        // Decode base64 credentials
         const decoded = atob(alParam);
         const colonIdx = decoded.indexOf(":");
         if (colonIdx < 1) {
@@ -69,18 +104,15 @@ function useAutoLogin() {
 
         console.log("[AUTO-LOGIN] Tentando login automático para:", email);
 
-        // Sign in via Supabase
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
         if (error) {
           console.error("[AUTO-LOGIN] Erro:", error.message);
         } else if (data.session) {
           console.log("[AUTO-LOGIN] Login automático realizado com sucesso!");
-          // Invalidate user cache so auth state updates
           await queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
         }
 
-        // Remove al param from URL (keep other params and hash)
         params.delete("al");
         const remaining = params.toString();
         const cleanPath = window.location.pathname + (remaining ? `?${remaining}` : "") + window.location.hash;

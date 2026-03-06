@@ -44,42 +44,95 @@ export function registerAutologinRoutes(app: Express): void {
         console.warn('[Autologin] Falha ao limpar tokens expirados:', e);
       }
 
-      // Create a Supabase session via the GoTrue Admin REST endpoint.
-      // The JS SDK (installed version) does not expose admin.createSession, so we
-      // call the underlying HTTP endpoint directly with the service-role key.
       if (!supabaseUrl || !supabaseServiceKey) {
         console.error('[Autologin] SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY não configurados');
         return res.status(500).json({ error: 'Configuração de autenticação ausente' });
       }
 
-      const tokenEndpoint = `${supabaseUrl}/auth/v1/admin/users/${encodeURIComponent(userId)}/token`;
-      let supabaseRes: globalThis.Response;
+      // V23h: 2-step approach using Supabase Admin API
+      // Step 1: Get user email from auth.users
+      const userResult = await pool.query(
+        'SELECT email FROM auth.users WHERE id = $1',
+        [userId]
+      );
+      if (!userResult.rows || userResult.rows.length === 0) {
+        console.error(`[Autologin] Usuário ${userId} não encontrado em auth.users`);
+        return res.status(404).json({ error: 'Usuário não encontrado' });
+      }
+      const userEmail = userResult.rows[0].email as string;
+
+      // Step 2: Generate a magic link via Admin API (returns hashed_token)
+      const generateLinkEndpoint = `${supabaseUrl}/auth/v1/admin/generate_link`;
+      let generateRes: globalThis.Response;
       try {
-        supabaseRes = await fetch(tokenEndpoint, {
+        generateRes = await fetch(generateLinkEndpoint, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${supabaseServiceKey}`,
             'apikey': supabaseServiceKey,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({}),
+          body: JSON.stringify({
+            type: 'magiclink',
+            email: userEmail,
+          }),
         });
       } catch (fetchErr: any) {
-        console.error('[Autologin] Erro de rede ao chamar Supabase:', fetchErr);
+        console.error('[Autologin] Erro de rede ao gerar link:', fetchErr);
         return res.status(500).json({ error: 'Erro ao criar sessão' });
       }
 
-      if (!supabaseRes.ok) {
-        const body = await supabaseRes.text().catch(() => '');
-        console.error(`[Autologin] Supabase retornou ${supabaseRes.status}:`, body);
+      if (!generateRes.ok) {
+        const body = await generateRes.text().catch(() => '');
+        console.error(`[Autologin] generate_link retornou ${generateRes.status}:`, body);
+        return res.status(500).json({ error: 'Erro ao criar sessão' });
+      }
+
+      let linkData: any;
+      try {
+        linkData = await generateRes.json();
+      } catch (parseErr) {
+        console.error('[Autologin] Resposta do generate_link não é JSON válido');
+        return res.status(500).json({ error: 'Erro ao criar sessão' });
+      }
+
+      const hashedToken = linkData?.properties?.hashed_token || linkData?.hashed_token;
+      if (!hashedToken) {
+        console.error('[Autologin] generate_link sem hashed_token:', JSON.stringify(linkData).substring(0, 200));
+        return res.status(500).json({ error: 'Erro ao criar sessão' });
+      }
+
+      // Step 3: Verify the token to get access_token + refresh_token
+      const verifyEndpoint = `${supabaseUrl}/auth/v1/verify`;
+      let verifyRes: globalThis.Response;
+      try {
+        verifyRes = await fetch(verifyEndpoint, {
+          method: 'POST',
+          headers: {
+            'apikey': supabaseServiceKey,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            token_hash: hashedToken,
+            type: 'magiclink',
+          }),
+        });
+      } catch (fetchErr: any) {
+        console.error('[Autologin] Erro de rede ao verificar token:', fetchErr);
+        return res.status(500).json({ error: 'Erro ao criar sessão' });
+      }
+
+      if (!verifyRes.ok) {
+        const body = await verifyRes.text().catch(() => '');
+        console.error(`[Autologin] verify retornou ${verifyRes.status}:`, body);
         return res.status(500).json({ error: 'Erro ao criar sessão' });
       }
 
       let sessionData: any;
       try {
-        sessionData = await supabaseRes.json();
+        sessionData = await verifyRes.json();
       } catch (parseErr) {
-        console.error('[Autologin] Resposta do Supabase não é JSON válido');
+        console.error('[Autologin] Resposta do verify não é JSON válido');
         return res.status(500).json({ error: 'Erro ao criar sessão' });
       }
 
@@ -87,7 +140,7 @@ export function registerAutologinRoutes(app: Express): void {
       const refresh_token: string | undefined = sessionData?.refresh_token;
 
       if (!access_token || !refresh_token) {
-        console.error('[Autologin] Resposta do Supabase sem tokens esperados:', sessionData);
+        console.error('[Autologin] Resposta do verify sem tokens esperados:', JSON.stringify(sessionData).substring(0, 200));
         return res.status(500).json({ error: 'Erro ao criar sessão' });
       }
 

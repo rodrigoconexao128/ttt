@@ -16345,44 +16345,22 @@ Responda APENAS com o JSON, sem texto adicional.`;
 
 
 
-      // V22: Dividir resposta por [BOLHA] da IA (splitting inteligente)
+      // V23h: Dividir resposta SOMENTE por [BOLHA] - a IA decide quando dividir (sem fallback auto-split)
       const responseText = testResult.text || "";
       let splitMessages: string[];
       
       if (responseText.includes('[BOLHA]')) {
-        // IA decidiu onde dividir - usar marcadores [BOLHA]
         splitMessages = responseText
           .split(/\[BOLHA\]/gi)
           .map((s: string) => s.trim())
           .filter((s: string) => s.length > 0);
         console.log(`📱 [SIMULADOR] IA dividiu em ${splitMessages.length} bolhas via [BOLHA]`);
-      } else if (responseText.length > 400) {
-        // V23: Fallback auto-split por frases/newlines se > 400 chars
-        const segments = responseText.split(/(?<=[.!?\n])\s*/);
-        const bubbles: string[] = [];
-        let current = '';
-        for (const seg of segments) {
-          const trimSeg = seg.trim();
-          if (!trimSeg) continue;
-          if (current && (current + ' ' + trimSeg).length > 350) {
-            bubbles.push(current.trim());
-            current = trimSeg;
-          } else {
-            current = current ? current + ' ' + trimSeg : trimSeg;
-          }
-        }
-        if (current.trim()) bubbles.push(current.trim());
-        splitMessages = bubbles.length > 1 ? bubbles : [responseText];
-        if (splitMessages.length > 1) {
-          console.log(`📱 [V23] Auto-split fallback: ${splitMessages.length} bolhas`);
-        }
       } else {
-        // Sem marcadores - enviar como mensagem única
         splitMessages = [responseText];
       }
 
       res.json({
-        response: splitMessages.join('\n\n'), // Texto limpo sem [BOLHA] para backward compat
+        response: splitMessages.join('\n\n'),
         splitResponses: splitMessages,
         mediaActions
       });
